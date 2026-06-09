@@ -1,0 +1,42 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import url('https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,300,400&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --color-primary: #00D9A3;
+  --color-primary-dark: #00b386;
+  --color-secondary: #00BCD4;
+  --color-accent: #4F46E5;
+  --color-teal: #14B8A6;
+  --color-purple: #7C3AED;
+  --color-orange: #FF9500;
+  --color-charcoal: #1F2937;
+  --color-background-start: #e0fcf5;
+  --color-background-mid: #e0f7fa;
+  --color-background-end: #ffffff;
+  --font-heading: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Satoshi', sans-serif;
+}
+
+body {
+  @apply bg-white text-charcoal;
+  font-family: var(--font-body);
+  overflow-x: hidden;
+}
+
+/* Glassmorphism Utilities */
+.glass {
+  @apply bg-white/70 backdrop-blur-md border border-white/40 shadow-sm;
+}
+
+.glass-dark {
+  @apply bg-slate-900/80 backdrop-blur-lg border border-slate-700/50 shadow-xl;
+}
+
+.text-gradient {
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary;
+}
+
+.bg-gradient-premium {
+  @apply bg-gradient-to-br from-background-start via-background-mid to-background-end;
+}
