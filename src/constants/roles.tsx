@@ -5,7 +5,6 @@ import {
   Truck,
   ShoppingBag,
   UserCheck,
-  MapPin,
 } from 'lucide-react';
 
 export const ROLE_SUPER_ADMIN = 'SUPER_ADMIN';
@@ -14,9 +13,7 @@ export const ROLE_ACCOUNTANT = 'ACCOUNTANT';
 export const ROLE_DISTRIBUTOR = 'DISTRIBUTOR';
 export const ROLE_RETAILER = 'RETAILER';
 export const ROLE_MEDICAL_REPRESENTATIVE = 'MEDICAL_REPRESENTATIVE';
-
-
-
+export const ROLE_TRANSPORT_STAFF = 'TRANSPORT_STAFF';
 export interface Role {
   id: string;
   title: string;
@@ -147,5 +144,23 @@ export const ROLES: Role[] = [
       'Performance Analytics',
     ],
   },
-  
+  {
+    id: ROLE_TRANSPORT_STAFF,
+    title: 'Transport Staff',
+    description: 'Dispatch, challans & deliveries.',
+    Icon: Truck,
+    gradFrom: '#F43F5E',
+    gradTo: '#E11D48',
+    accentHex: '#E11D48',
+    skeletonBar: 'bg-rose-100',
+    skeletonBarLight: 'bg-rose-50',
+    userName: 'Vikram Singh',
+    userEmail: 'transport@pharmaerp.com',
+    capabilities: [
+      'Delivery Tracking',
+      'Vehicle Routing',
+      'Proof of Delivery',
+      'Fleet Management',
+    ],
+  },
 ];

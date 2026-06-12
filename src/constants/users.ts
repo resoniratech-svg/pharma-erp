@@ -5,7 +5,6 @@ import {
   ROLE_DISTRIBUTOR,
   ROLE_RETAILER,
   ROLE_MEDICAL_REPRESENTATIVE,
-  ROLE_TRANSPORT_STAFF,
 } from './roles';
 
 export interface UserRecord {
@@ -80,15 +79,5 @@ export const USERS: UserRecord[] = [
     employeeCode: 'MR-1120',
     department: 'Sales & Marketing',
     roleId: ROLE_MEDICAL_REPRESENTATIVE,
-  },
-  {
-    id: 'usr_007',
-    fullName: 'Vikram Singh',
-    email: 'transport@pharmaerp.com',
-    password: '1234',
-    mobile: '+91 90000 00007',
-    employeeCode: 'TRP-304',
-    department: 'Logistics',
-    roleId: ROLE_TRANSPORT_STAFF,
   },
 ];

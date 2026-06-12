@@ -49,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: Shield,
     subItems: [
       { label: 'Role Based Access', path: '/workspace/super-admin/role-based-access' },
+      { label: 'Admin Management', path: '/workspace/super-admin/admin-management' },
       { label: 'All India Sales Dashboard', path: '/workspace/super-admin/all-india-sales' },
       { label: 'State Performance Reports', path: '/workspace/super-admin/state-performance' },
       { label: 'Product Profitability Reports', path: '/workspace/super-admin/product-profitability' },

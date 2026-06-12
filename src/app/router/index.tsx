@@ -134,6 +134,7 @@ import SystemSettings from '../../modules/settings/SystemSettings';
 
 // Super Admin Module
 import RoleBasedAccess from '../../modules/super-admin/RoleBasedAccess';
+import AdminManagement from '../../modules/super-admin/AdminManagement';
 import AllIndiaSales from '../../modules/super-admin/AllIndiaSales';
 import StatePerformance from '../../modules/super-admin/StatePerformance';
 import ProductProfitability from '../../modules/super-admin/ProductProfitability';
@@ -182,6 +183,7 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute moduleLabel="Super Admin" />,
         children: [
           { path: 'role-based-access', element: <RoleBasedAccess /> },
+          { path: 'admin-management', element: <AdminManagement /> },
           { path: 'all-india-sales', element: <AllIndiaSales /> },
           { path: 'state-performance', element: <StatePerformance /> },
           { path: 'product-profitability', element: <ProductProfitability /> },

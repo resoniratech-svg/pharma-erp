@@ -175,7 +175,7 @@ export default function RoleBasedAccess() {
           <h3 className="font-semibold text-slate-800 mb-3 px-2">
             Role Management
           </h3>
-          {roles.map((role, idx) => (
+          {roles.map((role) => (
             <div
               key={role.name}
               onClick={() => setSelectedRole(role.name)}
