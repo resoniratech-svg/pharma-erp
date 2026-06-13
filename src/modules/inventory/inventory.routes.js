@@ -9,56 +9,56 @@ const checkFeature =
   require("../../middlewares/checkFeature");
 
 const {
-  createProduct,
-  getProducts,
-  getProductById,
-  updateProduct,
-  deleteProduct,
-} = require("./product.controller");
+  createInventory,
+  getInventories,
+  getInventoryById,
+  updateInventory,
+  deleteInventory,
+} = require("./inventory.controller");
 
 router.post(
   "/",
   authMiddleware,
   checkFeature(
-    "Product Master Management"
+    "Inventory Management"
   ),
-  createProduct
+  createInventory
 );
 
 router.get(
   "/",
   authMiddleware,
   checkFeature(
-    "Product Master Management"
+    "Inventory Management"
   ),
-  getProducts
+  getInventories
 );
 
 router.get(
   "/:id",
   authMiddleware,
   checkFeature(
-    "Product Master Management"
+    "Inventory Management"
   ),
-  getProductById
+  getInventoryById
 );
 
 router.put(
   "/:id",
   authMiddleware,
   checkFeature(
-    "Product Master Management"
+    "Inventory Management"
   ),
-  updateProduct
+  updateInventory
 );
 
 router.delete(
   "/:id",
   authMiddleware,
   checkFeature(
-    "Product Master Management"
+    "Inventory Management"
   ),
-  deleteProduct
+  deleteInventory
 );
 
 module.exports = router;

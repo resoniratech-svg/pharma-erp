@@ -1,6 +1,7 @@
 const {
   registerUser,
   loginUser,
+  getCurrentUser,
 } = require("./auth.service");
 
 const register = async (req, res) => {
@@ -40,7 +41,26 @@ const login = async (req, res) => {
   }
 };
 
+const me = async (req, res) => {
+  try {
+    const user = await getCurrentUser(
+      req.user.id
+    );
+
+    res.status(200).json({
+      success: true,
+      data: user,
+    });
+  } catch (error) {
+    res.status(404).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
+  me,
 };

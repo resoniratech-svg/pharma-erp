@@ -54,18 +54,19 @@ const loginUser = async (
     throw new Error("Invalid credentials");
   }
 
-  const token = jwt.sign(
-    {
-      id: user.id,
-      role: user.role,
-      email: user.email,
-    },
-    process.env.JWT_SECRET,
-    {
-      expiresIn:
-        process.env.JWT_EXPIRES_IN || "7d",
-    }
-  );
+ const token = jwt.sign(
+  {
+    id: user.id,
+    role: user.role,
+    email: user.email,
+    companyId: user.companyId,
+  },
+  process.env.JWT_SECRET,
+  {
+    expiresIn:
+      process.env.JWT_EXPIRES_IN || "7d",
+  }
+);
 
   return {
     token,
@@ -78,7 +79,30 @@ const loginUser = async (
   };
 };
 
+const getCurrentUser = async (userId) => {
+  const user = await prisma.user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error("User not found");
+  }
+
+  return user;
+};
+
 module.exports = {
   registerUser,
   loginUser,
+  getCurrentUser,
 };

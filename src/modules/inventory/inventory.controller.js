@@ -1,21 +1,21 @@
-const productService = require(
-  "./product.service"
+const inventoryService = require(
+  "./inventory.service"
 );
 
-const createProduct = async (
+const createInventory = async (
   req,
   res
 ) => {
   try {
 
-    const product =
-      await productService.createProductService(
+    const result =
+      await inventoryService.createInventoryService(
         req.body
       );
 
     res.status(201).json({
       success: true,
-      data: product,
+      data: result,
     });
 
   } catch (error) {
@@ -28,18 +28,18 @@ const createProduct = async (
   }
 };
 
-const getProducts = async (
+const getInventories = async (
   req,
   res
 ) => {
   try {
 
-    const products =
-      await productService.getProductsService();
+    const result =
+      await inventoryService.getInventoriesService();
 
     res.status(200).json({
       success: true,
-      data: products,
+      data: result,
     });
 
   } catch (error) {
@@ -52,27 +52,28 @@ const getProducts = async (
   }
 };
 
-const getProductById = async (
+const getInventoryById = async (
   req,
   res
 ) => {
   try {
 
-    const product =
-      await productService.getProductById(
+    const result =
+      await inventoryService.getInventoryById(
         Number(req.params.id)
       );
 
-    if (!product) {
+    if (!result) {
       return res.status(404).json({
         success: false,
-        message: "Product not found",
+        message:
+          "Inventory not found",
       });
     }
 
     res.status(200).json({
       success: true,
-      data: product,
+      data: result,
     });
 
   } catch (error) {
@@ -85,21 +86,21 @@ const getProductById = async (
   }
 };
 
-const updateProduct = async (
+const updateInventory = async (
   req,
   res
 ) => {
   try {
 
-    const product =
-      await productService.updateProduct(
+    const result =
+      await inventoryService.updateInventory(
         Number(req.params.id),
         req.body
       );
 
     res.status(200).json({
       success: true,
-      data: product,
+      data: result,
     });
 
   } catch (error) {
@@ -112,32 +113,20 @@ const updateProduct = async (
   }
 };
 
-const deleteProduct = async (
+const deleteInventory = async (
   req,
   res
 ) => {
   try {
 
-    const product =
-      await productService.getProductById(
-        Number(req.params.id)
-      );
-
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found",
-      });
-    }
-
-    await productService.deleteProduct(
+    await inventoryService.deleteInventory(
       Number(req.params.id)
     );
 
     res.status(200).json({
       success: true,
       message:
-        "Product deleted successfully",
+        "Inventory deleted successfully",
     });
 
   } catch (error) {
@@ -151,9 +140,9 @@ const deleteProduct = async (
 };
 
 module.exports = {
-  createProduct,
-  getProducts,
-  getProductById,
-  updateProduct,
-  deleteProduct,
+  createInventory,
+  getInventories,
+  getInventoryById,
+  updateInventory,
+  deleteInventory,
 };

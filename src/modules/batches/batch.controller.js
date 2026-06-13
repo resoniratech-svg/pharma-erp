@@ -1,21 +1,31 @@
-const productService = require(
-  "./product.service"
+const batchService = require(
+  "./batch.service"
 );
 
-const createProduct = async (
+const createBatch = async (
   req,
   res
 ) => {
   try {
 
-    const product =
-      await productService.createProductService(
-        req.body
-      );
+    const payload = {
+  ...req.body,
+  manufacturingDate: new Date(
+    req.body.manufacturingDate
+  ),
+  expiryDate: new Date(
+    req.body.expiryDate
+  ),
+};
+
+const result =
+  await batchService.createBatchService(
+    payload
+  );
 
     res.status(201).json({
       success: true,
-      data: product,
+      data: result,
     });
 
   } catch (error) {
@@ -28,18 +38,18 @@ const createProduct = async (
   }
 };
 
-const getProducts = async (
+const getBatches = async (
   req,
   res
 ) => {
   try {
 
-    const products =
-      await productService.getProductsService();
+    const result =
+      await batchService.getBatchesService();
 
     res.status(200).json({
       success: true,
-      data: products,
+      data: result,
     });
 
   } catch (error) {
@@ -52,27 +62,20 @@ const getProducts = async (
   }
 };
 
-const getProductById = async (
+const getBatchById = async (
   req,
   res
 ) => {
   try {
 
-    const product =
-      await productService.getProductById(
+    const result =
+      await batchService.getBatchById(
         Number(req.params.id)
       );
 
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found",
-      });
-    }
-
     res.status(200).json({
       success: true,
-      data: product,
+      data: result,
     });
 
   } catch (error) {
@@ -85,21 +88,21 @@ const getProductById = async (
   }
 };
 
-const updateProduct = async (
+const updateBatch = async (
   req,
   res
 ) => {
   try {
 
-    const product =
-      await productService.updateProduct(
+    const result =
+      await batchService.updateBatch(
         Number(req.params.id),
         req.body
       );
 
     res.status(200).json({
       success: true,
-      data: product,
+      data: result,
     });
 
   } catch (error) {
@@ -112,32 +115,20 @@ const updateProduct = async (
   }
 };
 
-const deleteProduct = async (
+const deleteBatch = async (
   req,
   res
 ) => {
   try {
 
-    const product =
-      await productService.getProductById(
-        Number(req.params.id)
-      );
-
-    if (!product) {
-      return res.status(404).json({
-        success: false,
-        message: "Product not found",
-      });
-    }
-
-    await productService.deleteProduct(
+    await batchService.deleteBatch(
       Number(req.params.id)
     );
 
     res.status(200).json({
       success: true,
       message:
-        "Product deleted successfully",
+        "Batch deleted successfully",
     });
 
   } catch (error) {
@@ -151,9 +142,9 @@ const deleteProduct = async (
 };
 
 module.exports = {
-  createProduct,
-  getProducts,
-  getProductById,
-  updateProduct,
-  deleteProduct,
+  createBatch,
+  getBatches,
+  getBatchById,
+  updateBatch,
+  deleteBatch,
 };

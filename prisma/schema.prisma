@@ -13,22 +13,205 @@ datasource db {
 }
 
 model User {
-  id          Int      @id @default(autoincrement())
-  name        String
-  email       String   @unique
-  password    String
-  role        Role     @default(ADMIN)
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id Int @id @default(autoincrement())
+
+  name     String
+  email    String @unique
+  password String
+
+  role Role
+
+  companyId Int?
+  company   Company? @relation(fields: [companyId], references: [id])
+
+  branchId Int?
+  branch   Branch? @relation(fields: [branchId], references: [id])
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 enum Role {
   SUPER_ADMIN
   ADMIN
+  WAREHOUSE_MANAGER
+  ACCOUNTANT
   DISTRIBUTOR
   RETAILER
-  MR
-  ACCOUNTANT
-  WAREHOUSE_MANAGER
+  MEDICAL_REPRESENTATIVE
+}
+
+model Company {
+  id Int @id @default(autoincrement())
+
+  name    String
+  email   String?
+  phone   String?
+  address String?
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  users    User[]
+  branches Branch[]
+
+  rolePermissions RolePermission[]
+
+  permissions CompanyFeaturePermission[]
+
+  products Product[]
+}
+
+model Branch {
+  id Int @id @default(autoincrement())
+
+  name String
+  code String?
+
+  address String?
+  city    String?
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+
+  users User[]
+
+  isActive Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Module {
+  id Int @id @default(autoincrement())
+
+  name        String  @unique
+  description String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  features Feature[]
+}
+
+model Feature {
+  id Int @id @default(autoincrement())
+
+  name        String
+  description String?
+
+  moduleId Int
+  module   Module @relation(fields: [moduleId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rolePermissions RolePermission[]
+
+  permissions CompanyFeaturePermission[]
+}
+
+model CompanyFeaturePermission {
+  id Int @id @default(autoincrement())
+
+  companyId Int
+  featureId Int
+
+  enabled Boolean @default(true)
+
+  company Company @relation(fields: [companyId], references: [id])
+  feature Feature @relation(fields: [featureId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, featureId])
+}
+
+model RolePermission {
+  id Int @id @default(autoincrement())
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+
+  role Role
+
+  featureId Int
+  feature   Feature @relation(fields: [featureId], references: [id])
+
+  createdAt DateTime @default(now())
+}
+
+model ProductCategory {
+  id          Int     @id @default(autoincrement())
+  name        String  @unique
+  description String?
+
+  products Product[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Product {
+  id Int @id @default(autoincrement())
+
+  name String
+  code String @unique
+
+  categoryId Int
+  category   ProductCategory @relation(fields: [categoryId], references: [id])
+
+  hsnCode String?
+  gst     Float?
+
+  mrp Float
+  ptr Float?
+  pts Float?
+  ptd Float?
+
+  companyId Int
+  company   Company @relation(fields: [companyId], references: [id])
+
+  batches Batch[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Batch {
+  id Int @id @default(autoincrement())
+
+  batchNumber String @unique
+
+  productId Int
+  product   Product @relation(fields: [productId], references: [id])
+
+  manufacturingDate DateTime
+  expiryDate        DateTime
+
+  quantity Int
+
+  inventories Inventory[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Inventory {
+  id Int @id @default(autoincrement())
+
+  batchId Int
+  batch   Batch @relation(fields: [batchId], references: [id])
+
+  warehouseName String
+
+  quantity Int
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
