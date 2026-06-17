@@ -1,5 +1,6 @@
-import { useState } from 'react';
-import { Download, Filter, ArrowRightLeft, Truck, CheckCircle2, Clock, MapPin, Package, Timer, Building2 } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { Download, Filter, ArrowRightLeft, Truck, CheckCircle2, Clock, Eye, MapPin, ChevronDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   PageHeader,
   FilterBar,
@@ -10,54 +11,232 @@ import {
   DataTable,
   Badge,
   SummaryCard,
+  Drawer,
+  DrawerField
 } from './components/shared';
-import { type Column } from './components/shared';
+import { type Column, type BadgeVariant } from './components/shared';
+
+interface TimelineEvent {
+  status: string;
+  date: string;
+  time?: string;
+}
 
 interface TransferItem {
   id: string;
   transferNo: string;
   transferDate: string;
   fromWarehouse: string;
+  fromManager: string;
+  fromContact: string;
   toWarehouse: string;
-  totalItems: number;
-  transferValue: string;
+  toManager: string;
+  toContact: string;
   vehicleNo: string;
-  currentStatus: 'Pending' | 'Approved' | 'In Transit' | 'Received' | 'Completed' | 'Cancelled';
-  expectedArrival: string;
+  driverName: string;
+  driverMobile: string;
+  totalItems: number;
+  totalQuantity: number;
+  transferValue: string;
+  currentStatus: 'Pending' | 'Approved' | 'Dispatched' | 'In Transit' | 'Received' | 'Completed' | 'Cancelled';
+  timeline: TimelineEvent[];
 }
 
 const mockData: TransferItem[] = [
-  { id: '1', transferNo: 'TRN-2024-001', transferDate: '24-Oct-2024', fromWarehouse: 'Central Hub (Mumbai)', toWarehouse: 'North Zone (Delhi)', totalItems: 1450, transferValue: '₹ 4.5 L', vehicleNo: 'MH-04-AB-1234', currentStatus: 'In Transit', expectedArrival: '26-Oct-2024' },
-  { id: '2', transferNo: 'TRN-2024-002', transferDate: '23-Oct-2024', fromWarehouse: 'South Zone (Chennai)', toWarehouse: 'Central Hub (Mumbai)', totalItems: 800, transferValue: '₹ 2.1 L', vehicleNo: 'TN-01-CD-5678', currentStatus: 'Completed', expectedArrival: '25-Oct-2024' },
-  { id: '3', transferNo: 'TRN-2024-003', transferDate: '25-Oct-2024', fromWarehouse: 'East Zone (Kolkata)', toWarehouse: 'North Zone (Delhi)', totalItems: 320, transferValue: '₹ 1.8 L', vehicleNo: '-', currentStatus: 'Pending', expectedArrival: '28-Oct-2024' },
-  { id: '4', transferNo: 'TRN-2024-004', transferDate: '24-Oct-2024', fromWarehouse: 'West Zone (Pune)', toWarehouse: 'Central Hub (Mumbai)', totalItems: 550, transferValue: '₹ 3.2 L', vehicleNo: 'MH-12-EF-9012', currentStatus: 'Approved', expectedArrival: '27-Oct-2024' },
+  { 
+    id: '1', 
+    transferNo: 'TRN-2024-001', 
+    transferDate: '24-Oct-2024', 
+    fromWarehouse: 'Central Hub (Mumbai)', 
+    fromManager: 'Rajesh Kumar',
+    fromContact: '+91 9876543210',
+    toWarehouse: 'North Zone (Delhi)', 
+    toManager: 'Amit Singh',
+    toContact: '+91 9988776655',
+    vehicleNo: 'MH-04-AB-1234', 
+    driverName: 'Suresh',
+    driverMobile: '9123456789',
+    totalItems: 45,
+    totalQuantity: 1450,
+    transferValue: '₹ 4.5 L', 
+    currentStatus: 'In Transit', 
+    timeline: [
+      { status: 'Created', date: '24-Oct-2024', time: '09:00 AM' },
+      { status: 'Approved', date: '24-Oct-2024', time: '11:30 AM' },
+      { status: 'Dispatched', date: '25-Oct-2024', time: '08:00 AM' },
+      { status: 'In Transit', date: '26-Oct-2024', time: '10:15 AM' }
+    ]
+  },
+  { 
+    id: '2', 
+    transferNo: 'TRN-2024-002', 
+    transferDate: '23-Oct-2024', 
+    fromWarehouse: 'South Zone (Chennai)', 
+    fromManager: 'Karthik N',
+    fromContact: '+91 9876543211',
+    toWarehouse: 'Central Hub (Mumbai)', 
+    toManager: 'Rajesh Kumar',
+    toContact: '+91 9876543210',
+    vehicleNo: 'TN-01-CD-5678', 
+    driverName: 'Ramesh',
+    driverMobile: '9123456780',
+    totalItems: 20,
+    totalQuantity: 800,
+    transferValue: '₹ 2.1 L', 
+    currentStatus: 'Completed', 
+    timeline: [
+      { status: 'Created', date: '23-Oct-2024', time: '10:00 AM' },
+      { status: 'Approved', date: '23-Oct-2024', time: '02:00 PM' },
+      { status: 'Dispatched', date: '24-Oct-2024', time: '07:30 AM' },
+      { status: 'In Transit', date: '24-Oct-2024', time: '04:00 PM' },
+      { status: 'Received', date: '25-Oct-2024', time: '09:00 AM' },
+      { status: 'Completed', date: '25-Oct-2024', time: '11:00 AM' }
+    ]
+  },
+  { 
+    id: '3', 
+    transferNo: 'TRN-2024-003', 
+    transferDate: '25-Oct-2024', 
+    fromWarehouse: 'East Zone (Kolkata)', 
+    fromManager: 'Vikram Das',
+    fromContact: '+91 9876543212',
+    toWarehouse: 'North Zone (Delhi)', 
+    toManager: 'Amit Singh',
+    toContact: '+91 9988776655',
+    vehicleNo: '-', 
+    driverName: '-',
+    driverMobile: '-',
+    totalItems: 12,
+    totalQuantity: 320,
+    transferValue: '₹ 1.8 L', 
+    currentStatus: 'Pending', 
+    timeline: [
+      { status: 'Created', date: '25-Oct-2024', time: '04:30 PM' }
+    ]
+  },
+  { 
+    id: '4', 
+    transferNo: 'TRN-2024-004', 
+    transferDate: '24-Oct-2024', 
+    fromWarehouse: 'West Zone (Pune)', 
+    fromManager: 'Sanjay Patil',
+    fromContact: '+91 9876543213',
+    toWarehouse: 'Central Hub (Mumbai)', 
+    toManager: 'Rajesh Kumar',
+    toContact: '+91 9876543210',
+    vehicleNo: 'MH-12-EF-9012', 
+    driverName: 'Dilip',
+    driverMobile: '9123456781',
+    totalItems: 15,
+    totalQuantity: 550,
+    transferValue: '₹ 3.2 L', 
+    currentStatus: 'Approved', 
+    timeline: [
+      { status: 'Created', date: '24-Oct-2024', time: '11:00 AM' },
+      { status: 'Approved', date: '25-Oct-2024', time: '09:30 AM' }
+    ]
+  },
 ];
-
-const timelineSteps = ['Created', 'Approved', 'Dispatched', 'In Transit', 'Received', 'Completed'];
 
 export default function WarehouseTransferTracking() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  const [selectedTransfer, setSelectedTransfer] = useState<TransferItem | null>(null);
+  const [drawerMode, setDrawerMode] = useState<'view' | 'track'>('view');
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredData = useMemo(() => {
+    return mockData.filter((item) => {
+      const matchSearch = 
+        item.transferNo.toLowerCase().includes(search.toLowerCase()) || 
+        item.fromWarehouse.toLowerCase().includes(search.toLowerCase()) || 
+        item.toWarehouse.toLowerCase().includes(search.toLowerCase());
+      const matchStatus = statusFilter ? item.currentStatus === statusFilter : true;
+      return matchSearch && matchStatus;
+    });
+  }, [search, statusFilter]);
+
+  const getFormattedDate = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}${mm}${dd}`;
+  };
+
+  const handleExportExcel = () => {
+    const exportData = filteredData.map(row => ({
+      'Transfer No': row.transferNo,
+      'From Warehouse': row.fromWarehouse,
+      'To Warehouse': row.toWarehouse,
+      'Transfer Date': row.transferDate,
+      'Status': row.currentStatus
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Transfers');
+    XLSX.writeFile(workbook, `warehouse_transfers_${getFormattedDate()}.xlsx`);
+    setShowExportMenu(false);
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['Transfer No', 'From Warehouse', 'To Warehouse', 'Transfer Date', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredData.map(row => 
+        [
+          `"${row.transferNo}"`, `"${row.fromWarehouse}"`, `"${row.toWarehouse}"`,
+          `"${row.transferDate}"`, `"${row.currentStatus}"`
+        ].join(',')
+      )
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `warehouse_transfers_${getFormattedDate()}.csv`;
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setShowExportMenu(false);
+  };
+
+  const handleOpenDrawer = (record: TransferItem, mode: 'view' | 'track') => {
+    setDrawerMode(mode);
+    setSelectedTransfer(record);
+  };
 
   const columns: Column<TransferItem>[] = [
     { key: 'transferNo', label: 'Transfer No', render: (row) => <span className="font-semibold text-slate-900">{row.transferNo}</span> },
-    { key: 'transferDate', label: 'Transfer Date' },
     { key: 'fromWarehouse', label: 'From Warehouse', render: (row) => <span className="text-slate-700">{row.fromWarehouse}</span> },
     { key: 'toWarehouse', label: 'To Warehouse', render: (row) => <span className="text-slate-700">{row.toWarehouse}</span> },
-    { key: 'totalItems', label: 'Total Items', render: (row) => <span className="font-mono text-slate-700">{row.totalItems}</span> },
-    { key: 'transferValue', label: 'Transfer Value', render: (row) => <span className="font-bold text-slate-800">{row.transferValue}</span> },
-    { key: 'vehicleNo', label: 'Vehicle No' },
+    { key: 'transferDate', label: 'Transfer Date' },
     {
       key: 'currentStatus',
-      label: 'Current Status',
+      label: 'Status',
       render: (row) => {
-        let variant: any = 'default';
+        let variant: BadgeVariant = 'neutral';
         switch (row.currentStatus) {
           case 'Completed':
           case 'Received':
             variant = 'success';
             break;
           case 'In Transit':
+          case 'Dispatched':
             variant = 'info';
             break;
           case 'Pending':
@@ -71,16 +250,29 @@ export default function WarehouseTransferTracking() {
         return <Badge variant={variant}>{row.currentStatus}</Badge>;
       },
     },
-    { key: 'expectedArrival', label: 'Expected Arrival' },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row) => (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleOpenDrawer(row, 'view'); }}
+            className="text-slate-400 hover:text-violet-600 transition-colors"
+            title="View Details"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleOpenDrawer(row, 'track'); }}
+            className="text-slate-400 hover:text-violet-600 transition-colors"
+            title="Track Transfer"
+          >
+            <MapPin className="w-4 h-4" />
+          </button>
+        </div>
+      )
+    }
   ];
-
-  const filteredData = mockData.filter((item) => {
-    const matchSearch = item.transferNo.toLowerCase().includes(search.toLowerCase()) || 
-                        item.fromWarehouse.toLowerCase().includes(search.toLowerCase()) || 
-                        item.toWarehouse.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter ? item.currentStatus === statusFilter : true;
-    return matchSearch && matchStatus;
-  });
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -88,7 +280,24 @@ export default function WarehouseTransferTracking() {
         title="Warehouse Transfer Tracking"
         subtitle="Track and monitor stock transfers between warehouses, C&F locations, branches, and distribution centers with complete transfer lifecycle visibility."
         actions={
-          <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />}>Export Report</ActionButton>
+          <div className="relative inline-block text-left" ref={exportMenuRef}>
+            <ActionButton 
+              variant="secondary" 
+              icon={<Download className="w-4 h-4" />}
+              onClick={() => setShowExportMenu(!showExportMenu)}
+            >
+              Export
+              <ChevronDown className="w-3 h-3 ml-1" />
+            </ActionButton>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                <div className="py-1" role="menu" aria-orientation="vertical">
+                  <button onClick={handleExportExcel} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export Excel (.xlsx)</button>
+                  <button onClick={handleExportCSV} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export CSV (.csv)</button>
+                </div>
+              </div>
+            )}
+          </div>
         }
       />
 
@@ -111,14 +320,6 @@ export default function WarehouseTransferTracking() {
           bgClass="bg-blue-50"
         />
         <SummaryCard
-          title="Completed Transfers"
-          value="1,180"
-          subtitle="Successfully received"
-          icon={<CheckCircle2 className="w-6 h-6" />}
-          colorClass="text-emerald-600"
-          bgClass="bg-emerald-50"
-        />
-        <SummaryCard
           title="Pending Approvals"
           value="23"
           subtitle="Awaiting clearance"
@@ -126,65 +327,14 @@ export default function WarehouseTransferTracking() {
           colorClass="text-amber-600"
           bgClass="bg-amber-50"
         />
-      </div>
-
-      {/* Summary Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <SummaryCard
-          title="Total Transfer Quantity"
-          value="845k"
-          subtitle="Units transferred"
-          icon={<Package className="w-6 h-6" />}
-          colorClass="text-indigo-600"
-          bgClass="bg-indigo-50"
-        />
-        <SummaryCard
-          title="Total Transfer Value"
-          value="₹ 12.4 Cr"
-          subtitle="Value of goods"
-          icon={<MapPin className="w-6 h-6" />}
+          title="Completed Transfers"
+          value="1,180"
+          subtitle="Successfully received"
+          icon={<CheckCircle2 className="w-6 h-6" />}
           colorClass="text-emerald-600"
           bgClass="bg-emerald-50"
         />
-        <SummaryCard
-          title="Average Transfer Time"
-          value="2.4 Days"
-          subtitle="Creation to completion"
-          icon={<Timer className="w-6 h-6" />}
-          colorClass="text-amber-600"
-          bgClass="bg-amber-50"
-        />
-        <SummaryCard
-          title="Most Active Warehouse"
-          value="Central Hub"
-          subtitle="Mumbai, MH"
-          icon={<Building2 className="w-6 h-6" />}
-          colorClass="text-rose-600"
-          bgClass="bg-rose-50"
-        />
-      </div>
-
-      {/* Timeline Section */}
-      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mb-8">
-        <h3 className="text-lg font-semibold text-slate-800 mb-6">Live Transfer Status Example (TRN-2024-001)</h3>
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between w-full relative">
-          <div className="absolute top-1/2 left-0 w-full h-1 bg-slate-100 -translate-y-1/2 hidden md:block z-0"></div>
-          {timelineSteps.map((step, index) => {
-            const isCompleted = index <= 3; // 'In Transit' is index 3
-            const isActive = index === 3;
-            return (
-              <div key={step} className="flex flex-row md:flex-col items-center gap-4 md:gap-2 relative z-10 mb-6 md:mb-0">
-                <div className="hidden md:block absolute top-1/2 -left-1/2 w-full h-1 bg-primary -translate-y-1/2 z-[-1]" style={{ display: index > 0 && isCompleted ? 'block' : 'none' }}></div>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center border-2 ${isActive ? 'border-primary bg-primary text-white shadow-md shadow-primary/20 ring-4 ring-primary/10' : isCompleted ? 'border-primary bg-primary text-white' : 'border-slate-300 bg-white text-slate-300'}`}>
-                  {isCompleted ? <CheckCircle2 className="w-4 h-4" /> : <div className="w-2 h-2 rounded-full bg-slate-300"></div>}
-                </div>
-                <div className="flex flex-col md:items-center">
-                  <span className={`text-sm font-medium ${isActive ? 'text-primary' : isCompleted ? 'text-slate-800' : 'text-slate-400'}`}>{step}</span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
 
       <FilterBar>
@@ -200,6 +350,7 @@ export default function WarehouseTransferTracking() {
           options={[
             { label: 'Pending', value: 'Pending' },
             { label: 'Approved', value: 'Approved' },
+            { label: 'Dispatched', value: 'Dispatched' },
             { label: 'In Transit', value: 'In Transit' },
             { label: 'Received', value: 'Received' },
             { label: 'Completed', value: 'Completed' },
@@ -207,16 +358,112 @@ export default function WarehouseTransferTracking() {
           ]}
           placeholder="Transfer Status"
         />
-        {/* Additional filters can be added here such as Date Range */}
       </FilterBar>
 
       <TableCard>
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          emptyMessage="No transfer records found."
-        />
+        <div className="overflow-x-auto">
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            emptyMessage="No transfer records found."
+          />
+        </div>
       </TableCard>
+
+      <Drawer 
+        open={!!selectedTransfer} 
+        onClose={() => setSelectedTransfer(null)} 
+        title={drawerMode === 'view' ? "Transfer Details" : "Transfer Timeline"}
+      >
+        {selectedTransfer && (
+          <div className="space-y-6">
+            {drawerMode === 'track' && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Tracking Timeline</h3>
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
+                  <div className="space-y-6">
+                    {selectedTransfer.timeline.map((event, idx) => (
+                      <div key={idx} className="relative flex gap-4">
+                        {idx !== selectedTransfer.timeline.length - 1 && (
+                          <div className="absolute left-1.5 top-6 bottom-[-24px] w-0.5 bg-slate-200" />
+                        )}
+                        <div className="w-3 h-3 mt-1.5 rounded-full bg-violet-500 ring-4 ring-white relative z-10 shrink-0" />
+                        <div>
+                          <div className="text-xs font-medium text-slate-500 mb-0.5">
+                            {event.date} {event.time && `• ${event.time}`}
+                          </div>
+                          <div className="text-sm font-semibold text-slate-900">{event.status}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {drawerMode === 'view' && (
+              <>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Transfer Information</h3>
+                  <div className="space-y-2">
+                    <DrawerField label="Transfer No" value={<span className="font-semibold text-slate-900">{selectedTransfer.transferNo}</span>} />
+                    <DrawerField label="Transfer Date" value={selectedTransfer.transferDate} />
+                    <DrawerField label="Status" value={
+                      <Badge variant={
+                        ['Completed', 'Received'].includes(selectedTransfer.currentStatus) ? 'success' : 
+                        ['In Transit', 'Dispatched'].includes(selectedTransfer.currentStatus) ? 'info' : 
+                        ['Pending', 'Approved'].includes(selectedTransfer.currentStatus) ? 'warning' : 'danger'
+                      }>
+                        {selectedTransfer.currentStatus}
+                      </Badge>
+                    } />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Source Information</h3>
+                  <div className="space-y-2">
+                    <DrawerField label="From Warehouse" value={selectedTransfer.fromWarehouse} />
+                    <DrawerField label="Warehouse Manager" value={selectedTransfer.fromManager} />
+                    <DrawerField label="Contact Number" value={selectedTransfer.fromContact} />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Destination Information</h3>
+                  <div className="space-y-2">
+                    <DrawerField label="To Warehouse" value={selectedTransfer.toWarehouse} />
+                    <DrawerField label="Warehouse Manager" value={selectedTransfer.toManager} />
+                    <DrawerField label="Contact Number" value={selectedTransfer.toContact} />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Shipment Information</h3>
+                  <div className="space-y-2">
+                    <DrawerField label="Vehicle Number" value={selectedTransfer.vehicleNo} />
+                    <DrawerField label="Driver Name" value={selectedTransfer.driverName} />
+                    <DrawerField label="Driver Mobile" value={selectedTransfer.driverMobile} />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Transfer Summary</h3>
+                  <div className="space-y-2">
+                    <DrawerField label="Total Items" value={selectedTransfer.totalItems.toString()} />
+                    <DrawerField label="Total Quantity" value={selectedTransfer.totalQuantity.toString()} />
+                    <DrawerField label="Transfer Value" value={<span className="font-semibold text-slate-900">{selectedTransfer.transferValue}</span>} />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="pt-6 border-t border-slate-100 flex justify-end">
+              <ActionButton variant="secondary" onClick={() => setSelectedTransfer(null)}>Close</ActionButton>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }

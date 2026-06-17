@@ -41,6 +41,7 @@ import DispatchReports from '../../modules/warehouse/DispatchReports';
 import DistributorList from '../../modules/distributors/DistributorList';
 import DistributorProductCatalog from '../../modules/distributors/ProductCatalog';
 import DistributorOrders from '../../modules/distributors/Orders';
+import DistributorRetailerOrders from '../../modules/distributors/RetailerOrders';
 import OrderHistory from '../../modules/distributors/OrderHistory';
 import OutstandingTracking from '../../modules/distributors/OutstandingTracking';
 import Ledgers from '../../modules/distributors/Ledgers';
@@ -267,6 +268,7 @@ export const router = createBrowserRouter([
           { path: 'list', element: <DistributorList /> },
           { path: 'product-catalog', element: <DistributorProductCatalog /> },
           { path: 'orders', element: <DistributorOrders /> },
+          { path: 'retailer-orders', element: <DistributorRetailerOrders /> },
           { path: 'order-history', element: <OrderHistory /> },
           { path: 'outstanding', element: <OutstandingTracking /> },
           { path: 'ledgers', element: <Ledgers /> },

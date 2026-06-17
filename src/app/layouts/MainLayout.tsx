@@ -112,6 +112,7 @@ const NAV_ITEMS: NavItem[] = [
     subItems: [
       { label: 'Product Catalog Access', path: '/workspace/distributors/product-catalog' },
       { label: 'Order Placement', path: '/workspace/distributors/orders' },
+      { label: 'Retailer Orders', path: '/workspace/distributors/retailer-orders' },
       { label: 'Outstanding Tracking', path: '/workspace/distributors/outstanding' },
       { label: 'Ledger Access', path: '/workspace/distributors/ledgers' },
       { label: 'Invoice Download', path: '/workspace/distributors/invoices' },
@@ -298,7 +299,12 @@ export function MainLayout() {
   const authUser = authUserString ? JSON.parse(authUserString) : null;
   const displayName = authUser ? authUser.fullName : activeRoleData.userName;
   const displayEmail = authUser ? authUser.email : activeRoleData.userEmail;
-  const filteredNavItems = NAV_ITEMS.filter(item => activeRole === ROLE_SUPER_ADMIN || hasPermission(activeRole, item.label));
+  const filteredNavItems = NAV_ITEMS.filter(item => activeRole === ROLE_SUPER_ADMIN || hasPermission(activeRole, item.label)).map(item => {
+    if (activeRole === ROLE_SUPER_ADMIN && item.label === 'Distributor/Stockist Portal') {
+      return { ...item, subItems: item.subItems?.filter(sub => sub.label !== 'Retailer Orders') };
+    }
+    return item;
+  });
 
   // Close sidebar on route change for mobile
   useEffect(() => {

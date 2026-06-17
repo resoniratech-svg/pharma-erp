@@ -422,14 +422,17 @@ export default function MultiLocationStock() {
 
       {/* Add Location Modal */}
       {showLocationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">Add Location</h2>
               <button onClick={() => setShowLocationModal(false)} className="text-slate-500 hover:text-slate-800">✕</button>
             </div>
 
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2 mt-2 first:mt-0">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Location Information</h3>
+              </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Location Code *</label>
                 <input 
@@ -440,7 +443,6 @@ export default function MultiLocationStock() {
                   placeholder="e.g. WH001"
                 />
               </div>
-              
               <div>
                 <label className="block text-sm font-medium mb-1">Location Name *</label>
                 <input 
@@ -448,10 +450,9 @@ export default function MultiLocationStock() {
                   value={newLocation.name} 
                   onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })} 
                   className="w-full border border-slate-200 rounded-lg px-3 py-2" 
-                  placeholder="e.g. Hyderabad Warehouse"
+                  placeholder="e.g. Central Warehouse"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-1">City *</label>
                 <input 
@@ -461,7 +462,6 @@ export default function MultiLocationStock() {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2" 
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-1">State *</label>
                 <input 
@@ -471,21 +471,18 @@ export default function MultiLocationStock() {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2" 
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-1">Type *</label>
                 <select 
                   value={newLocation.type} 
-                  onChange={(e) => setNewLocation({ ...newLocation, type: e.target.value })} 
+                  onChange={(e) => setNewLocation({ ...newLocation, type: e.target.value as any })} 
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
                   <option value="Central Warehouse">Central Warehouse</option>
-                  <option value="Regional Warehouse">Regional Warehouse</option>
-                  <option value="Branch Warehouse">Branch Warehouse</option>
-                  <option value="Distribution Center">Distribution Center</option>
+                  <option value="Regional Hub">Regional Hub</option>
+                  <option value="Branch">Branch</option>
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-1">Status *</label>
                 <select 
@@ -499,9 +496,9 @@ export default function MultiLocationStock() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-200">
               <ActionButton variant="secondary" onClick={() => setShowLocationModal(false)}>Cancel</ActionButton>
-              <ActionButton onClick={handleSaveLocation}>Save</ActionButton>
+              <ActionButton onClick={handleSaveLocation}>Save Location</ActionButton>
             </div>
           </div>
         </div>

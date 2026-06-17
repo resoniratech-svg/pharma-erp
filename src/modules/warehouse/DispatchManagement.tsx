@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Download, Filter, X, ChevronDown } from 'lucide-react';
+import { Plus, Download, Filter, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
@@ -466,85 +466,89 @@ export default function DispatchManagement() {
 
       {/* Create Dispatch Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">Create Dispatch</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-500 hover:text-slate-800">
-                <X className="w-5 h-5" />
+              <h2 className="text-xl font-bold text-slate-900">
+                Create Dispatch
+              </h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-500 hover:text-slate-800"
+              >
+                ✕
               </button>
             </div>
 
-            <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Dispatch Information */}
+              <div className="md:col-span-2 mt-2 first:mt-0">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Dispatch Information</h3>
+              </div>
+              
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Dispatch Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Dispatch Number</label>
-                    <input type="text" value={`DSP-2026-${String(dispatches.length + 1).padStart(4, '0')}`} readOnly className="w-full border border-slate-200 bg-slate-100 text-slate-500 rounded-lg px-3 py-2 font-mono" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Dispatch Date *</label>
-                    <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Order Number *</label>
-                    <select value={newOrder} onChange={e => setNewOrder(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400">
-                      <option value="">Select Order</option>
-                      {mockOrders.map(o => <option key={o.id} value={o.id}>{o.id}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Customer</label>
-                    <input type="text" value={newCustomer} readOnly className="w-full border border-slate-200 bg-slate-100 text-slate-500 rounded-lg px-3 py-2" placeholder="Auto-populated" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium mb-1">Source Warehouse *</label>
-                    <select value={newWarehouse} onChange={e => setNewWarehouse(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400">
-                      <option value="">Select Warehouse</option>
-                      {mockWarehouses.map(w => <option key={w} value={w}>{w}</option>)}
-                    </select>
-                  </div>
-                </div>
+                <label className="block text-sm font-medium mb-1">Dispatch Number</label>
+                <input type="text" value={`DSP-2026-${String(dispatches.length + 1).padStart(4, '0')}`} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Dispatch Date *</label>
+                <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Order Number *</label>
+                <select value={newOrder} onChange={e => setNewOrder(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                  <option value="">Select Order</option>
+                  {mockOrders.map(o => <option key={o.id} value={o.id}>{o.id}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Customer</label>
+                <input type="text" value={newCustomer} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Source Warehouse *</label>
+                <select value={newWarehouse} onChange={e => setNewWarehouse(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                  <option value="">Select Warehouse</option>
+                  {mockWarehouses.map(w => <option key={w} value={w}>{w}</option>)}
+                </select>
               </div>
 
               {/* Product Details */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Product Details</h3>
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Product Details</h3>
                 {newProducts.length > 0 ? (
                   <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                    <table className="w-full text-left text-sm border-collapse">
+                    <table className="w-full text-left text-sm">
                       <thead>
                         <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="py-3 px-4 font-semibold text-slate-700">Product</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700">Batch No (FEFO)</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700 text-right">Available Qty</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700 text-right w-40">Dispatch Qty *</th>
+                          <th className="py-2 px-3 font-semibold text-slate-600">Product</th>
+                          <th className="py-2 px-3 font-semibold text-slate-600">Batch No (FEFO)</th>
+                          <th className="py-2 px-3 font-semibold text-slate-600 text-right">Available Qty</th>
+                          <th className="py-2 px-3 font-semibold text-slate-600 text-right w-40">Dispatch Qty *</th>
                         </tr>
                       </thead>
                       <tbody>
                         {newProducts.map((p, i) => (
                           <tr key={i} className="border-b border-slate-100 last:border-0">
-                            <td className="py-3 px-4 font-medium text-slate-800">{p.productName}</td>
-                            <td className="py-3 px-4 text-slate-600 font-mono text-xs">{p.batchNo}</td>
-                            <td className="py-3 px-4 text-right font-medium text-slate-600">{p.availableQty}</td>
-                            <td className="py-2 px-4 text-right">
+                            <td className="py-2 px-3 text-slate-800">{p.productName}</td>
+                            <td className="py-2 px-3 text-slate-600 font-mono text-xs">{p.batchNo}</td>
+                            <td className="py-2 px-3 text-right text-slate-600">{p.availableQty}</td>
+                            <td className="py-2 px-3 text-right">
                               <input 
                                 type="number" 
                                 min="0"
                                 max={p.availableQty}
                                 value={p.dispatchQty}
                                 onChange={e => handleProductQtyChange(i, e.target.value)}
-                                className="w-full border border-slate-200 bg-white rounded-lg px-3 py-1.5 text-right font-medium focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 transition-all"
+                                className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-right"
                               />
                             </td>
                           </tr>
                         ))}
                         <tr className="bg-slate-50 font-semibold text-slate-900 border-t border-slate-200">
-                          <td colSpan={2} className="py-3 px-4 text-right">Total Summary:</td>
-                          <td className="py-3 px-4 text-right text-slate-500 font-normal">{newProducts.length} Items</td>
-                          <td className="py-3 px-4 text-right text-lg text-violet-700">{newProducts.reduce((acc, curr) => acc + curr.dispatchQty, 0)}</td>
+                          <td colSpan={2} className="py-2 px-3 text-right">Total Summary:</td>
+                          <td className="py-2 px-3 text-right text-slate-500 font-normal">{newProducts.length} Items</td>
+                          <td className="py-2 px-3 text-right text-lg text-violet-700">{newProducts.reduce((acc, curr) => acc + curr.dispatchQty, 0)}</td>
                         </tr>
                       </tbody>
                     </table>
@@ -557,37 +561,35 @@ export default function DispatchManagement() {
               </div>
 
               {/* Transport Information */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Transport Information</h3>
+              </div>
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Transport Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Transporter *</label>
-                    <select value={newTransporter} onChange={e => setNewTransporter(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400">
-                      <option value="">Select Transporter</option>
-                      {mockTransporters.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">LR Number *</label>
-                    <input type="text" value={newLRNumber} onChange={e => setNewLRNumber(e.target.value)} placeholder="e.g. LR-2026-45896" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Vehicle Number</label>
-                    <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="Optional" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Driver Name</label>
-                    <input type="text" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} placeholder="Optional" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Driver Mobile</label>
-                    <input type="text" value={newDriverMobile} onChange={e => setNewDriverMobile(e.target.value)} placeholder="Optional" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                </div>
+                <label className="block text-sm font-medium mb-1">Transporter *</label>
+                <select value={newTransporter} onChange={e => setNewTransporter(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                  <option value="">Select Transporter</option>
+                  {mockTransporters.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">LR Number *</label>
+                <input type="text" value={newLRNumber} onChange={e => setNewLRNumber(e.target.value)} placeholder="e.g. LR-2026-45896" className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-sm" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Vehicle Number</label>
+                <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="Optional" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Driver Name</label>
+                <input type="text" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} placeholder="Optional" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Driver Mobile</label>
+                <input type="text" value={newDriverMobile} onChange={e => setNewDriverMobile(e.target.value)} placeholder="Optional" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-slate-100">
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-200">
               <ActionButton variant="secondary" onClick={() => setShowCreateModal(false)}>Cancel</ActionButton>
               <ActionButton onClick={handleSaveDispatch}>Save Dispatch</ActionButton>
             </div>

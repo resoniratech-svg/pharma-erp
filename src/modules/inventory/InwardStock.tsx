@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Plus, Download, Filter, ChevronDown, Trash2, X } from 'lucide-react';
+import { Plus, Download, Filter, ChevronDown, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
@@ -417,26 +417,18 @@ export default function InwardStock() {
 
       {/* Create GRN Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 backdrop-blur-[2px] bg-slate-900/40">
-          <div className="bg-white rounded-2xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 w-[95%] sm:w-[90%] md:w-[80%] max-w-[1200px] max-h-[95vh] md:max-h-[90vh]">
-            
-            {/* Modal Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white rounded-t-2xl flex-shrink-0">
-              <h2 className="text-lg font-bold text-slate-900">Create Goods Receipt Note (GRN)</h2>
-              <button 
-                onClick={closeCreateModal} 
-                className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-slate-900">Create Goods Receipt Note (GRN)</h2>
+              <button onClick={closeCreateModal} className="text-slate-500 hover:text-slate-800">✕</button>
             </div>
 
-            {/* Modal Body */}
-            <div className="flex-1 overflow-y-auto p-6 space-y-8 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="space-y-8">
               
               {/* GRN Information */}
               <section>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100">GRN Information</h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">GRN Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">GRN Number</label>
@@ -474,7 +466,7 @@ export default function InwardStock() {
               {/* Product Details Grid */}
               <section>
                 <div className="flex items-center justify-between mb-4 pb-2 border-b border-slate-100">
-                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider">Product Details</h3>
+                  <h3 className="text-sm font-semibold text-slate-700">Product Details</h3>
                   <button onClick={handleAddProductRow} className="text-sm text-violet-600 font-medium hover:text-violet-800 flex items-center">
                     <Plus className="w-4 h-4 mr-1" /> Add Row
                   </button>
@@ -558,7 +550,7 @@ export default function InwardStock() {
 
               {/* Status Section */}
               <section>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 pb-2 border-b border-slate-100">Workflow Status</h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Workflow Status</h3>
                 <div className="w-full md:w-1/2">
                   <select value={formData.status} onChange={e => setFormData({...formData, status: e.target.value as any})} className="w-full border border-slate-200 rounded-lg px-3 py-2">
                     <option value="Draft">Draft</option>
@@ -572,7 +564,7 @@ export default function InwardStock() {
             </div>
 
             {/* Modal Footer */}
-            <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl flex-shrink-0">
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-200">
               <ActionButton variant="secondary" onClick={closeCreateModal}>Cancel</ActionButton>
               <ActionButton onClick={handleSaveGRN}>Save GRN</ActionButton>
             </div>

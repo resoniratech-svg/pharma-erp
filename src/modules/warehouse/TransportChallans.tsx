@@ -1,5 +1,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Download, Filter, X, ChevronDown, Eye, FileDown, Printer } from 'lucide-react';
+import { Plus, Download, Filter, ChevronDown, Eye, FileDown, Printer, FileText } from 'lucide-react';
+import { generatePdf } from '../../documents/generators/pdfGenerator';
+import { generatePrint } from '../../documents/generators/printGenerator';
+import { generateLRPdf } from '../../documents/generators/generateLRPdf';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
@@ -258,10 +261,22 @@ export default function TransportChallans() {
               handleDownloadPDF(row);
             }}
             className="text-slate-400 hover:text-violet-600 transition-colors"
-            title="Download PDF"
+            title="Download Challan PDF"
           >
             <FileDown className="w-4 h-4" />
           </button>
+          {row.lrNumber && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleDownloadLR(row);
+              }}
+              className="text-slate-400 hover:text-violet-600 transition-colors"
+              title="Download LR Document"
+            >
+              <FileText className="w-4 h-4" />
+            </button>
+          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -327,81 +342,15 @@ export default function TransportChallans() {
   };
 
   const handlePrint = (challan: Challan) => {
-    const printWindow = window.open('', '_blank');
-    if (!printWindow) return;
-    
-    const htmlContent = `
-      <html>
-        <head>
-          <title>Transport Challan - ${challan.challanNo}</title>
-          <style>
-            body { font-family: system-ui, sans-serif; padding: 40px; color: #333; }
-            h1 { text-align: center; border-bottom: 2px solid #ccc; padding-bottom: 10px; }
-            .section { margin-bottom: 20px; }
-            .section-title { font-weight: bold; margin-bottom: 10px; background: #f4f4f4; padding: 5px; }
-            table { w-full border-collapse: collapse; width: 100%; margin-top: 10px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f9f9f9; }
-            .row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-            .col { flex: 1; }
-          </style>
-        </head>
-        <body>
-          <h1>Transport Challan</h1>
-          <div class="section">
-            <div class="row">
-              <div class="col"><strong>Challan No:</strong> ${challan.challanNo}</div>
-              <div class="col"><strong>Date:</strong> ${challan.challanDate}</div>
-            </div>
-            <div class="row">
-              <div class="col"><strong>Dispatch No:</strong> ${challan.dispatchNo}</div>
-              <div class="col"><strong>Status:</strong> ${challan.status}</div>
-            </div>
-          </div>
-          <div class="section">
-            <div class="section-title">Customer Information</div>
-            <div><strong>Name:</strong> ${challan.customer}</div>
-            <div><strong>Address:</strong> ${challan.deliveryAddress}</div>
-            <div><strong>Contact:</strong> ${challan.customerContactPerson} (${challan.customerMobile})</div>
-          </div>
-          <div class="section">
-            <div class="section-title">Transport Information</div>
-            <div class="row">
-              <div class="col"><strong>Transporter:</strong> ${challan.transporter}</div>
-              <div class="col"><strong>Vehicle No:</strong> ${challan.vehicleNo}</div>
-            </div>
-            <div class="row">
-              <div class="col"><strong>Driver Name:</strong> ${challan.driverName || 'N/A'}</div>
-              <div class="col"><strong>LR Number:</strong> ${challan.lrNumber || 'N/A'}</div>
-            </div>
-          </div>
-          <div class="section">
-            <div class="section-title">Product Details</div>
-            <table>
-              <tr><th>Product Name</th><th>Batch No</th><th>Quantity</th></tr>
-              ${challan.products.map(p => `<tr><td>${p.productName}</td><td>${p.batchNo}</td><td>${p.dispatchQty}</td></tr>`).join('')}
-            </table>
-          </div>
-        </body>
-      </html>
-    `;
-    printWindow.document.write(htmlContent);
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    generatePrint(challan);
   };
 
   const handleDownloadPDF = (challan: Challan) => {
-    // Generate an HTML payload and create a blob to simulate a PDF download since no PDF library is available
-    const content = `Transport Challan: ${challan.challanNo}\nDate: ${challan.challanDate}\nCustomer: ${challan.customer}\nTransporter: ${challan.transporter}\nVehicle: ${challan.vehicleNo}\nTotal Qty: ${challan.totalQty}\nStatus: ${challan.status}\n\nProducts:\n${challan.products.map(p => `- ${p.productName} (Batch: ${p.batchNo}) Qty: ${p.dispatchQty}`).join('\n')}`;
-    const blob = new Blob([content], { type: 'text/plain' }); // Fallback to plain text for mock
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `${challan.challanNo}.pdf`;
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    generatePdf(challan);
+  };
+
+  const handleDownloadLR = (challan: Challan) => {
+    generateLRPdf(challan);
   };
 
   const handleGenerateChallan = () => {
@@ -444,6 +393,12 @@ export default function TransportChallans() {
 
     setChallans([newChallanObj, ...challans]);
     setShowCreateModal(false);
+    
+    // Trigger PDF Generation
+    generatePdf(newChallanObj);
+    if (newLRNumber) {
+      generateLRPdf(newChallanObj);
+    }
     
     // Reset Form
     setNewDate(new Date().toISOString().split('T')[0]);
@@ -623,159 +578,123 @@ export default function TransportChallans() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">Generate Transport Challan</h2>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-500 hover:text-slate-800">
-                <X className="w-5 h-5" />
+              <h2 className="text-xl font-bold text-slate-900">
+                Generate Transport Challan
+              </h2>
+              <button
+                onClick={() => setShowCreateModal(false)}
+                className="text-slate-500 hover:text-slate-800"
+              >
+                ✕
               </button>
             </div>
 
-            <div className="space-y-8">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {/* Section 1 - Challan Information */}
+              <div className="md:col-span-2 mt-2 first:mt-0">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Challan Information</h3>
+              </div>
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Challan Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Challan Number</label>
-                    <input type="text" value={`CHL-2026-${String(challans.length + 1001)}`} readOnly className="w-full border border-slate-200 bg-slate-100 text-slate-500 rounded-lg px-3 py-2 font-mono" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Challan Date *</label>
-                    <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Dispatch Number *</label>
-                    <select value={selectedDispatchNo} onChange={e => setSelectedDispatchNo(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400">
-                      <option value="">Select Dispatch</option>
-                      {mockDispatches.map(d => <option key={d.dispatchNo} value={d.dispatchNo}>{d.dispatchNo}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Order Number</label>
-                    <input type="text" value={activeDispatch?.orderNo || ''} readOnly className="w-full border border-slate-200 bg-slate-100 text-slate-500 rounded-lg px-3 py-2" placeholder="Auto-populated" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium mb-1">Customer</label>
-                    <input type="text" value={activeDispatch?.customer || ''} readOnly className="w-full border border-slate-200 bg-slate-100 text-slate-500 rounded-lg px-3 py-2" placeholder="Auto-populated" />
-                  </div>
-                </div>
+                <label className="block text-sm font-medium mb-1">Challan Number</label>
+                <input type="text" value={`CHL-2026-${String(challans.length + 1001)}`} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 font-mono" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Challan Date *</label>
+                <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Dispatch Number *</label>
+                <select value={selectedDispatchNo} onChange={e => setSelectedDispatchNo(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                  <option value="">Select Dispatch</option>
+                  {mockDispatches.map(d => <option key={d.dispatchNo} value={d.dispatchNo}>{d.dispatchNo}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Order Number</label>
+                <input type="text" value={activeDispatch?.orderNo || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Customer</label>
+                <input type="text" value={activeDispatch?.customer || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
               </div>
 
               {/* Section 2 - Source & Destination */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Source & Destination</h3>
+              </div>
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Source & Destination</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Source Warehouse</label>
-                    <input type="text" value={activeDispatch?.sourceWarehouse || ''} readOnly className="w-full border border-slate-200 bg-slate-100 text-slate-500 rounded-lg px-3 py-2" placeholder="Auto-populated" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Destination</label>
-                    <input type="text" value={activeDispatch?.customer || ''} readOnly className="w-full border border-slate-200 bg-slate-100 text-slate-500 rounded-lg px-3 py-2" placeholder="Auto-populated" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium mb-1">Delivery Address</label>
-                    <textarea value={activeDispatch?.destinationAddr || ''} readOnly className="w-full border border-slate-200 bg-slate-100 text-slate-500 rounded-lg px-3 py-2 min-h-[80px]" placeholder="Auto-populated" />
-                  </div>
-                </div>
+                <label className="block text-sm font-medium mb-1">Source Warehouse</label>
+                <input type="text" value={activeDispatch?.sourceWarehouse || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Delivery Address</label>
+                <input type="text" value={activeDispatch?.destinationAddr || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Contact Person</label>
+                <input type="text" value={activeDispatch?.customerContactPerson || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Mobile Number</label>
+                <input type="text" value={activeDispatch?.customerMobile || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
               </div>
 
-              {/* Section 3 - Product Details */}
+              {/* Section 3 - Transport Details */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Transport Details</h3>
+              </div>
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Product Details</h3>
-                {activeDispatch?.products && activeDispatch.products.length > 0 ? (
-                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
-                    <table className="w-full text-left text-sm border-collapse">
-                      <thead>
-                        <tr className="bg-slate-50 border-b border-slate-200">
-                          <th className="py-3 px-4 font-semibold text-slate-700">Product Name</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700">Batch Number</th>
-                          <th className="py-3 px-4 font-semibold text-slate-700 text-right">Dispatch Quantity</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {activeDispatch.products.map((p, i) => (
-                          <tr key={i} className="border-b border-slate-100 last:border-0 bg-slate-50/50">
-                            <td className="py-3 px-4 font-medium text-slate-600">{p.productName}</td>
-                            <td className="py-3 px-4 text-slate-500 font-mono text-xs">{p.batchNo}</td>
-                            <td className="py-3 px-4 text-right font-medium text-slate-600">{p.dispatchQty}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-slate-500 text-sm border border-dashed border-slate-200 rounded-lg bg-slate-50">
-                    Select a Dispatch Number to load products.
-                  </div>
-                )}
+                <label className="block text-sm font-medium mb-1">Transporter *</label>
+                <select value={newTransporter} onChange={e => setNewTransporter(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                  <option value="">Select Transporter</option>
+                  {mockTransporters.map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Vehicle Number</label>
+                <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="e.g. MH-01-AB-1234" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Driver Name</label>
+                <input type="text" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} placeholder="Driver Name" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Driver Mobile</label>
+                <input type="text" value={newDriverMobile} onChange={e => setNewDriverMobile(e.target.value)} placeholder="Mobile Number" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">LR Number (Optional)</label>
+                <input type="text" value={newLRNumber} onChange={e => setNewLRNumber(e.target.value)} placeholder="Generated by Transporter" className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-sm" />
               </div>
 
-              {/* Section 4 - Transport Information */}
+              {/* Section 4 - Shipment Details */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Shipment Details</h3>
+              </div>
               <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Transport Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Transporter *</label>
-                    <select value={newTransporter} onChange={e => setNewTransporter(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400">
-                      <option value="">Select Transporter</option>
-                      {mockTransporters.map(t => <option key={t} value={t}>{t}</option>)}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Vehicle Number *</label>
-                    <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="e.g. TS09AB1234" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 uppercase focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Driver Name</label>
-                    <input type="text" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Driver Mobile</label>
-                    <input type="text" value={newDriverMobile} onChange={e => setNewDriverMobile(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                  <div className="md:col-span-2">
-                    <label className="block text-sm font-medium mb-1">LR Number (Optional)</label>
-                    <input type="text" value={newLRNumber} onChange={e => setNewLRNumber(e.target.value)} placeholder="e.g. LR-2026-2001" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 font-mono text-sm focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                </div>
+                <label className="block text-sm font-medium mb-1">Number of Packages</label>
+                <input type="number" min="1" value={newNoOfPackages} onChange={e => setNewNoOfPackages(e.target.value ? Number(e.target.value) : '')} placeholder="Total Cartons/Boxes" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Total Weight (Kg)</label>
+                <input type="number" value={newTotalWeight} onChange={e => setNewTotalWeight(e.target.value)} placeholder="e.g. 1500" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Total Quantity</label>
+                <input type="text" value={activeDispatch ? activeDispatch.products.reduce((acc, curr) => acc + curr.dispatchQty, 0) : ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-calculated from dispatch" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Expected Delivery Date *</label>
+                <input type="date" value={newExpectedDate} onChange={e => setNewExpectedDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Remarks</label>
+                <input type="text" value={newRemarks} onChange={e => setNewRemarks(e.target.value)} placeholder="Any special instructions for transport" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
 
-              {/* Section 5 - Shipment Information */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Shipment Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Number Of Packages *</label>
-                    <input type="number" min="1" value={newNoOfPackages} onChange={e => setNewNoOfPackages(e.target.value ? Number(e.target.value) : '')} placeholder="e.g. 25" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Total Quantity</label>
-                    <input type="text" value={activeDispatch ? activeDispatch.products.reduce((acc, curr) => acc + curr.dispatchQty, 0) : ''} readOnly className="w-full border border-slate-200 bg-slate-100 text-slate-500 rounded-lg px-3 py-2" placeholder="Auto-calculated" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Total Weight</label>
-                    <input type="text" value={newTotalWeight} onChange={e => setNewTotalWeight(e.target.value)} placeholder="e.g. 850 KG" className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Expected Delivery Date</label>
-                    <input type="date" value={newExpectedDate} onChange={e => setNewExpectedDate(e.target.value)} className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                </div>
-              </div>
-
-              {/* Section 6 - Additional Information */}
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Additional Information</h3>
-                <div className="grid grid-cols-1 gap-5">
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Remarks</label>
-                    <textarea value={newRemarks} onChange={e => setNewRemarks(e.target.value)} placeholder="e.g. Handle with care. Temperature controlled shipment." className="w-full border border-slate-200 bg-white rounded-lg px-3 py-2 min-h-[80px] focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400" />
-                  </div>
-                </div>
-              </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-8 pt-6 border-t border-slate-100">
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-200">
               <ActionButton variant="secondary" onClick={() => setShowCreateModal(false)}>Cancel</ActionButton>
               <ActionButton onClick={handleGenerateChallan}>Generate Challan</ActionButton>
             </div>

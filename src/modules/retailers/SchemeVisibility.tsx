@@ -1,5 +1,8 @@
-import { useState } from 'react';
-import { Download, Filter, Gift, Clock, PackageCheck, IndianRupee, PieChart, TrendingUp, BarChart3, AlertCircle } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Download, Filter, Eye, ChevronDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import {
   PageHeader,
   FilterBar,
@@ -9,244 +12,344 @@ import {
   TableCard,
   DataTable,
   Badge,
-  SummaryCard,
+  Drawer,
+  DrawerField
 } from './components/shared';
-import { type Column } from './components/shared';
+import { type Column, type BadgeVariant } from './components/shared';
+import { ROLE_SUPER_ADMIN, ROLE_RETAILER } from '../../constants/roles';
 
 interface SchemeItem {
   id: string;
   schemeCode: string;
   schemeName: string;
-  company: string;
-  productCategory: string;
   schemeType: string;
-  discountPct: string;
-  freeQuantity: string;
-  startDate: string;
-  endDate: string;
-  status: 'Active' | 'Upcoming' | 'Expiring Soon' | 'Expired';
+  applicableTo: 'Product' | 'Category' | 'Brand' | 'All Products';
+  product?: string;
+  category?: string;
+  brand?: string;
+  discountPct?: string;
+  freeQuantity?: string;
+  ptrDiscount?: string;
+  bonusProduct?: string;
+  minOrderQty: string;
+  validFrom: string;
+  validTo: string;
+  status: 'Active' | 'Upcoming' | 'Expired';
+  terms: string;
 }
 
 const mockSchemes: SchemeItem[] = [
-  { id: '1', schemeCode: 'SCH-Diwali-01', schemeName: 'Diwali Bonanza', company: 'PharmaCorp', productCategory: 'Antibiotics', schemeType: 'Buy X Get Y', discountPct: '-', freeQuantity: '10+1', startDate: '01-Nov-2024', endDate: '30-Nov-2024', status: 'Active' },
-  { id: '2', schemeCode: 'SCH-Q4-002', schemeName: 'Q4 Volume Discount', company: 'HealthPlus', productCategory: 'Analgesics', schemeType: 'Percentage Discount', discountPct: '15%', freeQuantity: '-', startDate: '15-Oct-2024', endDate: '31-Dec-2024', status: 'Active' },
-  { id: '3', schemeCode: 'SCH-WIN-003', schemeName: 'Winter Special', company: 'MediCare', productCategory: 'Respiratory', schemeType: 'Quantity Bonus', discountPct: '5%', freeQuantity: '50+5', startDate: '01-Nov-2024', endDate: '10-Nov-2024', status: 'Expiring Soon' },
-  { id: '4', schemeCode: 'SCH-NY-004', schemeName: 'New Year Early Bird', company: 'VitaLife', productCategory: 'Vitamins', schemeType: 'Festival Offer', discountPct: '12%', freeQuantity: '20+2', startDate: '01-Jan-2025', endDate: '31-Jan-2025', status: 'Upcoming' },
-  { id: '5', schemeCode: 'SCH-SUM-005', schemeName: 'Summer Clearance', company: 'PharmaCorp', productCategory: 'Dermatology', schemeType: 'Cash Discount', discountPct: '20%', freeQuantity: '-', startDate: '01-May-2024', endDate: '31-Jul-2024', status: 'Expired' },
+  { 
+    id: '1', schemeCode: 'SCH-VOL-01', schemeName: 'Q3 Volume Discount', schemeType: 'Percentage Discount', 
+    applicableTo: 'Category', category: 'Antibiotics', 
+    discountPct: '12%', minOrderQty: '50 Boxes',
+    validFrom: '01 Oct 2026', validTo: '31 Dec 2026', status: 'Active',
+    terms: 'Discount applied automatically at invoice generation. Minimum quantity must be met in a single order.' 
+  },
+  { 
+    id: '2', schemeCode: 'SCH-QTY-02', schemeName: 'Paracetamol Bulk Bonus', schemeType: 'Quantity Discount', 
+    applicableTo: 'Product', product: 'Paracetamol 650mg', 
+    freeQuantity: '10+1', minOrderQty: '100 Strips',
+    validFrom: '15 Sep 2026', validTo: '15 Oct 2026', status: 'Expired',
+    terms: 'Free goods will be dispatched with the primary order. No returns on free goods.' 
+  },
+  { 
+    id: '3', schemeCode: 'SCH-TRD-03', schemeName: 'Year End Trade Deal', schemeType: 'Trade Discount', 
+    applicableTo: 'All Products', 
+    bonusProduct: 'Free Hand Sanitizer 500ml', minOrderQty: '₹ 1,00,000',
+    validFrom: '01 Dec 2026', validTo: '31 Dec 2026', status: 'Upcoming',
+    terms: 'Cumulative invoice value must exceed ₹1,00,000 within the scheme period to qualify.' 
+  },
+  { 
+    id: '4', schemeCode: 'SCH-PTR-04', schemeName: 'Special PTR Margin', schemeType: 'PTR Discount', 
+    applicableTo: 'Brand', brand: 'Cipla', 
+    ptrDiscount: '15% PTR Discount', minOrderQty: '20 Boxes',
+    validFrom: '01 Oct 2026', validTo: '15 Nov 2026', status: 'Active',
+    terms: 'PTR discount applied directly to the base rate. Cannot be combined with volume discounts.' 
+  },
 ];
 
 export default function SchemeVisibility() {
+  const activeRole = localStorage.getItem('activeRole') || ROLE_RETAILER;
+  
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [selectedScheme, setSelectedScheme] = useState<SchemeItem | null>(mockSchemes[0]);
+  
+  const [viewScheme, setViewScheme] = useState<SchemeItem | null>(null);
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  const columns: Column<SchemeItem>[] = [
-    { key: 'schemeCode', label: 'Scheme Code', render: (row) => <span className="font-semibold text-slate-900 cursor-pointer hover:text-primary" onClick={() => setSelectedScheme(row)}>{row.schemeCode}</span> },
-    { key: 'schemeName', label: 'Scheme Name' },
-    { key: 'company', label: 'Company' },
-    { key: 'productCategory', label: 'Product Category' },
-    { key: 'schemeType', label: 'Scheme Type', render: (row) => <span className="text-slate-600">{row.schemeType}</span> },
-    { key: 'discountPct', label: 'Discount %', render: (row) => <span className="font-bold text-emerald-600">{row.discountPct}</span> },
-    { key: 'freeQuantity', label: 'Free Qty', render: (row) => <span className="font-mono text-indigo-600">{row.freeQuantity}</span> },
-    { key: 'startDate', label: 'Start Date' },
-    { key: 'endDate', label: 'End Date' },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (row) => {
-        let variant: any = 'default';
-        switch (row.status) {
-          case 'Active':
-            variant = 'success';
-            break;
-          case 'Upcoming':
-            variant = 'info';
-            break;
-          case 'Expiring Soon':
-            variant = 'warning';
-            break;
-          case 'Expired':
-            variant = 'danger';
-            break;
-        }
-        return <Badge variant={variant}>{row.status}</Badge>;
-      },
-    },
-  ];
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const filteredSchemes = mockSchemes.filter((item) => {
-    const matchSearch = item.schemeName.toLowerCase().includes(search.toLowerCase()) || 
-                        item.schemeCode.toLowerCase().includes(search.toLowerCase()) ||
-                        item.company.toLowerCase().includes(search.toLowerCase());
+    const searchStr = search.toLowerCase();
+    const matchSearch = item.schemeCode.toLowerCase().includes(searchStr) || item.schemeName.toLowerCase().includes(searchStr);
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   });
+
+  const getStatusVariant = (status: string): BadgeVariant => {
+    if (status === 'Active') return 'success';
+    if (status === 'Upcoming') return 'info';
+    return 'neutral';
+  };
+
+  const getAggregatedBenefit = (row: SchemeItem) => {
+    if (row.freeQuantity) return `${row.freeQuantity} Free`;
+    if (row.discountPct) return `${row.discountPct} Discount`;
+    if (row.ptrDiscount) return row.ptrDiscount;
+    if (row.bonusProduct) return row.bonusProduct;
+    return 'N/A';
+  };
+
+  const getAggregatedApplicability = (row: SchemeItem) => {
+    if (row.applicableTo === 'All Products') return 'All Products';
+    if (row.applicableTo === 'Category') return row.category;
+    if (row.applicableTo === 'Brand') return row.brand;
+    if (row.applicableTo === 'Product') return row.product;
+    return row.applicableTo;
+  };
+
+  const adminColumns: Column<SchemeItem>[] = [
+    { key: 'schemeCode', label: 'Scheme Code', render: (row) => <span className="font-semibold text-violet-700">{row.schemeCode}</span> },
+    { key: 'schemeName', label: 'Scheme Name', render: (row) => <span className="font-semibold text-slate-900">{row.schemeName}</span> },
+    { key: 'schemeType', label: 'Scheme Type', render: (row) => <span className="text-slate-600">{row.schemeType}</span> },
+    { key: 'applicableTo', label: 'Applicable To', render: (row) => <span className="text-slate-600">{row.applicableTo}</span> },
+    { key: 'validFrom', label: 'Valid From', render: (row) => <span className="text-slate-600">{row.validFrom}</span> },
+    { key: 'validTo', label: 'Valid To', render: (row) => <span className="text-slate-600">{row.validTo}</span> },
+    { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+    {
+      key: 'actions',
+      label: 'Action',
+      render: (row) => (
+        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          <button onClick={() => setViewScheme(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
+            <Eye className="w-4 h-4" />
+          </button>
+        </div>
+      )
+    }
+  ];
+
+  const retailerColumns: Column<SchemeItem>[] = [
+    { key: 'schemeCode', label: 'Scheme Code', render: (row) => <span className="font-semibold text-violet-700">{row.schemeCode}</span> },
+    { key: 'schemeName', label: 'Scheme Name', render: (row) => <span className="font-semibold text-slate-900">{row.schemeName}</span> },
+    { key: 'schemeType', label: 'Scheme Type', render: (row) => <span className="text-slate-600">{row.schemeType}</span> },
+    { key: 'benefit', label: 'Benefit', render: (row) => <span className="font-medium text-emerald-700">{getAggregatedBenefit(row)}</span> },
+    { key: 'applicableItems', label: 'Applicable Products / Category', render: (row) => <span className="text-slate-600">{getAggregatedApplicability(row)}</span> },
+    { key: 'validTill', label: 'Valid Till', render: (row) => <span className="text-slate-600">{row.validTo}</span> },
+    { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+    {
+      key: 'actions',
+      label: 'Action',
+      render: (row) => (
+        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          <button onClick={() => setViewScheme(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
+            <Eye className="w-4 h-4" />
+          </button>
+        </div>
+      )
+    }
+  ];
+
+  const columns = activeRole === ROLE_SUPER_ADMIN ? adminColumns : retailerColumns;
+
+  const getExportData = () => {
+    if (activeRole === ROLE_SUPER_ADMIN) {
+      return filteredSchemes.map(item => ({
+        'Scheme Code': item.schemeCode,
+        'Scheme Name': item.schemeName,
+        'Scheme Type': item.schemeType,
+        'Applicable To': item.applicableTo,
+        'Valid From': item.validFrom,
+        'Valid To': item.validTo,
+        'Status': item.status
+      }));
+    } else {
+      return filteredSchemes.map(item => ({
+        'Scheme Code': item.schemeCode,
+        'Scheme Name': item.schemeName,
+        'Scheme Type': item.schemeType,
+        'Benefit': getAggregatedBenefit(item),
+        'Applicable Products / Category': getAggregatedApplicability(item),
+        'Valid Till': item.validTo,
+        'Status': item.status
+      }));
+    }
+  };
+
+  const handleExportExcel = () => {
+    const data = getExportData();
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Schemes");
+    XLSX.writeFile(wb, "Scheme_Visibility.xlsx");
+    setShowExportMenu(false);
+  };
+
+  const handleExportCSV = () => {
+    const data = getExportData();
+    const ws = XLSX.utils.json_to_sheet(data);
+    const csv = XLSX.utils.sheet_to_csv(ws);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "Scheme_Visibility.csv";
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setShowExportMenu(false);
+  };
+
+  const handleExportPDF = () => {
+    const data = getExportData();
+    const doc = new jsPDF('landscape');
+    const headers = Object.keys(data[0] || {});
+    const body = data.map(obj => headers.map(header => (obj as any)[header]));
+    
+    doc.text("Scheme Visibility", 14, 15);
+    autoTable(doc, {
+      startY: 20,
+      head: [headers],
+      body: body,
+      theme: 'striped',
+      headStyles: { fillColor: [124, 58, 237] },
+      styles: { fontSize: 9 }
+    });
+    doc.save("Scheme_Visibility.pdf");
+    setShowExportMenu(false);
+  };
+
+  const handlePrint = () => {
+    window.print();
+    setShowExportMenu(false);
+  };
 
   return (
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Scheme Visibility"
-        subtitle="View all active schemes, promotional offers, free quantity benefits, and discount programs available for ordering."
+        subtitle="View trade schemes, volume discounts, and operational commercial deals."
         actions={
-          <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />}>Export Schemes</ActionButton>
+          <div className="relative inline-block text-left" ref={exportMenuRef}>
+            <ActionButton 
+              variant="secondary" 
+              icon={<Download className="w-4 h-4" />}
+              onClick={() => setShowExportMenu(!showExportMenu)}
+            >
+              Export Schemes <ChevronDown className="w-3 h-3 ml-1" />
+            </ActionButton>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                <div className="py-1" role="menu" aria-orientation="vertical">
+                  <button onClick={handleExportCSV} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export CSV</button>
+                  <button onClick={handleExportExcel} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export Excel</button>
+                  <button onClick={handleExportPDF} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export PDF</button>
+                  <button onClick={handlePrint} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 border-t border-slate-100">Print</button>
+                </div>
+              </div>
+            )}
+          </div>
         }
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <SummaryCard
-          title="Active Schemes"
-          value="42"
-          subtitle="Currently running"
-          icon={<Gift className="w-6 h-6" />}
-          colorClass="text-emerald-600"
-          bgClass="bg-emerald-50"
-        />
-        <SummaryCard
-          title="Expiring Soon"
-          value="8"
-          subtitle="Ends in next 7 days"
-          icon={<Clock className="w-6 h-6" />}
-          colorClass="text-amber-600"
-          bgClass="bg-amber-50"
-        />
-        <SummaryCard
-          title="Total Eligible Products"
-          value="1,245"
-          subtitle="Across all companies"
-          icon={<PackageCheck className="w-6 h-6" />}
-          colorClass="text-blue-600"
-          bgClass="bg-blue-50"
-        />
-        <SummaryCard
-          title="Total Savings Available"
-          value="₹ 2.4 L"
-          subtitle="Potential discount value"
-          icon={<IndianRupee className="w-6 h-6" />}
-          colorClass="text-indigo-600"
-          bgClass="bg-indigo-50"
-        />
-      </div>
-
-      {/* Analytics Section */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[160px]">
-          <PieChart className="w-8 h-8 text-primary mb-3 opacity-80" />
-          <h3 className="text-sm font-semibold text-slate-800 mb-1">Active Schemes by Company</h3>
-          <p className="text-xs text-slate-500 text-center">Visual breakdown of schemes from top 5 companies</p>
+      <FilterBar>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search scheme code or scheme name..." />
+        <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-slate-400" />
+          <span className="text-sm font-medium text-slate-600">Filters:</span>
         </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[160px]">
-          <TrendingUp className="w-8 h-8 text-emerald-500 mb-3 opacity-80" />
-          <h3 className="text-sm font-semibold text-slate-800 mb-1">Savings by Scheme Type</h3>
-          <p className="text-xs text-slate-500 text-center">Cash Discount vs Free Quantity vs Percentage</p>
+        <SelectFilter
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { label: 'Active', value: 'Active' },
+            { label: 'Upcoming', value: 'Upcoming' },
+            { label: 'Expired', value: 'Expired' },
+          ]}
+          placeholder="Status"
+        />
+      </FilterBar>
+
+      <TableCard>
+        <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
+          <DataTable
+            columns={columns}
+            data={filteredSchemes}
+            emptyMessage="No schemes found matching your criteria."
+          />
         </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[160px]">
-          <BarChart3 className="w-8 h-8 text-indigo-500 mb-3 opacity-80" />
-          <h3 className="text-sm font-semibold text-slate-800 mb-1">Monthly Scheme Utilization</h3>
-          <p className="text-xs text-slate-500 text-center">Trend of availed scheme benefits over 6 months</p>
-        </div>
-      </div>
+      </TableCard>
 
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 mb-8">
-        {/* Main Scheme Table */}
-        <div className="xl:col-span-3 flex flex-col gap-4">
-          <FilterBar>
-            <SearchInput value={search} onChange={setSearch} placeholder="Search by scheme name, code or company..." />
-            <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
-            <div className="flex items-center gap-2">
-              <Filter className="w-4 h-4 text-slate-400" />
-              <span className="text-sm font-medium text-slate-600">Filters:</span>
-            </div>
-            <SelectFilter
-              value={statusFilter}
-              onChange={setStatusFilter}
-              options={[
-                { label: 'Active', value: 'Active' },
-                { label: 'Upcoming', value: 'Upcoming' },
-                { label: 'Expiring Soon', value: 'Expiring Soon' },
-                { label: 'Expired', value: 'Expired' },
-              ]}
-              placeholder="Status"
-            />
-          </FilterBar>
-
-          <TableCard>
-            <DataTable
-              columns={columns}
-              data={filteredSchemes}
-              emptyMessage="No schemes found."
-            />
-          </TableCard>
-        </div>
-
-        {/* Active Scheme Details Panel */}
-        <div className="xl:col-span-1">
-          {selectedScheme ? (
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm sticky top-6">
-              <div className="flex items-start justify-between mb-4">
-                <div>
-                  <h3 className="text-lg font-semibold text-slate-900">{selectedScheme.schemeCode}</h3>
-                  <p className="text-sm text-slate-500">{selectedScheme.schemeName}</p>
-                </div>
-                <Badge variant={selectedScheme.status === 'Active' ? 'success' : selectedScheme.status === 'Expiring Soon' ? 'warning' : selectedScheme.status === 'Upcoming' ? 'info' : 'danger'}>
-                  {selectedScheme.status}
-                </Badge>
-              </div>
-
-              <div className="space-y-4">
-                <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Scheme Description</p>
-                  <p className="text-sm text-slate-800">Special promotional pricing and bonus units for {selectedScheme.company} products during the validity period.</p>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Eligible Products</p>
-                    <p className="text-sm font-semibold text-slate-800">{selectedScheme.productCategory} Line</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Min. Order Qty</p>
-                    <p className="text-sm font-semibold text-slate-800">10 Units</p>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Free Quantity</p>
-                    <p className="text-sm font-mono font-bold text-indigo-600">{selectedScheme.freeQuantity}</p>
-                  </div>
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Discount %</p>
-                    <p className="text-sm font-mono font-bold text-emerald-600">{selectedScheme.discountPct}</p>
-                  </div>
-                </div>
-
-                <div>
-                  <p className="text-xs font-medium text-slate-500 uppercase tracking-wider mb-1">Validity Period</p>
-                  <div className="flex items-center gap-2 text-sm text-slate-800">
-                    <Clock className="w-4 h-4 text-slate-400" />
-                    <span>{selectedScheme.startDate}</span>
-                    <span className="text-slate-400">to</span>
-                    <span>{selectedScheme.endDate}</span>
-                  </div>
-                </div>
-
-                <div className="pt-4 border-t border-slate-100">
-                  <div className="bg-emerald-50 text-emerald-800 p-3 rounded-lg flex items-center justify-between">
-                    <span className="text-sm font-medium">Estimated Savings</span>
-                    <span className="text-lg font-bold">~ 15%</span>
-                  </div>
-                </div>
+      <Drawer
+        open={!!viewScheme}
+        onClose={() => setViewScheme(null)}
+        title="Scheme Details"
+      >
+        {viewScheme && (
+          <div className="space-y-6 pb-20">
+            {/* Section 1: Scheme Information */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Scheme Information</h3>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <DrawerField label="Scheme Code" value={<span className="font-semibold text-violet-700">{viewScheme.schemeCode}</span>} />
+                <DrawerField label="Scheme Name" value={<span className="font-semibold text-slate-900">{viewScheme.schemeName}</span>} />
+                <DrawerField label="Scheme Type" value={viewScheme.schemeType} />
               </div>
             </div>
-          ) : (
-            <div className="bg-slate-50 p-6 rounded-xl border border-slate-200 border-dashed flex flex-col items-center justify-center text-center h-full min-h-[300px]">
-              <AlertCircle className="w-8 h-8 text-slate-400 mb-2" />
-              <p className="text-sm font-medium text-slate-600">Select a scheme from the table to view details</p>
+
+            {/* Section 2: Eligibility */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Eligibility</h3>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                {viewScheme.category && <DrawerField label="Product Category" value={viewScheme.category} />}
+                {viewScheme.product && <DrawerField label="Product" value={viewScheme.product} />}
+                {viewScheme.brand && <DrawerField label="Brand" value={viewScheme.brand} />}
+                <DrawerField label="Minimum Order Quantity" value={<span className="font-medium text-slate-800">{viewScheme.minOrderQty}</span>} />
+              </div>
             </div>
-          )}
-        </div>
-      </div>
+
+            {/* Section 3: Benefits */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Benefits</h3>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                {viewScheme.discountPct && <DrawerField label="Discount Percentage" value={<span className="font-bold text-emerald-600">{viewScheme.discountPct}</span>} />}
+                {viewScheme.freeQuantity && <DrawerField label="Free Quantity" value={<span className="font-bold text-indigo-600">{viewScheme.freeQuantity}</span>} />}
+                {viewScheme.ptrDiscount && <DrawerField label="PTR Discount" value={<span className="font-bold text-emerald-600">{viewScheme.ptrDiscount}</span>} />}
+                {viewScheme.bonusProduct && <DrawerField label="Bonus Product" value={<span className="font-bold text-indigo-600">{viewScheme.bonusProduct}</span>} />}
+              </div>
+            </div>
+
+            {/* Section 4: Validity */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Validity</h3>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <DrawerField label="Valid From" value={viewScheme.validFrom} />
+                <DrawerField label="Valid To" value={<span className="font-medium text-slate-800">{viewScheme.validTo}</span>} />
+              </div>
+            </div>
+
+            {/* Section 5: Terms & Conditions */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Terms & Conditions</h3>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <p className="text-sm text-slate-600 leading-relaxed italic">{viewScheme.terms}</p>
+              </div>
+            </div>
+            
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }
