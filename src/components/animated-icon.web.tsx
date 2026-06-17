@@ -57,17 +57,17 @@ const glowKeyframe = new Keyframe({
 export function AnimatedIcon() {
   return (
     <View style={styles.iconContainer}>
-      <Animated.View entering={glowKeyframe.duration(60 * 1000 * 4)} style={styles.glow}>
+      <div className={classes.glowContainer}>
         <Image style={styles.glow} source={require('@/assets/images/logo-glow.png')} />
-      </Animated.View>
+      </div>
 
-      <Animated.View style={styles.background} entering={keyframe.duration(DURATION)}>
+      <View style={styles.background}>
         <div className={classes.expoLogoBackground} />
-      </Animated.View>
+      </View>
 
-      <Animated.View style={styles.imageContainer} entering={logoKeyframe.duration(DURATION)}>
+      <View style={styles.imageContainer}>
         <Image style={styles.image} source={require('@/assets/images/expo-logo.png')} />
-      </Animated.View>
+      </View>
     </View>
   );
 }

@@ -4,3 +4,16 @@
   width: 128px;
   height: 128px;
 }
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.glowContainer {
+  animation: spin 240s linear infinite;
+}
