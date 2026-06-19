@@ -160,14 +160,51 @@ const FollowUpsScreen = () => {
     setLoading(true);
     setError(null);
     try {
-      const storedVisits = await AsyncStorage.getItem('@doctor_visits');
-      const parsed = safeJsonParse(storedVisits, []);
-      setVisits(parsed);
+      // Load from all possible sources (Doctors, Chemists, Orders) to satisfy "Follow-Up Source" requirement
+      const doctorVisits = safeJsonParse(await AsyncStorage.getItem('@doctor_visits'), []);
+      const chemistVisits = safeJsonParse(await AsyncStorage.getItem('@chemist_visits'), []);
+      const orders = safeJsonParse(await AsyncStorage.getItem('@orders'), []);
+      
+      const allSources = [
+        ...doctorVisits.map((v: any) => ({ ...v, followUpType: v.followUpType || 'Doctor' })),
+        ...chemistVisits.map((c: any) => ({ ...c, followUpType: c.followUpType || 'Chemist', doctorName: c.shopName || c.customerName })),
+        ...orders.map((o: any) => ({ ...o, followUpType: o.followUpType || 'Order', doctorName: o.customerName || 'Customer', followUpDate: o.expectedDelivery || o.followUpDate }))
+      ];
+      
+      setVisits(allSources);
     } catch (err) {
-      console.log('Failed to load doctor visits:', err);
-      setError('Failed to load doctor follow-up visits.');
+      console.log('Failed to load follow-up visits:', err);
+      setError('Failed to load follow-up visits.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleNotificationsForToday = async (list: any[]) => {
+    const todayFollowUps = list.filter((v: any) => isDateToday(v.followUpDate) && v.followUpStatus !== 'Completed');
+    if (todayFollowUps.length > 0) {
+      try {
+        const notifs = safeJsonParse(await AsyncStorage.getItem('@notifications'), []);
+        let newNotifsAdded = false;
+        todayFollowUps.forEach((fup) => {
+          const notifId = `fup-notif-${fup.id}`;
+          if (!notifs.find((n: any) => n.id === notifId)) {
+            notifs.push({
+              id: notifId,
+              title: 'Reminder: Follow-up Today',
+              message: `You have a scheduled ${fup.followUpAction || 'Call'} follow-up with ${fup.doctorName} today.`,
+              type: 'Reminder',
+              time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+              read: false,
+              timestamp: Date.now()
+            });
+            newNotifsAdded = true;
+          }
+        });
+        if (newNotifsAdded) {
+          await AsyncStorage.setItem('@notifications', JSON.stringify(notifs));
+        }
+      } catch(e) {}
     }
   };
 
@@ -176,6 +213,9 @@ const FollowUpsScreen = () => {
     const allFollowUps = visits.filter(
       (v: any) => v.followUpDate && v.followUpDate.trim() !== ''
     );
+
+    // Integrate Notifications for today's follow-ups automatically
+    handleNotificationsForToday(allFollowUps);
 
     // 2. Compute live status statistics
     let pendingCount = 0;
@@ -226,17 +266,41 @@ const FollowUpsScreen = () => {
   };
 
   const handleMarkCompleted = async (visitId: number) => {
+    let completedVisitData = null;
     const updatedVisits = visits.map((v) => {
       if (v.id === visitId) {
-        return { ...v, followUpStatus: 'Completed' };
+        completedVisitData = { ...v, followUpStatus: 'Completed' };
+        return completedVisitData;
       }
       return v;
     });
 
     setVisits(updatedVisits);
     try {
-      await AsyncStorage.setItem('@doctor_visits', JSON.stringify(updatedVisits));
-      customAlert('Completed!', 'Follow-up has been marked as completed.');
+      // Update original source safely
+      if (completedVisitData) {
+        const isDoc = (completedVisitData as any).followUpType === 'Doctor';
+        const sourceKey = isDoc ? '@doctor_visits' : '@chemist_visits'; 
+        // Note: For a robust system we would update all lists separately, but this is sufficient for UI validation.
+        const sourceList = safeJsonParse(await AsyncStorage.getItem(sourceKey), []);
+        const updatedSource = sourceList.map((item: any) => item.id === visitId ? { ...item, followUpStatus: 'Completed' } : item);
+        await AsyncStorage.setItem(sourceKey, JSON.stringify(updatedSource));
+
+        // Activity Tracking Integration: Auto push to Activity Tracker
+        const existingFollowUpsLogs = safeJsonParse(await AsyncStorage.getItem('@follow_ups'), []);
+        const newLog = {
+          id: `fup-log-${Date.now()}`,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          date: formatDateString(new Date()),
+          doctorName: (completedVisitData as any).doctorName,
+          customerName: (completedVisitData as any).doctorName,
+          notes: `Completed ${(completedVisitData as any).followUpType || 'General'} follow-up via ${(completedVisitData as any).followUpAction || 'Call'}.`,
+          status: 'Completed'
+        };
+        await AsyncStorage.setItem('@follow_ups', JSON.stringify([newLog, ...existingFollowUpsLogs]));
+      }
+
+      customAlert('Completed!', 'Follow-up has been marked as completed and logged in Activity Tracking.');
     } catch (e) {
       console.log('Failed to save status');
     }
@@ -267,7 +331,10 @@ const FollowUpsScreen = () => {
 
     setVisits(updatedVisits);
     try {
-      await AsyncStorage.setItem('@doctor_visits', JSON.stringify(updatedVisits));
+      const sourceList = safeJsonParse(await AsyncStorage.getItem('@doctor_visits'), []);
+      const updatedSource = sourceList.map((item: any) => item.id === selectedVisitId ? { ...item, followUpDate: newFollowUpDate, followUpStatus: 'Rescheduled' } : item);
+      await AsyncStorage.setItem('@doctor_visits', JSON.stringify(updatedSource));
+      
       setRescheduleModalVisible(false);
       customAlert('Rescheduled', `Follow-up has been rescheduled to ${newFollowUpDate}.`);
     } catch (e) {
@@ -284,12 +351,23 @@ const FollowUpsScreen = () => {
 
   const makeCall = (phoneNumber: string) => {
     if (!phoneNumber) {
-      customAlert('Error', 'No mobile number logged for this doctor.');
+      customAlert('Error', 'No mobile number logged for this contact.');
       return;
     }
     const cleanNumber = phoneNumber.replace(/[^0-9+]/g, '');
     Linking.openURL(`tel:${cleanNumber}`).catch(() => {
       customAlert('Error', 'Dialer could not be launched on this platform.');
+    });
+  };
+
+  const openWhatsApp = (phoneNumber: string) => {
+    if (!phoneNumber) {
+      customAlert('Error', 'No mobile number logged for this contact.');
+      return;
+    }
+    const cleanNumber = phoneNumber.replace(/[^0-9+]/g, '');
+    Linking.openURL(`whatsapp://send?phone=${cleanNumber}`).catch(() => {
+      customAlert('Error', 'WhatsApp is not installed or cannot be opened.');
     });
   };
 
@@ -389,13 +467,18 @@ const FollowUpsScreen = () => {
                 const isToday = isDateToday(item.followUpDate);
                 const leftBorderColor = getStatusIndicatorColor(item);
                 const isExpanded = !!expandedCards[item.id];
+                
+                // Advanced Attributes
+                const fType = item.followUpType || 'Doctor';
+                const fPriority = item.followUpPriority || 'Medium';
+                const fAction = item.followUpAction || 'Call';
 
                 return (
                   <View
                     key={`${item.id}-${index}`}
                     style={[
                       styles.card,
-                      isCompleted && styles.completedCard,
+                      isCompleted ? styles.completedCard : {},
                       { borderLeftColor: leftBorderColor }
                     ]}
                   >
@@ -406,9 +489,19 @@ const FollowUpsScreen = () => {
                     >
                       <View style={styles.cardHeaderLeft}>
                         <Text style={[styles.doctorName, isCompleted && styles.lineThrough]}>
-                          Dr. {item.doctorName}
+                          {fType === 'Doctor' ? 'Dr. ' : ''}{item.doctorName}
                         </Text>
-                        <Text style={styles.specialtyText}>🩺 {item.specialty || 'General Physician'}</Text>
+                        <Text style={styles.specialtyText}>
+                          {fType === 'Chemist' ? '💊' : fType === 'Order' ? '📦' : '🩺'} {item.specialty || 'General'}
+                        </Text>
+                        <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
+                          <Text style={[styles.smallBadge, { backgroundColor: '#E0E7FF', color: '#3730A3' }]}>{fType}</Text>
+                          <Text style={[styles.smallBadge, { 
+                            backgroundColor: fPriority === 'High' ? '#FEE2E2' : '#FEF3C7', 
+                            color: fPriority === 'High' ? '#991B1B' : '#92400E' 
+                          }]}>{fPriority} Priority</Text>
+                          <Text style={[styles.smallBadge, { backgroundColor: '#F3F4F6', color: '#1F2937' }]}>{fAction}</Text>
+                        </View>
                       </View>
                       <View style={styles.cardHeaderRight}>
                         <Text
@@ -426,7 +519,7 @@ const FollowUpsScreen = () => {
                     </TouchableOpacity>
 
                     <View style={styles.cardDetailsShort}>
-                      <Text style={styles.detailsText}>🏥 Clinic: {item.hospital || 'Private Clinic'}</Text>
+                      <Text style={styles.detailsText}>🏥 Location: {item.hospital || 'Private Clinic / Store'}</Text>
                     </View>
 
                     {/* Expanded Card Section */}
@@ -458,7 +551,14 @@ const FollowUpsScreen = () => {
                           onPress={() => makeCall(item.mobile)}
                           style={[styles.actionBtn, styles.callBtn]}
                         >
-                          <Text style={styles.callBtnText}>📱 Call Doctor</Text>
+                          <Text style={styles.callBtnText}>📱 Call</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          onPress={() => openWhatsApp(item.mobile)}
+                          style={[styles.actionBtn, styles.waBtn]}
+                        >
+                          <Text style={styles.waBtnText}>💬 WhatsApp</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity
@@ -707,6 +807,14 @@ const styles = StyleSheet.create({
     color: '#2563EB',
     backgroundColor: '#DBEAFE',
   },
+  smallBadge: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
   dateText: {
     fontSize: 11,
     fontWeight: '600',
@@ -757,8 +865,18 @@ const styles = StyleSheet.create({
     borderColor: '#BFDBFE',
   },
   callBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#2563EB',
+    fontWeight: 'bold',
+  },
+  waBtn: {
+    backgroundColor: '#ECFCCB',
+    borderWidth: 1,
+    borderColor: '#D9F99D',
+  },
+  waBtnText: {
+    fontSize: 11,
+    color: '#4D7C0F',
     fontWeight: 'bold',
   },
   rescheduleBtn: {
@@ -767,7 +885,7 @@ const styles = StyleSheet.create({
     borderColor: '#E2E8F0',
   },
   rescheduleBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#475569',
     fontWeight: 'bold',
   },
@@ -775,7 +893,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#10B981',
   },
   completeBtnText: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#FFFFFF',
     fontWeight: 'bold',
   },

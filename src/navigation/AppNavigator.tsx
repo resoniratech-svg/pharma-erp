@@ -153,10 +153,13 @@ import ProductCatalogScreen from '../screens/ProductCatalogScreen/ProductCatalog
 import ProfileScreen from '../screens/ProfileScreen/ProfileScreen';
 import RouteHistoryScreen from '../screens/RouteHistoryScreen/RouteHistoryScreen';
 import TargetTrackingScreen from '../screens/TargetTrackingScreen/TargetTrackingScreen';
-import TerritoryScreen from '../screens/TerritoryScreen/TerritoryScreen';
+import TerritoryTrackingScreen from '../screens/TerritoryTrackingScreen/TerritoryTrackingScreen';
 import TourPlanningScreen from '../screens/TourPlanningScreen/TourPlanningScreen';
 import ExpiryAlertsScreen from '../screens/ExpiryAlertsScreen/ExpiryAlertsScreen';
 import FollowUpRemindersScreen from '../screens/FollowUpRemindersScreen/FollowUpRemindersScreen';
+import MeetingRemindersScreen from '@/screens/MeetingRemindersScreen/MeetingRemindersScreen';
+import ActivityNotificationsScreen from '@/screens/ActivityNotificationsScreen/ActivityNotificationsScreen';
+
 
 const Stack = createNativeStackNavigator();
 
@@ -260,8 +263,8 @@ const AppNavigator = () => {
         options={{ headerShown: false }}
       />
       <Stack.Screen
-        name="Territory"
-        component={TerritoryScreen}
+        name="TerritoryTracking"
+        component={TerritoryTrackingScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen
@@ -304,6 +307,14 @@ const AppNavigator = () => {
         component={ExpiryAlertsScreen}
         options={{ headerShown: false }}
       />
+     <Stack.Screen
+        name="MeetingReminders"
+        component={MeetingRemindersScreen}
+        //options={{ headerShown: false }}
+      />
+      <Stack.Screen 
+      name="ActivityNotifications"
+     component={ActivityNotificationsScreen} />
     </Stack.Navigator>
   );
 };

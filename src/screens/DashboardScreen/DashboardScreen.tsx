@@ -415,7 +415,7 @@ const DashboardScreen = () => {
                     { label: '🩺 Geo Tagged Doctor Visits', route: 'GeoTaggedDoctorVisits' },
                     { label: '💊 Geo Tagged Chemist Visits', route: 'GeoTaggedChemistVisits' },
                     { label: '🛣️ Route History', route: 'RouteHistory' },
-                    { label: '📍 Territory Tracking', route: 'Territory' },
+                    { label: '📍 Territory Tracking', route: 'TerritoryTracking' },
                     { label: '🧭 Daily Movement Tracking', route: 'DailyMovementTracking' },
                     { label: '🤝 Meeting/Event Location Tracking', route: 'MeetingLocation' },
                   ].map((item, index) => (
@@ -433,10 +433,10 @@ const DashboardScreen = () => {
               {showAlerts && (
                 <View style={styles.groupChildren}>
                   {[
-                    { label: '🤝 Meeting Reminders', route: 'Notifications' },
+                    { label: '🤝 Meeting Reminders', route: 'MeetingReminders' },
                     { label: '🎯 Follow-Up Reminders', route: 'FollowUpReminders' },
-                    { label: '🧪 Expiry Alerts', route: 'ExpiryAlerts' },
-                    { label: '🔔 Activity Notifications', route: 'Notifications' },
+                    { label: '📲 Activity Notifications', route: 'ActivityNotifications' },
+                    { label: '📥 Notification Center', route: 'Notifications' },
                   ].map((item, index) => (
                     <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => { setIsMenuOpen(false); navigation.navigate(item.route); }}>
                       <Text style={styles.drawerSubItemText}>{item.label}</Text>

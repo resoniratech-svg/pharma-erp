@@ -113,8 +113,10 @@ const TourPlanningScreen = () => {
   const [chemistsList, setChemistsList] = useState('');
   const [startTime, setStartTime] = useState('09:00 AM');
   const [endTime, setEndTime] = useState('06:00 PM');
-  const [objective, setObjective] = useState('Routine Promotion');
+  const [objective, setObjective] = useState('Field Work');
+  const [planType, setPlanType] = useState('MTP');
   const [remarks, setRemarks] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -227,6 +229,29 @@ const TourPlanningScreen = () => {
       return;
     }
 
+    if (objective !== 'Leave' && objective !== 'Training') {
+      if (!doctorsList.trim() && !chemistsList.trim()) {
+        customAlert('Error', 'At least 1 Doctor or Chemist must be planned.');
+        return;
+      }
+    }
+
+    const timeToMinutes = (timeStr: string) => {
+      const match = timeStr.match(/^(\d{2}):(\d{2})\s*(AM|PM)$/i);
+      if (!match) return 0;
+      let hours = parseInt(match[1]);
+      const mins = parseInt(match[2]);
+      const ampm = match[3].toUpperCase();
+      if (ampm === 'PM' && hours < 12) hours += 12;
+      if (ampm === 'AM' && hours === 12) hours = 0;
+      return hours * 60 + mins;
+    };
+
+    if (timeToMinutes(startTime) >= timeToMinutes(endTime)) {
+      customAlert('Error', 'Start time must be before End time.');
+      return;
+    }
+
     if (editingPlanId !== null) {
       const updatedPlans = plans.map((p) => {
         if (p.id === editingPlanId) {
@@ -236,6 +261,7 @@ const TourPlanningScreen = () => {
             area,
             beat,
             territory,
+            planType,
             docCount: parseInt(docCount) || 0,
             doctorsList,
             chemistCount: parseInt(chemistCount) || 0,
@@ -272,6 +298,7 @@ const TourPlanningScreen = () => {
         area,
         beat,
         territory,
+        planType,
         docCount: parseInt(docCount) || 0,
         doctorsList,
         chemistCount: parseInt(chemistCount) || 0,
@@ -280,7 +307,7 @@ const TourPlanningScreen = () => {
         endTime,
         objective,
         remarks,
-        status: 'Pending Approval',
+        status: 'Draft',
       };
 
       const updatedPlans = [newPlan, ...plans];
@@ -309,6 +336,7 @@ const TourPlanningScreen = () => {
     setTerritory(plan.territory);
     setArea(plan.area);
     setBeat(plan.beat);
+    setPlanType(plan.planType || 'MTP');
     setStartTime(plan.startTime);
     setEndTime(plan.endTime);
     setObjective(plan.objective);
@@ -361,12 +389,13 @@ const TourPlanningScreen = () => {
   const cycleStatus = async (planId: number) => {
     const updatedPlans = plans.map((p) => {
       if (p.id === planId) {
-        let currentStatus = p.status || 'Pending Approval';
-        let nextStatus = 'Pending Approval';
-        if (currentStatus === 'Pending Approval') nextStatus = 'Approved';
-        else if (currentStatus === 'Approved') nextStatus = 'In Progress';
-        else if (currentStatus === 'In Progress') nextStatus = 'Completed';
-        else nextStatus = 'Pending Approval';
+        let currentStatus = p.status || 'Draft';
+        let nextStatus = 'Draft';
+        if (currentStatus === 'Draft') nextStatus = 'Pending Approval';
+        else if (currentStatus === 'Pending Approval') nextStatus = 'Approved';
+        else if (currentStatus === 'Approved') nextStatus = 'Rejected';
+        else if (currentStatus === 'Rejected') nextStatus = 'Completed';
+        else nextStatus = 'Draft';
         return { ...p, status: nextStatus };
       }
       return p;
@@ -383,9 +412,10 @@ const TourPlanningScreen = () => {
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Approved': return { bg: '#E8F5E9', text: '#2E7D32' };
-      case 'In Progress': return { bg: '#E3F2FD', text: '#1565C0' };
       case 'Completed': return { bg: '#ECEFF1', text: '#37474F' };
-      default: return { bg: '#FFF3E0', text: '#E65100' };
+      case 'Rejected': return { bg: '#FFEBEE', text: '#C62828' };
+      case 'Draft': return { bg: '#F3E5F5', text: '#6A1B9A' };
+      default: return { bg: '#FFF3E0', text: '#E65100' }; // Pending Approval
     }
   };
 
@@ -458,11 +488,15 @@ const TourPlanningScreen = () => {
           <View style={styles.summaryRow}>
             <View style={[styles.summaryCard, { borderLeftColor: '#1E88E5' }]}>
               <Text style={styles.summaryValue}>{totalDocsPlanned}</Text>
-              <Text style={styles.summaryLabel}>Total Doctors Planned</Text>
+              <Text style={styles.summaryLabel}>Doctors Planned</Text>
             </View>
             <View style={[styles.summaryCard, { borderLeftColor: '#43A047' }]}>
               <Text style={styles.summaryValue}>{totalChemistsPlanned}</Text>
-              <Text style={styles.summaryLabel}>Total Chemists Planned</Text>
+              <Text style={styles.summaryLabel}>Chemists Planned</Text>
+            </View>
+            <View style={[styles.summaryCard, { borderLeftColor: '#8E24AA' }]}>
+              <Text style={styles.summaryValue}>{totalDocsPlanned + totalChemistsPlanned}</Text>
+              <Text style={styles.summaryLabel}>Total Calls</Text>
             </View>
           </View>
 
@@ -472,6 +506,29 @@ const TourPlanningScreen = () => {
                 <Text style={styles.editBannerText}>✏️ Editing Tour Plan</Text>
               </View>
             )}
+
+            <Text style={styles.label}>Plan Type *</Text>
+            <View style={styles.selectorRow}>
+              {['MTP', 'WTP', 'DTP'].map((pt) => (
+                <TouchableOpacity
+                  key={pt}
+                  onPress={() => setPlanType(pt)}
+                  style={[
+                    styles.selectorButton,
+                    planType === pt && styles.selectorActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.selectorText,
+                      planType === pt && styles.selectorTextActive,
+                    ]}
+                  >
+                    {pt === 'MTP' ? 'Monthly' : pt === 'WTP' ? 'Weekly' : 'Daily'} ({pt})
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
             {/* Date Selector input (Web Picker vs Native Picker) */}
             <Text style={styles.label}>Tour Date *</Text>
@@ -557,27 +614,30 @@ const TourPlanningScreen = () => {
             </View>
 
             <Text style={styles.label}>Objective / Purpose</Text>
-            <View style={styles.selectorRow}>
-              {['Routine Promotion', 'Payment Collection', 'Doctor Onboarding'].map((obj) => (
-                <TouchableOpacity
-                  key={obj}
-                  onPress={() => setObjective(obj)}
-                  style={[
-                    styles.selectorButton,
-                    objective === obj && styles.selectorActive,
-                  ]}
-                >
-                  <Text
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 8}}>
+              <View style={styles.selectorRow}>
+                {['Field Work', 'Doctor Meeting', 'Payment Collection', 'Training', 'Leave'].map((obj) => (
+                  <TouchableOpacity
+                    key={obj}
+                    onPress={() => setObjective(obj)}
                     style={[
-                      styles.selectorText,
-                      objective === obj && styles.selectorTextActive,
+                      styles.selectorButton,
+                      objective === obj && styles.selectorActive,
+                      { paddingHorizontal: 12 }
                     ]}
                   >
-                    {obj.split(' ')[0]}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+                    <Text
+                      style={[
+                        styles.selectorText,
+                        objective === obj && styles.selectorTextActive,
+                      ]}
+                    >
+                      {obj}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
 
             <View style={styles.row}>
               <View style={styles.rowItem}>
@@ -668,7 +728,23 @@ const TourPlanningScreen = () => {
           {plans.length > 0 && (
             <>
               <Text style={styles.historyTitle}>Submitted Tour Plans ({plans.length})</Text>
-              {plans.map((plan) => {
+              
+              <TextInput
+                style={[styles.input, { marginBottom: 15 }]}
+                placeholder="🔍 Search by Route, HQ, or Date..."
+                value={searchQuery}
+                onChangeText={setSearchQuery}
+              />
+
+              {plans.filter(p => {
+                const q = searchQuery.toLowerCase();
+                return (
+                  (p.area && p.area.toLowerCase().includes(q)) ||
+                  (p.territory && p.territory.toLowerCase().includes(q)) ||
+                  (p.date && p.date.toLowerCase().includes(q)) ||
+                  (p.beat && p.beat.toLowerCase().includes(q))
+                );
+              }).map((plan) => {
                 const statusStyle = getStatusColor(plan.status);
                 
                 // Real-time visited math logic based on Doctor & Chemist visits
@@ -685,7 +761,7 @@ const TourPlanningScreen = () => {
                       <View style={{ flex: 1, paddingRight: 10 }}>
                         <Text style={styles.planDate}>📅 Date: {plan.date}</Text>
                         <Text style={styles.planArea}>📍 HQ: {plan.territory || 'N/A'}</Text>
-                        <Text style={styles.planSubroute}>🛤️ Route: {plan.area} (Beat: {plan.beat || 'N/A'})</Text>
+                        <Text style={styles.planSubroute}>🛤️ {plan.planType || 'MTP'} Route: {plan.area} (Beat: {plan.beat || 'N/A'})</Text>
                       </View>
                       <TouchableOpacity 
                         onPress={() => cycleStatus(plan.id)}
@@ -716,8 +792,8 @@ const TourPlanningScreen = () => {
 
                     <View style={styles.cardDivider} />
 
-                    {/* Edit & Delete actions for Pending Approval plans */}
-                    {plan.status === 'Pending Approval' && (
+                    {/* Edit & Delete actions for Draft or Pending Approval plans */}
+                    {['Draft', 'Pending Approval', 'Rejected'].includes(plan.status) && (
                       <View style={styles.actionsRow}>
                         <TouchableOpacity 
                           onPress={() => handleEditPlan(plan)}

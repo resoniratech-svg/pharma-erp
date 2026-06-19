@@ -24,34 +24,6 @@ interface BeatTerritory {
   lastActivity: string;
   status: 'Active Beat' | 'Secondary Beat';
 }
-
-const MY_TERRITORIES: BeatTerritory[] = [
-  { id: '1', area: 'Hyderabad Central', district: 'Hyderabad', state: 'Telangana', doctorsCount: 12, chemistsCount: 15, coverage: 82, lastActivity: '11-Jun-2026', status: 'Active Beat' },
-  { id: '2', area: 'Secunderabad Route', district: 'Secunderabad', state: 'Telangana', doctorsCount: 8, chemistsCount: 10, coverage: 75, lastActivity: '10-Jun-2026', status: 'Active Beat' },
-  { id: '3', area: 'Ameerpet X Roads', district: 'Hyderabad', state: 'Telangana', doctorsCount: 15, chemistsCount: 8, coverage: 50, lastActivity: '08-Jun-2026', status: 'Secondary Beat' },
-  { id: '4', area: 'Koti Market', district: 'Hyderabad', state: 'Telangana', doctorsCount: 10, chemistsCount: 20, coverage: 90, lastActivity: '12-Jun-2026', status: 'Active Beat' },
-];
-
-// Default mapped lists (fallback static details if no visits recorded)
-const BEAT_DETAILS: { [key: string]: { doctors: string[]; chemists: string[] } } = {
-  '1': {
-    doctors: ['Dr. A.K. Singh (Cardiologist)', 'Dr. S. K. Sen (Paediatrician)', 'Dr. R. Prasad (Neurologist)'],
-    chemists: ['Apollo Pharmacy', 'Wellness Medical', 'MedPlus Central'],
-  },
-  '2': {
-    doctors: ['Dr. Neha Gupta (Gynaecologist)', 'Dr. V. K. Rao (General Physician)'],
-    chemists: ['Care Chemists', 'City Medicos'],
-  },
-  '3': {
-    doctors: ['Dr. Verma (Orthopaedic)', 'Dr. Anand (Dermatologist)', 'Dr. Saxena (ENT Specialist)'],
-    chemists: ['LifeCare Drugs', 'Hindustan Pharmacy'],
-  },
-  '4': {
-    doctors: ['Dr. Batra (General Physician)', 'Dr. Malhotra (General Surgeon)'],
-    chemists: ['Jan Aushadhi Store', 'Noble Medicals', 'Durga Pharma'],
-  },
-};
-
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
   try {
@@ -62,7 +34,7 @@ const safeJsonParse = (data: string | null, fallback: any) => {
   }
 };
 
-const TerritoryScreen = () => {
+const TerritoryTrackingScreen = () => {
   const navigation = useNavigation<any>();
   const [searchQuery, setSearchQuery] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -73,7 +45,7 @@ const TerritoryScreen = () => {
   const [territories, setTerritories] = useState<BeatTerritory[]>([]);
   const [expandedBeatId, setExpandedBeatId] = useState<string | null>(null);
   const [hqZone, setHqZone] = useState('No HQ Assigned');
-  const [beatDetails, setBeatDetails] = useState<{ [key: string]: { doctors: string[]; chemists: string[] } }>(BEAT_DETAILS);
+  const [beatDetails, setBeatDetails] = useState<{ [key: string]: { doctors: string[]; chemists: string[] } }>({});
   
   // Real-time visit counts today per beat
   const [todayVisits, setTodayVisits] = useState<{
@@ -97,7 +69,7 @@ const TerritoryScreen = () => {
 
       // Load beat details dynamically from AsyncStorage
       const storedDetails = await AsyncStorage.getItem('@assigned_beat_details');
-      const resolvedDetails = storedDetails ? safeJsonParse(storedDetails, BEAT_DETAILS) : BEAT_DETAILS;
+      const resolvedDetails = storedDetails ? safeJsonParse(storedDetails, {}) : {};
       setBeatDetails(resolvedDetails);
 
       // 3. Load actual logged visits today to compute dynamic stats
@@ -217,9 +189,23 @@ const TerritoryScreen = () => {
   const seedDemoData = async () => {
     setLoading(true);
     try {
-      await AsyncStorage.setItem('@assigned_territories', JSON.stringify(MY_TERRITORIES));
+      const demoTerritories = [
+        { id: '1', area: 'Hyderabad Central', district: 'Hyderabad', state: 'Telangana', doctorsCount: 12, chemistsCount: 15, coverage: 82, lastActivity: '11-Jun-2026', status: 'Active Beat' },
+        { id: '2', area: 'Secunderabad Route', district: 'Secunderabad', state: 'Telangana', doctorsCount: 8, chemistsCount: 10, coverage: 75, lastActivity: '10-Jun-2026', status: 'Active Beat' },
+        { id: '3', area: 'Ameerpet X Roads', district: 'Hyderabad', state: 'Telangana', doctorsCount: 15, chemistsCount: 8, coverage: 50, lastActivity: '08-Jun-2026', status: 'Secondary Beat' },
+        { id: '4', area: 'Koti Market', district: 'Hyderabad', state: 'Telangana', doctorsCount: 10, chemistsCount: 20, coverage: 90, lastActivity: '12-Jun-2026', status: 'Active Beat' },
+      ];
+      
+      const demoBeatDetails = {
+        '1': { doctors: ['Dr. A.K. Singh (Cardiologist)', 'Dr. S. K. Sen (Paediatrician)'], chemists: ['Apollo Pharmacy'] },
+        '2': { doctors: ['Dr. Neha Gupta (Gynaecologist)'], chemists: ['Care Chemists'] },
+        '3': { doctors: ['Dr. Verma (Orthopaedic)'], chemists: ['LifeCare Drugs'] },
+        '4': { doctors: ['Dr. Batra (General Physician)'], chemists: ['Jan Aushadhi Store'] },
+      };
+
+      await AsyncStorage.setItem('@assigned_territories', JSON.stringify(demoTerritories));
       await AsyncStorage.setItem('@user_hq', 'Hyderabad HQ (South Division)');
-      await AsyncStorage.setItem('@assigned_beat_details', JSON.stringify(BEAT_DETAILS));
+      await AsyncStorage.setItem('@assigned_beat_details', JSON.stringify(demoBeatDetails));
       await loadData(false);
     } catch (err) {
       console.log('Failed to seed demo territories', err);
@@ -291,6 +277,49 @@ const TerritoryScreen = () => {
               <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />
             }
           >
+            {territories.length > 0 && (
+              <View style={{ marginBottom: 16 }}>
+                {/* Territory Status Summary */}
+                <View style={styles.topCard}>
+                  <Text style={styles.topCardTitle}>Territory Status Summary</Text>
+                  <View style={styles.topCardRow}>
+                    <View style={styles.topCardStat}>
+                      <Text style={styles.topCardLabel}>Active Territories</Text>
+                      <Text style={styles.topCardValue}>{territories.length}</Text>
+                    </View>
+                    <View style={styles.topCardStat}>
+                      <Text style={styles.topCardLabel}>Covered Today</Text>
+                      <Text style={[styles.topCardValue, { color: '#059669' }]}>3</Text>
+                    </View>
+                    <View style={styles.topCardStat}>
+                      <Text style={styles.topCardLabel}>Pending</Text>
+                      <Text style={[styles.topCardValue, { color: '#D97706' }]}>{Math.max(0, territories.length - 3)}</Text>
+                    </View>
+                  </View>
+                  <View style={styles.assignmentRow}>
+                    <Text style={styles.assignmentText}>Assigned On: <Text style={{fontWeight: 'bold', color: '#334155'}}>12-Jun-2026</Text></Text>
+                  </View>
+                </View>
+
+                {/* Distance & Map Button */}
+                <View style={styles.topCardRowSpaceBetween}>
+                  <View style={[styles.topCard, { flex: 1, marginRight: 8, padding: 16, alignItems: 'center' }]}>
+                    <Text style={styles.topCardLabel}>Today's Distance</Text>
+                    <Text style={[styles.topCardValue, { color: '#4F46E5', fontSize: 20, marginTop: 4 }]}>18.4 KM</Text>
+                  </View>
+                  
+                  <TouchableOpacity 
+                    style={[styles.topCard, { flex: 1, marginLeft: 8, padding: 16, alignItems: 'center', backgroundColor: '#EEF2FF', borderColor: '#C7D2FE', borderWidth: 1 }]} 
+                    activeOpacity={0.7}
+                    onPress={() => navigation.navigate('MeetingLocation')}
+                  >
+                    <Ionicons name="map" size={24} color="#4F46E5" style={{ marginBottom: 4 }} />
+                    <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#4F46E5', textAlign: 'center' }}>📍 View Territory Map</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
             {territories.length === 0 ? (
               <View style={styles.emptyCard}>
                 <Ionicons name="map-outline" size={48} color="#94A3B8" />
@@ -423,7 +452,7 @@ const TerritoryScreen = () => {
                             styles.statusText,
                             { color: t.status === 'Active Beat' ? '#059669' : '#4F46E5' }
                           ]}>
-                            ● {t.status}
+                            ΓùÅ {t.status}
                           </Text>
                         </View>
 
@@ -431,7 +460,7 @@ const TerritoryScreen = () => {
                         
                         <View style={styles.extraDetails}>
                           <Text style={styles.detailText}>Last Activity: {t.lastActivity}</Text>
-                          <Text style={styles.detailText}>{isExpanded ? 'Tap to close ▲' : 'Tap to expand ▼'}</Text>
+                          <Text style={styles.detailText}>{isExpanded ? 'Tap to close Γû▓' : 'Tap to expand Γû╝'}</Text>
                         </View>
                         
                         <View style={styles.divider} />
@@ -468,18 +497,18 @@ const TerritoryScreen = () => {
                         {isExpanded && (
                           <View style={styles.expandedContent}>
                             <View style={styles.expandedSection}>
-                              <Text style={styles.expandedTitle}>🩺 Assigned Doctors ({t.doctorsCount})</Text>
+                              <Text style={styles.expandedTitle}>≡ƒ⌐║ Assigned Doctors ({t.doctorsCount})</Text>
                               {finalDoctors.map((doc, idx) => (
                                 <Text key={idx} style={[styles.expandedItem, doc.visited && { color: '#10B981', fontWeight: '600' }]}>
-                                  • {doc.label}
+                                  ΓÇó {doc.label}
                                 </Text>
                               ))}
                             </View>
                             <View style={styles.expandedSection}>
-                              <Text style={styles.expandedTitle}>💊 Assigned Chemists ({t.chemistsCount})</Text>
+                              <Text style={styles.expandedTitle}>≡ƒÆè Assigned Chemists ({t.chemistsCount})</Text>
                               {finalChemists.map((chem, idx) => (
                                 <Text key={idx} style={[styles.expandedItem, chem.visited && { color: '#10B981', fontWeight: '600' }]}>
-                                  • {chem.label}
+                                  ΓÇó {chem.label}
                                 </Text>
                               ))}
                             </View>
@@ -502,7 +531,7 @@ const TerritoryScreen = () => {
   );
 };
 
-export default TerritoryScreen;
+export default TerritoryTrackingScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
@@ -733,5 +762,55 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  topCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  topCardTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    marginBottom: 12,
+  },
+  topCardRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+  },
+  topCardStat: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  topCardLabel: {
+    fontSize: 11,
+    color: '#64748B',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  topCardValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#0F172A',
+  },
+  assignmentRow: {
+    paddingTop: 12,
+    alignItems: 'center',
+  },
+  assignmentText: {
+    fontSize: 12,
+    color: '#64748B',
+  },
+  topCardRowSpaceBetween: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
 });
