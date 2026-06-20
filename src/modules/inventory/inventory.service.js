@@ -1,28 +1,18 @@
-const repository = require(
-  "./inventory.repository"
-);
+const repository = require("./inventory.repository");
 
-const createInventoryService = (
-  data
-) => {
-  return repository.createInventoryRepo(
-    data
-  );
+const createInventoryService = async (data) => {
+  return repository.createInventoryRepo(data);
 };
 
-const getInventoriesService = () => {
+const getInventoriesService = async () => {
   return repository.getInventoriesRepo();
 };
 
-const getInventoryById = (
-  id
-) => {
-  return repository.getInventoryById(
-    id
-  );
+const getInventoryByIdService = async (id) => {
+  return repository.getInventoryById(id);
 };
 
-const updateInventory = (
+const updateInventoryService = async (
   id,
   data
 ) => {
@@ -32,18 +22,24 @@ const updateInventory = (
   );
 };
 
-const deleteInventory = (
+const deleteInventoryService = async (
   id
 ) => {
-  return repository.deleteInventory(
-    id
-  );
+  return repository.deleteInventory(id);
 };
+
+const getInventoryByCompanyService =
+  async (companyId) => {
+    return repository.getInventoryByCompanyRepo(
+      companyId
+    );
+  };
 
 module.exports = {
   createInventoryService,
   getInventoriesService,
-  getInventoryById,
-  updateInventory,
-  deleteInventory,
+  getInventoryByIdService,
+  updateInventoryService,
+  deleteInventoryService,
+  getInventoryByCompanyService,
 };

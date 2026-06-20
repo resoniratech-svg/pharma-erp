@@ -2,63 +2,53 @@ const express = require("express");
 
 const router = express.Router();
 
+const controller =
+  require("./inventory.controller");
+
 const authMiddleware =
   require("../../middlewares/authMiddleware");
 
-const checkFeature =
-  require("../../middlewares/checkFeature");
-
-const {
-  createInventory,
-  getInventories,
-  getInventoryById,
-  updateInventory,
-  deleteInventory,
-} = require("./inventory.controller");
+router.get("/test", (req, res) => {
+  res.json({
+    success: true,
+    message: "Inventory Route Working",
+  });
+});
 
 router.post(
   "/",
   authMiddleware,
-  checkFeature(
-    "Inventory Management"
-  ),
-  createInventory
+  controller.createInventory
 );
 
 router.get(
   "/",
   authMiddleware,
-  checkFeature(
-    "Inventory Management"
-  ),
-  getInventories
+  controller.getInventories
+);
+
+router.get(
+  "/company/:companyId",
+  authMiddleware,
+  controller.getInventoryByCompany
 );
 
 router.get(
   "/:id",
   authMiddleware,
-  checkFeature(
-    "Inventory Management"
-  ),
-  getInventoryById
+  controller.getInventoryById
 );
 
 router.put(
   "/:id",
   authMiddleware,
-  checkFeature(
-    "Inventory Management"
-  ),
-  updateInventory
+  controller.updateInventory
 );
 
 router.delete(
   "/:id",
   authMiddleware,
-  checkFeature(
-    "Inventory Management"
-  ),
-  deleteInventory
+  controller.deleteInventory
 );
 
 module.exports = router;

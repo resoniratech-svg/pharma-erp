@@ -139,10 +139,40 @@ const deleteInventory = async (
   }
 };
 
+const getInventoryByCompany = async (
+  req,
+  res
+) => {
+  try {
+
+    const companyId =
+      Number(req.params.companyId);
+
+    const result =
+      await inventoryService.getInventoryByCompanyService(
+        companyId
+      );
+
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+
+  } catch (error) {
+
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+
+  }
+};
+
 module.exports = {
   createInventory,
   getInventories,
   getInventoryById,
   updateInventory,
   deleteInventory,
+  getInventoryByCompany,
 };

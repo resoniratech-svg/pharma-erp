@@ -45,10 +45,31 @@ const deleteInventory = async (
   });
 };
 
+const getInventoryByCompanyRepo = async (companyId) => {
+  return prisma.inventory.findMany({
+    where: {
+      batch: {
+        product: {
+          companyId: companyId,
+        },
+      },
+    },
+    include: {
+      batch: {
+        include: {
+          product: true,
+        },
+      },
+      warehouse: true,
+    },
+  });
+};
+
 module.exports = {
   createInventoryRepo,
   getInventoriesRepo,
   getInventoryById,
   updateInventory,
   deleteInventory,
+  getInventoryByCompanyRepo,
 };
