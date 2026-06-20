@@ -533,7 +533,7 @@ import {
 
 interface NotificationItem {
   id: string | number;
-  type: 'announcement' | 'stock' | 'birthday' | 'message' | 'attendance' | 'territory' | 'followup';
+  type: 'announcement' | 'stock' | 'birthday' | 'message' | 'attendance' | 'territory' | 'followup' | 'meeting' | 'activity';
   title: string;
   message: string;
   time: string;
@@ -580,12 +580,12 @@ const NotificationsScreen = () => {
       // 1. Generate Follow-Up Alerts
       const docsList = safeJsonParse(await AsyncStorage.getItem('@doctor_visits'), []);
       docsList.forEach((d: any) => {
-        if (d.followUpDate && d.followUpDate <= todayStr) {
+        if (d.nextFollowUp && d.nextFollowUp <= todayStr) {
           dynamicNotifs.push({
             id: `dyn-doc-${d.id}`,
             type: 'followup',
             title: `⏰ Follow-Up Due: Dr. ${d.doctorName}`,
-            message: `Scheduled follow-up due for today. Notes: ${d.notes || 'None'}`,
+            message: `Scheduled follow-up due for today. Notes: ${d.remarks || d.notes || 'None'}`,
             time: 'Today',
             unread: true,
           });
@@ -594,12 +594,27 @@ const NotificationsScreen = () => {
 
       const chemistsList = safeJsonParse(await AsyncStorage.getItem('@chemist_visits'), []);
       chemistsList.forEach((c: any) => {
-        if (c.followUpDate && c.followUpDate <= todayStr) {
+        if (c.nextFollowUp && c.nextFollowUp <= todayStr) {
           dynamicNotifs.push({
             id: `dyn-chem-${c.id}`,
             type: 'followup',
             title: `⏰ Follow-Up Due: ${c.shopName}`,
             message: `Scheduled chemist follow-up due for today.`,
+            time: 'Today',
+            unread: true,
+          });
+        }
+      });
+
+      // 1.5 Generate Meeting Alerts
+      const meetingsList = safeJsonParse(await AsyncStorage.getItem('@meetings'), []);
+      meetingsList.forEach((m: any) => {
+        if (m.date === todayStr && m.status === 'Scheduled') {
+          dynamicNotifs.push({
+            id: `dyn-meet-${m.id}`,
+            type: 'meeting',
+            title: `📅 Meeting Today: ${m.title}`,
+            message: `Meeting scheduled today at ${m.time} with ${m.participants || 'team'}.`,
             time: 'Today',
             unread: true,
           });
@@ -700,6 +715,9 @@ const NotificationsScreen = () => {
       case 'followup':
         navigation.navigate('FollowUpReminders');
         break;
+      case 'meeting':
+        navigation.navigate('MeetingScheduling');
+        break;
       case 'attendance':
         navigation.navigate('Attendance');
         break;
@@ -739,7 +757,7 @@ const NotificationsScreen = () => {
         return item.type === 'stock' || item.type === 'attendance' || item.type === 'territory';
       }
       if (tab === 'Follow-Ups') {
-        return item.type === 'followup';
+        return item.type === 'followup' || item.type === 'meeting';
       }
       if (tab === 'Announcements') {
         return item.type === 'announcement' || item.type === 'message' || item.type === 'birthday';
@@ -753,7 +771,7 @@ const NotificationsScreen = () => {
       return item.type === 'stock' || item.type === 'attendance' || item.type === 'territory';
     }
     if (activeTab === 'Follow-Ups') {
-      return item.type === 'followup';
+      return item.type === 'followup' || item.type === 'meeting';
     }
     if (activeTab === 'Announcements') {
       return item.type === 'announcement' || item.type === 'message' || item.type === 'birthday';
@@ -767,6 +785,8 @@ const NotificationsScreen = () => {
       case 'attendance': return { emoji: '📋', bg: '#EFF6FF' }; 
       case 'territory': return { emoji: '🗺️', bg: '#ECFDF5' }; 
       case 'followup': return { emoji: '📅', bg: '#F5F3FF' }; 
+      case 'meeting': return { emoji: '👥', bg: '#E0E7FF' };
+      case 'activity': return { emoji: '⚡', bg: '#FEF08A' };
       case 'birthday': return { emoji: '🎂', bg: '#FDF2F8' }; 
       case 'message': return { emoji: '💬', bg: '#EFF6FF' }; 
       default: return { emoji: '📢', bg: '#FEF3C7' }; 

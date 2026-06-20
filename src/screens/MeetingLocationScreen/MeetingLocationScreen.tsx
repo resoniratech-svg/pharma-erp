@@ -50,7 +50,45 @@ const MeetingLocationScreen = () => {
   const loadMeetingsAndLogs = async () => {
     try {
       const stored = await AsyncStorage.getItem('@meetings');
-      setMeetings(safeJsonParse(stored, []));
+      const allMeetings = safeJsonParse(stored, []);
+      
+      const todayDate = new Date();
+      todayDate.setHours(0, 0, 0, 0);
+
+      const activeMeetings = allMeetings.filter((m: any) => {
+        if (!m.date) return true;
+        
+        let mDate = new Date();
+        const datePart = m.date.split(' ')[0];
+        const parts = datePart.split('-');
+        if (parts.length === 3) {
+           if (parts[0].length === 4) {
+              mDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+           } else {
+              const day = parseInt(parts[0], 10);
+              const year = parseInt(parts[2], 10);
+              let monthStr = parts[1];
+              let monthNum = 0;
+              
+              if (!isNaN(parseInt(monthStr, 10))) {
+                 monthNum = parseInt(monthStr, 10) - 1;
+              } else {
+                 const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                 monthNum = months.indexOf(monthStr.toLowerCase());
+              }
+              mDate = new Date(year, monthNum, day);
+           }
+        } else {
+          mDate = new Date(m.date);
+        }
+
+        if (isNaN(mDate.getTime())) return true;
+        
+        mDate.setHours(0, 0, 0, 0);
+        return mDate.getTime() >= todayDate.getTime();
+      });
+
+      setMeetings(activeMeetings);
       
       const storedLogs = await AsyncStorage.getItem('@meeting_gps_logs');
       setLogs(safeJsonParse(storedLogs, []));

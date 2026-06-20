@@ -76,9 +76,9 @@ const formatDateTime = (date: Date) => {
 
 const ProfileScreen = () => {
   const navigation = useNavigation<any>();
-  const [userName, setUserName] = useState('Priya Reddy');
+  const [userName, setUserName] = useState('MR User');
   const [designation, setDesignation] = useState('Medical Representative');
-  const [employeeId, setEmployeeId] = useState('EMP-001');
+  const [employeeId, setEmployeeId] = useState('EMP-XXXX');
 
   // Loading and Error UI States
   const [loading, setLoading] = useState(true);
@@ -110,17 +110,17 @@ const ProfileScreen = () => {
   const [totalRevenue, setTotalRevenue] = useState(0);
 
   // Dynamic Employee Info
-  const [hq, setHq] = useState('Hyderabad');
-  const [region, setRegion] = useState('Telangana');
-  const [zone, setZone] = useState('South Zone');
-  const [manager, setManager] = useState('Rajesh Kumar');
-  const [joiningDate, setJoiningDate] = useState('01-Jan-2026');
-  const [assignedTerritory, setAssignedTerritory] = useState('Hyderabad Central');
+  const [hq, setHq] = useState('Not Assigned');
+  const [region, setRegion] = useState('Not Assigned');
+  const [zone, setZone] = useState('Not Assigned');
+  const [manager, setManager] = useState('Not Assigned');
+  const [joiningDate, setJoiningDate] = useState('N/A');
+  const [assignedTerritory, setAssignedTerritory] = useState('Not Assigned');
 
   // Dynamic Contact Info
-  const [mobile, setMobile] = useState('+91 98765 43210');
-  const [email, setEmail] = useState('admin@pharma.com');
-  const [address, setAddress] = useState('Hyderabad, Telangana');
+  const [mobile, setMobile] = useState('Not Available');
+  const [email, setEmail] = useState('Not Available');
+  const [address, setAddress] = useState('Not Available');
 
   // Dynamic Attendance Summary
   const [presentDays, setPresentDays] = useState(20);
@@ -135,8 +135,8 @@ const ProfileScreen = () => {
   });
 
   // Last Synced & Login Timestamps
-  const [lastSyncTime, setLastSyncTime] = useState('16-Jun-2026 11:35 AM');
-  const [lastLoginTime, setLastLoginTime] = useState('16-Jun-2026 09:02 AM');
+  const [lastSyncTime, setLastSyncTime] = useState('Never Synced');
+  const [lastLoginTime, setLastLoginTime] = useState('Just Now');
 
   // Load profile stats whenever the screen comes into focus
   useFocusEffect(
@@ -164,11 +164,11 @@ const ProfileScreen = () => {
       const storedManager = await AsyncStorage.getItem('@user_manager');
       const storedJoinDate = await AsyncStorage.getItem('@user_joining_date');
 
-      setHq(storedHq || 'Hyderabad');
-      setRegion(storedRegion || 'Telangana');
-      setZone(storedZone || 'South Zone');
-      setManager(storedManager || 'Rajesh Kumar');
-      setJoiningDate(storedJoinDate || '01-Jan-2026');
+      setHq(storedHq || 'Not Assigned');
+      setRegion(storedRegion || 'Not Assigned');
+      setZone(storedZone || 'Not Assigned');
+      setManager(storedManager || 'Not Assigned');
+      setJoiningDate(storedJoinDate || 'N/A');
 
       // 3. Load Assigned Territory dynamically from Territory lists
       const storedTerritories = await AsyncStorage.getItem('@assigned_territories');
@@ -176,16 +176,16 @@ const ProfileScreen = () => {
       if (territoriesList.length > 0) {
         setAssignedTerritory(territoriesList[0].area);
       } else {
-        setAssignedTerritory('Hyderabad Central');
+        setAssignedTerritory('Not Assigned');
       }
 
       // 4. Load Contact Information dynamically
       const storedMobile = await AsyncStorage.getItem('@user_mobile');
       const storedEmail = await AsyncStorage.getItem('@user_email');
       const storedAddress = await AsyncStorage.getItem('@user_address');
-      setMobile(storedMobile || '+91 98765 43210');
-      setEmail(storedEmail || 'admin@pharma.com');
-      setAddress(storedAddress || 'Hyderabad, Telangana');
+      setMobile(storedMobile || 'Not Available');
+      setEmail(storedEmail || 'Not Available');
+      setAddress(storedAddress || 'Not Available');
 
       // 5. Load Monthly Targets dynamically
       const targetData = safeJsonParse(await AsyncStorage.getItem('@monthly_targets'), {
@@ -242,8 +242,8 @@ const ProfileScreen = () => {
       // 10. Load Last Sync and Last Login Times
       const storedSync = await AsyncStorage.getItem('@last_sync_time');
       const storedLogin = await AsyncStorage.getItem('@last_login_time');
-      setLastSyncTime(storedSync || '16-Jun-2026 11:35 AM');
-      setLastLoginTime(storedLogin || '16-Jun-2026 09:02 AM');
+      setLastSyncTime(storedSync || 'Never Synced');
+      setLastLoginTime(storedLogin || 'Just Now');
 
     } catch (e) {
       console.log('loadProfileAndStats error in ProfileScreen:', e);

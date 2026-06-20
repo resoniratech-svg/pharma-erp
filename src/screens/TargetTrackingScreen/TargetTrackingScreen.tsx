@@ -21,29 +21,6 @@ interface MonthlyTarget {
   incentiveEarned: number;
 }
 
-const PAST_PERFORMANCE: MonthlyTarget[] = [
-  {
-    month: 'May 2026',
-    salesAchieved: 52400,
-    salesTarget: 50000,
-    docsVisited: 32,
-    docsTarget: 30,
-    chemistsVisited: 22,
-    chemistsTarget: 20,
-    incentiveEarned: 2500,
-  },
-  {
-    month: 'Apr 2026',
-    salesAchieved: 48900,
-    salesTarget: 50000,
-    docsVisited: 29,
-    docsTarget: 30,
-    chemistsVisited: 19,
-    chemistsTarget: 20,
-    incentiveEarned: 0,
-  }
-];
-
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
   try {
@@ -62,10 +39,10 @@ const TargetTrackingScreen = () => {
   const [docsVisited, setDocsVisited] = useState(0);
   const [chemistsVisited, setChemistsVisited] = useState(0);
 
-  // Constants
-  const SALES_TARGET = 50000;
-  const DOCS_TARGET = 30;
-  const CHEMISTS_TARGET = 20;
+  // Dynamic Targets
+  const [salesTarget, setSalesTarget] = useState(50000);
+  const [docsTarget, setDocsTarget] = useState(30);
+  const [chemistsTarget, setChemistsTarget] = useState(20);
 
   useEffect(() => {
     loadCurrentMonthPerformance();
@@ -86,6 +63,13 @@ const TargetTrackingScreen = () => {
                (dateStr.includes(today.toLocaleString('en-US', { month: 'short' })) && dateStr.includes(currentYearStr));
       };
 
+      // Load Dynamic Targets
+      const targetsData = await AsyncStorage.getItem('@monthly_targets');
+      const targets = safeJsonParse(targetsData, { sales: 50000, docs: 30, chemists: 20 });
+      setSalesTarget(targets.sales);
+      setDocsTarget(targets.docs);
+      setChemistsTarget(targets.chemists);
+
       // 1. Calculate Doctor Visits
       const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
       const docVisitsList = safeJsonParse(docVisitsData, []).filter((v: any) => isCurrentMonth(v.visitDate || v.date));
@@ -96,7 +80,7 @@ const TargetTrackingScreen = () => {
       const chemistVisitsList = safeJsonParse(chemistVisitsData, []).filter((v: any) => isCurrentMonth(v.visitDate || v.date));
       setChemistsVisited(chemistVisitsList.length);
 
-      // 3. Calculate Sales total
+      // 3. Calculate Sales total (Orders + Chemist POB)
       const ordersData = await AsyncStorage.getItem('@orders');
       const ordersList = safeJsonParse(ordersData, []).filter((o: any) => isCurrentMonth(o.dateFormatted || o.date));
 
@@ -104,7 +88,11 @@ const TargetTrackingScreen = () => {
         return sum + (parseFloat(item.totalAmount) || 0);
       }, 0);
 
-      setSalesAchieved(ordersTotal);
+      const chemistTotal = chemistVisitsList.reduce((sum: number, item: any) => {
+        return sum + (parseFloat(item.orderValue || item.pobAmount) || 0);
+      }, 0);
+
+      setSalesAchieved(ordersTotal + chemistTotal);
     } catch (e) {
       console.log('Failed to load targets:', e);
     }
@@ -115,9 +103,9 @@ const TargetTrackingScreen = () => {
   };
 
   // Incentive Logic: If all targets are 100% achieved, MR gets 5% of sales as incentive
-  const salesPercent = getPercentage(salesAchieved, SALES_TARGET);
-  const docsPercent = getPercentage(docsVisited, DOCS_TARGET);
-  const chemistsPercent = getPercentage(chemistsVisited, CHEMISTS_TARGET);
+  const salesPercent = getPercentage(salesAchieved, salesTarget);
+  const docsPercent = getPercentage(docsVisited, docsTarget);
+  const chemistsPercent = getPercentage(chemistsVisited, chemistsTarget);
 
   const isEligibleForIncentive = salesPercent >= 100 && docsPercent >= 100 && chemistsPercent >= 100;
   const estimatedIncentive = isEligibleForIncentive ? Math.round(salesAchieved * 0.05) : 0;
@@ -143,10 +131,10 @@ const TargetTrackingScreen = () => {
             <View style={{ flex: 1 }}>
               <Text style={styles.cardLabel}>💰 Monthly Sales Target</Text>
               <Text style={styles.cardValues}>
-                ₹{salesAchieved.toLocaleString()} / ₹{SALES_TARGET.toLocaleString()}
+                ₹{salesAchieved.toLocaleString()} / ₹{salesTarget.toLocaleString()}
               </Text>
               <Text style={[styles.cardValues, { fontSize: 12, color: '#64748B', marginTop: 2 }]}>
-                Remaining: ₹{Math.max(0, SALES_TARGET - salesAchieved).toLocaleString()}
+                Remaining: ₹{Math.max(0, salesTarget - salesAchieved).toLocaleString()}
               </Text>
             </View>
             <Text style={[styles.percentText, { color: '#2563EB' }]}>{salesPercent}%</Text>
@@ -162,10 +150,10 @@ const TargetTrackingScreen = () => {
             <View style={{ flex: 1 }}>
               <Text style={styles.cardLabel}>🩺 Doctor Meets Target</Text>
               <Text style={styles.cardValues}>
-                {docsVisited} / {DOCS_TARGET} Visits
+                {docsVisited} / {docsTarget} Visits
               </Text>
               <Text style={[styles.cardValues, { fontSize: 12, color: '#64748B', marginTop: 2 }]}>
-                Remaining: {Math.max(0, DOCS_TARGET - docsVisited)}
+                Remaining: {Math.max(0, docsTarget - docsVisited)}
               </Text>
             </View>
             <Text style={[styles.percentText, { color: '#059669' }]}>{docsPercent}%</Text>
@@ -181,10 +169,10 @@ const TargetTrackingScreen = () => {
             <View style={{ flex: 1 }}>
               <Text style={styles.cardLabel}>💊 Chemist Meets Target</Text>
               <Text style={styles.cardValues}>
-                {chemistsVisited} / {CHEMISTS_TARGET} Visits
+                {chemistsVisited} / {chemistsTarget} Visits
               </Text>
               <Text style={[styles.cardValues, { fontSize: 12, color: '#64748B', marginTop: 2 }]}>
-                Remaining: {Math.max(0, CHEMISTS_TARGET - chemistsVisited)}
+                Remaining: {Math.max(0, chemistsTarget - chemistsVisited)}
               </Text>
             </View>
             <Text style={[styles.percentText, { color: '#D97706' }]}>{chemistsPercent}%</Text>
@@ -220,32 +208,7 @@ const TargetTrackingScreen = () => {
           </View>
         </View>
 
-        {/* Past Months' Performance */}
-        <Text style={styles.sectionTitle}>Past Performance History</Text>
-        {PAST_PERFORMANCE.map((item, idx) => (
-          <View key={idx} style={styles.pastCard}>
-            <View style={styles.pastHeader}>
-              <Text style={styles.pastMonth}>{item.month}</Text>
-              {item.incentiveEarned > 0 && (
-                <Text style={styles.pastIncentive}>Incentive: ₹{item.incentiveEarned}</Text>
-              )}
-            </View>
-            <View style={styles.pastGrid}>
-              <View style={styles.pastGridItem}>
-                <Text style={styles.pastGridLabel}>Sales Achieved</Text>
-                <Text style={styles.pastGridValue}>₹{item.salesAchieved.toLocaleString()}</Text>
-              </View>
-              <View style={styles.pastGridItem}>
-                <Text style={styles.pastGridLabel}>Doctors Visited</Text>
-                <Text style={styles.pastGridValue}>{item.docsVisited} / {item.docsTarget}</Text>
-              </View>
-              <View style={styles.pastGridItem}>
-                <Text style={styles.pastGridLabel}>Chemists Visited</Text>
-                <Text style={styles.pastGridValue}>{item.chemistsVisited} / {item.chemistsTarget}</Text>
-              </View>
-            </View>
-          </View>
-        ))}
+
         <View style={{ height: 40 }} />
       </ScrollView>
     </View>

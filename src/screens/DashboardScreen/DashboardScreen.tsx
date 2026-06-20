@@ -11,6 +11,34 @@ const DashboardScreen = () => {
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
 
+  // Helper for GPS distance calculation
+  const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371; // Earth's radius in km
+    const dLat = ((lat2 - lat1) * Math.PI) / 180;
+    const dLon = ((lon2 - lon1) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  };
+
+  // Helper for robust date parsing (cross-platform DD-MMM-YYYY support)
+  const parseCustomDate = (dateStr: string) => {
+    if (!dateStr) return 0;
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+       if (parts[0].length === 4) return new Date(dateStr).getTime();
+       const months = { 'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11 } as any;
+       if (isNaN(parseInt(parts[1], 10))) {
+          return new Date(parseInt(parts[2], 10), months[parts[1]], parseInt(parts[0], 10)).getTime();
+       }
+       return new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10)).getTime();
+    }
+    return new Date(dateStr).getTime() || 0;
+  };
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showMROps, setShowMROps] = useState(false);
   const [showGPS, setShowGPS] = useState(false);
@@ -39,30 +67,41 @@ const DashboardScreen = () => {
   const [userName, setUserName] = useState('Priya Reddy');
   const [designation, setDesignation] = useState('Medical Representative');
 
+  const [dynamicTargets, setDynamicTargets] = useState({ sales: 50000, docs: 30, chemists: 20 });
+
   useEffect(() => { if (isFocused) loadStats(); }, [isFocused]);
 
   const loadStats = async () => {
+    let docVisitsList: any[] = [];
+    let targets = { sales: 50000, docs: 30, chemists: 20 };
+    try {
+      const targetsData = await AsyncStorage.getItem('@monthly_targets');
+      if (targetsData) targets = JSON.parse(targetsData);
+    } catch (e) { console.log(e); }
+
     try {
       const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
-      const docVisitsList = docVisitsData ? JSON.parse(docVisitsData) : [];
+      docVisitsList = docVisitsData ? JSON.parse(docVisitsData) : [];
       setDocCount(docVisitsList.length);
-      setDoctorProgress(Math.min(Math.round((docVisitsList.length / 30) * 100), 100));
-      setFollowUps(docVisitsList.filter((visit: any) => visit.followUpDate).slice(0, 3));
+      setDoctorProgress(Math.min(Math.round((docVisitsList.length / targets.docs) * 100), 100));
     } catch (e) { console.log(e); }
 
     let chemistTotal = 0;
+    let chemistVisitsList: any[] = [];
     try {
       const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
-      const chemistVisitsList = chemistVisitsData ? JSON.parse(chemistVisitsData) : [];
+      chemistVisitsList = chemistVisitsData ? JSON.parse(chemistVisitsData) : [];
       setChemistCount(chemistVisitsList.length);
-      chemistTotal = chemistVisitsList.reduce((sum: number, item: any) => sum + (parseFloat(item.orderValue) || 0), 0);
-      setChemistProgress(Math.min(Math.round((chemistVisitsList.length / 20) * 100), 100));
+      // Fixed: use pobAmount for Chemist sales
+      chemistTotal = chemistVisitsList.reduce((sum: number, item: any) => sum + (parseFloat(item.orderValue || item.pobAmount) || 0), 0);
+      setChemistProgress(Math.min(Math.round((chemistVisitsList.length / targets.chemists) * 100), 100));
     } catch (e) { console.log(e); }
 
     let ordersTotal = 0;
+    let ordersList: any[] = [];
     try {
       const ordersData = await AsyncStorage.getItem('@orders');
-      const ordersList = ordersData ? JSON.parse(ordersData) : [];
+      ordersList = ordersData ? JSON.parse(ordersData) : [];
       setOrdersCount(ordersList.length);
       ordersTotal = ordersList.reduce((sum: number, item: any) => sum + (parseFloat(item.totalAmount) || 0), 0);
 
@@ -75,16 +114,16 @@ const DashboardScreen = () => {
           date: o.dateFormatted ? o.dateFormatted.split(' ')[0] : 'Today'
         })));
       } else {
-        setRecentOrdersList([
-          { id: 'ORD-8901', client: 'Apollo Hospitals', status: 'Shipped', amount: '₹1,24,000', date: 'Oct 12, 2026' },
-          { id: 'ORD-8902', client: 'Care Pharmacy', status: 'Pending', amount: '₹45,500', date: 'Oct 12, 2026' },
-        ]);
+        setRecentOrdersList([]);
       }
     } catch (e) { console.log(e); }
 
     const salesSum = chemistTotal + ordersTotal;
     setTotalOrders(salesSum);
-    setSalesProgress(Math.min(Math.round((salesSum / 50000) * 100), 100));
+    setSalesProgress(Math.min(Math.round((salesSum / targets.sales) * 100), 100));
+    
+    // Set dynamic targets so UI can render them
+    setDynamicTargets(targets);
 
     try {
       setIsCheckedIn((await AsyncStorage.getItem('@checked_in')) === 'true');
@@ -93,27 +132,89 @@ const DashboardScreen = () => {
       setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
     } catch (e) { console.log(e); }
     
-    setScheduleList([]); 
+    try {
+      const storedMeetings = await AsyncStorage.getItem('@meetings');
+      const allMeetings = storedMeetings ? JSON.parse(storedMeetings) : [];
+      const todayDate = new Date();
+      
+      const todayMeetings = allMeetings.filter((m: any) => {
+        if (!m.date) return false;
+        const datePart = m.date.split(' ')[0];
+        const parts = datePart.split('-');
+        let mDate = new Date();
+        const months = { 'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11 } as any;
+
+        if (parts.length === 3) {
+           if (parts[0].length === 4) {
+              mDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
+           } else if (isNaN(parseInt(parts[1], 10))) {
+              // DD-MMM-YYYY
+              mDate = new Date(parseInt(parts[2], 10), months[parts[1]], parseInt(parts[0], 10));
+           } else {
+              mDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
+           }
+        }
+        return mDate.getFullYear() === todayDate.getFullYear() && 
+               mDate.getMonth() === todayDate.getMonth() && 
+               mDate.getDate() === todayDate.getDate();
+      });
+      setScheduleList(todayMeetings.map((m: any) => ({ title: `${m.time} - ${m.topic} (${m.venue})` })));
+    } catch (e) { console.log(e); }
     
-    setRecentVisitsList([
-      { id: 1, name: 'Dr. Ramesh Kumar', type: 'Doctor', time: '10:30 AM', status: 'Completed' },
-      { id: 2, name: 'Apollo Pharmacy', type: 'Chemist', time: '11:45 AM', status: 'Completed' },
-      { id: 3, name: 'Dr. Sarah Smith', type: 'Doctor', time: '02:15 PM', status: 'Pending' }
-    ]);
+    // Pending Follow Ups from all sources
+    const combinedFollowUps = [
+      ...docVisitsList.map((v: any) => ({ ...v, followUpType: 'Doctor', titleName: v.doctorName, followDate: v.nextFollowUp || v.followUpDate })),
+      ...chemistVisitsList.map((c: any) => ({ ...c, followUpType: 'Chemist', titleName: c.shopName || c.chemistName, followDate: c.nextFollowUp || c.followUpDate })),
+      ...ordersList.map((o: any) => ({ ...o, followUpType: 'Order', titleName: o.customerName, followDate: o.expectedDelivery || o.followUpDate || o.nextFollowUp }))
+    ];
+    setFollowUps(combinedFollowUps.filter((visit: any) => visit.followDate).slice(0, 3));
 
-    setNotificationsList([
-      { id: 1, text: 'Meeting with Dr. Ramesh at 4 PM', type: 'meeting', time: '10 mins ago' },
-      { id: 2, text: 'Monthly Sales Target reached 70%', type: 'target', time: '1 hour ago' },
-      { id: 3, text: 'Follow-up with Care Pharmacy is overdue', type: 'alert', time: '2 hours ago' }
-    ]);
+    // Dynamic Recent Visits
+    const combinedVisits = [
+      ...docVisitsList.map((v: any) => ({ id: v.id || Math.random(), name: `Dr. ${v.doctorName}`, type: 'Doctor', time: v.visitTime || '10:00 AM', status: v.status || 'Completed', date: v.visitDate || v.date })),
+      ...chemistVisitsList.map((c: any) => ({ id: c.id || Math.random(), name: c.shopName || c.chemistName, type: 'Chemist', time: c.visitTime || '11:00 AM', status: c.status || 'Completed', date: c.visitDate || c.date }))
+    ];
+    combinedVisits.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
+    setRecentVisitsList(combinedVisits.slice(0, 3));
 
-    setGpsData({
-      distance: '24 KM',
-      checkIns: 8,
-      territory: 'Hyderabad South',
-      lastLocation: 'Banjara Hills, Road No 12',
-      coverage: 75 
-    });
+    // Dynamic Notifications
+    try {
+      const notifsData = await AsyncStorage.getItem('@notifications');
+      const notifsList = notifsData ? JSON.parse(notifsData) : [];
+      setNotificationsList(notifsList.slice(0, 3));
+    } catch (e) {
+      setNotificationsList([]);
+    }
+
+    // Dynamic GPS Route Summary
+    try {
+      const todayString = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+      const gpsKey = `@gps_movement_${todayString}`;
+      const gpsDataRaw = await AsyncStorage.getItem(gpsKey);
+      const gpsLogs = gpsDataRaw ? JSON.parse(gpsDataRaw) : [];
+
+      if (gpsLogs && gpsLogs.length > 0) {
+        let dist = 0;
+        for (let i = 0; i < gpsLogs.length - 1; i++) {
+          dist += calculateDistance(
+            gpsLogs[i].latitude, gpsLogs[i].longitude,
+            gpsLogs[i + 1].latitude, gpsLogs[i + 1].longitude
+          );
+        }
+        
+        setGpsData({
+          distance: `${dist.toFixed(2)} KM`,
+          checkIns: gpsLogs.length,
+          territory: 'Assigned Territory', // Would dynamically pull from @assigned_territories
+          lastLocation: gpsLogs[gpsLogs.length - 1].address || 'Unknown',
+          coverage: 'Tracking' 
+        });
+      } else {
+        setGpsData(null); // Will render an empty/inactive state
+      }
+    } catch (e) {
+      setGpsData(null);
+    }
   };
 
   return (
@@ -171,7 +272,7 @@ const DashboardScreen = () => {
                 </View>
               </View>
               <Text style={styles.kpiLabel}>Doctor Visits</Text>
-              <Text style={styles.kpiValue}>{docCount} <Text style={styles.kpiTarget}>/ 30</Text></Text>
+              <Text style={styles.kpiValue}>{docCount} <Text style={styles.kpiTarget}>/ {dynamicTargets.docs}</Text></Text>
               <Text style={styles.kpiSubText}>Today's Calls</Text>
             </View>
           </View>
@@ -184,7 +285,7 @@ const DashboardScreen = () => {
                 </View>
               </View>
               <Text style={styles.kpiLabel}>Chemist Visits</Text>
-              <Text style={styles.kpiValue}>{chemistCount} <Text style={styles.kpiTarget}>/ 20</Text></Text>
+              <Text style={styles.kpiValue}>{chemistCount} <Text style={styles.kpiTarget}>/ {dynamicTargets.chemists}</Text></Text>
               <Text style={styles.kpiSubText}>Today's Calls</Text>
             </View>
 
@@ -207,7 +308,7 @@ const DashboardScreen = () => {
               <Text style={[styles.targetValue, { color: '#4F46E5' }]}>{salesProgress}%</Text>
             </View>
             <View style={styles.progressBar}><View style={[styles.progressFill, { width: `${salesProgress}%`, backgroundColor: '#4F46E5' }]} /></View>
-            <Text style={styles.kpiSubText}>₹{totalOrders.toLocaleString()} / ₹50,000</Text>
+            <Text style={styles.kpiSubText}>₹{totalOrders.toLocaleString()} / ₹{dynamicTargets.sales.toLocaleString()}</Text>
             
             <View style={styles.splitTargetsRow}>
               <View style={{ flex: 1, marginRight: 8 }}>
@@ -216,7 +317,7 @@ const DashboardScreen = () => {
                   <Text style={[styles.targetValue, { color: '#10B981' }]}>{doctorProgress}%</Text>
                 </View>
                 <View style={styles.progressBar}><View style={[styles.progressFill, { width: `${doctorProgress}%`, backgroundColor: '#10B981' }]} /></View>
-                <Text style={styles.kpiSubText}>{docCount} / 30</Text>
+                <Text style={styles.kpiSubText}>{docCount} / {dynamicTargets.docs}</Text>
               </View>
               <View style={{ flex: 1, marginLeft: 8 }}>
                 <View style={styles.targetLabelRow}>
@@ -224,7 +325,7 @@ const DashboardScreen = () => {
                   <Text style={[styles.targetValue, { color: '#F59E0B' }]}>{chemistProgress}%</Text>
                 </View>
                 <View style={styles.progressBar}><View style={[styles.progressFill, { width: `${chemistProgress}%`, backgroundColor: '#F59E0B' }]} /></View>
-                <Text style={styles.kpiSubText}>{chemistCount} / 20</Text>
+                <Text style={styles.kpiSubText}>{chemistCount} / {dynamicTargets.chemists}</Text>
               </View>
             </View>
           </View>
@@ -232,7 +333,7 @@ const DashboardScreen = () => {
           <View style={styles.largeCard}>
             <Text style={styles.cardTitle}>📅 Today's Schedule</Text>
             {scheduleList.length > 0 ? (
-              scheduleList.map((item, idx) => <Text key={idx}>{item.title}</Text>)
+              scheduleList.map((item, idx) => <Text key={idx} style={styles.listSubText}>{item.title}</Text>)
             ) : (
               <View style={styles.emptyBox}><Text style={styles.emptyText}>No schedule planned today.</Text></View>
             )}
@@ -246,8 +347,8 @@ const DashboardScreen = () => {
             {followUps.length > 0 ? (
               followUps.map((visit: any, index: number) => (
                 <View key={index} style={styles.listRow}>
-                  <Text style={styles.listTitleText}>Dr. {visit.doctorName}</Text>
-                  <Text style={styles.listSubText}>📅 {visit.followUpDate}</Text>
+                  <Text style={styles.listTitleText}>{visit.titleName}</Text>
+                  <Text style={styles.listSubText}>📅 {visit.followDate}</Text>
                 </View>
               ))
             ) : (
@@ -305,7 +406,7 @@ const DashboardScreen = () => {
                     backgroundColor: notif.type === 'meeting' ? '#3B82F6' : notif.type === 'target' ? '#10B981' : '#F43F5E' 
                   }]} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.listTitleText}>{notif.text}</Text>
+                    <Text style={styles.listTitleText}>{notif.text || notif.message || notif.title}</Text>
                     <Text style={styles.listSubText}>{notif.time}</Text>
                   </View>
                 </View>
@@ -321,7 +422,7 @@ const DashboardScreen = () => {
               <Text style={styles.activeGpsText}>Active</Text>
             </View>
             
-            {gpsData && (
+            {gpsData ? (
               <View style={styles.gpsBox}>
                 <View style={styles.gpsGrid}>
                   <View style={{ flex: 1 }}>
@@ -334,21 +435,15 @@ const DashboardScreen = () => {
                   </View>
                 </View>
 
-                <View style={{ marginBottom: 16 }}>
-                  <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 }}>
-                    <Text style={styles.listSubText}>Route Coverage</Text>
-                    <Text style={[styles.gpsValue, { fontSize: 12, color: '#3B82F6' }]}>{gpsData.coverage}%</Text>
-                  </View>
-                  <View style={styles.progressBar}>
-                    <View style={[styles.progressFill, { width: `${gpsData.coverage}%`, backgroundColor: '#3B82F6' }]} />
-                  </View>
-                </View>
-
-                <View style={{ borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 12 }}>
+                <View style={{ borderTopWidth: 1, borderTopColor: '#E2E8F0', paddingTop: 12, marginTop: 12 }}>
                   <Text style={styles.listSubText}>Territory</Text>
                   <Text style={styles.listTitleText}>{gpsData.territory}</Text>
                   <Text style={[styles.listSubText, { marginTop: 6 }]}>Last Ping: {gpsData.lastLocation}</Text>
                 </View>
+              </View>
+            ) : (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyText}>No active GPS tracking session today.</Text>
               </View>
             )}
           </View>

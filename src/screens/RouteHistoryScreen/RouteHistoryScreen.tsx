@@ -90,6 +90,11 @@ const RouteHistoryScreen = () => {
     if (!dateStr) return '';
     const parts = dateStr.split('-');
     if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        // Handle YYYY-MM-DD format
+        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+      }
+
       const day = parts[0].padStart(2, '0');
       const monthStr = parts[1];
       const year = parts[2];
@@ -128,26 +133,51 @@ const RouteHistoryScreen = () => {
       const val = item.date || item.visitDate || item.timestamp || item.id;
       if (!val) return false;
 
-      if (typeof val === 'string' && /^\d{2}-\d{2}-\d{4}$/.test(val)) {
-        return val === selectedDateStr;
-      }
+      // Parse selectedDateStr (DD-MM-YYYY)
+      const selParts = selectedDateStr.split('-');
+      if (selParts.length !== 3) return false;
+      const selD = parseInt(selParts[0], 10);
+      const selM = parseInt(selParts[1], 10);
+      const selY = parseInt(selParts[2], 10);
 
-      let ts = Number(val);
-      if (isNaN(ts) && typeof val === 'string') {
-        const match = val.match(/\d{10,13}/);
-        if (match) {
-          ts = Number(match[0]);
+      let valD = 0, valM = 0, valY = 0;
+      
+      if (typeof val === 'string' && val.includes('-')) {
+         const datePart = val.split(' ')[0];
+         const parts = datePart.split('-');
+         if (parts.length === 3) {
+            if (parts[0].length === 4) {
+               // YYYY-MM-DD
+               valY = parseInt(parts[0], 10);
+               valM = parseInt(parts[1], 10);
+               valD = parseInt(parts[2], 10);
+            } else {
+               // DD-MM-YYYY or DD-MMM-YYYY
+               valD = parseInt(parts[0], 10);
+               valY = parseInt(parts[2], 10);
+               if (!isNaN(parseInt(parts[1], 10))) {
+                  valM = parseInt(parts[1], 10);
+               } else {
+                  const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+                  valM = months.indexOf(parts[1].toLowerCase()) + 1;
+               }
+            }
+         }
+      } else {
+        let ts = Number(val);
+        if (isNaN(ts) && typeof val === 'string') {
+          const match = val.match(/\d{10,13}/);
+          if (match) ts = Number(match[0]);
+        }
+        if (!isNaN(ts) && ts > 0) {
+          const dateObj = new Date(ts);
+          valD = dateObj.getDate();
+          valM = dateObj.getMonth() + 1;
+          valY = dateObj.getFullYear();
         }
       }
 
-      if (isNaN(ts) || ts <= 0) return false;
-
-      const dateObj = new Date(ts);
-      const day = dateObj.getDate().toString().padStart(2, '0');
-      const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
-      const year = dateObj.getFullYear();
-      const formattedDate = `${day}-${month}-${year}`;
-      return formattedDate === selectedDateStr;
+      return valD === selD && valM === selM && valY === selY;
     } catch (err) {
       console.log('isSameDay verification failed:', err);
       return false;
@@ -205,7 +235,8 @@ const RouteHistoryScreen = () => {
 
       // 3. Compute Summary Card Stats
       const salesToday = chemistsToday.reduce((sum: number, item: any) => {
-        return sum + (parseFloat(item.orderValue) || 0);
+        // AI FIX: Added pobAmount fallback for chemist sales
+        return sum + (parseFloat(item.orderValue || item.pobAmount) || 0);
       }, 0);
 
       const visited = docsToday.length + chemistsToday.length;
@@ -265,7 +296,8 @@ const RouteHistoryScreen = () => {
         const hasGps = v.latitude && v.longitude && v.latitude !== 'No GPS Data';
         
         eventsList.push({
-          time: v.time || '10:30 AM',
+          // AI FIX: Use visitTime from DoctorVisitScreen
+          time: v.visitTime || v.time || '10:30 AM',
           title: `🩺 Doctor Visited: ${docFormattedName}`,
           subtitle: `Hospital/Clinic: ${v.hospital || 'Clinic'} (${v.specialty || 'General'})`,
           type: 'doctor',
@@ -278,11 +310,13 @@ const RouteHistoryScreen = () => {
 
       // D. Add Chemist Visits / Orders (safe orderValue parsing and null names)
       chemistsToday.forEach((v: any) => {
-        const orderValNum = Number(v.orderValue) || 0;
+        // AI FIX: Safely parse pobAmount alongside orderValue
+        const orderValNum = Number(v.orderValue || v.pobAmount) || 0;
         const hasGps = v.latitude && v.longitude && v.latitude !== 'No GPS Data';
         
         eventsList.push({
-          time: v.time || '02:00 PM',
+          // AI FIX: Use visitTime from ChemistVisitScreen
+          time: v.visitTime || v.time || '02:00 PM',
           title: `💊 Chemist Visited: ${v.shopName || 'Unknown Shop'}`,
           subtitle: `Chemist: ${v.chemistName || 'Staff'} (Location: ${v.area || 'N/A'})`,
           type: 'chemist',

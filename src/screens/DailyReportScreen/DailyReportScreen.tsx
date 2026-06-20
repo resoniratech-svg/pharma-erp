@@ -12,6 +12,8 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -144,6 +146,10 @@ const DailyReportScreen = () => {
   };
 
   const handleGenerateReport = async () => {
+    if (reportGenerated) {
+      customAlert('Already Submitted', 'You have already submitted your daily report for today.');
+      return;
+    }
     if (attendanceStatus === 'Absent') {
       customAlert('Warning', 'You cannot submit a daily report if you have not marked your attendance today.');
       return;
@@ -186,13 +192,107 @@ const DailyReportScreen = () => {
     }
   };
 
-  // Mock handlers for export & share buttons
-  const handleExportPDF = () => {
-    customAlert('PDF Exported', `Daily Report for ${new Date().toDateString()} has been generated as MJ_Report.pdf in your downloads.`);
+  // Real PDF Generation logic
+  const handleExportPDF = async () => {
+    try {
+      const htmlContent = `
+        <html>
+          <head>
+            <style>
+              body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
+              .header { text-align: center; border-bottom: 2px solid #43A047; padding-bottom: 20px; margin-bottom: 30px; }
+              h1 { color: #2E7D32; margin: 0; font-size: 28px; }
+              .subtitle { color: #666; font-size: 16px; margin-top: 5px; }
+              .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
+              .label { font-weight: bold; color: #555; }
+              .value { font-weight: bold; color: #000; }
+              .section { margin-top: 30px; background-color: #f9f9f9; padding: 15px; border-radius: 8px; }
+            </style>
+          </head>
+          <body>
+            <div class="header">
+              <h1>Daily Work Report</h1>
+              <div class="subtitle">Generated on ${new Date().toDateString()}</div>
+            </div>
+            
+            <div class="row">
+              <span class="label">Attendance Status:</span>
+              <span class="value" style="color: ${attendanceStatus === 'Present' ? '#2E7D32' : '#C62828'}">${attendanceStatus}</span>
+            </div>
+            <div class="row">
+              <span class="label">Distance Travelled:</span>
+              <span class="value">${totalKmTravelled} km</span>
+            </div>
+            <div class="row">
+              <span class="label">Doctor Visits:</span>
+              <span class="value">${docCount}</span>
+            </div>
+            <div class="row">
+              <span class="label">Chemist Visits:</span>
+              <span class="value">${chemistCount}</span>
+            </div>
+            <div class="row">
+              <span class="label">Orders Booked:</span>
+              <span class="value">${orderCount}</span>
+            </div>
+            <div class="row">
+              <span class="label">Total Sales:</span>
+              <span class="value" style="color: #0D47A1; font-size: 18px;">Rs. ${totalSales.toLocaleString('en-IN')}</span>
+            </div>
+
+            <div class="section">
+              <span class="label">Remarks:</span><br/>
+              <p>${remarks || 'No remarks provided for today.'}</p>
+            </div>
+            
+            <div class="section">
+              <span class="label">Competitor Activity:</span><br/>
+              <p>${competitorActivity || 'No competitor activity reported.'}</p>
+            </div>
+          </body>
+        </html>
+      `;
+
+      if (Platform.OS === 'web') {
+        // On web, directly open the print dialog
+        await Print.printAsync({ html: htmlContent });
+      } else {
+        // On mobile, save as PDF and open share dialog
+        const { uri } = await Print.printToFileAsync({ html: htmlContent });
+        await Sharing.shareAsync(uri, { 
+          UTI: '.pdf', 
+          mimeType: 'application/pdf',
+          dialogTitle: 'Share Daily Report PDF'
+        });
+      }
+    } catch (error) {
+      customAlert('Error', 'Failed to generate PDF document.');
+    }
   };
 
-  const handleShareReport = () => {
-    customAlert('Share Report', 'Generating shareable report link... Link copied to clipboard.');
+  const handleShareReport = async () => {
+    try {
+      const shareMessage = `📋 *Daily Work Report - ${new Date().toDateString()}*\n\n`
+        + `📍 Attendance: ${attendanceStatus}\n`
+        + `🚗 Distance: ${totalKmTravelled} km\n`
+        + `🩺 Doctors Visited: ${docCount}\n`
+        + `💊 Chemists Visited: ${chemistCount}\n`
+        + `📦 Orders Booked: ${orderCount}\n`
+        + `💰 Total Sales: ₹${totalSales}\n\n`
+        + `📝 Remarks: ${remarks || 'None'}\n`
+        + `🏢 Competitor Activity: ${competitorActivity || 'None'}`;
+        
+      import('react-native').then(({ Share }) => {
+        Share.share({
+          message: shareMessage,
+          title: 'Daily Report'
+        }).catch(() => {
+          customAlert('Error', 'Failed to open share menu');
+        });
+      });
+    } catch (error) {
+      customAlert('Error', 'Failed to open share menu');
+    }
   };
 
   const avgOrderValue = orderCount > 0 ? totalSales / orderCount : 0;
@@ -347,11 +447,12 @@ const DailyReportScreen = () => {
           }}
         />
 
-        {!reportGenerated && (
-          <TouchableOpacity style={styles.submitButton} onPress={handleGenerateReport}>
-            <Text style={styles.submitText}>SUBMIT DAILY REPORT</Text>
-          </TouchableOpacity>
-        )}
+        <TouchableOpacity 
+          style={[styles.submitButton, reportGenerated && { backgroundColor: '#9E9E9E' }]} 
+          onPress={handleGenerateReport}
+        >
+          <Text style={styles.submitText}>SUBMIT DAILY REPORT</Text>
+        </TouchableOpacity>
       </View>
       <View style={{ height: 40 }} />
       </ScrollView>

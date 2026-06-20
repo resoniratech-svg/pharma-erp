@@ -33,9 +33,16 @@ interface PlannedVisit {
 
 const DailyScheduleScreen = () => {
   const navigation = useNavigation<any>();
-  const [scheduleDate, setScheduleDate] = useState(
-    new Date().toLocaleDateString('en-GB').replace(/\//g, '-') // DD-MM-YYYY format
-  );
+  const getTodayDateString = () => {
+    const today = new Date();
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = today.getDate().toString().padStart(2, '0');
+    const month = months[today.getMonth()];
+    const year = today.getFullYear();
+    return `${day}-${month}-${year}`;
+  };
+
+  const [scheduleDate, setScheduleDate] = useState(getTodayDateString());
   const [plannedVisits, setPlannedVisits] = useState<PlannedVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -83,19 +90,34 @@ const DailyScheduleScreen = () => {
         let initialVisits: PlannedVisit[] = [];
 
         if (todayPlan) {
-          initialVisits = [
-            { id: '1', name: 'Dr. Suresh Kumar', type: 'Doctor', timeSlot: '10:30 AM', area: todayPlan.area, status: 'Pending' },
-            { id: '2', name: 'Sai Krupa Chemists', type: 'Chemist', timeSlot: '12:45 PM', area: todayPlan.area, status: 'Pending' },
-            { id: '3', name: 'Dr. Anita Roy', type: 'Doctor', timeSlot: '03:15 PM', area: todayPlan.area, status: 'Pending' },
-            { id: '4', name: 'MedPlus Retail Drugs', type: 'Chemist', timeSlot: '05:00 PM', area: todayPlan.area, status: 'Pending' },
-          ];
+          let visitId = 1;
+          const docs = (todayPlan.doctorsList || '').split(',').map((n: string) => n.trim()).filter((n: string) => n);
+          const chemists = (todayPlan.chemistsList || '').split(',').map((n: string) => n.trim()).filter((n: string) => n);
+          
+          docs.forEach((doc: string) => {
+            initialVisits.push({
+              id: String(visitId++),
+              name: doc,
+              type: 'Doctor',
+              timeSlot: todayPlan.startTime || '10:00 AM',
+              area: todayPlan.area || 'Unknown',
+              status: 'Pending'
+            });
+          });
+          
+          chemists.forEach((chemist: string) => {
+            initialVisits.push({
+              id: String(visitId++),
+              name: chemist,
+              type: 'Chemist',
+              timeSlot: todayPlan.startTime || '11:00 AM',
+              area: todayPlan.area || 'Unknown',
+              status: 'Pending'
+            });
+          });
         } else {
-          // Demo fallback
-          initialVisits = [
-            { id: '1', name: 'Dr. Suresh Kumar', type: 'Doctor', timeSlot: '10:00 AM', area: 'Hyderabad Central', status: 'Pending' },
-            { id: '2', name: 'Sai Krupa Chemists', type: 'Chemist', timeSlot: '11:30 AM', area: 'Hyderabad Central', status: 'Pending' },
-            { id: '3', name: 'Dr. Vikas Patel', type: 'Doctor', timeSlot: '02:30 PM', area: 'Secunderabad Route', status: 'Pending' },
-          ];
+          // If no plan is explicitly created for today, leave it empty or show a placeholder message.
+          initialVisits = [];
         }
 
         setPlannedVisits(initialVisits);

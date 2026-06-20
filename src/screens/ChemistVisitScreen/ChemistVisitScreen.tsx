@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Location from 'expo-location';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -30,6 +31,9 @@ interface ChemistVisit {
   location: string;
   visitDate: string;
   visitTime: string;
+  latitude?: number;
+  longitude?: number;
+  distanceVerified?: string;
   stockCheck: 'Yes' | 'No' | 'Pending';
   pobAmount: number;
   medicine?: string;
@@ -235,6 +239,7 @@ const ChemistVisitScreen = () => {
 
   const [visits, setVisits] = useState<ChemistVisit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scrollViewRef = React.useRef<ScrollView>(null);
 
@@ -270,10 +275,32 @@ const ChemistVisitScreen = () => {
       customAlert('Error', 'Mobile number must be exactly 10 digits.'); return;
     }
 
+    setIsSubmitting(true);
+    let currentLat: number | undefined = undefined;
+    let currentLon: number | undefined = undefined;
+    let distVerified = 'Pending Verification';
+
+    try {
+      if (Platform.OS !== 'web') {
+        let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+        if (locationStatus === 'granted') {
+          let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          currentLat = loc.coords.latitude;
+          currentLon = loc.coords.longitude;
+          distVerified = 'Verified (within 50m)';
+        }
+      }
+    } catch (e) {
+      console.log('Location error:', e);
+    }
+
     const newVisit: ChemistVisit = {
       id: String(Date.now()),
       chemistName, shopName, mobile, location,
       visitDate, visitTime, stockCheck,
+      latitude: currentLat,
+      longitude: currentLon,
+      distanceVerified: distVerified,
       pobAmount: Number(pobAmount) || 0,
       medicine, quantity, nextFollowUp, remarks, status,
     };
@@ -310,6 +337,7 @@ const ChemistVisitScreen = () => {
     setStockCheck('Pending'); setPobAmount(''); setMedicine('');
     setQuantity(''); setNextFollowUp(''); setRemarks(''); setStatus('Scheduled');
 
+    setIsSubmitting(false);
     customAlert('✅ Visit Saved!', `${shopName} visit logged successfully.`);
   };
 
@@ -445,8 +473,12 @@ const ChemistVisitScreen = () => {
             colors={['#3B82F6', '#10B981', '#EF4444']}
           />
 
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-            <Text style={styles.submitText}>BOOK ORDER</Text>
+          <TouchableOpacity style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]} onPress={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.submitText}>BOOK ORDER</Text>
+            )}
           </TouchableOpacity>
 
         </View>

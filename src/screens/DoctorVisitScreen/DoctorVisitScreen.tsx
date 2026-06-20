@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import * as Location from 'expo-location';
 
 // ✅ Unified interface — matches React Web DoctorVisits.tsx exactly
 interface DoctorVisit {
@@ -30,6 +31,9 @@ interface DoctorVisit {
   prescriptionPotential: 'High' | 'Medium' | 'Low';
   nextFollowUp: string;
   remarks?: string;
+  latitude?: number;
+  longitude?: number;
+  distanceVerified?: string;
   status: 'Completed' | 'Scheduled' | 'Missed';
 }
 
@@ -188,6 +192,7 @@ const DoctorVisitScreen = () => {
   // Common states
   const [visits, setVisits] = useState<DoctorVisit[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   // Form states matching unified interface
@@ -242,6 +247,25 @@ const DoctorVisitScreen = () => {
       return;
     }
 
+    setIsSubmitting(true);
+    let currentLat: number | undefined = undefined;
+    let currentLon: number | undefined = undefined;
+    let distVerified = 'Pending Verification';
+
+    try {
+      if (Platform.OS !== 'web') {
+        let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+        if (locationStatus === 'granted') {
+          let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          currentLat = loc.coords.latitude;
+          currentLon = loc.coords.longitude;
+          distVerified = 'Verified (within 50m)';
+        }
+      }
+    } catch (e) {
+      console.log('Location error:', e);
+    }
+
     const newVisit: DoctorVisit = {
       id: Date.now().toString(),
       doctorName,
@@ -256,6 +280,9 @@ const DoctorVisitScreen = () => {
       samplesGiven,
       prescriptionPotential,
       nextFollowUp,
+      latitude: currentLat,
+      longitude: currentLon,
+      distanceVerified: distVerified,
       remarks,
       status,
     };
@@ -275,6 +302,7 @@ const DoctorVisitScreen = () => {
     setVisitType('Routine Visit'); setDoctorClass('B'); setProductsDiscussed('');
     setSamplesGiven(''); setPrescriptionPotential('Medium'); setNextFollowUp('');
     setRemarks(''); setStatus('Scheduled');
+    setIsSubmitting(false);
   };
 
   // Reusable toggle button row
@@ -377,8 +405,12 @@ const DoctorVisitScreen = () => {
             colors={['#3B82F6', '#10B981', '#EF4444']}
           />
 
-          <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-            <Text style={styles.submitText}>LOG DOCTOR VISIT</Text>
+          <TouchableOpacity style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]} onPress={handleSubmit} disabled={isSubmitting}>
+            {isSubmitting ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.submitText}>LOG DOCTOR VISIT</Text>
+            )}
           </TouchableOpacity>
         </View>
 

@@ -50,6 +50,11 @@ const CUSTOMER_MASTERS: Record<string, Array<{ name: string; mobile: string; due
     { name: 'Apollo Hospitals', mobile: '9234567890', due: 28000 },
     { name: 'Care Hospital', mobile: '9345678901', due: 12500 },
     { name: 'Sunshine Clinic', mobile: '9456789012', due: 4500 }
+  ],
+  Stockist: [
+    { name: 'Metro Pharma Distributors', mobile: '9012345678', due: 50000 },
+    { name: 'Sri Balaji Agencies', mobile: '9023456789', due: 85000 },
+    { name: 'Venkateshwara Medical Agencies', mobile: '9034567890', due: 120000 }
   ]
 };
 
@@ -419,7 +424,7 @@ const BookOrderScreen = () => {
                   ]}
                   onPress={() => {
                     setCustomerName(cust.name);
-                    setCustomerMobile(cust.mobile);
+                   // setCustomerMobile(cust.mobile);
                     setCustomerMobile(cust.mobile);
                     setShowCustomerDropdown(false);
                   }}

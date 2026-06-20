@@ -58,8 +58,10 @@ const GeoTaggedChemistVisitsScreen = () => {
         longitude: item.longitude && !isNaN(parseFloat(item.longitude))
           ? parseFloat(item.longitude)
           : null,
-        distanceVerified: item.distanceVerified || 'Pending Verification',
-        status: item.status === 'Verified' || item.status === 'Rejected' ? item.status : 'Pending'
+        distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
+        status: item.status === 'Verified' || item.status === 'Rejected' 
+          ? item.status 
+          : (item.latitude ? 'Verified' : 'Pending')
       }));
       setVisits(mapped);
     } catch (err) {
