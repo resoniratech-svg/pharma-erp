@@ -10,6 +10,13 @@ import {
   XCircle,
   Clock,
   ArrowRight,
+  Eye,
+  PlusCircle,
+  FileText,
+  IndianRupee,
+  Building,
+  FileClock,
+  AlertCircle
 } from 'lucide-react';
 import {
   ROLE_SUPER_ADMIN,
@@ -35,59 +42,107 @@ import {
 
 /* ── Mock Data ───────────────────────────────────────────────────── */
 
-// Each KPI carries its glow palette: border gradient + box-shadow color
-const kpiData = [
+// Primary KPIs
+const primaryKpiData = [
   {
-    title: 'Monthly Revenue',
+    title: 'Total Revenue',
     value: '₹12.4M',
     trend: '+14.5%',
     isPositive: true,
     icon: TrendingUp,
     iconColor: 'text-emerald-600',
     iconBg: 'bg-emerald-50',
-    // Mint green glow
     glowColor: 'rgba(26, 188, 156, 0.55)',
     glowColorIdle: 'rgba(26, 188, 156, 0.25)',
     borderGradient: 'linear-gradient(135deg, #1abc9c 0%, #00d9a3 50%, #a7f3d0 100%)',
   },
   {
-    title: 'Total SKUs',
-    value: '4,892',
-    trend: '+2.1%',
-    isPositive: true,
-    icon: Package,
+    title: 'Outstanding Receivables',
+    value: '₹3.2M',
+    trend: '-2.4%',
+    isPositive: false,
+    icon: TrendingDown,
     iconColor: 'text-violet-600',
     iconBg: 'bg-violet-50',
-    // Indigo glow
     glowColor: 'rgba(99, 102, 241, 0.55)',
     glowColorIdle: 'rgba(99, 102, 241, 0.22)',
     borderGradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c7d2fe 100%)',
   },
   {
-    title: 'Orders Processed',
+    title: 'Active Orders',
     value: '1,284',
-    trend: '-4.2%',
-    isPositive: false,
+    trend: '+5.2%',
+    isPositive: true,
     icon: ShoppingCart,
     iconColor: 'text-cyan-600',
     iconBg: 'bg-cyan-50',
-    // Cyan blue glow
     glowColor: 'rgba(6, 182, 212, 0.55)',
     glowColorIdle: 'rgba(6, 182, 212, 0.22)',
     borderGradient: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 50%, #a5f3fc 100%)',
   },
   {
     title: 'Critical Alerts',
-    value: '3',
+    value: '12',
     trend: 'Needs action',
     isPositive: false,
     icon: AlertTriangle,
     iconColor: 'text-rose-600',
     iconBg: 'bg-rose-50',
-    // Soft red glow
     glowColor: 'rgba(244, 63, 94, 0.50)',
     glowColorIdle: 'rgba(244, 63, 94, 0.20)',
     borderGradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fecdd3 100%)',
+  },
+];
+
+// Secondary KPIs
+const secondaryKpiData = [
+  {
+    title: 'Inventory Value',
+    value: '₹45.6M',
+    trend: '+1.2%',
+    isPositive: true,
+    icon: Package,
+    iconColor: 'text-blue-600',
+    iconBg: 'bg-blue-50',
+    glowColor: 'rgba(59, 130, 246, 0.55)',
+    glowColorIdle: 'rgba(59, 130, 246, 0.22)',
+    borderGradient: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #bfdbfe 100%)',
+  },
+  {
+    title: 'Expiring Products',
+    value: '84',
+    trend: '-12%',
+    isPositive: true,
+    icon: Clock,
+    iconColor: 'text-amber-600',
+    iconBg: 'bg-amber-50',
+    glowColor: 'rgba(245, 158, 11, 0.55)',
+    glowColorIdle: 'rgba(245, 158, 11, 0.22)',
+    borderGradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #fde68a 100%)',
+  },
+  {
+    title: 'Pending Dispatches',
+    value: '156',
+    trend: '+8%',
+    isPositive: false,
+    icon: ArrowRight,
+    iconColor: 'text-indigo-600',
+    iconBg: 'bg-indigo-50',
+    glowColor: 'rgba(79, 70, 229, 0.55)',
+    glowColorIdle: 'rgba(79, 70, 229, 0.22)',
+    borderGradient: 'linear-gradient(135deg, #4f46e5 0%, #818cf8 50%, #c7d2fe 100%)',
+  },
+  {
+    title: 'GST Payable',
+    value: '₹1.8M',
+    trend: 'Due in 5 days',
+    isPositive: false,
+    icon: FileText,
+    iconColor: 'text-pink-600',
+    iconBg: 'bg-pink-50',
+    glowColor: 'rgba(236, 72, 153, 0.55)',
+    glowColorIdle: 'rgba(236, 72, 153, 0.22)',
+    borderGradient: 'linear-gradient(135deg, #ec4899 0%, #f472b6 50%, #fbcfe8 100%)',
   },
 ];
 
@@ -113,6 +168,24 @@ const recentOrders = [
   { id: 'ORD-8904', client: 'City Clinic', status: 'Shipped', amount: '₹12,400', date: 'Oct 10, 2026' },
 ];
 
+const quickActions = [
+  { label: 'Create Sales Order', icon: ShoppingCart, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  { label: 'Create Purchase Order', icon: Package, color: 'text-violet-600', bg: 'bg-violet-50' },
+  { label: 'Add Product', icon: PlusCircle, color: 'text-blue-600', bg: 'bg-blue-50' },
+  { label: 'Create Invoice', icon: FileText, color: 'text-amber-600', bg: 'bg-amber-50' },
+  { label: 'Record Payment', icon: IndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+  { label: 'Bank Reconciliation', icon: Building, color: 'text-indigo-600', bg: 'bg-indigo-50' },
+  { label: 'View Outstanding', icon: FileClock, color: 'text-rose-600', bg: 'bg-rose-50' },
+  { label: 'View Critical Alerts', icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50' },
+];
+
+const criticalAlertsData = [
+  { id: 'ALT-001', type: 'Payment Overdue', reference: 'INV-2026-089', priority: 'Critical', date: 'Oct 12, 2026', status: 'Pending' },
+  { id: 'ALT-002', type: 'Stock Depletion', reference: 'SKU-PARA-500', priority: 'High', date: 'Oct 12, 2026', status: 'Pending' },
+  { id: 'ALT-003', type: 'License Expiry', reference: 'DL-MH-2024', priority: 'Critical', date: 'Oct 11, 2026', status: 'In Progress' },
+  { id: 'ALT-004', type: 'Bank Sync Failed', reference: 'HDFC-ACC-109', priority: 'High', date: 'Oct 10, 2026', status: 'Resolved' },
+];
+
 /* ── Animation Helpers ───────────────────────────────────────────── */
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -133,17 +206,19 @@ import { GlowCard } from './components/ui/GlowCard';
 export default function Dashboard() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
 
-  let displayKpis = kpiData;
+  const isSuperAdmin = [ROLE_SUPER_ADMIN, 'Super Admin', 'System Administrator'].includes(activeRole);
+
+  let displayPrimaryKpis = isSuperAdmin ? primaryKpiData : primaryKpiData;
+  let displaySecondaryKpis = secondaryKpiData;
+
   if (activeRole === ROLE_WAREHOUSE_MANAGER) {
-    displayKpis = kpiData.filter(k => ['Total SKUs', 'Orders Processed', 'Critical Alerts'].includes(k.title));
+    displayPrimaryKpis = primaryKpiData.filter(k => ['Active Orders', 'Critical Alerts'].includes(k.title));
   } else if (activeRole === ROLE_ACCOUNTANT) {
-    displayKpis = kpiData.filter(k => ['Monthly Revenue', 'Orders Processed'].includes(k.title));
-  } else if (activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER) {
-    displayKpis = kpiData.filter(k => ['Orders Processed'].includes(k.title));
-  } else if (activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
-    displayKpis = kpiData.filter(k => ['Orders Processed'].includes(k.title));
+    displayPrimaryKpis = primaryKpiData.filter(k => ['Total Revenue', 'Outstanding Receivables'].includes(k.title));
+  } else if (activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER || activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
+    displayPrimaryKpis = primaryKpiData.filter(k => ['Active Orders'].includes(k.title));
   } else if (activeRole === ROLE_TRANSPORT_STAFF) {
-    displayKpis = kpiData.filter(k => ['Orders Processed', 'Critical Alerts'].includes(k.title));
+    displayPrimaryKpis = primaryKpiData.filter(k => ['Active Orders', 'Critical Alerts'].includes(k.title));
   }
 
   const showSalesChart = [ROLE_SUPER_ADMIN, ROLE_ACCOUNTANT].includes(activeRole);
@@ -168,9 +243,9 @@ export default function Dashboard() {
       </motion.div>
 
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
-        {/* ── KPI Cards ── */}
+        {/* ── Primary KPI Cards ── */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {displayKpis.map((kpi, idx) => (
+          {displayPrimaryKpis.map((kpi, idx) => (
             <GlowCard
               key={idx}
               borderGradient={kpi.borderGradient}
@@ -199,6 +274,40 @@ export default function Dashboard() {
             </GlowCard>
           ))}
         </div>
+
+        {/* ── Secondary KPI Cards (Super Admin Only) ── */}
+        {isSuperAdmin && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            {displaySecondaryKpis.map((kpi, idx) => (
+              <GlowCard
+                key={`sec-${idx}`}
+                borderGradient={kpi.borderGradient}
+                glowColor={kpi.glowColor}
+                glowColorIdle={kpi.glowColorIdle}
+                animationVariants={itemVariants}
+                animationDelay={idx * 1.5}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${kpi.iconBg}`}>
+                    <kpi.icon className={`w-5 h-5 ${kpi.iconColor}`} />
+                  </div>
+                  <div
+                    className={`flex items-center gap-1 text-sm font-semibold ${
+                      kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'
+                    }`}
+                  >
+                    {kpi.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                    {kpi.trend}
+                  </div>
+                </div>
+                <div>
+                  <h3 className="text-slate-500 text-sm font-medium mb-1">{kpi.title}</h3>
+                  <p className="text-2xl font-bold text-slate-900">{kpi.value}</p>
+                </div>
+              </GlowCard>
+            ))}
+          </div>
+        )}
 
         {/* ── Charts & Stock Panel ── */}
         {(showSalesChart || showInventoryHealth) && (
@@ -297,6 +406,26 @@ export default function Dashboard() {
         </div>
         )}
 
+        {/* ── Quick Actions (Super Admin Only) ── */}
+        {isSuperAdmin && (
+          <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-6">
+            <h2 className="text-lg font-bold text-slate-800 mb-6">Quick Actions</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
+              {quickActions.map((action, idx) => (
+                <button
+                  key={idx}
+                  className="flex flex-col items-center justify-center gap-3 p-4 rounded-xl border border-slate-100 hover:border-violet-200 hover:shadow-sm transition-all group bg-slate-50/50 hover:bg-white"
+                >
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${action.bg} group-hover:scale-110 transition-transform`}>
+                    <action.icon className={`w-6 h-6 ${action.color}`} />
+                  </div>
+                  <span className="text-xs font-semibold text-slate-600 text-center">{action.label}</span>
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
         {/* ── Recent Orders Table ── */}
         {showRecentOrders && (
         <motion.div
@@ -352,6 +481,63 @@ export default function Dashboard() {
                       <td className="py-4 px-6 text-right">
                         <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
                           <MoreVertical className="w-5 h-5" />
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </motion.div>
+        )}
+
+        {/* ── Critical Alerts Table (Super Admin Only) ── */}
+        {isSuperAdmin && (
+        <motion.div
+          variants={itemVariants}
+          className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden"
+        >
+          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+              <AlertTriangle className="w-5 h-5 text-rose-500" /> Critical Alerts
+            </h2>
+            <button className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
+              View Action Center <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="bg-slate-50/50">
+                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Alert Type</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Reference</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Priority</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Created Date</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {criticalAlertsData.map((alert) => {
+                  let priorityColor = 'bg-amber-100 text-amber-700';
+                  if (alert.priority === 'Critical') priorityColor = 'bg-rose-100 text-rose-700';
+                  if (alert.priority === 'High') priorityColor = 'bg-orange-100 text-orange-700';
+
+                  return (
+                    <tr key={alert.id} className="hover:bg-slate-50/80 transition-colors">
+                      <td className="py-4 px-6 text-sm font-bold text-slate-800">{alert.type}</td>
+                      <td className="py-4 px-6 text-sm font-medium text-slate-600">{alert.reference}</td>
+                      <td className="py-4 px-6">
+                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${priorityColor}`}>
+                          {alert.priority}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 text-sm font-medium text-slate-500">{alert.date}</td>
+                      <td className="py-4 px-6 text-sm font-medium text-slate-600">{alert.status}</td>
+                      <td className="py-4 px-6 text-right">
+                        <button className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-full transition-colors outline-none">
+                          <Eye className="w-5 h-5" />
                         </button>
                       </td>
                     </tr>

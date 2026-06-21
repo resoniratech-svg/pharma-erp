@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Filter, Download, Trash2 } from 'lucide-react';
 import {
   PageHeader,
@@ -13,33 +13,58 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './types';
+import { div } from 'framer-motion/m';
+import { productService } from "../../services/productService";
+import { packingTypeService } from "../../services/packingTypeService";
+import activityLogService from "../../services/activityLogService";
+import { hasModulePermission } from '../../utils/permissionUtils';
+import {
+  PRODUCT_TYPES,
+  MANUFACTURERS,
+} from "./productMasters";
+
 
 interface Product {
   id: string;
+
   code: string;
   name: string;
+
   genericName: string;
   brandName: string;
+
   category: string;
   type: string;
   manufacturer: string;
+
   composition?: string;
   barcode?: string;
+
+  
 
   packingType: string;
   unitsPerPack: string;
   packsInBox?: string;
+  totalUnits?: string;
 
   mrp: string;
   ptr: string;
   pts: string;
 
+  purchasePrice?: string;
+  sellingPrice?: string;
+
   gst: string;
   hsnCode: string;
 
-  status: "Active" | "Inactive" | 'Discontinued';
-}
+  minimumStock?: string;
+  reorderLevel?: string;
 
+  batchTracking?: boolean;
+  expiryTracking?: boolean;
+
+  status: "Active" | "Inactive" | "Discontinued";
+}
 const initialProducts: Product[] = [
   {
     id: "1",
@@ -47,16 +72,36 @@ const initialProducts: Product[] = [
     name: "Amoxicillin 500mg",
     genericName: "Amoxicillin",
     brandName: "AmoxiCare",
+
     category: "Antibiotics",
     type: "Capsule",
     manufacturer: "PharmaCorp",
+
+    composition: "Amoxicillin 500mg",
+    barcode: "890100000001",
+
+    
     packingType: "Blister Pack",
     unitsPerPack: "10",
+    packsInBox: "20",
+    totalUnits: "200",
+
     mrp: "120",
     ptr: "105",
     pts: "95",
+
+    purchasePrice: "90",
+    sellingPrice: "120",
+
     gst: "12",
     hsnCode: "30041000",
+
+    minimumStock: "100",
+    reorderLevel: "50",
+
+    batchTracking: true,
+    expiryTracking: true,
+
     status: "Active",
   },
 
@@ -66,16 +111,36 @@ const initialProducts: Product[] = [
     name: "Paracetamol 650mg",
     genericName: "Paracetamol",
     brandName: "ParaFast",
+
     category: "Analgesics",
     type: "Tablet",
     manufacturer: "HealthPlus",
+
+    composition: "Paracetamol 650mg",
+    barcode: "890100000002",
+
+    
     packingType: "Strip",
     unitsPerPack: "15",
+    packsInBox: "10",
+    totalUnits: "150",
+
     mrp: "45",
     ptr: "38",
     pts: "35",
+
+    purchasePrice: "30",
+    sellingPrice: "45",
+
     gst: "12",
     hsnCode: "30049011",
+
+    minimumStock: "200",
+    reorderLevel: "75",
+
+    batchTracking: true,
+    expiryTracking: true,
+
     status: "Active",
   },
 
@@ -85,16 +150,36 @@ const initialProducts: Product[] = [
     name: "Cough Syrup 100ml",
     genericName: "Dextromethorphan",
     brandName: "CoughEase",
+
     category: "Respiratory",
     type: "Syrup",
     manufacturer: "MediCare",
+
+    composition: "Dextromethorphan Hydrobromide",
+    barcode: "890100000003",
+
+    
     packingType: "Bottle",
     unitsPerPack: "1",
+    packsInBox: "24",
+    totalUnits: "24",
+
     mrp: "95",
     ptr: "80",
     pts: "75",
+
+    purchasePrice: "70",
+    sellingPrice: "95",
+
     gst: "12",
     hsnCode: "30049099",
+
+    minimumStock: "50",
+    reorderLevel: "20",
+
+    batchTracking: true,
+    expiryTracking: true,
+
     status: "Inactive",
   },
 
@@ -104,16 +189,36 @@ const initialProducts: Product[] = [
     name: "Vitamin C 1000mg",
     genericName: "Ascorbic Acid",
     brandName: "VitaBoost",
+
     category: "Vitamins",
     type: "Tablet",
     manufacturer: "VitaLife",
+
+    composition: "Vitamin C 1000mg",
+    barcode: "890100000004",
+
+  
     packingType: "Bottle",
     unitsPerPack: "30",
+    packsInBox: "12",
+    totalUnits: "360",
+
     mrp: "250",
     ptr: "220",
     pts: "200",
+
+    purchasePrice: "180",
+    sellingPrice: "250",
+
     gst: "12",
     hsnCode: "21069099",
+
+    minimumStock: "80",
+    reorderLevel: "30",
+
+    batchTracking: true,
+    expiryTracking: true,
+
     status: "Active",
   },
 
@@ -123,21 +228,64 @@ const initialProducts: Product[] = [
     name: "Ibuprofen 400mg",
     genericName: "Ibuprofen",
     brandName: "PainAway",
+
     category: "NSAIDs",
     type: "Tablet",
     manufacturer: "PainRelief Inc.",
+
+    composition: "Ibuprofen 400mg",
+    barcode: "890100000005",
+
+    
     packingType: "Strip",
     unitsPerPack: "10",
+    packsInBox: "15",
+    totalUnits: "150",
+
     mrp: "70",
     ptr: "60",
     pts: "55",
+
+    purchasePrice: "45",
+    sellingPrice: "70",
+
     gst: "12",
     hsnCode: "30049069",
+
+    minimumStock: "100",
+    reorderLevel: "40",
+
+    batchTracking: true,
+    expiryTracking: true,
+
     status: "Discontinued",
   },
 ];
-
 export default function ProductMaster() {
+  const currentUser = JSON.parse(
+  localStorage.getItem("authUser") || "{}"
+);
+
+  const activeRole =
+  localStorage.getItem('activeRole') || '';
+
+  const canView = hasModulePermission(activeRole, "Products & Master", "View");
+
+  const canCreate = hasModulePermission(
+    activeRole,
+    "Products & Master",
+    "Create",
+  );
+
+  const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
+
+  const canDelete = hasModulePermission(
+    activeRole,
+    "Products & Master",
+    "Delete",
+  );
+
+
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -153,7 +301,8 @@ export default function ProductMaster() {
   ]);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   
-  const [products, setProducts] = useState(initialProducts);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [packingTypes, setPackingTypes] = useState<any[]>([]);
 
   const [showNewProductModal, setShowNewProductModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -162,32 +311,81 @@ export default function ProductMaster() {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
 
   const [newProduct, setNewProduct] = useState({
-    code: "",
-    name: "",
-    genericName: "",
-    brandName: "",
-    composition: "",
-    barcode: "",
+  code: "",
+  name: "",
 
-    category: "",
-    type: "",
-    manufacturer: "",
+  genericName: "",
+  brandName: "",
+  composition: "",
+  barcode: "",
 
-    packingType: "",
-    unitsPerPack: "",
-    packsInBox: "",
+  category: "",
+  type: "",
+  manufacturer: "",
 
-    mrp: "",
-    ptr: "",
-    pts: "",
+  // Packaging
+  
+  packingType: "",
+  unitsPerPack: "",
+  packsInBox: "",
+  totalUnits: "",
 
-    gst: "",
-    hsnCode: "",
+  // Pricing
+  mrp: "",
+  ptr: "",
+  pts: "",
+  purchasePrice: "",
+  sellingPrice: "",
 
-    status: "Active" as Product["status"],
-  });
+  // Tax
+  gst: "",
+  hsnCode: "",
+
+  // Inventory
+  minimumStock: "",
+  reorderLevel: "",
+
+  batchTracking: false,
+  expiryTracking: false,
+
+  status: "Active" as Product["status"],
+});
 
 
+  if (!canView) {
+    return (
+      <div className="p-10 text-center">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+
+        <p className="text-slate-500 mt-2">
+          You do not have permission to view Product Management.
+        </p>
+      </div>
+    );
+  }
+  
+  useEffect(() => {
+    const savedProducts = productService.getProducts();
+
+    if (savedProducts.length > 0) {
+      setProducts(savedProducts);
+    } else {
+      setProducts(initialProducts);
+      productService.saveProducts(initialProducts);
+    }
+
+    const savedPackingTypes = packingTypeService.getAll();
+
+    setPackingTypes(
+      savedPackingTypes.filter((item: any) => item.status === "Active"),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (products.length > 0) {
+      productService.saveProducts(products);
+    }
+  }, [products]);
   const handleExport = () => {
     const headers = [
       "Code",
@@ -244,30 +442,69 @@ export default function ProductMaster() {
             : product,
         ),
       );
+      activityLogService.addLog({
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        action: "Product Updated",
+        module: "Product Master",
+      });
     } else {
       const product: Product = {
         id: Date.now().toString(),
+
         code: newProduct.code,
         name: newProduct.name,
+
+        genericName: newProduct.genericName,
+        brandName: newProduct.brandName,
+
         category: newProduct.category,
         type: newProduct.type,
         manufacturer: newProduct.manufacturer,
+
         composition: newProduct.composition,
         barcode: newProduct.barcode,
-        genericName: newProduct.genericName,
-        brandName: newProduct.brandName,
+
+        // Packaging
+        
         packingType: newProduct.packingType,
         unitsPerPack: newProduct.unitsPerPack,
         packsInBox: newProduct.packsInBox,
+        totalUnits: newProduct.totalUnits,
+
+        // Pricing
         mrp: newProduct.mrp,
         ptr: newProduct.ptr,
         pts: newProduct.pts,
+        purchasePrice: newProduct.purchasePrice,
+        sellingPrice: newProduct.sellingPrice,
+
+        // Tax
         gst: newProduct.gst,
         hsnCode: newProduct.hsnCode,
+
+        // Inventory
+        minimumStock: newProduct.minimumStock,
+        reorderLevel: newProduct.reorderLevel,
+
+        batchTracking: newProduct.batchTracking,
+        expiryTracking: newProduct.expiryTracking,
+
         status: newProduct.status,
       };
 
       setProducts((prev) => [product, ...prev]);
+
+      const currentUser = JSON.parse(
+  localStorage.getItem("authUser") || "{}"
+);
+
+activityLogService.addLog({
+  userId: currentUser.id,
+  userName: currentUser.fullName,
+  action: "Product Created",
+  module: "Product Master",
+});
     }
 
     setShowNewProductModal(false);
@@ -277,85 +514,43 @@ export default function ProductMaster() {
     setEditingProductId(null);
 
     setNewProduct({
-      code: "",
-      name: "",
-      category: "",
-      type: "",
-      manufacturer: "",
-      composition: "",
-      barcode: "",
-      genericName: "",
-      brandName: "",
-      packingType: "",
-      unitsPerPack: "",
-      packsInBox: "",
-      mrp: "",
-      ptr: "",
-      pts: "",
-      gst: "",
-      hsnCode: "",
-      status: "Active",
-    });
+  code: "",
+  name: "",
 
-    const product: Product = {
-      id: Date.now().toString(),
+  genericName: "",
+  brandName: "",
+  composition: "",
+  barcode: "",
 
-      code: newProduct.code,
-      name: newProduct.name,
+  category: "",
+  type: "",
+  manufacturer: "",
 
-      genericName: newProduct.genericName,
-      brandName: newProduct.brandName,
-      composition: newProduct.composition,
-      barcode: newProduct.barcode,
+  
+  packingType: "",
+  unitsPerPack: "",
+  packsInBox: "",
+  totalUnits: "",
 
-      category: newProduct.category,
-      type: newProduct.type,
-      manufacturer: newProduct.manufacturer,
+  mrp: "",
+  ptr: "",
+  pts: "",
+  purchasePrice: "",
+  sellingPrice: "",
 
-      packingType: newProduct.packingType,
-      unitsPerPack: newProduct.unitsPerPack,
-      packsInBox: newProduct.packsInBox,
+  gst: "",
+  hsnCode: "",
 
-      mrp: newProduct.mrp,
-      ptr: newProduct.ptr,
-      pts: newProduct.pts,
+  minimumStock: "",
+  reorderLevel: "",
 
-      gst: newProduct.gst,
-      hsnCode: newProduct.hsnCode,
+  batchTracking: false,
+  expiryTracking: false,
 
-      status: newProduct.status,
+  status: "Active",
+});
+
     };
-    setProducts((prev) => [product, ...prev]);
-
-    setNewProduct({
-      code: "",
-      name: "",
-
-      genericName: "",
-      brandName: "",
-      composition: "",
-      barcode: "",
-
-      category: "",
-      type: "",
-      manufacturer: "",
-
-      packingType: "",
-      unitsPerPack: "",
-      packsInBox: "",
-
-      mrp: "",
-      ptr: "",
-      pts: "",
-
-      gst: "",
-      hsnCode: "",
-
-      status: "Active",
-    });
-
-    setShowNewProductModal(false);
-  };
 
   const columns: Column<Product>[] = [
     {
@@ -436,16 +631,18 @@ export default function ProductMaster() {
           >
             View
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setProductToDelete(row);
-            }}
-            className="text-rose-600 font-medium hover:text-rose-800"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {canDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setProductToDelete(row);
+              }}
+              className="text-rose-600 font-medium hover:text-rose-800"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -477,39 +674,56 @@ export default function ProductMaster() {
             >
               Export
             </ActionButton>
-            <ActionButton
-              icon={<Plus className="w-4 h-4" />}
-              onClick={() => {
-                setEditMode(false);
+            {canCreate && (
+              <ActionButton
+                icon={<Plus className="w-4 h-4" />}
+                onClick={() => {
+                  setEditMode(false);
 
-                setEditingProductId(null);
+                  setEditingProductId(null);
 
-                setNewProduct({
-                  code: "",
-                  name: "",
-                  genericName: "",
-                  brandName: "",
-                  composition: "",
-                  barcode: "",
-                  category: "",
-                  type: "",
-                  manufacturer: "",
-                  packingType: "",
-                  unitsPerPack: "",
-                  packsInBox: "",
-                  mrp: "",
-                  ptr: "",
-                  pts: "",
-                  gst: "",
-                  hsnCode: "",
-                  status: "Active",
-                });
+                  setNewProduct({
+                    code: "",
+                    name: "",
 
-                setShowNewProductModal(true);
-              }}
-            >
-              New Product
-            </ActionButton>
+                    genericName: "",
+                    brandName: "",
+                    composition: "",
+                    barcode: "",
+
+                    category: "",
+                    type: "",
+                    manufacturer: "",
+
+                    packingType: "",
+                    unitsPerPack: "",
+                    packsInBox: "",
+                    totalUnits: "",
+
+                    mrp: "",
+                    ptr: "",
+                    pts: "",
+                    purchasePrice: "",
+                    sellingPrice: "",
+
+                    gst: "",
+                    hsnCode: "",
+
+                    minimumStock: "",
+                    reorderLevel: "",
+
+                    batchTracking: false,
+                    expiryTracking: false,
+
+                    status: "Active",
+                  });
+
+                  setShowNewProductModal(true);
+                }}
+              >
+                New Product
+              </ActionButton>
+            )}
           </>
         }
       />
@@ -528,7 +742,7 @@ export default function ProductMaster() {
         <SelectFilter
           value={categoryFilter}
           onChange={setCategoryFilter}
-          options={categories.map(c => ({ label: c, value: c }))}
+          options={categories.map((c) => ({ label: c, value: c }))}
           placeholder="All Categories"
         />
         <SelectFilter
@@ -565,14 +779,26 @@ export default function ProductMaster() {
                 Basic Information
               </h3>
 
-              <DrawerField label="Product Code" value={selectedProduct.code || "N/A"} />
-              <DrawerField label="Product Name" value={selectedProduct.name || "N/A"} />
+              <DrawerField
+                label="Product Code"
+                value={selectedProduct.code || "N/A"}
+              />
+              <DrawerField
+                label="Product Name"
+                value={selectedProduct.name || "N/A"}
+              />
               <DrawerField
                 label="Brand Name"
                 value={selectedProduct.brandName || "N/A"}
               />
-              <DrawerField label="Category" value={selectedProduct.category || "N/A"} />
-              <DrawerField label="Product Type" value={selectedProduct.type || "N/A"} />
+              <DrawerField
+                label="Category"
+                value={selectedProduct.category || "N/A"}
+              />
+              <DrawerField
+                label="Product Type"
+                value={selectedProduct.type || "N/A"}
+              />
               <DrawerField
                 label="Composition"
                 value={selectedProduct.composition || "N/A"}
@@ -608,7 +834,10 @@ export default function ProductMaster() {
                 label="Total Units"
                 value={
                   selectedProduct.unitsPerPack && selectedProduct.packsInBox
-                    ? (Number(selectedProduct.unitsPerPack) * Number(selectedProduct.packsInBox)).toString()
+                    ? (
+                        Number(selectedProduct.unitsPerPack) *
+                        Number(selectedProduct.packsInBox)
+                      ).toString()
                     : "N/A"
                 }
               />
@@ -620,11 +849,37 @@ export default function ProductMaster() {
                 Pricing Details
               </h3>
 
-              <DrawerField label="MRP" value={selectedProduct.mrp ? `₹ ${selectedProduct.mrp}` : "N/A"} />
+              <DrawerField
+                label="MRP"
+                value={selectedProduct.mrp ? `₹ ${selectedProduct.mrp}` : "N/A"}
+              />
 
-              <DrawerField label="PTR" value={selectedProduct.ptr ? `₹ ${selectedProduct.ptr}` : "N/A"} />
+              <DrawerField
+                label="PTR"
+                value={selectedProduct.ptr ? `₹ ${selectedProduct.ptr}` : "N/A"}
+              />
 
-              <DrawerField label="PTS" value={selectedProduct.pts ? `₹ ${selectedProduct.pts}` : "N/A"} />
+              <DrawerField
+                label="PTS"
+                value={selectedProduct.pts ? `₹ ${selectedProduct.pts}` : "N/A"}
+              />
+              <DrawerField
+                label="Purchase Price"
+                value={
+                  selectedProduct.purchasePrice
+                    ? `₹ ${selectedProduct.purchasePrice}`
+                    : "N/A"
+                }
+              />
+
+              <DrawerField
+                label="Selling Price"
+                value={
+                  selectedProduct.sellingPrice
+                    ? `₹ ${selectedProduct.sellingPrice}`
+                    : "N/A"
+                }
+              />
             </div>
 
             {/* Tax Details */}
@@ -633,9 +888,41 @@ export default function ProductMaster() {
                 Tax Details
               </h3>
 
-              <DrawerField label="GST %" value={selectedProduct.gst ? `${selectedProduct.gst}%` : "N/A"} />
+              <DrawerField
+                label="GST %"
+                value={selectedProduct.gst ? `${selectedProduct.gst}%` : "N/A"}
+              />
 
-              <DrawerField label="HSN Code" value={selectedProduct.hsnCode || "N/A"} />
+              <DrawerField
+                label="HSN Code"
+                value={selectedProduct.hsnCode || "N/A"}
+              />
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
+                Inventory Controls
+              </h3>
+
+              <DrawerField
+                label="Minimum Stock"
+                value={selectedProduct.minimumStock || "N/A"}
+              />
+
+              <DrawerField
+                label="Reorder Level"
+                value={selectedProduct.reorderLevel || "N/A"}
+              />
+
+              <DrawerField
+                label="Batch Tracking"
+                value={selectedProduct.batchTracking ? "Enabled" : "Disabled"}
+              />
+
+              <DrawerField
+                label="Expiry Tracking"
+                value={selectedProduct.expiryTracking ? "Enabled" : "Disabled"}
+              />
             </div>
 
             {/* Additional Information */}
@@ -644,7 +931,10 @@ export default function ProductMaster() {
                 Additional Information
               </h3>
 
-              <DrawerField label="Barcode" value={selectedProduct.barcode || "N/A"} />
+              <DrawerField
+                label="Barcode"
+                value={selectedProduct.barcode || "N/A"}
+              />
             </div>
 
             {/* Status */}
@@ -673,40 +963,58 @@ export default function ProductMaster() {
 
             {/* Actions */}
             <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3">
-              <ActionButton
-                className="min-w-[140px]"
-                onClick={() => {
-                  if (!selectedProduct) return;
+              {canEdit && (
+                <ActionButton
+                  className="min-w-[140px]"
+                  onClick={() => {
+                    if (!selectedProduct) return;
 
-                  setNewProduct({
-                    code: selectedProduct.code,
-                    name: selectedProduct.name,
-                    category: selectedProduct.category,
-                    type: selectedProduct.type,
-                    manufacturer: selectedProduct.manufacturer,
-                    composition: selectedProduct.composition || "",
-                    barcode: selectedProduct.barcode || "",
-                    genericName: selectedProduct.genericName,
-                    brandName: selectedProduct.brandName,
-                    packingType: selectedProduct.packingType,
-                    unitsPerPack: selectedProduct.unitsPerPack,
-                    packsInBox: selectedProduct.packsInBox || "",
-                    mrp: selectedProduct.mrp,
-                    ptr: selectedProduct.ptr,
-                    pts: selectedProduct.pts,
-                    gst: selectedProduct.gst,
-                    hsnCode: selectedProduct.hsnCode,
-                    status: selectedProduct.status,
-                  });
+                    setNewProduct({
+                      code: selectedProduct.code,
+                      name: selectedProduct.name,
 
-                  setEditMode(true);
-                  setShowNewProductModal(true);
-                  setEditingProductId(selectedProduct.id);
-                  setSelectedProduct(null);
-                }}
-              >
-                Edit Product
-              </ActionButton>
+                      genericName: selectedProduct.genericName,
+                      brandName: selectedProduct.brandName,
+                      composition: selectedProduct.composition || "",
+                      barcode: selectedProduct.barcode || "",
+
+                      category: selectedProduct.category,
+                      type: selectedProduct.type,
+                      manufacturer: selectedProduct.manufacturer,
+
+                      packingType: selectedProduct.packingType,
+                      unitsPerPack: selectedProduct.unitsPerPack,
+                      packsInBox: selectedProduct.packsInBox || "",
+                      totalUnits: selectedProduct.totalUnits || "",
+
+                      mrp: selectedProduct.mrp,
+                      ptr: selectedProduct.ptr,
+                      pts: selectedProduct.pts,
+
+                      purchasePrice: selectedProduct.purchasePrice || "",
+                      sellingPrice: selectedProduct.sellingPrice || "",
+
+                      gst: selectedProduct.gst,
+                      hsnCode: selectedProduct.hsnCode,
+
+                      minimumStock: selectedProduct.minimumStock || "",
+                      reorderLevel: selectedProduct.reorderLevel || "",
+
+                      batchTracking: selectedProduct.batchTracking || false,
+                      expiryTracking: selectedProduct.expiryTracking || false,
+
+                      status: selectedProduct.status,
+                    });
+
+                    setEditMode(true);
+                    setShowNewProductModal(true);
+                    setEditingProductId(selectedProduct.id);
+                    setSelectedProduct(null);
+                  }}
+                >
+                  Edit Product
+                </ActionButton>
+              )}
 
               <ActionButton
                 variant="secondary"
@@ -723,7 +1031,9 @@ export default function ProductMaster() {
       {productToDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
-            <h2 className="text-xl font-bold text-slate-900 mb-2">Delete Product</h2>
+            <h2 className="text-xl font-bold text-slate-900 mb-2">
+              Delete Product
+            </h2>
             <p className="text-slate-600 mb-6 leading-relaxed">
               Are you sure you want to delete this product?
               <br />
@@ -739,7 +1049,17 @@ export default function ProductMaster() {
               <button
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-200"
                 onClick={() => {
-                  setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
+                  if (!canDelete) return;
+                  setProducts((prev) =>
+                    prev.filter((p) => p.id !== productToDelete.id),
+                  );
+                  activityLogService.addLog({
+                    userId: currentUser.id,
+                    userName: currentUser.fullName,
+                    action: "Product Deleted",
+                    module: "Product Master",
+                  });
+
                   setProductToDelete(null);
                 }}
               >
@@ -768,53 +1088,74 @@ export default function ProductMaster() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2 mt-2 first:mt-0">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Product Information</h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
+                  Basic Information
+                </h3>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Product Code *</label>
+                <label className="block text-sm font-medium mb-1">
+                  Product Code *
+                </label>
                 <input
                   value={newProduct.code}
-                  onChange={(e) => setNewProduct({ ...newProduct, code: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, code: e.target.value })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Product Name *</label>
+                <label className="block text-sm font-medium mb-1">
+                  Product Name *
+                </label>
                 <input
                   value={newProduct.name}
-                  onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, name: e.target.value })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Brand Name</label>
+                <label className="block text-sm font-medium mb-1">
+                  Brand Name
+                </label>
                 <input
                   value={newProduct.brandName}
-                  onChange={(e) => setNewProduct({ ...newProduct, brandName: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, brandName: e.target.value })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div className="relative">
-                <label className="block text-sm font-medium mb-1">Category</label>
+                <label className="block text-sm font-medium mb-1">
+                  Category
+                </label>
                 <div className="relative">
                   <input
                     type="text"
                     value={newProduct.category}
                     onChange={(e) => {
-                      setNewProduct({ ...newProduct, category: e.target.value });
+                      setNewProduct({
+                        ...newProduct,
+                        category: e.target.value,
+                      });
                       setShowCategoryDropdown(true);
                     }}
                     onFocus={() => setShowCategoryDropdown(true)}
                     placeholder="Select or type Category"
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
                   />
-                  <span 
+                  <span
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs cursor-pointer"
-                    onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                    onClick={() =>
+                      setShowCategoryDropdown(!showCategoryDropdown)
+                    }
                   >
                     ▼
                   </span>
@@ -822,13 +1163,19 @@ export default function ProductMaster() {
 
                 {showCategoryDropdown && (
                   <>
-                    <div 
-                      className="fixed inset-0 z-10" 
+                    <div
+                      className="fixed inset-0 z-10"
                       onClick={() => setShowCategoryDropdown(false)}
                     />
                     <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
                       {categories
-                        .filter((c) => c.toLowerCase().includes((newProduct.category || "").toLowerCase()))
+                        .filter((c) =>
+                          c
+                            .toLowerCase()
+                            .includes(
+                              (newProduct.category || "").toLowerCase(),
+                            ),
+                        )
                         .map((cat) => (
                           <div
                             key={cat}
@@ -841,65 +1188,77 @@ export default function ProductMaster() {
                             {cat}
                           </div>
                         ))}
-                      
-                      {(newProduct.category || "").trim() !== "" && !categories.some(c => c.toLowerCase() === (newProduct.category || "").trim().toLowerCase()) && (
-                        <div
-                          className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
-                          onClick={() => {
-                            const newCat = (newProduct.category || "").trim();
-                            setCategories([...categories, newCat]);
-                            setNewProduct({ ...newProduct, category: newCat });
-                            setShowCategoryDropdown(false);
-                          }}
-                        >
-                          Create "{newProduct.category.trim()}"
-                        </div>
-                      )}
-                      
-                      {categories.filter((c) => c.toLowerCase().includes((newProduct.category || "").toLowerCase())).length === 0 && (newProduct.category || "").trim() === "" && (
-                        <div className="px-3 py-2 text-sm text-slate-500">No categories found</div>
-                      )}
+
+                      {(newProduct.category || "").trim() !== "" &&
+                        !categories.some(
+                          (c) =>
+                            c.toLowerCase() ===
+                            (newProduct.category || "").trim().toLowerCase(),
+                        ) && (
+                          <div
+                            className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
+                            onClick={() => {
+                              const newCat = (newProduct.category || "").trim();
+                              setCategories([...categories, newCat]);
+                              setNewProduct({
+                                ...newProduct,
+                                category: newCat,
+                              });
+                              setShowCategoryDropdown(false);
+                            }}
+                          >
+                            Create "{newProduct.category.trim()}"
+                          </div>
+                        )}
+
+                      {categories.filter((c) =>
+                        c
+                          .toLowerCase()
+                          .includes((newProduct.category || "").toLowerCase()),
+                      ).length === 0 &&
+                        (newProduct.category || "").trim() === "" && (
+                          <div className="px-3 py-2 text-sm text-slate-500">
+                            No categories found
+                          </div>
+                        )}
                     </div>
                   </>
                 )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Product Type</label>
+                <label className="block text-sm font-medium mb-1">
+                  Product Type
+                </label>
                 <select
                   value={newProduct.type}
-                  onChange={(e) => setNewProduct({ ...newProduct, type: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, type: e.target.value })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
                   <option value="">Select Type</option>
-                  <option>Tablet</option>
-                  <option>Capsule</option>
-                  <option>Syrup</option>
-                  <option>Injection</option>
-                  <option>Drops</option>
-                  <option>Ointment</option>
-                  <option>Cream</option>
-                  <option>Gel</option>
-                  <option>Lotion</option>
-                  <option>Powder</option>
-                  <option>Sachet</option>
-                  <option>Suspension</option>
-                  <option>Inhaler</option>
-                  <option>Spray</option>
-                  <option>Vaccine</option>
-                  <option>Implant</option>
-                  <option>Softgel</option>
-                  <option>Mouthwash</option>
-                  <option>Shampoo</option>
-                  <option>Soap</option>
+
+                  {PRODUCT_TYPES.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Composition</label>
+                <label className="block text-sm font-medium mb-1">
+                  Composition
+                </label>
                 <textarea
                   value={newProduct.composition}
-                  onChange={(e) => setNewProduct({ ...newProduct, composition: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      composition: e.target.value,
+                    })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                   rows={2}
                   placeholder="e.g. Paracetamol 500mg"
@@ -907,73 +1266,95 @@ export default function ProductMaster() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Manufacturer</label>
+                <label className="block text-sm font-medium mb-1">
+                  Manufacturer
+                </label>
                 <input
                   value={newProduct.manufacturer}
-                  onChange={(e) => setNewProduct({ ...newProduct, manufacturer: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      manufacturer: e.target.value,
+                    })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Packaging Information</h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
+                  Packaging Information
+                </h3>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Packing Type</label>
+                <label className="block text-sm font-medium mb-1">
+                  Packing Type
+                </label>
                 <select
                   value={newProduct.packingType}
-                  onChange={(e) => setNewProduct({ ...newProduct, packingType: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      packingType: e.target.value,
+                    })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
-                  <option value="">Select Packing</option>
-                  <option>Strip</option>
-                  <option>Blister Pack</option>
-                  <option>Bottle</option>
-                  <option>Box</option>
-                  <option>Carton</option>
-                  <option>Tube</option>
-                  <option>Sachet</option>
-                  <option>Vial</option>
-                  <option>Ampoule</option>
-                  <option>Pouch</option>
-                  <option>Jar</option>
-                  <option>Can</option>
-                  <option>Packet</option>
-                  <option>Container</option>
-                  <option>Kit</option>
-                  <option>Combo Pack</option>
+                  <option value="">Select Packing Type</option>
+
+                  {packingTypes.map((type) => (
+                    <option key={type.id} value={type.name}>
+                      {type.name}
+                    </option>
+                  ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Packs In Box</label>
+                <label className="block text-sm font-medium mb-1">
+                  Packs In Box
+                </label>
                 <input
                   type="number"
                   value={newProduct.packsInBox}
-                  onChange={(e) => setNewProduct({ ...newProduct, packsInBox: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, packsInBox: e.target.value })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Units Per Pack</label>
+                <label className="block text-sm font-medium mb-1">
+                  Units Per Pack
+                </label>
                 <input
                   type="number"
                   value={newProduct.unitsPerPack}
-                  onChange={(e) => setNewProduct({ ...newProduct, unitsPerPack: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      unitsPerPack: e.target.value,
+                    })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Total Units</label>
+                <label className="block text-sm font-medium mb-1">
+                  Total Units
+                </label>
                 <input
                   type="text"
                   readOnly
                   value={
                     newProduct.unitsPerPack && newProduct.packsInBox
-                      ? (Number(newProduct.unitsPerPack) * Number(newProduct.packsInBox)).toString()
+                      ? (
+                          Number(newProduct.unitsPerPack) *
+                          Number(newProduct.packsInBox)
+                        ).toString()
                       : ""
                   }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
@@ -981,7 +1362,9 @@ export default function ProductMaster() {
               </div>
 
               <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Pricing & Tax</h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
+                  Pricing & Tax
+                </h3>
               </div>
 
               <div>
@@ -989,7 +1372,9 @@ export default function ProductMaster() {
                 <input
                   type="number"
                   value={newProduct.mrp}
-                  onChange={(e) => setNewProduct({ ...newProduct, mrp: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, mrp: e.target.value })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -999,7 +1384,45 @@ export default function ProductMaster() {
                 <input
                   type="number"
                   value={newProduct.ptr}
-                  onChange={(e) => setNewProduct({ ...newProduct, ptr: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, ptr: e.target.value })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Purchase Price
+                </label>
+
+                <input
+                  type="number"
+                  value={newProduct.purchasePrice}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      purchasePrice: e.target.value,
+                    })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Selling Price
+                </label>
+
+                <input
+                  type="number"
+                  value={newProduct.sellingPrice}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      sellingPrice: e.target.value,
+                    })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -1009,7 +1432,9 @@ export default function ProductMaster() {
                 <input
                   type="number"
                   value={newProduct.pts}
-                  onChange={(e) => setNewProduct({ ...newProduct, pts: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, pts: e.target.value })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -1020,29 +1445,112 @@ export default function ProductMaster() {
                   type="number"
                   placeholder="Enter GST %"
                   value={newProduct.gst}
-                  onChange={(e) => setNewProduct({ ...newProduct, gst: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, gst: e.target.value })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">HSN Code</label>
+                <label className="block text-sm font-medium mb-1">
+                  HSN Code
+                </label>
                 <input
                   value={newProduct.hsnCode}
-                  onChange={(e) => setNewProduct({ ...newProduct, hsnCode: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, hsnCode: e.target.value })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Additional Information</h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
+                  Inventory Controls
+                </h3>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Minimum Stock
+                </label>
+
+                <input
+                  type="number"
+                  value={newProduct.minimumStock}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      minimumStock: e.target.value,
+                    })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Barcode</label>
+                <label className="block text-sm font-medium mb-1">
+                  Reorder Level
+                </label>
+
+                <input
+                  type="number"
+                  value={newProduct.reorderLevel}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      reorderLevel: e.target.value,
+                    })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 mt-7">
+                <input
+                  type="checkbox"
+                  checked={newProduct.batchTracking}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      batchTracking: e.target.checked,
+                    })
+                  }
+                />
+
+                <label className="text-sm font-medium">Batch Tracking</label>
+              </div>
+
+              <div className="flex items-center gap-2 mt-7">
+                <input
+                  type="checkbox"
+                  checked={newProduct.expiryTracking}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      expiryTracking: e.target.checked,
+                    })
+                  }
+                />
+
+                <label className="text-sm font-medium">Expiry Tracking</label>
+              </div>
+
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
+                  Additional Information
+                </h3>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Barcode
+                </label>
                 <input
                   value={newProduct.barcode}
-                  onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
+                  onChange={(e) =>
+                    setNewProduct({ ...newProduct, barcode: e.target.value })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -1051,7 +1559,12 @@ export default function ProductMaster() {
                 <label className="block text-sm font-medium mb-1">Status</label>
                 <select
                   value={newProduct.status}
-                  onChange={(e) => setNewProduct({ ...newProduct, status: e.target.value as Product["status"] })}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      status: e.target.value as Product["status"],
+                    })
+                  }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
                   <option>Active</option>
@@ -1068,7 +1581,15 @@ export default function ProductMaster() {
                 Cancel
               </ActionButton>
 
-              <ActionButton onClick={handleSaveProduct}>
+              <ActionButton
+                onClick={() => {
+                  if ((editMode && !canEdit) || (!editMode && !canCreate)) {
+                    return;
+                  }
+
+                  handleSaveProduct();
+                }}
+              >
                 {editMode ? "Update Product" : "Save Product"}
               </ActionButton>
             </div>
@@ -1078,3 +1599,4 @@ export default function ProductMaster() {
     </div>
   );
 }
+

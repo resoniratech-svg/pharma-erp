@@ -5,6 +5,10 @@ import { applyPurchaseOrderTemplate } from '../templates/PurchaseOrderTemplate';
 import { applyInvoiceTemplate } from '../templates/InvoiceTemplate';
 import { applyEInvoiceTemplate } from '../templates/EInvoiceTemplate';
 import { applyEWayBillTemplate } from '../templates/EWayBillTemplate';
+import { applyPaymentReceiptVoucherTemplate } from '../templates/PaymentReceiptVoucherTemplate';
+import { applyProfitLossTemplate } from '../templates/ProfitLossTemplate';
+import { applyBalanceSheetTemplate } from '../templates/BalanceSheetTemplate';
+import { applyGstReportTemplate } from '../templates/GstReportTemplate';
 
 export const generatePdf = (challan: any) => {
   const doc = new jsPDF();
@@ -47,4 +51,28 @@ export const generateEWayBillPdf = (invoice: any) => {
   const doc = new jsPDF();
   applyEWayBillTemplate(doc, invoice);
   doc.save(`EWB-${invoice.ewbNumber}.pdf`);
+};
+
+export const generateReceiptVoucherPdf = (txn: any) => {
+  const doc = new jsPDF('portrait');
+  applyPaymentReceiptVoucherTemplate(doc, txn);
+  doc.save(`ReceiptVoucher-${txn.receiptNo}.pdf`);
+};
+
+export const generateProfitLossPdf = (data: any) => {
+  const doc = new jsPDF('portrait');
+  applyProfitLossTemplate(doc, data);
+  doc.save(`Profit_Loss_${data.fy}.pdf`);
+};
+
+export const generateBalanceSheetPdf = (data: any) => {
+  const doc = new jsPDF('portrait');
+  applyBalanceSheetTemplate(doc, data);
+  doc.save(`Balance_Sheet_${data.fy}.pdf`);
+};
+
+export const generateGstReportPdf = (data: any) => {
+  const doc = new jsPDF('portrait');
+  applyGstReportTemplate(doc, data);
+  doc.save(`GST_Report_${data.fy}.pdf`);
 };

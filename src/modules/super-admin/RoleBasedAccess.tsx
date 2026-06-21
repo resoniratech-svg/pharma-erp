@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Users, Shield, Lock } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Users, Shield, Lock, Plus } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -23,7 +23,7 @@ interface UserRole {
   lastLogin: string;
 }
 
-const roles = [
+const initialRoles = [
   { name: 'Super Admin', users: 1 },
   { name: 'Warehouse Manager', users: 2 },
   { name: 'Accountant', users: 2 },
@@ -41,40 +41,103 @@ const mockUsers: UserRole[] = [
 ];
 
 export default function RoleBasedAccess() {
+  const [roles, setRoles] = useState(initialRoles);
+
+  useEffect(() => {
+    const savedRoles = localStorage.getItem("customRoles");
+
+    if (savedRoles) {
+      setRoles(JSON.parse(savedRoles));
+    }
+  }, []);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   const [selectedRole, setSelectedRole] = useState('Super Admin');
 
-  const [showAssignModal, setShowAssignModal] = useState(false);
+  const [showRoleModal, setShowRoleModal] = useState(false);
 
-  const [employeeId, setEmployeeId] = useState("");
-  const [fullName, setFullName] = useState("");
-  const [email, setEmail] = useState("");
-  const [mobile, setMobile] = useState("");
-  const [username, setUsername] = useState("");
-  const [password, setPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [role, setRole] = useState("");
-  const [status, setStatus] = useState("Active");
+  const [selectedUser, setSelectedUser] = useState<UserRole | null>(null);
+
+  const [showAssignRoleModal, setShowAssignRoleModal] = useState(false);
+
+  const [assignedRole, setAssignedRole] = useState("");
+
+  const [roleName, setRoleName] = useState("");
+  const [roleCode, setRoleCode] = useState("");
+  const [roleDesc, setRoleDesc] = useState("");
+  const [roleStatus, setRoleStatus] = useState("Active");
+
+  const handleCreateRole = () => {
+    if (!roleName || !roleCode) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
+    const newRole = {
+      name: roleName,
+      users: 0,
+    };
+
+    const updatedRoles = [...roles, newRole];
+
+    setRoles(updatedRoles);
+
+    localStorage.setItem("customRoles", JSON.stringify(updatedRoles));
+
+    setRoleName("");
+    setRoleCode("");
+    setRoleDesc("");
+    setRoleStatus("Active");
+
+    setShowRoleModal(false);
+  };
 
   const columns: Column<UserRole>[] = [
-    { key: 'name', label: 'User Name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
-    { key: 'email', label: 'Email' },
-    { key: 'role', label: 'Assigned Role', render: (row) => <Badge variant="purple">{row.role}</Badge> },
     {
-      key: 'status',
-      label: 'Status',
+      key: "name",
+      label: "User Name",
+      render: (row) => (
+        <span className="font-semibold text-slate-900">{row.name}</span>
+      ),
+    },
+    { key: "email", label: "Email" },
+    {
+      key: "role",
+      label: "Assigned Role",
+      render: (row) => <Badge variant="purple">{row.role}</Badge>,
+    },
+    {
+      key: "status",
+      label: "Status",
       render: (row) => {
-        const variant = row.status === 'Active' ? 'success' : 'neutral';
+        const variant = row.status === "Active" ? "success" : "neutral";
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
-    { key: 'lastLogin', label: 'Last Login', render: (row) => <span className="text-slate-500 text-sm">{row.lastLogin}</span> },
     {
-      key: 'action',
-      label: 'Actions',
-      render: () => <ActionButton variant="ghost" className="text-violet-600 px-2 py-1">Manage</ActionButton>
-    }
+      key: "lastLogin",
+      label: "Last Login",
+      render: (row) => (
+        <span className="text-slate-500 text-sm">{row.lastLogin}</span>
+      ),
+    },
+    {
+      key: "action",
+      label: "Actions",
+      render: (row) => (
+        <ActionButton
+          variant="ghost"
+          className="text-violet-600 px-2 py-1"
+          onClick={() => {
+            setSelectedUser(row);
+            setAssignedRole(row.role);
+            setShowAssignRoleModal(true);
+          }}
+        >
+          Assign Role
+        </ActionButton>
+      ),
+    },
   ];
 
   const filteredData = mockUsers.filter((item) => {
@@ -128,9 +191,9 @@ export default function RoleBasedAccess() {
             <ActionButton
               variant="primary"
               icon={<Shield className="w-4 h-4" />}
-              onClick={() => setShowAssignModal(true)}
+              onClick={() => setShowRoleModal(true)}
             >
-              Create User
+              Add Role
             </ActionButton>
           </>
         }
@@ -155,7 +218,7 @@ export default function RoleBasedAccess() {
 
         <SummaryCard
           title="Total Roles"
-          value="7"
+          value={roles.length.toString()}
           icon={<Shield className="w-6 h-6" />}
           colorClass="text-blue-600"
           bgClass="bg-blue-100"
@@ -221,151 +284,76 @@ export default function RoleBasedAccess() {
         </div>
       </div>
 
-      {showAssignModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-4xl p-6">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-semibold">Create User</h2>
-
+      {showRoleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-violet-600">
+                  <Shield className="w-5 h-5" />
+                </div>
+                <h2 className="text-xl font-bold text-slate-800">Add Role</h2>
+              </div>
               <button
-                onClick={() => setShowAssignModal(false)}
-                className="text-slate-500 hover:text-slate-700 text-xl"
+                onClick={() => setShowRoleModal(false)}
+                className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg p-2 transition-colors"
               >
                 ✕
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* Employee ID */}
+            <div className="grid grid-cols-1 gap-5">
+              {/* Role Name */}
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Employee ID
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Role Name <span className="text-rose-500">*</span>
                 </label>
-
                 <input
                   type="text"
-                  value={employeeId}
-                  onChange={(e) => setEmployeeId(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="EMP001"
+                  value={roleName}
+                  onChange={(e) => setRoleName(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors"
+                  placeholder="e.g. Finance Manager"
                 />
               </div>
 
-              {/* Full Name */}
+              {/* Role Code */}
               <div>
-                <label className="block text-sm font-medium mb-2">
-                  Full Name
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Role Code <span className="text-rose-500">*</span>
                 </label>
-
                 <input
                   type="text"
-                  value={fullName}
-                  onChange={(e) => setFullName(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Enter Full Name"
+                  value={roleCode}
+                  onChange={(e) => setRoleCode(e.target.value.toUpperCase())}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors"
+                  placeholder="e.g. FINANCE_MANAGER"
                 />
               </div>
 
-              {/* Email */}
+              {/* Description */}
               <div>
-                <label className="block text-sm font-medium mb-2">Email</label>
-
-                <input
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Enter Email"
-                />
-              </div>
-
-              {/* Mobile */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Mobile Number
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Description
                 </label>
-
-                <input
-                  type="text"
-                  value={mobile}
-                  onChange={(e) => setMobile(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Enter Mobile Number"
-                />
-              </div>
-
-              {/* Username */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Username
-                </label>
-
-                <input
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Enter Username"
-                />
-              </div>
-
-              {/* Role */}
-              <div>
-                <label className="block text-sm font-medium mb-2">Role</label>
-
-                <select
-                  value={role}
-                  onChange={(e) => setRole(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                >
-                  <option value="">Select Role</option>
-
-                  {roles.map((item) => (
-                    <option key={item.name} value={item.name}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Password */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Password
-                </label>
-
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Enter Password"
-                />
-              </div>
-
-              {/* Confirm Password */}
-              <div>
-                <label className="block text-sm font-medium mb-2">
-                  Confirm Password
-                </label>
-
-                <input
-                  type="password"
-                  value={confirmPassword}
-                  onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
-                  placeholder="Confirm Password"
+                <textarea
+                  value={roleDesc}
+                  onChange={(e) => setRoleDesc(e.target.value)}
+                  rows={3}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors resize-none"
+                  placeholder="Brief description of the role responsibilities"
                 />
               </div>
 
               {/* Status */}
               <div>
-                <label className="block text-sm font-medium mb-2">Status</label>
-
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Status <span className="text-rose-500">*</span>
+                </label>
                 <select
-                  value={status}
-                  onChange={(e) => setStatus(e.target.value)}
-                  className="w-full border rounded-lg px-3 py-2"
+                  value={roleStatus}
+                  onChange={(e) => setRoleStatus(e.target.value)}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors appearance-none cursor-pointer"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -373,10 +361,59 @@ export default function RoleBasedAccess() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-8">
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
               <ActionButton
                 variant="secondary"
-                onClick={() => setShowAssignModal(false)}
+                onClick={() => setShowRoleModal(false)}
+              >
+                Cancel
+              </ActionButton>
+
+              <ActionButton variant="primary" onClick={handleCreateRole}>
+                Create Role
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showAssignRoleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+          <div className="bg-white rounded-2xl p-6 w-full max-w-md">
+            <h2 className="text-xl font-bold mb-5">Assign Role</h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">User</label>
+
+                <input
+                  value={selectedUser?.name || ""}
+                  disabled
+                  className="w-full border rounded-lg px-3 py-2 bg-slate-50"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Role</label>
+
+                <select
+                  value={assignedRole}
+                  onChange={(e) => setAssignedRole(e.target.value)}
+                  className="w-full border rounded-lg px-3 py-2"
+                >
+                  {roles.map((role) => (
+                    <option key={role.name} value={role.name}>
+                      {role.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6">
+              <ActionButton
+                variant="secondary"
+                onClick={() => setShowAssignRoleModal(false)}
               >
                 Cancel
               </ActionButton>
@@ -384,11 +421,12 @@ export default function RoleBasedAccess() {
               <ActionButton
                 variant="primary"
                 onClick={() => {
-                  alert("User Created Successfully");
-                  setShowAssignModal(false);
+                  alert("Role assigned successfully");
+
+                  setShowAssignRoleModal(false);
                 }}
               >
-                Create User
+                Save
               </ActionButton>
             </div>
           </div>

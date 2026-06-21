@@ -29,11 +29,15 @@ import {
 } from 'lucide-react';
 import { hasPermission } from '../../constants/permissions';
 import NotificationDropdown from '../../components/NotificationDropdown';
+import authService from '../../services/authService';
+import activityLogService from '../../services/activityLogService';
 import { ROLE_SUPER_ADMIN, ROLE_WAREHOUSE_MANAGER, ROLE_ACCOUNTANT, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_MEDICAL_REPRESENTATIVE, ROLE_TRANSPORT_STAFF, ROLES } from '../../constants/roles';
 
 /* ── Constants ───────────────────────────────────────────────────── */
 const PRIMARY_HEX = '#7c3aed';
 const BG_HEX = '#f8fafc';
+
+
 
 export type NavItem = {
   label: string;
@@ -238,6 +242,8 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
+
+
 /* ── Components ──────────────────────────────────────────────────── */
 
 // Generic Breadcrumbs based on route
@@ -312,7 +318,10 @@ export function MainLayout() {
   }, [location.pathname]);
 
   return (
-    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: BG_HEX }}>
+    <div
+      className="flex h-screen overflow-hidden"
+      style={{ backgroundColor: BG_HEX }}
+    >
       {/* ── Mobile Sidebar Overlay ── */}
       {sidebarOpen && (
         <div
@@ -324,16 +333,30 @@ export function MainLayout() {
       {/* ── Sidebar ── */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-[260px] bg-white border-r border-slate-200 shadow-sm flex flex-col transform transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         {/* Sidebar Header */}
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 flex-shrink-0">
-          <Link to="/workspace/dashboard" className="flex items-center gap-3 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary" style={{ backgroundColor: PRIMARY_HEX }}>
-              <span className="text-white font-bold text-sm" style={{ fontFamily: 'var(--font-heading)' }}>P</span>
+          <Link
+            to="/workspace/dashboard"
+            className="flex items-center gap-3 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
+          >
+            <div
+              className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary"
+              style={{ backgroundColor: PRIMARY_HEX }}
+            >
+              <span
+                className="text-white font-bold text-sm"
+                style={{ fontFamily: "var(--font-heading)" }}
+              >
+                P
+              </span>
             </div>
-            <span className="text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
+            <span
+              className="text-lg font-bold text-slate-900 tracking-tight"
+              style={{ fontFamily: "var(--font-heading)" }}
+            >
               Pharma ERP
             </span>
           </Link>
@@ -347,110 +370,158 @@ export function MainLayout() {
 
         {/* Sidebar Nav */}
         <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
-          {filteredNavItems.sort((a, b) => {
-            if (activeRole === ROLE_DISTRIBUTOR) {
-              const order = ['Dashboard', 'Distributor/Stockist Portal',  'Orders', 'Alerts & Notifications', 'Settings'];
-              return order.indexOf(a.label) - order.indexOf(b.label);
-            }
-            if (activeRole === ROLE_RETAILER) {
-              const order = ['Dashboard', 'Retailer Ordering System', 'Orders', 'Alerts & Notifications', 'Settings'];
-              return order.indexOf(a.label) - order.indexOf(b.label);
-            }
-            if (activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
-              const order = ['Dashboard', 'MR (Medical Representative)', 'GPS & Location Tracking', 'Pre-Sales CRM', 'Alerts & Notifications', 'Settings'];
-              return order.indexOf(a.label) - order.indexOf(b.label);
-            }
-            return 0;
-          }).map((rawItem) => {
-            const item = { ...rawItem };
-            if ((activeRole === ROLE_WAREHOUSE_MANAGER || activeRole === ROLE_ACCOUNTANT || activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER || activeRole === ROLE_MEDICAL_REPRESENTATIVE || activeRole === ROLE_TRANSPORT_STAFF) && item.label === 'Settings') {
-              item.subItems = item.subItems?.filter(sub => sub.label === 'Profile Settings');
-            }
-
-            const hasSubItems = !!item.subItems && item.subItems.length > 0;
-            const isPathActive = (path: string) => location.pathname.startsWith(path);
-            const isAnySubActive = hasSubItems && item.subItems!.some((sub) => isPathActive(sub.path));
-            const isActive = !hasSubItems && item.path ? isPathActive(item.path) : isAnySubActive;
-            
-            // We can just auto-expand if any sub-item is active, or we could add local state. 
-            // For now, let's keep it simple: always expand if active, else we can use a local state.
-            // Let's add a state array to MainLayout `const [expandedMenus, setExpandedMenus] = useState<string[]>(['Products']);`
-
-            const isExpanded = expandedMenus.includes(item.label) || isAnySubActive;
-
-            const toggleMenu = () => {
-              if (expandedMenus.includes(item.label)) {
-                setExpandedMenus(expandedMenus.filter(m => m !== item.label));
-              } else {
-                setExpandedMenus([...expandedMenus, item.label]);
+          {filteredNavItems
+            .sort((a, b) => {
+              if (activeRole === ROLE_DISTRIBUTOR) {
+                const order = [
+                  "Dashboard",
+                  "Distributor/Stockist Portal",
+                  "Orders",
+                  "Alerts & Notifications",
+                  "Settings",
+                ];
+                return order.indexOf(a.label) - order.indexOf(b.label);
               }
-            };
+              if (activeRole === ROLE_RETAILER) {
+                const order = [
+                  "Dashboard",
+                  "Retailer Ordering System",
+                  "Orders",
+                  "Alerts & Notifications",
+                  "Settings",
+                ];
+                return order.indexOf(a.label) - order.indexOf(b.label);
+              }
+              if (activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
+                const order = [
+                  "Dashboard",
+                  "MR (Medical Representative)",
+                  "GPS & Location Tracking",
+                  "Pre-Sales CRM",
+                  "Alerts & Notifications",
+                  "Settings",
+                ];
+                return order.indexOf(a.label) - order.indexOf(b.label);
+              }
+              return 0;
+            })
+            .map((rawItem) => {
+              const item = { ...rawItem };
+              if (
+                (activeRole === ROLE_WAREHOUSE_MANAGER ||
+                  activeRole === ROLE_ACCOUNTANT ||
+                  activeRole === ROLE_DISTRIBUTOR ||
+                  activeRole === ROLE_RETAILER ||
+                  activeRole === ROLE_MEDICAL_REPRESENTATIVE ||
+                  activeRole === ROLE_TRANSPORT_STAFF) &&
+                item.label === "Settings"
+              ) {
+                item.subItems = item.subItems?.filter(
+                  (sub) => sub.label === "Profile Settings",
+                );
+              }
 
-            const activeStyle = isActive && !hasSubItems
-              ? { backgroundColor: '#f3e8ff', color: PRIMARY_HEX } // violet-100
-              : {};
+              const hasSubItems = !!item.subItems && item.subItems.length > 0;
+              const isPathActive = (path: string) =>
+                location.pathname.startsWith(path);
+              const isAnySubActive =
+                hasSubItems &&
+                item.subItems!.some((sub) => isPathActive(sub.path));
+              const isActive =
+                !hasSubItems && item.path
+                  ? isPathActive(item.path)
+                  : isAnySubActive;
 
-            const itemContent = (
-              <>
-                <item.icon
-                  className={`w-5 h-5 flex-shrink-0 transition-colors duration-200 ${
-                    isActive ? '' : 'text-slate-400 group-hover:text-slate-600'
-                  }`}
-                  style={isActive && !hasSubItems ? { color: PRIMARY_HEX } : {}}
-                />
-                <span className="flex-1">{item.label}</span>
-                {hasSubItems && (
-                  isExpanded ? (
-                    <ChevronDown className="w-4 h-4 text-slate-400" />
+              // We can just auto-expand if any sub-item is active, or we could add local state.
+              // For now, let's keep it simple: always expand if active, else we can use a local state.
+              // Let's add a state array to MainLayout `const [expandedMenus, setExpandedMenus] = useState<string[]>(['Products']);`
+
+              const isExpanded =
+                expandedMenus.includes(item.label) || isAnySubActive;
+
+              const toggleMenu = () => {
+                if (expandedMenus.includes(item.label)) {
+                  setExpandedMenus(
+                    expandedMenus.filter((m) => m !== item.label),
+                  );
+                } else {
+                  setExpandedMenus([...expandedMenus, item.label]);
+                }
+              };
+
+              const activeStyle =
+                isActive && !hasSubItems
+                  ? { backgroundColor: "#f3e8ff", color: PRIMARY_HEX } // violet-100
+                  : {};
+
+              const itemContent = (
+                <>
+                  <item.icon
+                    className={`w-5 h-5 flex-shrink-0 transition-colors duration-200 ${
+                      isActive
+                        ? ""
+                        : "text-slate-400 group-hover:text-slate-600"
+                    }`}
+                    style={
+                      isActive && !hasSubItems ? { color: PRIMARY_HEX } : {}
+                    }
+                  />
+                  <span className="flex-1">{item.label}</span>
+                  {hasSubItems &&
+                    (isExpanded ? (
+                      <ChevronDown className="w-4 h-4 text-slate-400" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-slate-400" />
+                    ))}
+                </>
+              );
+
+              const className = `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 w-full text-left ${
+                isActive && !hasSubItems
+                  ? "font-semibold"
+                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+              }`;
+
+              return (
+                <div key={item.label} className="space-y-1">
+                  {hasSubItems ? (
+                    <button onClick={toggleMenu} className={className}>
+                      {itemContent}
+                    </button>
                   ) : (
-                    <ChevronRight className="w-4 h-4 text-slate-400" />
-                  )
-                )}
-              </>
-            );
+                    <Link
+                      to={item.path!}
+                      style={activeStyle}
+                      className={className}
+                    >
+                      {itemContent}
+                    </Link>
+                  )}
 
-            const className = `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 w-full text-left ${
-              isActive && !hasSubItems
-                ? 'font-semibold'
-                : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-            }`;
-
-            return (
-              <div key={item.label} className="space-y-1">
-                {hasSubItems ? (
-                  <button onClick={toggleMenu} className={className}>
-                    {itemContent}
-                  </button>
-                ) : (
-                  <Link to={item.path!} style={activeStyle} className={className}>
-                    {itemContent}
-                  </Link>
-                )}
-
-                {hasSubItems && isExpanded && (
-                  <div className="pl-11 pr-3 space-y-1 mt-1">
-                    {item.subItems!.map((sub) => {
-                      const isSubActive = isPathActive(sub.path);
-                      return (
-                        <Link
-                          key={sub.path}
-                          to={sub.path}
-                          style={isSubActive ? { color: PRIMARY_HEX } : {}}
-                          className={`block py-2 text-sm font-medium transition-colors ${
-                            isSubActive
-                              ? 'text-primary font-semibold'
-                              : 'text-slate-500 hover:text-slate-900'
-                          }`}
-                        >
-                          {sub.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                  {hasSubItems && isExpanded && (
+                    <div className="pl-11 pr-3 space-y-1 mt-1">
+                      {item.subItems!.map((sub) => {
+                        const isSubActive = isPathActive(sub.path);
+                        return (
+                          <Link
+                            key={sub.path}
+                            to={sub.path}
+                            style={isSubActive ? { color: PRIMARY_HEX } : {}}
+                            className={`block py-2 text-sm font-medium transition-colors ${
+                              isSubActive
+                                ? "text-primary font-semibold"
+                                : "text-slate-500 hover:text-slate-900"
+                            }`}
+                          >
+                            {sub.label}
+                          </Link>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
         </nav>
 
         {/* User Profile Footer */}
@@ -512,7 +583,7 @@ export function MainLayout() {
 
             {/* User Profile */}
             <div className="relative">
-              <button 
+              <button
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="flex items-center gap-3 p-1 pr-3 rounded-full hover:bg-slate-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
@@ -520,15 +591,19 @@ export function MainLayout() {
                   <User className="w-4 h-4" />
                 </div>
                 <div className="hidden md:block text-left">
-                  <p className="text-sm font-semibold text-slate-700 leading-none mb-1">{displayName}</p>
-                  <p className="text-xs text-slate-500 leading-none">{activeRoleData.title}</p>
+                  <p className="text-sm font-semibold text-slate-700 leading-none mb-1">
+                    {displayName}
+                  </p>
+                  <p className="text-xs text-slate-500 leading-none">
+                    {activeRoleData.title}
+                  </p>
                 </div>
               </button>
 
               <AnimatePresence>
                 {profileOpen && (
                   <>
-                    <div 
+                    <div
                       className="fixed inset-0 z-40"
                       onClick={() => setProfileOpen(false)}
                     />
@@ -536,7 +611,7 @@ export function MainLayout() {
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      transition={{ duration: 0.15, ease: 'easeOut' }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
                       className="absolute right-0 top-full mt-2 w-64 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg border border-slate-200 z-50 overflow-hidden"
                     >
                       {/* Dropdown Header */}
@@ -545,49 +620,55 @@ export function MainLayout() {
                           <User className="w-6 h-6" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900 truncate">{displayName}</p>
-                          <p className="text-xs font-medium text-primary truncate mb-0.5">{activeRoleData.title}</p>
-                          <p className="text-xs text-slate-500 truncate">{displayEmail}</p>
+                          <p className="text-sm font-bold text-slate-900 truncate">
+                            {displayName}
+                          </p>
+                          <p className="text-xs font-medium text-primary truncate mb-0.5">
+                            {activeRoleData.title}
+                          </p>
+                          <p className="text-xs text-slate-500 truncate">
+                            {displayEmail}
+                          </p>
                         </div>
                       </div>
 
                       {/* Dropdown Menu Items */}
                       <div className="p-2 space-y-1">
-                        <button 
+                        <button
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
                           onClick={() => {
                             setProfileOpen(false);
-                            navigate('/workspace/profile');
+                            navigate("/workspace/profile");
                           }}
                         >
                           <UserCircle className="w-4 h-4 text-slate-400" />
                           My Profile
                         </button>
-                        <button 
+                        <button
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
                           onClick={() => {
                             setProfileOpen(false);
-                            navigate('/workspace/settings/profile');
+                            navigate("/workspace/settings/profile");
                           }}
                         >
                           <Settings className="w-4 h-4 text-slate-400" />
                           Account Settings
                         </button>
-                        <button 
+                        <button
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
                           onClick={() => {
                             setProfileOpen(false);
-                            navigate('/workspace/change-password');
+                            navigate("/workspace/change-password");
                           }}
                         >
                           <Key className="w-4 h-4 text-slate-400" />
                           Change Password
                         </button>
-                        <button 
+                        <button
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
                           onClick={() => {
                             setProfileOpen(false);
-                            navigate('/workspace/help-support');
+                            navigate("/workspace/help-support");
                           }}
                         >
                           <LifeBuoy className="w-4 h-4 text-slate-400" />
@@ -598,12 +679,29 @@ export function MainLayout() {
                       <div className="h-px bg-slate-100 w-full" />
 
                       <div className="p-2">
-                        <button 
+                        <button
                           onClick={() => {
                             setProfileOpen(false);
-                            const currentRole = localStorage.getItem('activeRole');
-                            localStorage.removeItem('activeRole');
-                            navigate('/login', { state: { roleId: currentRole } });
+
+                            const currentUser = authService.getCurrentUser();
+
+                            activityLogService.addLog({
+                              userId: currentUser?.id,
+                              userName: currentUser?.fullName,
+                              action: "Logout",
+                              module: "Authentication",
+                            });
+
+                            const currentRole =
+                              localStorage.getItem("activeRole");
+
+                            authService.logout();
+
+                            navigate("/login", {
+                              state: {
+                                roleId: currentRole,
+                              },
+                            });
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                         >
@@ -623,7 +721,7 @@ export function MainLayout() {
         <main className="flex-1 overflow-x-hidden overflow-y-auto relative p-6 lg:p-8">
           <div className="max-w-7xl mx-auto">
             <Breadcrumbs />
-            
+
             {/* Dynamic Module Content */}
             <div className="animate-in fade-in duration-500">
               <Outlet />

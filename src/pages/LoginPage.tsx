@@ -7,7 +7,8 @@ import {
   Activity, Dna,
 } from 'lucide-react';
 import { ROLES } from '../constants/roles';
-import { USERS } from '../constants/users';
+import { USERS } from '../mock-data/mockUsers';
+import activityLogService from '../services/activityLogService';
 
 /* ── Types ──────────────────────────────────────────────────────── */
 interface LocationState {
@@ -129,13 +130,30 @@ export default function LoginPage() {
       return;
     }
 
+    if (user.roleId !== role.id) {
+      setLoading(false);
+      setEmailErr(`Invalid credentials for ${role.title} workspace.`);
+      setPasswordErr('');
+      return;
+    }
+
     setLoading(false);
     setSuccess(true);
 
     await new Promise((res) => setTimeout(res, 700));
-    localStorage.setItem('activeRole', user.roleId);
-    localStorage.setItem('authUser', JSON.stringify(user));
-    navigate('/workspace/dashboard');
+    localStorage.setItem("activeRole", user.roleId);
+    localStorage.setItem("workspaceRole", role.id);
+    localStorage.setItem("userId", user.id);
+    localStorage.setItem("authUser", JSON.stringify(user));
+
+    activityLogService.addLog({
+      userId: user.id,
+      userName: user.fullName,
+      action: "Login",
+      module: "Authentication",
+    });
+
+    navigate("/workspace/dashboard");
   };
 
   return (

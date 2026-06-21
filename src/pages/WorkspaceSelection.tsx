@@ -131,7 +131,7 @@ export default function WorkspaceSelection() {
 
         {/* Role grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {ROLES.map((role, i) => (
+          {ROLES.filter(role => role.id !== 'TRANSPORT_STAFF').map((role, i) => (
             <RoleCard key={role.id} role={role} index={i} />
           ))}
         </div>

@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
+import authService from '../../services/authService';
+import activityLogService from '../../services/activityLogService';
 import { Save, User, Mail, Phone, Lock, Camera, Shield } from 'lucide-react';
 import {
   PageHeader,
@@ -11,15 +13,135 @@ export default function ProfileSettings() {
   const activeRoleData = ROLES.find(r => r.id === activeRole) || ROLES[0];
   const authUserString = localStorage.getItem('authUser');
   const authUser = authUserString ? JSON.parse(authUserString) : null;
-  const displayName = authUser ? authUser.fullName : activeRoleData.userName;
-  const displayEmail = authUser ? authUser.email : activeRoleData.userEmail;
-  const displayMobile = authUser ? authUser.mobile : '+91 9876543210';
+  const [user, setUser] = useState(authUser);
 
-  const [name, setName] = useState(displayName);
-  const [email, setEmail] = useState(displayEmail);
-  const [mobile, setMobile] = useState(displayMobile);
+  
+  const initialName = authUser ? authUser.fullName : activeRoleData.userName;
+  const initialEmail = authUser ? authUser.email : activeRoleData.userEmail;
+  const initialMobile = authUser ? authUser.mobile : '+91 9876543210';
+  const initialImage = authUser?.profileImage || null;
+
+  const [name, setName] = useState(initialName);
+  const [email, setEmail] = useState(initialEmail);
+  const [mobile, setMobile] = useState(initialMobile);
+  const [profileImage, setProfileImage] = useState<string | null>(initialImage);
+  
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // const logAuditActivity = (activity: string) => {
+  //   const logsString = localStorage.getItem('auditLogs');
+  //   const logs = logsString ? JSON.parse(logsString) : [];
+  //   logs.push({
+  //     id: Math.random().toString(36).substr(2, 9),
+  //     dateTime: new Date().toISOString(),
+  //     user: email,
+  //     module: 'Profile Settings',
+  //     activityType: 'Configuration',
+  //     activity,
+  //     ipAddress: '192.168.1.100', // Mock IP
+  //     status: 'Success'
+  //   });
+  //   localStorage.setItem('auditLogs', JSON.stringify(logs));
+  // };
+
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) {
+      return alert('Only JPG, JPEG, and PNG formats are supported.');
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+      return alert('Maximum file size is 2 MB.');
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setProfileImage(reader.result as string);
+      activityLogService.addLog({
+        userId: authUser?.id,
+        userName: authUser?.fullName,
+        action: "Updated Profile Photo",
+        module: "Profile Settings",
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleSave = () => {
+    // Profile Information Validation
+    if (!name.trim()) return alert("Full Name is required.");
+    if (!/^\+?[0-9\s\-]{10,15}$/.test(mobile)) return alert("Please enter a valid mobile number.");
+
+    // Password Validation
+    if (newPassword || confirmPassword || currentPassword) {
+      if (!currentPassword) return alert("Please enter your current password to change it.");
+      const existingPassword = authService.getCurrentUser()?.password || "";
+      if (currentPassword !== existingPassword) return alert("Current password does not match.");
+      
+      if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(newPassword)) {
+        return alert("New password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.");
+      }
+      if (newPassword !== confirmPassword) return alert("Confirm password does not match the new password.");
+    }
+
+    // Capture old name to replace in DOM
+    // const oldName = initialName;
+
+    // // Save to LocalStorage
+    // const updatedUser = { 
+    //   ...authUser, 
+    //   fullName: name, 
+    //   email, 
+    //   mobile, 
+    //   profileImage, 
+    //   password: newPassword || authUser?.password || 'Password123!' 
+    // };
+    // authService.updateProfile(updatedUser);
+
+    // // Update global DOM (Navbar & Sidebar user information)
+    // const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
+    // let node;
+    // while ((node = walker.nextNode())) {
+    //   if (node.nodeValue && node.nodeValue.trim() === oldName) {
+    //     node.nodeValue = node.nodeValue.replace(oldName, name);
+    //   }
+    // }
+    
+    const updatedUser = {
+      ...authUser,
+      fullName: name,
+      email,
+      mobile,
+      profileImage,
+      password: newPassword || authUser?.password || "Password123!",
+    };
+
+    authService.updateProfile(updatedUser);
+
+    setUser(updatedUser);
+
+    
+    activityLogService.addLog({
+      userId: authUser?.id,
+      userName: authUser?.fullName,
+      action: newPassword ? "Updated Profile & Password" : "Updated Profile",
+      module: "Profile Settings",
+    });
+
+    if (newPassword) {
+      setCurrentPassword('');
+      setNewPassword('');
+      setConfirmPassword('');
+    }
+
+    alert(newPassword ? "Profile and password updated successfully." : "Profile updated successfully.");
+  };
 
   return (
     <div className="animate-in fade-in duration-500 max-w-4xl">
@@ -27,7 +149,7 @@ export default function ProfileSettings() {
         title="Profile Settings"
         subtitle="Manage your personal information and account security."
         actions={
-          <ActionButton icon={<Save className="w-4 h-4" />}>Save Changes</ActionButton>
+          <ActionButton onClick={handleSave} icon={<Save className="w-4 h-4" />}>Save Changes</ActionButton>
         }
       />
 
@@ -35,13 +157,27 @@ export default function ProfileSettings() {
         {/* Avatar Section */}
         <div className="col-span-1">
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center">
-            <div className="relative group cursor-pointer mb-4">
+            <div 
+              className="relative group cursor-pointer mb-4"
+              onClick={() => fileInputRef.current?.click()}
+            >
               <div className="w-32 h-32 rounded-full bg-slate-100 flex items-center justify-center border-4 border-white shadow-md overflow-hidden">
-                <User className="w-16 h-16 text-slate-400" />
+                {profileImage ? (
+                  <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <User className="w-16 h-16 text-slate-400" />
+                )}
               </div>
               <div className="absolute inset-0 bg-slate-900/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <Camera className="w-8 h-8 text-white" />
               </div>
+              <input 
+                type="file" 
+                ref={fileInputRef} 
+                onChange={handleImageChange} 
+                className="hidden" 
+                accept="image/png, image/jpeg, image/jpg" 
+              />
             </div>
             <h3 className="text-lg font-bold text-slate-900">{name}</h3>
             <span className="inline-flex items-center gap-1 bg-indigo-50 text-indigo-700 px-2.5 py-1 rounded-full text-xs font-semibold mt-2">
@@ -81,8 +217,8 @@ export default function ProfileSettings() {
                   <input
                     type="email"
                     value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
+                    readOnly
+                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-500 focus:outline-none text-sm cursor-not-allowed"
                   />
                 </div>
               </div>
@@ -136,6 +272,21 @@ export default function ProfileSettings() {
                   />
                 </div>
               </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Confirm Password</label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Lock className="w-4 h-4 text-slate-400" />
+                  </div>
+                  <input
+                    type="password"
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="Confirm new password"
+                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
+                  />
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -143,3 +294,4 @@ export default function ProfileSettings() {
     </div>
   );
 }
+
