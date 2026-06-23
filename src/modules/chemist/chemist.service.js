@@ -35,10 +35,18 @@ const deleteChemistService =
     );
   };
 
+  const findChemistByMobileService =
+  async (mobile) => {
+    return repository.findChemistByMobileRepo(
+      mobile
+    );
+  };
+
 module.exports = {
   createChemistService,
   getChemistsService,
   getChemistByIdService,
   updateChemistService,
   deleteChemistService,
+  findChemistByMobileService
 };

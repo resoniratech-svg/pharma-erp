@@ -2,6 +2,9 @@ const service = require("./followUp.service");
 
 const createFollowUp = async (req, res) => {
   try {
+
+    console.log("FOLLOWUP REQUEST:", req.body);
+
     const data =
       await service.createFollowUpService(req.body);
 
@@ -9,11 +12,17 @@ const createFollowUp = async (req, res) => {
       success: true,
       data,
     });
+
   } catch (error) {
+
+    console.log("FOLLOWUP ERROR:");
+    console.log(error);
+
     res.status(400).json({
       success: false,
       message: error.message,
     });
+
   }
 };
 

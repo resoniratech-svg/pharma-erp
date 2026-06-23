@@ -125,10 +125,36 @@ const deleteChemist =
     }
   };
 
+  const findChemistByMobile =
+  async (req, res) => {
+
+    try {
+
+      const result =
+        await service.findChemistByMobileService(
+          req.query.mobile
+        );
+
+      res.status(200).json({
+        success: true,
+        data: result,
+      });
+
+    } catch (error) {
+
+      res.status(400).json({
+        success: false,
+        message: error.message,
+      });
+
+    }
+  };
+
 module.exports = {
   createChemist,
   getChemists,
   getChemistById,
   updateChemist,
   deleteChemist,
+  findChemistByMobile
 };

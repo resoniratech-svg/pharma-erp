@@ -40,4 +40,9 @@ router.delete(
   controller.deleteChemist
 );
 
+router.get(
+  "/search",
+  controller.findChemistByMobile
+);
+
 module.exports = router;

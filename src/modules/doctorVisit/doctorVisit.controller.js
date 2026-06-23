@@ -3,6 +3,12 @@ const service =
 
 const createDoctorVisit =
   async (req, res) => {
+
+    console.log(
+      "Doctor Visit Request:",
+      req.body
+    );
+
     try {
 
       const result =
@@ -17,13 +23,19 @@ const createDoctorVisit =
 
     } catch (error) {
 
+      console.error(
+        "Doctor Visit Error:"
+      );
+
+      console.error(error);
+
       res.status(400).json({
         success: false,
-        message:
-          error.message,
+        message: error.message,
       });
 
     }
+
   };
 
 const getDoctorVisits =
@@ -166,13 +178,17 @@ const getDoctorVisitsByDoctor =
 
     } catch (error) {
 
-      res.status(400).json({
-        success: false,
-        message:
-          error.message,
-      });
+  console.error(
+    "Doctor Visit Error:",
+    error
+  );
 
-    }
+  res.status(400).json({
+    success: false,
+    message: error.message,
+  });
+
+}
   };
 
 module.exports = {

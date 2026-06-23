@@ -39,6 +39,9 @@ const loginUser = async (
     where: {
       email,
     },
+    include: {
+      mr: true,
+    },
   });
 
   if (!user) {
@@ -54,19 +57,19 @@ const loginUser = async (
     throw new Error("Invalid credentials");
   }
 
- const token = jwt.sign(
-  {
-    id: user.id,
-    role: user.role,
-    email: user.email,
-    companyId: user.companyId,
-  },
-  process.env.JWT_SECRET,
-  {
-    expiresIn:
-      process.env.JWT_EXPIRES_IN || "7d",
-  }
-);
+  const token = jwt.sign(
+    {
+      id: user.id,
+      role: user.role,
+      email: user.email,
+      companyId: user.companyId,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn:
+        process.env.JWT_EXPIRES_IN || "7d",
+    }
+  );
 
   return {
     token,
@@ -76,6 +79,14 @@ const loginUser = async (
       email: user.email,
       role: user.role,
     },
+    mr: user.mr
+      ? {
+          id: user.mr.id,
+          mrCode: user.mr.mrCode,
+          name: user.mr.name,
+          territory: user.mr.territory,
+        }
+      : null,
   };
 };
 

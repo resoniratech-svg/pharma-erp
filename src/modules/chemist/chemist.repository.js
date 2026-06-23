@@ -38,6 +38,14 @@ const deleteChemistRepo =
       where: { id },
     });
   };
+  
+  const findChemistByMobileRepo = async (mobile) => {
+  return prisma.chemist.findFirst({
+    where: {
+      mobile,
+    },
+  });
+};
 
 module.exports = {
   createChemistRepo,
@@ -45,4 +53,5 @@ module.exports = {
   getChemistByIdRepo,
   updateChemistRepo,
   deleteChemistRepo,
+  findChemistByMobileRepo
 };

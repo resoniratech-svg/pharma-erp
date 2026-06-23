@@ -11,6 +11,16 @@ const createMeetingRepo = async (data) => {
     chemistIds = [],
   } = data;
 
+  // ⬅️ Optimization Step: Pre-parsing raw data parameters to Numbers
+  const parsedDoctorIds = doctorIds.map(id => Number(id));
+  const parsedChemistIds = chemistIds.map(id => Number(id));
+
+  // ⬅️ Optimization Step: Added Required Type Diagnostics Debug Logs
+  console.log('Doctor IDs:', doctorIds);
+  console.log('Chemist IDs:', chemistIds);
+  console.log('Doctor ID Type:', typeof doctorIds[0]);
+  console.log('Chemist ID Type:', typeof chemistIds[0]);
+
   return prisma.meeting.create({
     data: {
       mrId,
@@ -19,8 +29,9 @@ const createMeetingRepo = async (data) => {
       meetingDate: new Date(meetingDate),
       location,
 
+      // Utilizing parsed numeric arrays to secure proper type connection contexts
       meetingDoctors: {
-        create: doctorIds.map((doctorId) => ({
+        create: parsedDoctorIds.map((doctorId) => ({
           doctor: {
             connect: {
               id: doctorId,
@@ -30,7 +41,7 @@ const createMeetingRepo = async (data) => {
       },
 
       meetingChemists: {
-        create: chemistIds.map((chemistId) => ({
+        create: parsedChemistIds.map((chemistId) => ({
           chemist: {
             connect: {
               id: chemistId,
@@ -131,6 +142,7 @@ const deleteMeetingRepo = async (id) => {
   });
 };
 
+// ⬅️ Verified Configuration: Ensures dynamic route inputs resolve seamlessly as Numbers with relational sets included
 const getMeetingsByMrRepo = async (mrId) => {
   return prisma.meeting.findMany({
     where: {
