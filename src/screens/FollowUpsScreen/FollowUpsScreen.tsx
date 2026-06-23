@@ -1,3 +1,8 @@
+import {
+  getAllFollowUps, // ⬅️ Step 2: Imported backend service endpoints
+  completeFollowUp,
+  cancelFollowUp
+} from '../../services/followUpService';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -120,7 +125,7 @@ const FollowUpsScreen = () => {
 
   // Helper: Check if a date string has passed today's date
   const isDateOverdue = (dateStr: string, status: string): boolean => {
-    if (status === 'Completed') return false;
+    if (status === 'Completed' || status === 'Cancelled') return false;
     try {
       const dateObj = parseDateString(dateStr);
       const today = new Date();
@@ -156,25 +161,36 @@ const FollowUpsScreen = () => {
     filterAndCategorize();
   }, [visits, searchQuery, activeTab]);
 
+  // ⬅️ Step 3: Replaced full loadFollowUps function matching specifications exactly
   const loadFollowUps = async () => {
     setLoading(true);
-    setError(null);
     try {
-      // Load from all possible sources (Doctors, Chemists, Orders) to satisfy "Follow-Up Source" requirement
-      const doctorVisits = safeJsonParse(await AsyncStorage.getItem('@doctor_visits'), []);
-      const chemistVisits = safeJsonParse(await AsyncStorage.getItem('@chemist_visits'), []);
-      const orders = safeJsonParse(await AsyncStorage.getItem('@orders'), []);
-      
-      const allSources = [
-        ...doctorVisits.map((v: any) => ({ ...v, followUpType: v.followUpType || 'Doctor' })),
-        ...chemistVisits.map((c: any) => ({ ...c, followUpType: c.followUpType || 'Chemist', doctorName: c.shopName || c.customerName })),
-        ...orders.map((o: any) => ({ ...o, followUpType: o.followUpType || 'Order', doctorName: o.customerName || 'Customer', followUpDate: o.expectedDelivery || o.followUpDate }))
-      ];
-      
-      setVisits(allSources);
-    } catch (err) {
-      console.log('Failed to load follow-up visits:', err);
-      setError('Failed to load follow-up visits.');
+      const data = await getAllFollowUps();
+      console.log('Backend FollowUps:', data);
+
+      const formattedData = data.map((item: any) => ({
+        id: item.id,
+        doctorName:
+          item.doctor?.doctorName ||
+          item.doctor?.name ||
+          item.chemist?.name ||
+          'Contact',
+        specialty: item.doctor?.specialization || 'General',
+        hospital: item.doctor?.hospitalName || item.chemist?.address || '',
+        followUpDate: new Date(item.followUpDate).toLocaleDateString(),
+        followUpStatus:
+          item.status === 'COMPLETED'
+            ? 'Completed'
+            : item.status === 'CANCELLED'
+            ? 'Cancelled'
+            : 'Pending',
+        followUpType: item.doctorId ? 'Doctor' : 'Chemist',
+        remarks: item.remarks,
+      }));
+
+      setVisits(formattedData);
+    } catch (error) {
+      console.log('FollowUp Load Error:', error);
     } finally {
       setLoading(false);
     }
@@ -209,15 +225,12 @@ const FollowUpsScreen = () => {
   };
 
   const filterAndCategorize = () => {
-    // 1. Gather all visits that have followUpDate set
     const allFollowUps = visits.filter(
       (v: any) => v.followUpDate && v.followUpDate.trim() !== ''
     );
 
-    // Integrate Notifications for today's follow-ups automatically
     handleNotificationsForToday(allFollowUps);
 
-    // 2. Compute live status statistics
     let pendingCount = 0;
     let completedCount = 0;
     let overdueCount = 0;
@@ -225,7 +238,7 @@ const FollowUpsScreen = () => {
     allFollowUps.forEach((v: any) => {
       if (v.followUpStatus === 'Completed') {
         completedCount++;
-      } else {
+      } else if (v.followUpStatus !== 'Cancelled') {
         pendingCount++;
         if (isDateOverdue(v.followUpDate, v.followUpStatus || '')) {
           overdueCount++;
@@ -239,7 +252,6 @@ const FollowUpsScreen = () => {
       overdue: overdueCount,
     });
 
-    // 3. Filter list based on search query
     let list = allFollowUps.filter((v: any) => {
       const term = searchQuery.toLowerCase();
       const docName = (v.doctorName || '').toLowerCase();
@@ -248,16 +260,21 @@ const FollowUpsScreen = () => {
       return docName.includes(term) || spec.includes(term) || hosp.includes(term);
     });
 
-    // 4. Sort and filter list based on selected Tab
     if (activeTab === 'Pending') {
-      list = list.filter((v: any) => v.followUpStatus !== 'Completed');
+      list = list.filter(
+        (v: any) => v.followUpStatus !== 'Completed' && v.followUpStatus !== 'Cancelled'
+      );
     } else if (activeTab === 'Completed') {
       list = list.filter((v: any) => v.followUpStatus === 'Completed');
     } else if (activeTab === 'Overdue') {
-      list = list.filter((v: any) => v.followUpStatus !== 'Completed' && isDateOverdue(v.followUpDate, v.followUpStatus || ''));
+      list = list.filter(
+        (v: any) =>
+          v.followUpStatus !== 'Completed' &&
+          v.followUpStatus !== 'Cancelled' &&
+          isDateOverdue(v.followUpDate, v.followUpStatus || '')
+      );
     }
 
-    // Sort: Overdue & Today first, then ascending order of dates
     list.sort((a: any, b: any) => {
       return parseDateString(a.followUpDate).getTime() - parseDateString(b.followUpDate).getTime();
     });
@@ -265,44 +282,27 @@ const FollowUpsScreen = () => {
     setFilteredVisits(list);
   };
 
+  // ⬅️ Step 4: Completely integrated backend completeFollowUp dispatch triggers
   const handleMarkCompleted = async (visitId: number) => {
-    let completedVisitData = null;
-    const updatedVisits = visits.map((v) => {
-      if (v.id === visitId) {
-        completedVisitData = { ...v, followUpStatus: 'Completed' };
-        return completedVisitData;
-      }
-      return v;
-    });
-
-    setVisits(updatedVisits);
     try {
-      // Update original source safely
-      if (completedVisitData) {
-        const isDoc = (completedVisitData as any).followUpType === 'Doctor';
-        const sourceKey = isDoc ? '@doctor_visits' : '@chemist_visits'; 
-        // Note: For a robust system we would update all lists separately, but this is sufficient for UI validation.
-        const sourceList = safeJsonParse(await AsyncStorage.getItem(sourceKey), []);
-        const updatedSource = sourceList.map((item: any) => item.id === visitId ? { ...item, followUpStatus: 'Completed' } : item);
-        await AsyncStorage.setItem(sourceKey, JSON.stringify(updatedSource));
-
-        // Activity Tracking Integration: Auto push to Activity Tracker
-        const existingFollowUpsLogs = safeJsonParse(await AsyncStorage.getItem('@follow_ups'), []);
-        const newLog = {
-          id: `fup-log-${Date.now()}`,
-          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          date: formatDateString(new Date()),
-          doctorName: (completedVisitData as any).doctorName,
-          customerName: (completedVisitData as any).doctorName,
-          notes: `Completed ${(completedVisitData as any).followUpType || 'General'} follow-up via ${(completedVisitData as any).followUpAction || 'Call'}.`,
-          status: 'Completed'
-        };
-        await AsyncStorage.setItem('@follow_ups', JSON.stringify([newLog, ...existingFollowUpsLogs]));
-      }
-
-      customAlert('Completed!', 'Follow-up has been marked as completed and logged in Activity Tracking.');
+      await completeFollowUp(visitId);
+      await loadFollowUps();
+      customAlert('Completed!', 'Follow-up marked as completed on server.');
     } catch (e) {
-      console.log('Failed to save status');
+      console.log('Failed to complete follow-up on server:', e);
+      customAlert('Error', 'Failed to update status on server.');
+    }
+  };
+
+  // ⬅️ Step 5: Completely integrated backend cancelFollowUp dispatch triggers
+  const handleCancelFollowUp = async (visitId: number) => {
+    try {
+      await cancelFollowUp(visitId);
+      await loadFollowUps();
+      customAlert('Cancelled', 'Follow-up cancelled on server.');
+    } catch (e) {
+      console.log('Failed to cancel follow-up on server:', e);
+      customAlert('Error', 'Failed to cancel follow-up on server.');
     }
   };
 
@@ -332,7 +332,7 @@ const FollowUpsScreen = () => {
     setVisits(updatedVisits);
     try {
       const sourceList = safeJsonParse(await AsyncStorage.getItem('@doctor_visits'), []);
-      const updatedSource = sourceList.map((item: any) => item.id === selectedVisitId ? { ...item, followUpDate: newFollowUpDate, followUpStatus: 'Rescheduled' } : item);
+      const updatedSource = sourceList.map((item: any) => item.id === selectedVisitId ? { ...item, followUpDate: newFollowUpDate, status: 'Rescheduled' } : item);
       await AsyncStorage.setItem('@doctor_visits', JSON.stringify(updatedSource));
       
       setRescheduleModalVisible(false);
@@ -380,6 +380,7 @@ const FollowUpsScreen = () => {
 
   const getStatusIndicatorColor = (item: any) => {
     if (item.followUpStatus === 'Completed') return '#10B981'; // Green
+    if (item.followUpStatus === 'Cancelled') return '#64748B'; // Slate Grey
     if (isDateOverdue(item.followUpDate, item.followUpStatus || '')) return '#EF4444'; // Red
     if (isDateToday(item.followUpDate)) return '#3B82F6'; // Blue
     return '#F59E0B'; // Orange / Upcoming
@@ -463,12 +464,12 @@ const FollowUpsScreen = () => {
             {filteredVisits.length > 0 ? (
               filteredVisits.map((item, index) => {
                 const isCompleted = item.followUpStatus === 'Completed';
+                const isCancelled = item.followUpStatus === 'Cancelled';
                 const isOverdue = isDateOverdue(item.followUpDate, item.followUpStatus || '');
                 const isToday = isDateToday(item.followUpDate);
                 const leftBorderColor = getStatusIndicatorColor(item);
                 const isExpanded = !!expandedCards[item.id];
                 
-                // Advanced Attributes
                 const fType = item.followUpType || 'Doctor';
                 const fPriority = item.followUpPriority || 'Medium';
                 const fAction = item.followUpAction || 'Call';
@@ -478,7 +479,7 @@ const FollowUpsScreen = () => {
                     key={`${item.id}-${index}`}
                     style={[
                       styles.card,
-                      isCompleted ? styles.completedCard : {},
+                      (isCompleted || isCancelled) ? styles.completedCard : {},
                       { borderLeftColor: leftBorderColor }
                     ]}
                   >
@@ -488,8 +489,8 @@ const FollowUpsScreen = () => {
                       style={styles.cardHeader}
                     >
                       <View style={styles.cardHeaderLeft}>
-                        <Text style={[styles.doctorName, isCompleted && styles.lineThrough]}>
-                          {fType === 'Doctor' ? 'Dr. ' : ''}{item.doctorName}
+                        <Text style={[styles.doctorName, (isCompleted || isCancelled) && styles.lineThrough]}>
+                          {item.doctorName}
                         </Text>
                         <Text style={styles.specialtyText}>
                           {fType === 'Chemist' ? '💊' : fType === 'Order' ? '📦' : '🩺'} {item.specialty || 'General'}
@@ -508,11 +509,12 @@ const FollowUpsScreen = () => {
                           style={[
                             styles.badge,
                             isCompleted && styles.badgeCompleted,
+                            isCancelled && { color: '#475569', backgroundColor: '#E2E8F0' },
                             isOverdue && styles.badgeOverdue,
                             isToday && styles.badgeToday,
                           ]}
                         >
-                          {isCompleted ? '🟢 Completed' : isOverdue ? '⚠️ Overdue' : isToday ? '⏰ Today' : '📅 Upcoming'}
+                          {isCompleted ? '🟢 Completed' : isCancelled ? '⚪ Cancelled' : isOverdue ? '⚠️ Overdue' : isToday ? '⏰ Today' : '📅 Upcoming'}
                         </Text>
                         <Text style={styles.dateText}>{item.followUpDate}</Text>
                       </View>
@@ -545,7 +547,7 @@ const FollowUpsScreen = () => {
                     )}
 
                     {/* Card Action Drawer Buttons */}
-                    {!isCompleted && (
+                    {!isCompleted && !isCancelled && (
                       <View style={styles.actionsRow}>
                         <TouchableOpacity
                           onPress={() => makeCall(item.mobile)}
@@ -562,10 +564,10 @@ const FollowUpsScreen = () => {
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                          onPress={() => openRescheduleModal(item.id, item.followUpDate)}
-                          style={[styles.actionBtn, styles.rescheduleBtn]}
+                          onPress={() => handleCancelFollowUp(item.id)}
+                          style={[styles.actionBtn, { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }]}
                         >
-                          <Text style={styles.rescheduleBtnText}>📅 Reschedule</Text>
+                          <Text style={{ fontSize: 11, color: '#DC2626', fontWeight: 'bold' }}>❌ Cancel</Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity

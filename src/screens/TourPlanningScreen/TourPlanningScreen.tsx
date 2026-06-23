@@ -1,3 +1,6 @@
+import { createTourPlan } from '../../services/tourPlanService';
+import { getDoctors } from '../../services/doctorService';
+import { getChemists } from '../../services/chemistService';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -13,6 +16,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
+import { Picker } from '@react-native-picker/picker'; // ⬅️ Step 2: Added Picker Import
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -135,6 +139,16 @@ const TourPlanningScreen = () => {
   // Editing state
   const [editingPlanId, setEditingPlanId] = useState<number | null>(null);
 
+  // Doctors & Chemists arrays
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [chemists, setChemists] = useState<any[]>([]);
+
+  // ⬅️ Step 3: Added Selection Tracking States
+  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
+  const [selectedChemistId, setSelectedChemistId] = useState<number | null>(null);
+  const [selectedDoctorIds, setSelectedDoctorIds] = useState<number[]>([]);
+  const [selectedChemistIds, setSelectedChemistIds] = useState<number[]>([]);
+
   // Web safe alert
   const customAlert = (title: string, message: string) => {
     if (Platform.OS === 'web') {
@@ -157,6 +171,30 @@ const TourPlanningScreen = () => {
 
   useEffect(() => {
     loadPlans();
+  }, []);
+
+  useEffect(() => {
+    const loadDoctors = async () => {
+      try {
+        const response = await getDoctors();
+        setDoctors(response.data || []);
+      } catch (error) {
+        console.log('Doctor Load Error:', error);
+      }
+    };
+    loadDoctors();
+  }, []);
+
+  useEffect(() => {
+    const loadChemists = async () => {
+      try {
+        const response = await getChemists();
+        setChemists(response.data || []);
+      } catch (error) {
+        console.log('Chemist Load Error:', error);
+      }
+    };
+    loadChemists();
   }, []);
 
   const loadPlans = async () => {
@@ -252,6 +290,16 @@ const TourPlanningScreen = () => {
       return;
     }
 
+    if (
+      selectedDoctorIds.length === 0 &&
+      selectedChemistIds.length === 0 &&
+      objective !== 'Leave' &&
+      objective !== 'Training'
+    ) {
+      customAlert('Error', 'Please select at least one Doctor or Chemist');
+      return;
+    }
+
     if (editingPlanId !== null) {
       const updatedPlans = plans.map((p) => {
         if (p.id === editingPlanId) {
@@ -287,11 +335,28 @@ const TourPlanningScreen = () => {
         setDoctorsList('');
         setChemistsList('');
         setRemarks('');
+        setSelectedDoctorIds([]);
+        setSelectedChemistIds([]);
         setDate(getTomorrowDateString());
       } catch (error) {
         customAlert('Error', 'Failed to update tour plan.');
       }
     } else {
+      try {
+        await createTourPlan(
+          new Date(date).toISOString(),
+          territory,
+          objective,
+          selectedDoctorIds,
+          selectedChemistIds
+        );
+        console.log('Tour Plan Saved Successfully');
+      } catch (error) {
+        console.log('Tour Plan API Error:', error);
+        customAlert('Error', 'Failed to save Tour Plan');
+        return;
+      }
+
       const newPlan = {
         id: Date.now(),
         date,
@@ -299,9 +364,9 @@ const TourPlanningScreen = () => {
         beat,
         territory,
         planType,
-        docCount: parseInt(docCount) || 0,
+        docCount: selectedDoctorIds.length,
         doctorsList,
-        chemistCount: parseInt(chemistCount) || 0,
+        chemistCount: selectedChemistIds.length,
         chemistsList,
         startTime,
         endTime,
@@ -323,6 +388,8 @@ const TourPlanningScreen = () => {
         setDoctorsList('');
         setChemistsList('');
         setRemarks('');
+        setSelectedDoctorIds([]);
+        setSelectedChemistIds([]);
         setDate(getTomorrowDateString());
       } catch (error) {
         customAlert('Error', 'Failed to save tour plan locally.');
@@ -347,9 +414,7 @@ const TourPlanningScreen = () => {
   };
 
   const handleDeletePlan = async (planId: number) => {
-    const confirmDelete = Platform.OS === 'web'
-      ? window.confirm('Are you sure you want to delete this tour plan?')
-      : true;
+    const confirmDelete = Platform.OS === 'web' ? window.confirm('Are you sure you want to delete this tour plan?') : true;
 
     if (Platform.OS === 'web') {
       if (confirmDelete) {
@@ -469,354 +534,387 @@ const TourPlanningScreen = () => {
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 280 }}
       >
-      <Text style={styles.title}>🗺️ Tour Planning</Text>
-      {loading ? (
-        <View style={styles.loaderCard}>
-          <ActivityIndicator size="large" color="#1E88E5" />
-          <Text style={styles.loaderText}>Loading tour plans data...</Text>
-        </View>
-      ) : error ? (
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorText}>⚠️ {error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadPlans}>
-            <Text style={styles.retryButtonText}>🔄 Retry Loading Tour Plans</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <>
-          {/* Dynamic Summary Cards */}
-          <View style={styles.summaryRow}>
-            <View style={[styles.summaryCard, { borderLeftColor: '#1E88E5' }]}>
-              <Text style={styles.summaryValue}>{totalDocsPlanned}</Text>
-              <Text style={styles.summaryLabel}>Doctors Planned</Text>
-            </View>
-            <View style={[styles.summaryCard, { borderLeftColor: '#43A047' }]}>
-              <Text style={styles.summaryValue}>{totalChemistsPlanned}</Text>
-              <Text style={styles.summaryLabel}>Chemists Planned</Text>
-            </View>
-            <View style={[styles.summaryCard, { borderLeftColor: '#8E24AA' }]}>
-              <Text style={styles.summaryValue}>{totalDocsPlanned + totalChemistsPlanned}</Text>
-              <Text style={styles.summaryLabel}>Total Calls</Text>
-            </View>
+        <Text style={styles.title}>🗺️ Tour Planning</Text>
+        {loading ? (
+          <View style={styles.loaderCard}>
+            <ActivityIndicator size="large" color="#1E88E5" />
+            <Text style={styles.loaderText}>Loading tour plans data...</Text>
           </View>
-
-          <View style={styles.form}>
-            {editingPlanId !== null && (
-              <View style={styles.editBanner}>
-                <Text style={styles.editBannerText}>✏️ Editing Tour Plan</Text>
+        ) : error ? (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>⚠️ {error}</Text>
+            <TouchableOpacity style={styles.retryButton} onPress={loadPlans}>
+              <Text style={styles.retryButtonText}>🔄 Retry Loading Tour Plans</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <>
+            {/* Dynamic Summary Cards */}
+            <View style={styles.summaryRow}>
+              <View style={[styles.summaryCard, { borderLeftColor: '#1E88E5' }]}>
+                <Text style={styles.summaryValue}>{totalDocsPlanned}</Text>
+                <Text style={styles.summaryLabel}>Doctors Planned</Text>
               </View>
-            )}
-
-            <Text style={styles.label}>Plan Type *</Text>
-            <View style={styles.selectorRow}>
-              {['MTP', 'WTP', 'DTP'].map((pt) => (
-                <TouchableOpacity
-                  key={pt}
-                  onPress={() => setPlanType(pt)}
-                  style={[
-                    styles.selectorButton,
-                    planType === pt && styles.selectorActive,
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.selectorText,
-                      planType === pt && styles.selectorTextActive,
-                    ]}
-                  >
-                    {pt === 'MTP' ? 'Monthly' : pt === 'WTP' ? 'Weekly' : 'Daily'} ({pt})
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {/* Date Selector input (Web Picker vs Native Picker) */}
-            <Text style={styles.label}>Tour Date *</Text>
-            {Platform.OS === 'web' ? (
-              <input
-                type="date"
-                value={getWebDateFormat(date)}
-                onChange={(e) => handleDateChangeWeb(e.target.value)}
-                style={webInputStyle}
-              />
-            ) : (
-              <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}>
-                <Text style={{ color: date ? '#333' : '#999' }}>{date || 'Select Tour Date'}</Text>
-              </TouchableOpacity>
-            )}
-            {showDatePicker && (
-              <RNDateTimePicker mode="date" value={new Date()} onChange={onChangeDate} />
-            )}
-
-            <Text style={styles.label}>HQ / Territory *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Hyderabad South"
-              value={territory}
-              onChangeText={setTerritory}
-            />
-
-            <Text style={styles.label}>Area / Route Name *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Kukatpally"
-              value={area}
-              onChangeText={setArea}
-            />
-
-            <Text style={styles.label}>Beat Name / Sub-route *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. KPHB Colony"
-              value={beat}
-              onChangeText={setBeat}
-            />
-
-            {/* Start / End Time Pickers */}
-            <View style={styles.row}>
-              <View style={styles.rowItem}>
-                <Text style={styles.label}>Start Time *</Text>
-                {Platform.OS === 'web' ? (
-                  <input
-                    type="time"
-                    value={formatTime12to24(startTime)}
-                    onChange={(e) => setStartTime(formatTime24to12(e.target.value))}
-                    style={webInputStyle}
-                  />
-                ) : (
-                  <TouchableOpacity style={styles.input} onPress={() => setShowStartTimePicker(true)}>
-                    <Text style={{ color: startTime ? '#333' : '#999' }}>{startTime || '09:00 AM'}</Text>
-                  </TouchableOpacity>
-                )}
-                {showStartTimePicker && (
-                  <RNDateTimePicker mode="time" value={new Date()} onChange={onChangeStartTime} />
-                )}
+              <View style={[styles.summaryCard, { borderLeftColor: '#43A047' }]}>
+                <Text style={styles.summaryValue}>{totalChemistsPlanned}</Text>
+                <Text style={styles.summaryLabel}>Chemists Planned</Text>
               </View>
-              
-              <View style={styles.rowItem}>
-                <Text style={styles.label}>End Time *</Text>
-                {Platform.OS === 'web' ? (
-                  <input
-                    type="time"
-                    value={formatTime12to24(endTime)}
-                    onChange={(e) => setEndTime(formatTime24to12(e.target.value))}
-                    style={webInputStyle}
-                  />
-                ) : (
-                  <TouchableOpacity style={styles.input} onPress={() => setShowEndTimePicker(true)}>
-                    <Text style={{ color: endTime ? '#333' : '#999' }}>{endTime || '06:00 PM'}</Text>
-                  </TouchableOpacity>
-                )}
-                {showEndTimePicker && (
-                  <RNDateTimePicker mode="time" value={new Date()} onChange={onChangeEndTime} />
-                )}
+              <View style={[styles.summaryCard, { borderLeftColor: '#8E24AA' }]}>
+                <Text style={styles.summaryValue}>{totalDocsPlanned + totalChemistsPlanned}</Text>
+                <Text style={styles.summaryLabel}>Total Calls</Text>
               </View>
             </View>
 
-            <Text style={styles.label}>Objective / Purpose</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 8}}>
+            <View style={styles.form}>
+              {editingPlanId !== null && (
+                <View style={styles.editBanner}>
+                  <Text style={styles.editBannerText}>✏️ Editing Tour Plan</Text>
+                </View>
+              )}
+
+              <Text style={styles.label}>Plan Type *</Text>
               <View style={styles.selectorRow}>
-                {['Field Work', 'Doctor Meeting', 'Payment Collection', 'Training', 'Leave'].map((obj) => (
+                {['MTP', 'WTP', 'DTP'].map((pt) => (
                   <TouchableOpacity
-                    key={obj}
-                    onPress={() => setObjective(obj)}
+                    key={pt}
+                    onPress={() => setPlanType(pt)}
                     style={[
                       styles.selectorButton,
-                      objective === obj && styles.selectorActive,
-                      { paddingHorizontal: 12 }
+                      planType === pt && styles.selectorActive,
                     ]}
                   >
                     <Text
                       style={[
                         styles.selectorText,
-                        objective === obj && styles.selectorTextActive,
+                        planType === pt && styles.selectorTextActive,
                       ]}
                     >
-                      {obj}
+                      {pt === 'MTP' ? 'Monthly' : pt === 'WTP' ? 'Weekly' : 'Daily'} ({pt})
                     </Text>
                   </TouchableOpacity>
                 ))}
               </View>
-            </ScrollView>
 
-            <View style={styles.row}>
-              <View style={styles.rowItem}>
-                <Text style={styles.label}>Planned Doc Count (Auto)</Text>
-                <View style={styles.disabledInput}>
-                  <Text style={styles.disabledInputText}>{docCount}</Text>
-                </View>
-              </View>
-              <View style={styles.rowItem}>
-                <Text style={styles.label}>Planned Chemist Count (Auto)</Text>
-                <View style={styles.disabledInput}>
-                  <Text style={styles.disabledInputText}>{chemistCount}</Text>
-                </View>
-              </View>
-            </View>
-
-            <Text style={styles.label}>Planned Doctor Names (Comma separated) *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Dr. Ramesh, Dr. Kumar"
-              value={doctorsList}
-              onChangeText={setDoctorsList}
-              onFocus={() => {
-                setTimeout(() => {
-                  scrollViewRef.current?.scrollToEnd({ animated: true });
-                }, 150);
-              }}
-            />
-
-            <Text style={styles.label}>Planned Chemist Names (Comma separated) *</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g. Apollo Pharmacy, MedPlus Drugs"
-              value={chemistsList}
-              onChangeText={setChemistsList}
-              onFocus={() => {
-                setTimeout(() => {
-                  scrollViewRef.current?.scrollToEnd({ animated: true });
-                }, 150);
-              }}
-            />
-
-            <Text style={styles.label}>Special Remarks</Text>
-            <TextInput
-              style={[styles.input, styles.textArea]}
-              placeholder="Enter itinerary details or comments..."
-              value={remarks}
-              onChangeText={setRemarks}
-              multiline
-              numberOfLines={3}
-              onFocus={() => {
-                setTimeout(() => {
-                  scrollViewRef.current?.scrollToEnd({ animated: true });
-                }, 150);
-              }}
-            />
-
-            <View style={styles.buttonRow}>
-              <TouchableOpacity 
-                style={[styles.submitButton, editingPlanId !== null && { flex: 2 }]} 
-                onPress={handleSubmit}
-              >
-                <Text style={styles.submitText}>
-                  {editingPlanId !== null ? 'UPDATE PLAN' : 'SUBMIT TOUR PLAN'}
-                </Text>
-              </TouchableOpacity>
-              {editingPlanId !== null && (
-                <TouchableOpacity 
-                  style={styles.cancelEditButton} 
-                  onPress={() => {
-                    setEditingPlanId(null);
-                    setArea('');
-                    setBeat('');
-                    setTerritory('');
-                    setDoctorsList('');
-                    setChemistsList('');
-                    setRemarks('');
-                    setDate(getTomorrowDateString());
-                  }}
-                >
-                  <Text style={styles.cancelEditText}>CANCEL</Text>
+              {/* Date Selector input (Web Picker vs Native Picker) */}
+              <Text style={styles.label}>Tour Date *</Text>
+              {Platform.OS === 'web' ? (
+                <input
+                  type="date"
+                  value={getWebDateFormat(date)}
+                  onChange={(e) => handleDateChangeWeb(e.target.value)}
+                  style={webInputStyle}
+                />
+              ) : (
+                <TouchableOpacity style={styles.input} onPress={() => setShowDatePicker(true)}>
+                  <Text style={{ color: date ? '#333' : '#999' }}>{date || 'Select Tour Date'}</Text>
                 </TouchableOpacity>
               )}
-            </View>
-          </View>
+              {showDatePicker && (
+                <RNDateTimePicker mode="date" value={new Date()} onChange={onChangeDate} />
+              )}
 
-          {/* Tour Plan List */}
-          {plans.length > 0 && (
-            <>
-              <Text style={styles.historyTitle}>Submitted Tour Plans ({plans.length})</Text>
-              
+              <Text style={styles.label}>HQ / Territory *</Text>
               <TextInput
-                style={[styles.input, { marginBottom: 15 }]}
-                placeholder="🔍 Search by Route, HQ, or Date..."
-                value={searchQuery}
-                onChangeText={setSearchQuery}
+                style={styles.input}
+                placeholder="e.g. Hyderabad South"
+                value={territory}
+                onChangeText={setTerritory}
               />
 
-              {plans.filter(p => {
-                const q = searchQuery.toLowerCase();
-                return (
-                  (p.area && p.area.toLowerCase().includes(q)) ||
-                  (p.territory && p.territory.toLowerCase().includes(q)) ||
-                  (p.date && p.date.toLowerCase().includes(q)) ||
-                  (p.beat && p.beat.toLowerCase().includes(q))
-                );
-              }).map((plan) => {
-                const statusStyle = getStatusColor(plan.status);
-                
-                // Real-time visited math logic based on Doctor & Chemist visits
-                const actualDocsVisited = getVisitedDocsCount(plan, doctorVisits);
-                const actualChemistsVisited = getVisitedChemistsCount(plan, chemistVisits);
-                
-                const totalPlanned = plan.docCount + plan.chemistCount;
-                const totalVisited = actualDocsVisited + actualChemistsVisited;
-                const kpiPercentage = totalPlanned > 0 ? Math.round((totalVisited / totalPlanned) * 100) : 0;
+              <Text style={styles.label}>Area / Route Name *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Kukatpally"
+                value={area}
+                onChangeText={setArea}
+              />
 
-                return (
-                  <View key={plan.id} style={styles.planCard}>
-                    <View style={styles.planHeader}>
-                      <View style={{ flex: 1, paddingRight: 10 }}>
-                        <Text style={styles.planDate}>📅 Date: {plan.date}</Text>
-                        <Text style={styles.planArea}>📍 HQ: {plan.territory || 'N/A'}</Text>
-                        <Text style={styles.planSubroute}>🛤️ {plan.planType || 'MTP'} Route: {plan.area} (Beat: {plan.beat || 'N/A'})</Text>
-                      </View>
-                      <TouchableOpacity 
-                        onPress={() => cycleStatus(plan.id)}
-                        style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
+              <Text style={styles.label}>Beat Name / Sub-route *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. KPHB Colony"
+                value={beat}
+                onChangeText={setBeat}
+              />
+
+              {/* Start / End Time Pickers */}
+              <View style={styles.row}>
+                <View style={styles.rowItem}>
+                  <Text style={styles.label}>Start Time *</Text>
+                  {Platform.OS === 'web' ? (
+                    <input
+                      type="time"
+                      value={formatTime12to24(startTime)}
+                      onChange={(e) => setStartTime(formatTime24to12(e.target.value))}
+                      style={webInputStyle}
+                    />
+                  ) : (
+                    <TouchableOpacity style={styles.input} onPress={() => setShowStartTimePicker(true)}>
+                      <Text style={{ color: startTime ? '#333' : '#999' }}>{startTime || '09:00 AM'}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {showStartTimePicker && (
+                    <RNDateTimePicker mode="time" value={new Date()} onChange={onChangeStartTime} />
+                  )}
+                </View>
+                
+                <View style={styles.rowItem}>
+                  <Text style={styles.label}>End Time *</Text>
+                  {Platform.OS === 'web' ? (
+                    <input
+                      type="time"
+                      value={formatTime12to24(endTime)}
+                      onChange={(e) => setEndTime(formatTime24to12(e.target.value))}
+                      style={webInputStyle}
+                    />
+                  ) : (
+                    <TouchableOpacity style={styles.input} onPress={() => setShowEndTimePicker(true)}>
+                      <Text style={{ color: endTime ? '#333' : '#999' }}>{endTime || '06:00 PM'}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {showEndTimePicker && (
+                    <RNDateTimePicker mode="time" value={new Date()} onChange={onChangeEndTime} />
+                  )}
+                </View>
+              </View>
+
+              <Text style={styles.label}>Objective / Purpose</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{marginBottom: 8}}>
+                <View style={styles.selectorRow}>
+                  {['Field Work', 'Doctor Meeting', 'Payment Collection', 'Training', 'Leave'].map((obj) => (
+                    <TouchableOpacity
+                      key={obj}
+                      onPress={() => setObjective(obj)}
+                      style={[
+                        styles.selectorButton,
+                        objective === obj && styles.selectorActive,
+                        { paddingHorizontal: 12 }
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.selectorText,
+                          objective === obj && styles.selectorTextActive,
+                        ]}
                       >
-                        <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
-                          {(plan.status || 'Pending Approval')} 🔄
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                    <Text style={styles.planInfo}>🕐 Hours: {plan.startTime} - {plan.endTime}</Text>
-                    <Text style={styles.planInfo}>🎯 Objective: {plan.objective}</Text>
-                    <Text style={styles.planInfo}>🩺 Doctors Planned: {plan.docCount} ({plan.doctorsList || 'None'})</Text>
-                    <Text style={styles.planInfo}>💊 Chemists Planned: {plan.chemistCount} ({plan.chemistsList || 'None'})</Text>
-                    {plan.remarks ? (
-                      <Text style={styles.planInfo}>💬 Remarks: {plan.remarks}</Text>
-                    ) : null}
+                        {obj}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </ScrollView>
 
-                    {/* KPI Display for Completed Tours - NOW COMPARES REAL DATABASE LOGS DYNAMICALLY */}
-                    {plan.status === 'Completed' && totalPlanned > 0 && (
-                      <View style={styles.kpiCard}>
-                        <Text style={styles.kpiTitle}>📊 Actual Tour Performance KPI:</Text>
-                        <Text style={styles.kpiItem}>🩺 Visited Doctors: {actualDocsVisited} / {plan.docCount}</Text>
-                        <Text style={styles.kpiItem}>💊 Visited Chemists: {actualChemistsVisited} / {plan.chemistCount}</Text>
-                        <Text style={styles.kpiScore}>Route Achievement: {kpiPercentage}%</Text>
-                      </View>
-                    )}
-
-                    <View style={styles.cardDivider} />
-
-                    {/* Edit & Delete actions for Draft or Pending Approval plans */}
-                    {['Draft', 'Pending Approval', 'Rejected'].includes(plan.status) && (
-                      <View style={styles.actionsRow}>
-                        <TouchableOpacity 
-                          onPress={() => handleEditPlan(plan)}
-                          style={[styles.actionButtonItem, styles.editBtn]}
-                        >
-                          <Text style={styles.actionButtonText}>✏️ Edit</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity 
-                          onPress={() => handleDeletePlan(plan.id)}
-                          style={[styles.actionButtonItem, styles.cancelBtn]}
-                        >
-                          <Text style={styles.actionButtonText}>🗑️ Delete</Text>
-                        </TouchableOpacity>
-                      </View>
-                    )}
+              <View style={styles.row}>
+                <View style={styles.rowItem}>
+                  <Text style={styles.label}>Planned Doc Count (Auto)</Text>
+                  <View style={styles.disabledInput}>
+                    <Text style={styles.disabledInputText}>{docCount}</Text>
                   </View>
-                );
-              })}
-            </>
-          )}
-        </>
-      )}
-      <View style={{ height: 40 }} />
+                </View>
+                <View style={styles.rowItem}>
+                  <Text style={styles.label}>Planned Chemist Count (Auto)</Text>
+                  <View style={styles.disabledInput}>
+                    <Text style={styles.disabledInputText}>{chemistCount}</Text>
+                  </View>
+                </View>
+              </View>
+
+              {/* ⬅️ Step 4: Added Doctor Dropdown Picker wrapper */}
+              <Text style={styles.label}>Select Doctor *</Text>
+              <View style={styles.pickerOutlineContainer}>
+                <Picker
+                  selectedValue={selectedDoctorId}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    const doctorId = Number(value);
+                    if (!selectedDoctorIds.includes(doctorId)) {
+                      setSelectedDoctorIds([...selectedDoctorIds, doctorId]);
+                      const doctor = doctors.find((d) => d.id === doctorId);
+                      if (doctor) {
+                        setDoctorsList(doctorsList ? `${doctorsList}, ${doctor.name}` : doctor.name);
+                      }
+                    }
+                    setSelectedDoctorId(null);
+                  }}
+                >
+                  <Picker.Item label="Select Doctor..." value={null} color="#94A3B8" />
+                  {doctors.map((doctor) => (
+                    <Picker.Item key={doctor.id} label={doctor.name} value={doctor.id} />
+                  ))}
+                </Picker>
+              </View>
+
+              {/* ⬅️ Step 5: Show Selected Doctors List */}
+              <Text style={styles.selectedText}>
+                {doctorsList || 'No doctors selected yet.'}
+              </Text>
+
+              {/* ⬅️ Step 6: Added Chemist Dropdown Picker wrapper */}
+              <Text style={styles.label}>Select Chemist *</Text>
+              <View style={styles.pickerOutlineContainer}>
+                <Picker
+                  selectedValue={selectedChemistId}
+                  onValueChange={(value) => {
+                    if (!value) return;
+                    const chemistId = Number(value);
+                    if (!selectedChemistIds.includes(chemistId)) {
+                      setSelectedChemistIds([...selectedChemistIds, chemistId]);
+                      const chemist = chemists.find((c) => c.id === chemistId);
+                      if (chemist) {
+                        setChemistsList(chemistsList ? `${chemistsList}, ${chemist.name}` : chemist.name);
+                      }
+                    }
+                    setSelectedChemistId(null);
+                  }}
+                >
+                  <Picker.Item label="Select Chemist..." value={null} color="#94A3B8" />
+                  {chemists.map((chemist) => (
+                    <Picker.Item key={chemist.id} label={chemist.name} value={chemist.id} />
+                  ))}
+                </Picker>
+              </View>
+
+              {/* ⬅️ Step 7: Show Selected Chemists List */}
+              <Text style={styles.selectedText}>
+                {chemistsList || 'No chemists selected yet.'}
+              </Text>
+
+              <Text style={styles.label}>Special Remarks</Text>
+              <TextInput
+                style={[styles.input, styles.textArea]}
+                placeholder="Enter itinerary details or comments..."
+                value={remarks}
+                onChangeText={setRemarks}
+                multiline
+                numberOfLines={3}
+                onFocus={() => {
+                  setTimeout(() => {
+                    scrollViewRef.current?.scrollToEnd({ animated: true });
+                  }, 150);
+                }}
+              />
+
+              <View style={styles.buttonRow}>
+                <TouchableOpacity 
+                  style={[styles.submitButton, editingPlanId !== null && { flex: 2 }]} 
+                  onPress={handleSubmit}
+                >
+                  <Text style={styles.submitText}>
+                    {editingPlanId !== null ? 'UPDATE PLAN' : 'SUBMIT TOUR PLAN'}
+                  </Text>
+                </TouchableOpacity>
+                {editingPlanId !== null && (
+                  <TouchableOpacity 
+                    style={styles.cancelEditButton} 
+                    onPress={() => {
+                      setEditingPlanId(null);
+                      setArea('');
+                      setBeat('');
+                      setTerritory('');
+                      setDoctorsList('');
+                      setChemistsList('');
+                      setRemarks('');
+                      setSelectedDoctorIds([]);
+                      setSelectedChemistIds([]);
+                      setDate(getTomorrowDateString());
+                    }}
+                  >
+                    <Text style={styles.cancelEditText}>CANCEL</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            {/* Tour Plan List */}
+            {plans.length > 0 && (
+              <>
+                <Text style={styles.historyTitle}>Submitted Tour Plans ({plans.length})</Text>
+                
+                <TextInput
+                  style={[styles.input, { marginBottom: 15 }]}
+                  placeholder="🔍 Search by Route, HQ, or Date..."
+                  value={searchQuery}
+                  onChangeText={setSearchQuery}
+                />
+
+                {plans.filter(p => {
+                  const q = searchQuery.toLowerCase();
+                  return (
+                    (p.area && p.area.toLowerCase().includes(q)) ||
+                    (p.territory && p.territory.toLowerCase().includes(q)) ||
+                    (p.date && p.date.toLowerCase().includes(q)) ||
+                    (p.beat && p.beat.toLowerCase().includes(q))
+                  );
+                }).map((plan) => {
+                  const statusStyle = getStatusColor(plan.status);
+                  
+                  const actualDocsVisited = getVisitedDocsCount(plan, doctorVisits);
+                  const actualChemistsVisited = getVisitedChemistsCount(plan, chemistVisits);
+                  
+                  const totalPlanned = plan.docCount + plan.chemistCount;
+                  const totalVisited = actualDocsVisited + actualChemistsVisited;
+                  const kpiPercentage = totalPlanned > 0 ? Math.round((totalVisited / totalPlanned) * 100) : 0;
+
+                  return (
+                    <View key={plan.id} style={styles.planCard}>
+                      <View style={styles.planHeader}>
+                        <View style={{ flex: 1, paddingRight: 10 }}>
+                          <Text style={styles.planDate}>📅 Date: {plan.date}</Text>
+                          <Text style={styles.planArea}>📍 HQ: {plan.territory || 'N/A'}</Text>
+                          <Text style={styles.planSubroute}>🛤️ {plan.planType || 'MTP'} Route: {plan.area} (Beat: {plan.beat || 'N/A'})</Text>
+                        </View>
+                        <TouchableOpacity 
+                          onPress={() => cycleStatus(plan.id)}
+                          style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
+                        >
+                          <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
+                            {(plan.status || 'Pending Approval')} 🔄
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
+                      <Text style={styles.planInfo}>🕐 Hours: {plan.startTime} - {plan.endTime}</Text>
+                      <Text style={styles.planInfo}>🎯 Objective: {plan.objective}</Text>
+                      <Text style={styles.planInfo}>🩺 Doctors Planned: {plan.docCount} ({plan.doctorsList || 'None'})</Text>
+                      <Text style={styles.planInfo}>💊 Chemists Planned: {plan.chemistCount} ({plan.chemistsList || 'None'})</Text>
+                      {plan.remarks ? (
+                        <Text style={styles.planInfo}>💬 Remarks: {plan.remarks}</Text>
+                      ) : null}
+
+                      {plan.status === 'Completed' && totalPlanned > 0 && (
+                        <View style={styles.kpiCard}>
+                          <Text style={styles.kpiTitle}>📊 Actual Tour Performance KPI:</Text>
+                          <Text style={styles.kpiItem}>🩺 Visited Doctors: {actualDocsVisited} / {plan.docCount}</Text>
+                          <Text style={styles.kpiItem}>💊 Visited Chemists: {actualChemistsVisited} / {plan.chemistCount}</Text>
+                          <Text style={styles.kpiScore}>Route Achievement: {kpiPercentage}%</Text>
+                        </View>
+                      )}
+
+                      <View style={styles.cardDivider} />
+
+                      {['Draft', 'Pending Approval', 'Rejected'].includes(plan.status) && (
+                        <View style={styles.actionsRow}>
+                          <TouchableOpacity 
+                            onPress={() => handleEditPlan(plan)}
+                            style={[styles.actionButtonItem, styles.editBtn]}
+                          >
+                            <Text style={styles.actionButtonText}>✏️ Edit</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            onPress={() => handleDeletePlan(plan.id)}
+                            style={[styles.actionButtonItem, styles.cancelBtn]}
+                          >
+                            <Text style={styles.actionButtonText}>🗑️ Delete</Text>
+                          </TouchableOpacity>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </>
+            )}
+          </>
+        )}
+        <View style={{ height: 40 }} />
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -839,7 +937,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   summaryRow: {
-    flexDirection: 'row',
+    flex: 'row',
     gap: 12,
     marginBottom: 20,
   },
@@ -944,6 +1042,13 @@ const styles = StyleSheet.create({
     padding: 12,
     fontSize: 14,
     backgroundColor: '#fafafa',
+  },
+  pickerOutlineContainer: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#fafafa',
+    justifyContent: 'center',
   },
   textArea: {
     height: 70,
@@ -1127,5 +1232,12 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 13,
     fontWeight: 'bold',
+  },
+  // ⬅️ Step 8: Appended Requested Custom Selection Styling Text Style
+  selectedText: {
+    color: '#475569',
+    marginTop: 6,
+    marginBottom: 12,
+    fontSize: 13,
   },
 });

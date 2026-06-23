@@ -1,4 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import {
+  createLeaveRequest,
+  getLeavesByMr
+} from '../../services/leaveService';import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -74,8 +77,10 @@ const LeaveRequestScreen = () => {
   const loadLeaveData = async () => {
     try {
       // Load leave request history
-      const storedHistory = await AsyncStorage.getItem('@leave_requests');
-      setHistory(safeJsonParse(storedHistory, []));
+      const history =
+  await getLeavesByMr();
+
+setHistory(history);
 
       // Load leave balances
       const storedBalances = await AsyncStorage.getItem('@leave_balances');
@@ -132,6 +137,20 @@ const LeaveRequestScreen = () => {
       );
       return;
     }
+    
+    try {
+      await createLeaveRequest(
+        leaveType,
+        currentStartDate,
+        currentEndDate,
+        reason
+      );
+      console.log('Leave Request Saved Successfully');
+    } catch (error) {
+      console.log('Leave Request API Error:', error);
+      customAlert('Error', 'Failed to submit leave request');
+      return;
+    }
 
     const newRequest: LeaveRequest = {
       id: Date.now(),
@@ -167,44 +186,29 @@ const LeaveRequestScreen = () => {
     }
   };
 
-  // Demo status cycle toggles (Pending -> Approved -> Rejected -> Pending)
-  const cycleLeaveStatus = async (id: number) => {
-    const updated = history.map((req) => {
-      if (req.id === id) {
-        let nextStatus: 'Pending' | 'Approved' | 'Rejected' = 'Pending';
-        let comment = 'Awaiting review from Area Manager';
-        
-        if (req.status === 'Pending') {
-          nextStatus = 'Approved';
-          comment = 'Approved by Area Manager (Alternate route plan is verified)';
-        } else if (req.status === 'Approved') {
-          nextStatus = 'Rejected';
-          comment = 'Rejected - Postponed due to low market coverage in target Beat';
-        }
-        
-        return { ...req, status: nextStatus, managerComment: comment };
-      }
-      return req;
-    });
+const getStatusStyle = (status: string) => {
 
-    setHistory(updated);
-    try {
-      await AsyncStorage.setItem('@leave_requests', JSON.stringify(updated));
-    } catch (e) {
-      console.log('Failed to update status');
-    }
-  };
+  switch (status?.toUpperCase()) {
 
-  const getStatusStyle = (status: string) => {
-    switch (status) {
-      case 'Approved':
-        return { bg: '#D1FAE5', text: '#059669' };
-      case 'Rejected':
-        return { bg: '#FFE4E6', text: '#E11D48' };
-      default:
-        return { bg: '#FEF3C7', text: '#D97706' };
-    }
-  };
+    case 'APPROVED':
+      return {
+        bg: '#D1FAE5',
+        text: '#059669',
+      };
+
+    case 'REJECTED':
+      return {
+        bg: '#FFE4E6',
+        text: '#E11D48',
+      };
+
+    default:
+      return {
+        bg: '#FEF3C7',
+        text: '#D97706',
+      };
+  }
+};
 
   const webInputStyle = {
     borderWidth: 1,
@@ -252,177 +256,178 @@ const LeaveRequestScreen = () => {
           ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
         >
-        {/* Leave Form */}
-        <View style={styles.formCard}>
-          <Text style={styles.sectionLabel}>Leave Type *</Text>
-          <View style={styles.typeSelectorRow}>
-            {(['Casual Leave', 'Sick Leave', 'Earned Leave'] as const).map((type) => (
-              <TouchableOpacity
-                key={type}
-                onPress={() => setLeaveType(type)}
-                style={[styles.typeBtn, leaveType === type && styles.typeBtnActive]}
-              >
-                <Text style={[styles.typeBtnText, leaveType === type && styles.typeBtnTextActive]}>
-                  {type.split(' ')[0]}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Half-Day vs Full-Day Option */}
-          <Text style={styles.sectionLabel}>Leave Duration *</Text>
-          <View style={styles.typeSelectorRow}>
-            <TouchableOpacity
-              onPress={() => setIsHalfDay(false)}
-              style={[styles.typeBtn, !isHalfDay && styles.typeBtnActive]}
-            >
-              <Text style={[styles.typeBtnText, !isHalfDay && styles.typeBtnTextActive]}>
-                Full Day
-              </Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              onPress={() => setIsHalfDay(true)}
-              style={[styles.typeBtn, isHalfDay && styles.typeBtnActive]}
-            >
-              <Text style={[styles.typeBtnText, isHalfDay && styles.typeBtnTextActive]}>
-                Half Day
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Date Range selectors */}
-          <View style={styles.dateRangeRow}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.sectionLabel}>Start Date *</Text>
-              {Platform.OS === 'web' ? (
-                <input
-                  type="date"
-                  value={startDate}
-                  onChange={(e) => setStartDate(e.target.value)}
-                  style={webInputStyle}
-                />
-              ) : (
+          {/* Leave Form */}
+          <View style={styles.formCard}>
+            <Text style={styles.sectionLabel}>Leave Type *</Text>
+            <View style={styles.typeSelectorRow}>
+              {(['Casual Leave', 'Sick Leave', 'Earned Leave'] as const).map((type) => (
                 <TouchableOpacity
-                  style={styles.nativeDateBtn}
-                  onPress={() => setShowStartDatePicker(true)}
+                  key={type}
+                  onPress={() => setLeaveType(type)}
+                  style={[styles.typeBtn, leaveType === type && styles.typeBtnActive]}
                 >
-                  <Text style={styles.nativeDateText}>{formatDateDisplay(startDate)}</Text>
+                  <Text style={[styles.typeBtnText, leaveType === type && styles.typeBtnTextActive]}>
+                    {type.split(' ')[0]}
+                  </Text>
                 </TouchableOpacity>
-              )}
-              {showStartDatePicker && (
-                <RNDateTimePicker
-                  mode="date"
-                  value={new Date(startDate)}
-                  onChange={(e, d) => {
-                    setShowStartDatePicker(false);
-                    if (d) setStartDate(d.toISOString().split('T')[0]);
-                  }}
-                />
-              )}
+              ))}
             </View>
 
-            {/* Render End Date ONLY if it is not a Half-Day */}
-            {!isHalfDay && (
+            {/* Half-Day vs Full-Day Option */}
+            <Text style={styles.sectionLabel}>Leave Duration *</Text>
+            <View style={styles.typeSelectorRow}>
+              <TouchableOpacity
+                onPress={() => setIsHalfDay(false)}
+                style={[styles.typeBtn, !isHalfDay && styles.typeBtnActive]}
+              >
+                <Text style={[styles.typeBtnText, !isHalfDay && styles.typeBtnTextActive]}>
+                  Full Day
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={() => setIsHalfDay(true)}
+                style={[styles.typeBtn, isHalfDay && styles.typeBtnActive]}
+              >
+                <Text style={[styles.typeBtnText, isHalfDay && styles.typeBtnTextActive]}>
+                  Half Day
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Date Range selectors */}
+            <View style={styles.dateRangeRow}>
               <View style={{ flex: 1 }}>
-                <Text style={styles.sectionLabel}>End Date *</Text>
+                <Text style={styles.sectionLabel}>Start Date *</Text>
                 {Platform.OS === 'web' ? (
                   <input
                     type="date"
-                    value={endDate}
-                    onChange={(e) => setEndDate(e.target.value)}
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
                     style={webInputStyle}
                   />
                 ) : (
                   <TouchableOpacity
                     style={styles.nativeDateBtn}
-                    onPress={() => setShowEndDatePicker(true)}
+                    onPress={() => setShowStartDatePicker(true)}
                   >
-                    <Text style={styles.nativeDateText}>{formatDateDisplay(endDate)}</Text>
+                    <Text style={styles.nativeDateText}>{formatDateDisplay(startDate)}</Text>
                   </TouchableOpacity>
                 )}
-                {showEndDatePicker && (
+                {showStartDatePicker && (
                   <RNDateTimePicker
                     mode="date"
-                    value={new Date(endDate)}
+                    value={new Date(startDate)}
                     onChange={(e, d) => {
-                      setShowEndDatePicker(false);
-                      if (d) setEndDate(d.toISOString().split('T')[0]);
+                      setShowStartDatePicker(false);
+                      if (d) setStartDate(d.toISOString().split('T')[0]);
                     }}
                   />
                 )}
               </View>
-            )}
+
+              {/* Render End Date ONLY if it is not a Half-Day */}
+              {!isHalfDay && (
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.sectionLabel}>End Date *</Text>
+                  {Platform.OS === 'web' ? (
+                    <input
+                      type="date"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      style={webInputStyle}
+                    />
+                  ) : (
+                    <TouchableOpacity
+                      style={styles.nativeDateBtn}
+                      onPress={() => setShowEndDatePicker(true)}
+                    >
+                      <Text style={styles.nativeDateText}>{formatDateDisplay(endDate)}</Text>
+                    </TouchableOpacity>
+                  )}
+                  {showEndDatePicker && (
+                    <RNDateTimePicker
+                      mode="date"
+                      value={new Date(endDate)}
+                      onChange={(e, d) => {
+                        setShowEndDatePicker(false);
+                        if (d) setEndDate(d.toISOString().split('T')[0]);
+                      }}
+                    />
+                  )}
+                </View>
+              )}
+            </View>
+
+            {/* Leave Reason Text area */}
+            <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Reason / Details *</Text>
+            <TextInput
+              style={styles.textArea}
+              placeholder="Provide medical reasons or urgency details..."
+              placeholderTextColor="#94A3B8"
+              value={reason}
+              onChangeText={setReason}
+              multiline
+              numberOfLines={4}
+              onFocus={() => {
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 150);
+              }}
+            />
+
+            <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
+              <Text style={styles.submitBtnText}>SUBMIT LEAVE REQUEST</Text>
+            </TouchableOpacity>
           </View>
 
-          {/* Leave Reason Text area */}
-          <Text style={[styles.sectionLabel, { marginTop: 12 }]}>Reason / Details *</Text>
-          <TextInput
-            style={styles.textArea}
-            placeholder="Provide medical reasons or urgency details..."
-            placeholderTextColor="#94A3B8"
-            value={reason}
-            onChangeText={setReason}
-            multiline
-            numberOfLines={4}
-            onFocus={() => {
-              setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }, 150);
-            }}
-          />
-
-          <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-            <Text style={styles.submitBtnText}>SUBMIT LEAVE REQUEST</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* History Log */}
-        {history.length > 0 && (
-          <>
-            <Text style={styles.historyTitle}>Leave Log History ({history.length})</Text>
-            {history.map((req) => {
-              const statusStyle = getStatusStyle(req.status);
-              return (
-                <View key={req.id} style={styles.historyCard}>
-                  <View style={styles.historyCardHeader}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.historyLeaveType}>
-                        {req.leaveType} {req.isHalfDay ? '(Half Day)' : ''}
-                      </Text>
-                      <Text style={styles.historyDays}>Total Days: {req.totalDays} Day(s)</Text>
+          {/* History Log */}
+          {history.length > 0 && (
+            <>
+              <Text style={styles.historyTitle}>Leave Log History ({history.length})</Text>
+              {history.map((req) => {
+                const statusStyle = getStatusStyle(req.status);
+                return (
+                  <View key={req.id} style={styles.historyCard}>
+                    <View style={styles.historyCardHeader}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.historyLeaveType}>
+                          {req.leaveType} {req.isHalfDay ? '(Half Day)' : ''}
+                        </Text>
+                        <Text style={styles.historyDays}>Total Days: {req.totalDays} Day(s)</Text>
+                      </View>
+                      
+                      {/* Changed to plain View — interactive toggle capability removed */}
+                      <View
+                        style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
+                      >
+                        <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
+                          {req.status}
+                        </Text>
+                      </View>
                     </View>
-                    <TouchableOpacity
-                      onPress={() => cycleLeaveStatus(req.id)}
-                      style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
-                    >
-                      <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
-                        {req.status} 🔄
-                      </Text>
-                    </TouchableOpacity>
+
+                    <View style={styles.divider} />
+                    
+                    <Text style={styles.historyInfo}>
+                      📅 Duration: {formatDateDisplay(req.startDate)} {req.isHalfDay ? '' : `to ${formatDateDisplay(req.endDate)}`}
+                    </Text>
+                    <Text style={styles.historyInfo}>📝 Reason: {req.reason}</Text>
+                    
+                    {/* Manager Comment display */}
+                    {req.managerComment ? (
+                      <View style={styles.managerCommentBox}>
+                        <Text style={styles.managerCommentLabel}>💬 Manager Remarks:</Text>
+                        <Text style={styles.managerCommentText}>{req.managerComment}</Text>
+                      </View>
+                    ) : null}
+                    
+                    <Text style={styles.historyApplied}>Applied on: {req.appliedOn}</Text>
                   </View>
-
-                  <View style={styles.divider} />
-                  
-                  <Text style={styles.historyInfo}>
-                    📅 Duration: {formatDateDisplay(req.startDate)} {req.isHalfDay ? '' : `to ${formatDateDisplay(req.endDate)}`}
-                  </Text>
-                  <Text style={styles.historyInfo}>📝 Reason: {req.reason}</Text>
-                  
-                  {/* Manager Comment display */}
-                  {req.managerComment ? (
-                    <View style={styles.managerCommentBox}>
-                      <Text style={styles.managerCommentLabel}>💬 Manager Remarks:</Text>
-                      <Text style={styles.managerCommentText}>{req.managerComment}</Text>
-                    </View>
-                  ) : null}
-                  
-                  <Text style={styles.historyApplied}>Applied on: {req.appliedOn}</Text>
-                </View>
-              );
-            })}
-          </>
-        )}
-        <View style={{ height: 40 }} />
+                );
+              })}
+            </>
+          )}
+          <View style={{ height: 40 }} />
         </ScrollView>
       </KeyboardAvoidingView>
     </View>

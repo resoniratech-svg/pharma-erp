@@ -1,3 +1,4 @@
+import { createDailyReport } from '../../services/dailyReportService';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -180,6 +181,18 @@ const DailyReportScreen = () => {
     };
 
     try {
+      const reportDate = new Date().toISOString();
+
+await createDailyReport(
+  reportDate,
+  docCount,
+  chemistCount,
+  0, // samplesDistributed
+  totalSales, // ordersCollected
+  remarks
+);
+
+console.log('Daily Report Saved Successfully');
       // Save submission state to storage
       await AsyncStorage.setItem('@daily_report_submitted', new Date().toDateString());
       await AsyncStorage.setItem('@daily_report_data', JSON.stringify(reportData));

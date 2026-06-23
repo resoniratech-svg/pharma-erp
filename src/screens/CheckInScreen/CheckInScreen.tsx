@@ -1,3 +1,4 @@
+import { checkInAttendance } from '../../services/attendanceService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -147,6 +148,39 @@ const CheckInScreen = () => {
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const latVal = activeCoords.latitude;
       const lngVal = activeCoords.longitude;
+
+      const mrId = await AsyncStorage.getItem('@mrId');
+
+if (!mrId) {
+  Alert.alert('Error', 'MR ID not found');
+  return;
+}
+
+const token = await AsyncStorage.getItem('@token');
+
+console.log('MR ID:', mrId);
+console.log('TOKEN:', token);
+
+const attendanceResponse =
+  await checkInAttendance(
+    Number(mrId),
+    latVal,
+    lngVal
+  );
+
+console.log(
+  'Attendance Saved:',
+  attendanceResponse
+);
+
+await AsyncStorage.setItem(
+  '@attendanceId',
+  attendanceResponse.data.id.toString()
+);
+console.log(
+  'Attendance ID:',
+  attendanceResponse.data.id
+);
 
       await AsyncStorage.setItem('@checked_in', 'true');
       await AsyncStorage.setItem('@check_in_time', time);

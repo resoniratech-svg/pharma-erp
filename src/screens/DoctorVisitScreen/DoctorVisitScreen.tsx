@@ -13,7 +13,13 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Picker } from '@react-native-picker/picker'; // ⬅️ Imported Picker
 import * as Location from 'expo-location';
+import {
+  createDoctorVisit,
+  getDoctors
+} from '../../services/doctorService';
+import { createFollowUp } from '../../services/followUpService'; // ⬅️ Imported service method for scheduling follow-ups
 
 // ✅ Unified interface — matches React Web DoctorVisits.tsx exactly
 interface DoctorVisit {
@@ -195,6 +201,13 @@ const DoctorVisitScreen = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // API Dropdown states
+  const [doctors, setDoctors] = useState<any[]>([]);
+  const [doctorId, setDoctorId] = useState<number | null>(null);
+  
+  // ⬅️ Modification Step: Dynamic tracking state variables for MR ID
+  const [mrId, setMrId] = useState<number | null>(null);
+
   // Form states matching unified interface
   const [doctorName, setDoctorName] = useState('');
   const [specialty, setSpecialty] = useState('');
@@ -218,9 +231,20 @@ const DoctorVisitScreen = () => {
     else { Alert.alert(title, message); }
   };
 
+  // ⬅️ Modification Step: Auto fetch authenticated profile token metadata on mount
+  useEffect(() => {
+    const loadMrId = async () => {
+      const storedMrId = await AsyncStorage.getItem('@mrId');
+      if (storedMrId) {
+        setMrId(Number(storedMrId));
+      }
+    };
+    loadMrId();
+  }, []);
+
   useEffect(() => {
     loadVisits();
-    // Auto-fill current date/time
+    loadDoctors(); // Fetching backend doctors
     setVisitDate(formatDate(new Date()));
     setVisitTime(formatTime(new Date()));
   }, []);
@@ -238,8 +262,18 @@ const DoctorVisitScreen = () => {
     }
   };
 
+  const loadDoctors = async () => {
+    try {
+      const response = await getDoctors();
+      console.log('Doctors:', response);
+      setDoctors(response.data || response); // fallback array structural safety
+    } catch (error) {
+      console.log('Load Doctors Error:', error);
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!doctorName.trim()) { customAlert('Error', 'Please enter Doctor Name'); return; }
+    if (!doctorId) { customAlert('Error', 'Please select a Doctor'); return; }
     if (!clinic.trim()) { customAlert('Error', 'Please enter Clinic / Hospital'); return; }
     if (!visitDate) { customAlert('Error', 'Please select Visit Date'); return; }
     if (mobile.trim() && mobile.length !== 10) {
@@ -264,6 +298,50 @@ const DoctorVisitScreen = () => {
       }
     } catch (e) {
       console.log('Location error:', e);
+    }
+
+    // Backend submission step
+    try {
+      const result = await createDoctorVisit(
+        doctorId,
+        remarks,
+        productsDiscussed,
+        Number(samplesGiven || 0),
+        currentLat,
+        currentLon
+      );
+      console.log('Doctor Visit Saved to Backend:', result);
+
+      console.log('FOLLOWUP MR ID:', mrId);
+      console.log('FOLLOWUP DOCTOR ID:', doctorId);
+
+      if (nextFollowUp) {
+        console.log('FOLLOWUP MR ID:', mrId);
+
+        console.log('FOLLOWUP PAYLOAD:', {
+          mrId: Number(mrId),
+          doctorId: Number(doctorId),
+          title: 'Doctor Follow Up',
+          remarks: remarks || 'Doctor follow-up scheduled',
+          followUpDate: new Date(nextFollowUp),
+        });
+
+        // ⬅️ Modification Step: Configured dynamically resolved component properties
+        await createFollowUp({
+          mrId: Number(mrId),
+          doctorId: Number(doctorId),
+          title: 'Doctor Follow Up',
+          remarks: remarks || 'Doctor follow-up scheduled',
+          followUpDate: new Date(nextFollowUp),
+        });
+
+        console.log('Follow-up schedule created successfully on server.');
+      }
+    } catch (error) {
+      console.log('Doctor Visit API Error:', error);
+      customAlert('Error', 'Failed to save Doctor Visit to server.');
+      setIsSubmitting(false);
+      return;
     }
 
     const newVisit: DoctorVisit = {
@@ -298,7 +376,7 @@ const DoctorVisitScreen = () => {
     }
 
     // Reset form, keep date/time
-    setDoctorName(''); setSpecialty(''); setClinic(''); setMobile('');
+    setDoctorId(null); setDoctorName(''); setSpecialty(''); setClinic(''); setMobile('');
     setVisitType('Routine Visit'); setDoctorClass('B'); setProductsDiscussed('');
     setSamplesGiven(''); setPrescriptionPotential('Medium'); setNextFollowUp('');
     setRemarks(''); setStatus('Scheduled');
@@ -340,9 +418,35 @@ const DoctorVisitScreen = () => {
         <Text style={styles.title}>🩺 Doctor Visit</Text>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Doctor Name *</Text>
-          <TextInput style={styles.input} placeholder="e.g. Dr. Satish Roy"
-            value={doctorName} onChangeText={setDoctorName} />
+          <Text style={styles.label}>Select Doctor *</Text>
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: '#ddd',
+              borderRadius: 8,
+              marginBottom: 12,
+            }}
+          >
+            <Picker
+              selectedValue={doctorId}
+              onValueChange={(itemValue) => {
+                const doctorIdNum = Number(itemValue);
+                setDoctorId(doctorIdNum);
+                const selectedDoctor = doctors.find((d) => d.id === doctorIdNum);
+                if (selectedDoctor) {
+                  setDoctorName(selectedDoctor.name || '');
+                  setSpecialty(selectedDoctor.specialization || '');
+                  setClinic(selectedDoctor.hospital || '');
+                  setMobile(selectedDoctor.mobile || '');
+                }
+              }}
+            >
+              <Picker.Item label="Select Doctor" value={null} />
+              {doctors.map((doctor) => (
+                <Picker.Item key={doctor.id} label={doctor.name} value={doctor.id} />
+              ))}
+            </Picker>
+          </View>
 
           <Text style={styles.label}>Specialty</Text>
           <TextInput style={styles.input} placeholder="e.g. Cardiologist"
@@ -379,7 +483,7 @@ const DoctorVisitScreen = () => {
 
           <Text style={styles.label}>Samples Given</Text>
           <TextInput style={styles.input} placeholder="e.g. 10 strips Atorvastatin"
-            value={samplesGiven} onChangeText={setSamplesGiven} />
+            value={samplesGiven} onChangeText={setSamplesGiven} keyboardType="numeric" />
 
           <ToggleRow
             label="Rx Potential"

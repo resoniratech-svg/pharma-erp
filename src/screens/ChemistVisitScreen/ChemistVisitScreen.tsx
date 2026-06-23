@@ -1,3 +1,9 @@
+import { 
+  createChemistVisit, 
+  findChemistByMobile, 
+  createChemist 
+} from '../../services/chemistService'; 
+import { createFollowUp } from '../../services/followUpService'; // ⬅️ Imported followUpService
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -59,8 +65,6 @@ const formatTime = (date: Date): string => {
 };
 
 // ─── DatePickerField Component ───────────────────────────────────────────────
-// On iOS/Android → opens native calendar picker
-// On Web → shows HTML date input (no mistakes possible)
 const DatePickerField = ({
   label,
   value,
@@ -71,15 +75,13 @@ const DatePickerField = ({
   onChange: (date: string) => void;
 }) => {
   const [showPicker, setShowPicker] = useState(false);
-
   const dateObj = value ? new Date(value) : new Date();
 
-  // Web: use HTML date input — no manual typing mistakes
   if (Platform.OS === 'web') {
     return (
       <View style={{ marginBottom: 4 }}>
         <Text style={styles.label}>{label}</Text>
-        {/* @ts-ignore — input is valid HTML on web */}
+        {/* @ts-ignore */}
         <input
           type="date"
           value={value}
@@ -101,7 +103,6 @@ const DatePickerField = ({
     );
   }
 
-  // iOS / Android: native DateTimePicker
   return (
     <View style={{ marginBottom: 4 }}>
       <Text style={styles.label}>{label}</Text>
@@ -121,7 +122,7 @@ const DatePickerField = ({
           mode="date"
           display={Platform.OS === 'ios' ? 'inline' : 'default'}
           onChange={(_event: any, selectedDate?: Date) => {
-            setShowPicker(Platform.OS === 'ios'); // iOS keeps open; Android closes
+            setShowPicker(Platform.OS === 'ios');
             if (selectedDate) {
               onChange(formatDate(selectedDate));
             }
@@ -134,11 +135,8 @@ const DatePickerField = ({
     </View>
   );
 };
-// ─────────────────────────────────────────────────────────────────────────────
 
 // ─── TimePickerField Component ───────────────────────────────────────────────
-// On iOS/Android → opens native clock picker
-// On Web → shows HTML time input (no mistakes possible)
 const TimePickerField = ({
   label,
   value,
@@ -150,7 +148,6 @@ const TimePickerField = ({
 }) => {
   const [showPicker, setShowPicker] = useState(false);
 
-  // Build a Date object from HH:MM string for the picker
   const buildTimeDate = (timeStr: string): Date => {
     const now = new Date();
     if (timeStr && timeStr.includes(':')) {
@@ -160,7 +157,6 @@ const TimePickerField = ({
     return now;
   };
 
-  // Web: use HTML time input
   if (Platform.OS === 'web') {
     return (
       <View style={{ marginBottom: 4 }}>
@@ -186,7 +182,6 @@ const TimePickerField = ({
     );
   }
 
-  // iOS / Android: native clock picker
   return (
     <View style={{ marginBottom: 4 }}>
       <Text style={styles.label}>{label}</Text>
@@ -220,6 +215,7 @@ const TimePickerField = ({
     </View>
   );
 };
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 const ChemistVisitScreen = () => {
@@ -237,6 +233,9 @@ const ChemistVisitScreen = () => {
   const [remarks, setRemarks] = useState('');
   const [status, setStatus] = useState<ChemistVisit['status']>('Scheduled');
 
+  // ⬅️ Modification Step: Replaced 'const mrId = 1;' with clean state configuration
+  const [mrId, setMrId] = useState<number | null>(null);
+
   const [visits, setVisits] = useState<ChemistVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -248,9 +247,19 @@ const ChemistVisitScreen = () => {
     else { Alert.alert(title, message); }
   };
 
+  // ⬅️ Modification Step: Fetching authenticated profile token metadata dynamically
+  useEffect(() => {
+    const loadMrId = async () => {
+      const storedMrId = await AsyncStorage.getItem('@mrId');
+      if (storedMrId) {
+        setMrId(Number(storedMrId));
+      }
+    };
+    loadMrId();
+  }, []);
+
   useEffect(() => {
     loadVisits();
-    // Auto-fill today's date and current time
     const today = new Date();
     setVisitDate(formatDate(today));
     setVisitTime(formatTime(today));
@@ -305,13 +314,57 @@ const ChemistVisitScreen = () => {
       medicine, quantity, nextFollowUp, remarks, status,
     };
 
+    // ─── API SERVER CONDITIONAL RESOLUTION & SUBMISSION ───
+    try {
+      let chemistId: number;
+
+      const existingChemist = await findChemistByMobile(mobile);
+
+      if (existingChemist) {
+        chemistId = existingChemist.id;
+        console.log('Using existing chemist:', chemistId);
+      } else {
+        const newChemist = await createChemist(chemistName, mobile, location);
+        chemistId = newChemist.id;
+        console.log('Created new chemist:', chemistId);
+      }
+
+      const result = await createChemistVisit(
+        chemistId,
+        remarks,
+        medicine,
+        Number(pobAmount || 0),
+        currentLat,
+        currentLon
+      );
+      console.log('Chemist Visit Saved:', result);
+
+      if (nextFollowUp) {
+        // ⬅️ Modification Step: Replaced hardcoded values with dynamically resolved context state
+        await createFollowUp({
+          mrId: Number(mrId),
+          chemistId: Number(chemistId),
+          title: 'Chemist Follow Up',
+          remarks: remarks || 'Chemist follow-up scheduled',
+          followUpDate: new Date(nextFollowUp).toISOString(),
+        });
+
+        console.log('Chemist Follow-up created successfully');
+      }
+
+    } catch (error) {
+      console.log('Chemist Visit API Error:', error);
+      customAlert('Error', 'Failed to save Chemist Visit to server');
+      setIsSubmitting(false);
+      return;
+    }
+
     const updatedVisits = [newVisit, ...visits];
     setVisits(updatedVisits);
 
     try {
       await AsyncStorage.setItem('@chemist_visits', JSON.stringify(updatedVisits));
 
-      // Auto-create Order Booking if POB Amount > 0 (matches web behavior)
       if (Number(pobAmount) > 0) {
         const existingOrders = safeJsonParse(
           await AsyncStorage.getItem('@order_bookings'), []
@@ -341,7 +394,6 @@ const ChemistVisitScreen = () => {
     customAlert('✅ Visit Saved!', `${shopName} visit logged successfully.`);
   };
 
-  // Reusable toggle button row (for stockCheck and status)
   const ToggleRow = ({
     label, options, selected, onSelect, colors,
   }: {
@@ -380,7 +432,6 @@ const ChemistVisitScreen = () => {
         <Text style={styles.title}>💊 Chemist Visit</Text>
 
         <View style={styles.form}>
-
           <Text style={styles.label}>Chemist Name *</Text>
           <TextInput style={styles.input} placeholder="Enter chemist name"
             value={chemistName} onChangeText={setChemistName} />
@@ -399,21 +450,18 @@ const ChemistVisitScreen = () => {
           <TextInput style={styles.input} placeholder="e.g. Hyderabad, Banjara Hills"
             value={location} onChangeText={setLocation} />
 
-          {/* ✅ Visit Date — Calendar Picker (no manual typing) */}
           <DatePickerField
             label="Visit Date *"
             value={visitDate}
             onChange={setVisitDate}
           />
 
-          {/* ✅ Visit Time — Clock Picker (no manual typing) */}
           <TimePickerField
             label="Visit Time"
             value={visitTime}
             onChange={setVisitTime}
           />
 
-          {/* RCPA / Stock Check — toggle buttons */}
           <ToggleRow
             label="RCPA / Stock Check"
             options={['Pending', 'Yes', 'No']}
@@ -436,7 +484,6 @@ const ChemistVisitScreen = () => {
             placeholder="e.g. 15000 (numbers only)"
             value={pobAmount}
             onChangeText={(text) => {
-              // ✅ Allow only digits, max 10 digits = ₹99,99,99,999
               const cleaned = text.replace(/[^0-9]/g, '').slice(0, 10);
               setPobAmount(cleaned);
             }}
@@ -444,7 +491,6 @@ const ChemistVisitScreen = () => {
             maxLength={10}
           />
 
-          {/* ✅ Next Follow-Up Date — Calendar Picker (no manual typing) */}
           <DatePickerField
             label="Next Follow-Up Date"
             value={nextFollowUp}
@@ -464,7 +510,6 @@ const ChemistVisitScreen = () => {
             }}
           />
 
-          {/* Status — toggle buttons */}
           <ToggleRow
             label="Status"
             options={['Scheduled', 'Completed', 'Missed']}
@@ -480,7 +525,6 @@ const ChemistVisitScreen = () => {
               <Text style={styles.submitText}>BOOK ORDER</Text>
             )}
           </TouchableOpacity>
-
         </View>
 
         {/* Visit History */}
@@ -541,7 +585,6 @@ const ChemistVisitScreen = () => {
             ))}
           </>
         )}
-
       </ScrollView>
     </KeyboardAvoidingView>
   );

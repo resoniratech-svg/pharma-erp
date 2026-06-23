@@ -696,6 +696,7 @@
 //   },
 // });
 ////////////////////////////////////////////////////////////////////////////////////////////
+import { createExpense } from '../../services/expenseService';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -894,6 +895,45 @@ const ExpenseClaimScreen = () => {
       customAlert('Invalid Input', 'Please enter a valid expense claim amount.');
       return;
     }
+
+    try {
+
+ const parts =
+  selectedDate.split('-');
+
+const isoDate =
+  new Date(
+    Number(parts[2]),
+    Number(parts[1]) - 1,
+    Number(parts[0])
+  ).toISOString();
+
+  await createExpense(
+    category,
+    parsedAmount,
+    isoDate,
+    remarks,
+    receiptRef
+  );
+
+  console.log(
+    'Expense Saved Successfully'
+  );
+
+} catch (error) {
+
+  console.log(
+    'Expense API Error:',
+    error
+  );
+
+  customAlert(
+    'Error',
+    'Failed to save expense'
+  );
+
+  return;
+}
 
     const newClaim: ExpenseClaim = {
       id: Date.now(),

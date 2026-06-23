@@ -1,3 +1,5 @@
+import { checkOutAttendance } from '../../services/attendanceService';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
@@ -190,6 +192,33 @@ const CheckOutScreen = () => {
       setLoading(true);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+     const attendanceId =
+  await AsyncStorage.getItem('@attendanceId');
+
+console.log(
+  'Attendance ID:',
+  attendanceId
+);
+
+if (
+  attendanceId &&
+  checkoutCoords
+) {
+  const response =
+    await checkOutAttendance(
+      Number(attendanceId),
+      checkoutCoords.latitude,
+      checkoutCoords.longitude
+    );
+
+  console.log(
+    'Checkout Response:',
+    response
+  );
+}
+
+
+
       // Fetch check-in data from storage
       const checkInDateStr = await AsyncStorage.getItem('@attendance_date');
       const storedTime = await AsyncStorage.getItem('@check_in_time');
@@ -231,6 +260,9 @@ const CheckOutScreen = () => {
 
       // Clear current check-in session variables
       await AsyncStorage.setItem('@checked_in', 'false');
+      await AsyncStorage.removeItem(
+  '@attendanceId'
+);
       await AsyncStorage.removeItem('@check_in_time');
       await AsyncStorage.removeItem('@check_in_lat');
       await AsyncStorage.removeItem('@check_in_lng');

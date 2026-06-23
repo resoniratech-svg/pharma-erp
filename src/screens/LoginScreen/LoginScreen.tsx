@@ -23,6 +23,7 @@
 //   },
 // });
 //import Icon from 'react-native-vector-icons/Ionicons';
+import { loginUser } from '../../services/authService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -50,29 +51,40 @@ const LoginScreen = () => {
   // };
  
 const handleLogin = async () => {
-  let correctPassword = 'admin123';
   try {
-    const storedPassword = await AsyncStorage.getItem('@user_password');
-    if (storedPassword) {
-      correctPassword = storedPassword;
-    }
-  } catch (e) {
-    console.log('Failed to read stored password from AsyncStorage', e);
-  }
+    const response = await loginUser(
+      username,
+      password
+    );
 
-  if (username === 'admin' && password === correctPassword) {
-    try {
-      await AsyncStorage.setItem('@user_name', 'Priya Reddy');
-      await AsyncStorage.setItem('@designation', 'Medical Representative');
-      await AsyncStorage.setItem('@employee_id', 'EMP-001');
-    } catch (e) {
-      console.log('Failed to save profile on login', e);
-    }
+    console.log('Login Response:', response);
+
+    await AsyncStorage.setItem(
+      '@token',
+      response.data.token
+    );
+
+    await AsyncStorage.setItem(
+      '@mrId',
+      response.data.mr.id.toString()
+    );
+
+    await AsyncStorage.setItem(
+      '@user',
+      JSON.stringify(response.data.user)
+    );
+
     navigation.replace('App');
-  } else {
-    alert('Invalid Username or Password');
+
+  } catch (error: any) {
+    console.log(error);
+    alert(
+      error?.response?.data?.message ||
+      'Login failed'
+    );
   }
 };
+
 
   return (
     <View style={styles.container}>
@@ -85,11 +97,12 @@ const handleLogin = async () => {
       <Text style={styles.subtitle}>Medical Representative Portal</Text>
 
       <TextInput
-        placeholder="Username"
-        style={styles.input}
-        value={username}
-        onChangeText={setUsername}
-      />
+  placeholder="Email"
+  style={styles.input}
+  value={username}
+  onChangeText={setUsername}
+/>
+
 {/* 
       <TextInput
         placeholder="Password"
