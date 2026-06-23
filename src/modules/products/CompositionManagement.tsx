@@ -17,6 +17,7 @@ import { type Column } from './types';
 import { compositionService } from "../../services/compositionService";
 import activityLogService from "../../services/activityLogService";
 
+
 interface Composition {
   id: string;
   genericName: string;
@@ -48,14 +49,13 @@ export default function CompositionManagement() {
       setData(savedData);
     } else {
       setData(initialMockData);
+
       compositionService.saveAll(initialMockData);
     }
   }, []);
 
   useEffect(() => {
-    if (data.length > 0) {
-      compositionService.saveAll(data);
-    }
+    compositionService.saveAll(data);
   }, [data]);
 
   const [search, setSearch] = useState('');

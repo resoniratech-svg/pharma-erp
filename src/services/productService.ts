@@ -12,6 +12,7 @@ export interface Product {
   manufacturer: string;
 
   composition?: string;
+  scheme?: string;
   barcode?: string;
 
   packingType: string;

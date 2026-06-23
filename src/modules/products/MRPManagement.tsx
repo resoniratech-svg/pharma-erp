@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Filter,
   Download,
@@ -20,6 +20,11 @@ import {
 } from './components/shared';
 
 import { type Column } from './types';
+import { mrpService } from '../../services/mrpService';
+import { productService } from '../../services/productService';
+import activityLogService  from '../../services/activityLogService';
+import { hasModulePermission } from '../../utils/permissionUtils';
+
 
 interface MRPItem {
   id: string;
@@ -36,12 +41,7 @@ interface MRPItem {
   status: 'Active' | 'Scheduled' | 'Expired' | 'Draft' | 'Cancelled';
 }
 
-const mockProducts = [
-  { code: 'PRD-001', name: 'Paracetamol 650mg', category: 'Tablet', productType: 'Tablet', currentMrp: 120 },
-  { code: 'PRD-002', name: 'Amoxicillin 500mg', category: 'Capsule', productType: 'Capsule', currentMrp: 185 },
-  { code: 'PRD-003', name: 'Vitamin C 1000mg', category: 'Tablet', productType: 'Tablet', currentMrp: 240 },
-  { code: 'PRD-004', name: 'Cough Syrup 100ml', category: 'Syrup', productType: 'Syrup', currentMrp: 95 },
-];
+
 
 const initialMockData: MRPItem[] = [
   {
@@ -103,7 +103,40 @@ const initialMockData: MRPItem[] = [
 ];
 
 export default function MRPManagement() {
-  const [data, setData] = useState<MRPItem[]>(initialMockData);
+  const [data, setData] = useState<MRPItem[]>([]);
+  useEffect(() => {
+    const savedData = mrpService.getAll();
+
+    if (savedData.length) {
+      setData(savedData);
+    }
+  }, []);
+  useEffect(() => {
+    mrpService.saveAll(data);
+  }, [data]);
+
+
+  const activeRole = localStorage.getItem("activeRole") || "";
+
+  const canView = hasModulePermission(activeRole, "Products & Master", "View");
+
+  const canCreate = hasModulePermission(
+    activeRole,
+    "Products & Master",
+    "Create",
+  );
+
+  const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
+
+  const canDelete = hasModulePermission(
+    activeRole,
+    "Products & Master",
+    "Delete",
+  );
+
+
+  const currentUser = JSON.parse(localStorage.getItem("authUser") || "{}");
+  const [products, setProducts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
@@ -111,6 +144,9 @@ export default function MRPManagement() {
   const [isEditingModal, setIsEditingModal] = useState(false);
   
   const [selectedItem, setSelectedItem] = useState<MRPItem | null>(null);
+  useEffect(() => {
+    setProducts(productService.getProducts());
+  }, []);
   const [itemToDelete, setItemToDelete] = useState<MRPItem | null>(null);
 
   const [newMrp, setNewMrp] = useState({
@@ -192,6 +228,7 @@ export default function MRPManagement() {
           >
             View
           </button>
+          {canDelete && (
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -202,6 +239,7 @@ export default function MRPManagement() {
           >
             <Trash2 className="w-4 h-4" />
           </button>
+          )}
         </div>
       )
     }
@@ -236,10 +274,16 @@ export default function MRPManagement() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    activityLogService.addLog({
+      userId: currentUser?.id,
+      userName: currentUser?.fullName,
+      action: "MRP Report Exported",
+      module: "MRP Management",
+    });
   };
 
   const handleProductSelect = (productName: string) => {
-    const product = mockProducts.find(p => p.name === productName);
+    const product = products.find((p) => p.name === productName);
     if (product) {
       setNewMrp({
         ...newMrp,
@@ -247,7 +291,7 @@ export default function MRPManagement() {
         productCode: product.code,
         category: product.category,
         productType: product.productType,
-        currentMrp: product.currentMrp.toString()
+        currentMrp: String(product.mrp || '')
       });
     } else {
       setNewMrp({
@@ -283,7 +327,7 @@ export default function MRPManagement() {
   const openEditModal = () => {
     if (!selectedItem) return;
     setIsEditingModal(true);
-    const product = mockProducts.find(p => p.name === selectedItem.productName);
+    const product = products.find((p) => p.name === selectedItem.productName);
     setNewMrp({
       id: selectedItem.id,
       productName: selectedItem.productName,
@@ -324,6 +368,12 @@ export default function MRPManagement() {
       };
       
       setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "MRP Updated",
+        module: "MRP Management",
+      });
       if (selectedItem && selectedItem.id === updatedRecord.id) {
         setSelectedItem(updatedRecord);
       }
@@ -343,6 +393,12 @@ export default function MRPManagement() {
         status: newMrp.status as any
       };
       setData([record, ...data]);
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "MRP Created",
+        module: "MRP Management",
+      });
     }
     
     setShowModal(false);
@@ -351,9 +407,27 @@ export default function MRPManagement() {
   const handleDelete = () => {
     if (itemToDelete) {
       setData(data.filter(item => item.id !== itemToDelete.id));
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "MRP Deleted",
+        module: "MRP Management",
+      });
       setItemToDelete(null);
     }
   };
+
+  if (!canView) {
+    return (
+      <div className="p-10 text-center">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+
+        <p className="text-slate-500 mt-2">
+          You do not have permission to view Product Management.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -369,13 +443,14 @@ export default function MRPManagement() {
             >
               Export
             </ActionButton>
-
+             {canCreate && (
             <ActionButton
               icon={<Plus className="w-4 h-4" />}
               onClick={openNewModal}
             >
               New MRP
             </ActionButton>
+             )}
           </>
         }
       />
@@ -465,7 +540,9 @@ export default function MRPManagement() {
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
+              {canEdit && (
               <ActionButton onClick={openEditModal}>Edit MRP</ActionButton>
+              )}
               <ActionButton variant="secondary" onClick={() => setSelectedItem(null)}>Close</ActionButton>
             </div>
           </div>
@@ -519,7 +596,7 @@ export default function MRPManagement() {
                   className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${isEditingModal ? 'bg-slate-50 opacity-70 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Select Product</option>
-                  {mockProducts.map(p => <option key={p.code} value={p.name}>{p.name}</option>)}
+                  {products.map(p => <option key={p.code} value={p.name}>{p.name}</option>)}
                 </select>
               </div>
               <div>

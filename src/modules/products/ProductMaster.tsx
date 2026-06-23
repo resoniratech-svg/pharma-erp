@@ -16,8 +16,11 @@ import { type Column } from './types';
 import { div } from 'framer-motion/m';
 import { productService } from "../../services/productService";
 import { packingTypeService } from "../../services/packingTypeService";
+import { compositionService } from "../../services/compositionService";
+import { gstService } from "../../services/gstService";
 import activityLogService from "../../services/activityLogService";
 import { hasModulePermission } from '../../utils/permissionUtils';
+import { schemeService } from "../../services/schemeService";
 import {
   PRODUCT_TYPES,
   MANUFACTURERS,
@@ -38,6 +41,7 @@ interface Product {
   manufacturer: string;
 
   composition?: string;
+  scheme?: string;
   barcode?: string;
 
   
@@ -78,6 +82,7 @@ const initialProducts: Product[] = [
     manufacturer: "PharmaCorp",
 
     composition: "Amoxicillin 500mg",
+    scheme:"Buy 1 get 10",
     barcode: "890100000001",
 
     
@@ -303,6 +308,10 @@ export default function ProductMaster() {
   
   const [products, setProducts] = useState<Product[]>([]);
   const [packingTypes, setPackingTypes] = useState<any[]>([]);
+  const [compositions, setCompositions] = useState<any[]>([]);
+  const [gstRecords, setGstRecords] = useState<any[]>([]);
+  const [schemes, setSchemes] = useState<any[]>([]);
+
 
   const [showNewProductModal, setShowNewProductModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
@@ -317,6 +326,7 @@ export default function ProductMaster() {
   genericName: "",
   brandName: "",
   composition: "",
+  scheme: "",
   barcode: "",
 
   category: "",
@@ -379,6 +389,20 @@ export default function ProductMaster() {
     setPackingTypes(
       savedPackingTypes.filter((item: any) => item.status === "Active"),
     );
+
+    const savedCompositions = compositionService.getAll();
+    console.log("Product Master Compositions:", savedCompositions);
+
+    setCompositions(
+      savedCompositions.filter((item: any) => item.status === "Active"),
+    );
+
+    const savedSchemes = schemeService.getAll();
+
+    if (savedSchemes.length > 0) {
+      setSchemes(savedSchemes);
+    }
+    
   }, []);
 
   useEffect(() => {
@@ -423,6 +447,13 @@ export default function ProductMaster() {
     link.click();
   };
 
+  useEffect(() => {
+    const gstData = gstService.getAll();
+    setGstRecords(gstData);
+  }, []);
+
+
+
   const handleSaveProduct = () => {
     if (
       !newProduct.code ||
@@ -463,6 +494,7 @@ export default function ProductMaster() {
         manufacturer: newProduct.manufacturer,
 
         composition: newProduct.composition,
+        scheme: newProduct.scheme,
         barcode: newProduct.barcode,
 
         // Packaging
@@ -520,6 +552,7 @@ activityLogService.addLog({
   genericName: "",
   brandName: "",
   composition: "",
+  scheme: "",
   barcode: "",
 
   category: "",
@@ -576,7 +609,7 @@ activityLogService.addLog({
 
     {
       key: "type",
-      label: "Type",
+      label: "Product Type",
       width: "10%",
     },
 
@@ -689,6 +722,7 @@ activityLogService.addLog({
                     genericName: "",
                     brandName: "",
                     composition: "",
+                    scheme: "",
                     barcode: "",
 
                     category: "",
@@ -976,6 +1010,7 @@ activityLogService.addLog({
                       genericName: selectedProduct.genericName,
                       brandName: selectedProduct.brandName,
                       composition: selectedProduct.composition || "",
+                      scheme: selectedProduct.scheme || "",
                       barcode: selectedProduct.barcode || "",
 
                       category: selectedProduct.category,
@@ -1251,7 +1286,8 @@ activityLogService.addLog({
                 <label className="block text-sm font-medium mb-1">
                   Composition
                 </label>
-                <textarea
+
+                <select
                   value={newProduct.composition}
                   onChange={(e) =>
                     setNewProduct({
@@ -1260,9 +1296,40 @@ activityLogService.addLog({
                     })
                   }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                  rows={2}
-                  placeholder="e.g. Paracetamol 500mg"
-                />
+                >
+                  <option value="">Select Composition</option>
+
+                  {compositions.map((item) => (
+                    <option key={item.id} value={item.genericName}>
+                      {item.genericName}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Scheme</label>
+
+                <select
+                  value={newProduct.scheme}
+                  onChange={(e) =>
+                    setNewProduct({
+                      ...newProduct,
+                      scheme: e.target.value,
+                    })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                >
+                  <option value="">Select Scheme</option>
+
+                  {schemes
+                    .filter((scheme) => scheme.status === "Active")
+                    .map((scheme) => (
+                      <option key={scheme.id} value={scheme.name}>
+                        {scheme.name}
+                      </option>
+                    ))}
+                </select>
               </div>
 
               <div>
@@ -1441,14 +1508,11 @@ activityLogService.addLog({
 
               <div>
                 <label className="block text-sm font-medium mb-1">GST %</label>
+
                 <input
-                  type="number"
-                  placeholder="Enter GST %"
                   value={newProduct.gst}
-                  onChange={(e) =>
-                    setNewProduct({ ...newProduct, gst: e.target.value })
-                  }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  readOnly
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50"
                 />
               </div>
 
@@ -1456,13 +1520,32 @@ activityLogService.addLog({
                 <label className="block text-sm font-medium mb-1">
                   HSN Code
                 </label>
+
                 <input
+                  list="hsn-codes"
                   value={newProduct.hsnCode}
-                  onChange={(e) =>
-                    setNewProduct({ ...newProduct, hsnCode: e.target.value })
-                  }
+                  placeholder="Search or Select HSN Code"
+                  onChange={(e) => {
+                    const selectedGST = gstRecords.find(
+                      (gst) => gst.hsnCode === e.target.value,
+                    );
+
+                    setNewProduct({
+                      ...newProduct,
+                      hsnCode: e.target.value,
+                      gst: selectedGST?.totalGst?.replace("%", "") || "",
+                    });
+                  }}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
+
+                <datalist id="hsn-codes">
+                  {gstRecords.map((gst) => (
+                    <option key={gst.id} value={gst.hsnCode}>
+                      {gst.hsnCode} - {gst.totalGst}
+                    </option>
+                  ))}
+                </datalist>
               </div>
 
               <div className="md:col-span-2 mt-4">

@@ -32,6 +32,7 @@ import NotificationDropdown from '../../components/NotificationDropdown';
 import authService from '../../services/authService';
 import activityLogService from '../../services/activityLogService';
 import { ROLE_SUPER_ADMIN, ROLE_WAREHOUSE_MANAGER, ROLE_ACCOUNTANT, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_MEDICAL_REPRESENTATIVE, ROLE_TRANSPORT_STAFF, ROLES } from '../../constants/roles';
+import mjLogo from '../../assets/logo/mj-healthcare-logo.svg';
 
 /* ── Constants ───────────────────────────────────────────────────── */
 const PRIMARY_HEX = '#7c3aed';
@@ -340,25 +341,9 @@ export function MainLayout() {
         <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 flex-shrink-0">
           <Link
             to="/workspace/dashboard"
-            className="flex items-center gap-3 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
+            className="flex items-center outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded py-1"
           >
-            <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary"
-              style={{ backgroundColor: PRIMARY_HEX }}
-            >
-              <span
-                className="text-white font-bold text-sm"
-                style={{ fontFamily: "var(--font-heading)" }}
-              >
-                P
-              </span>
-            </div>
-            <span
-              className="text-lg font-bold text-slate-900 tracking-tight"
-              style={{ fontFamily: "var(--font-heading)" }}
-            >
-              Pharma ERP
-            </span>
+            <img src={mjLogo} alt="MJ Healthcare" className="h-9 w-auto object-contain" />
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from "react";
 import { Plus, Filter, Download, Trash2 } from 'lucide-react';
 import {
   PageHeader,
@@ -13,6 +13,13 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './types';
+import { barcodeService } from "../../services/barcodeService";
+
+import { productService } from "../../services/productService";
+
+import activityLogService from "../../services/activityLogService";
+
+import { hasModulePermission } from '../../utils/permissionUtils';
 
 interface Barcode {
   id: string;
@@ -42,15 +49,63 @@ const initialMockData: Barcode[] = [
 ];
 
 export default function BarcodeManagement() {
-  const [data, setData] = useState<Barcode[]>(initialMockData);
+ const [data, setData] = useState<Barcode[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
+  const currentUser = JSON.parse(localStorage.getItem("authUser") || "{}");
   
   const [selectedBarcode, setSelectedBarcode] = useState<Barcode | null>(null);
   const [itemToDelete, setItemToDelete] = useState<Barcode | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditingModal, setIsEditingModal] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const [products, setProducts] = useState<any[]>([]);
+  useEffect(() => {
+    const savedProducts = productService.getProducts();
+
+    setProducts(savedProducts);
+  }, []);
+
+  useEffect(() => {
+  const savedData =
+    barcodeService.getAll();
+
+  if (savedData.length > 0) {
+    setData(savedData);
+  } else {
+    setData(initialMockData);
+
+    barcodeService.saveAll(
+      initialMockData
+    );
+  }
+}, []);
+
+useEffect(() => {
+  if (data.length > 0) {
+    barcodeService.saveAll(data);
+  }
+}, [data]);
+
+
+const activeRole = localStorage.getItem("activeRole") || "";
+
+const canView = hasModulePermission(activeRole, "Products & Master", "View");
+
+const canCreate = hasModulePermission(
+  activeRole,
+  "Products & Master",
+  "Create",
+);
+
+const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
+
+const canDelete = hasModulePermission(
+  activeRole,
+  "Products & Master",
+  "Delete",
+);
 
   const [newBarcode, setNewBarcode] = useState({
     id: '',
@@ -136,12 +191,17 @@ export default function BarcodeManagement() {
   };
 
   const handleProductSelect = (productName: string) => {
-    const product = mockProducts.find(p => p.name === productName);
-    setNewBarcode(prev => ({
-      ...prev,
-      productName: productName,
-      productCode: product ? product.code : ''
-    }));
+    const product = products.find((p) => p.name === productName);
+
+    if (product) {
+      setNewBarcode((prev) => ({
+        ...prev,
+
+        productName: product.name,
+
+        productCode: product.code,
+      }));
+    }
   };
 
   const openNewModal = () => {
@@ -209,6 +269,12 @@ export default function BarcodeManagement() {
       };
       
       setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "Barcode Updated",
+        module: "Barcode Management",
+      });
       if (selectedBarcode && selectedBarcode.id === updatedRecord.id) {
         setSelectedBarcode(updatedRecord);
       }
@@ -225,6 +291,12 @@ export default function BarcodeManagement() {
         status: newBarcode.status as any
       };
       setData([record, ...data]);
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "Barcode Created",
+        module: "Barcode Management",
+      });
     }
     
     setShowModal(false);
@@ -233,9 +305,27 @@ export default function BarcodeManagement() {
   const handleDelete = () => {
     if (itemToDelete) {
       setData(data.filter(item => item.id !== itemToDelete.id));
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "Barcode Deleted",
+        module: "Barcode Management",
+      });
       setItemToDelete(null);
     }
   };
+
+  if (!canView) {
+    return (
+      <div className="p-10 text-center">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+
+        <p className="text-slate-500 mt-2">
+          You do not have permission to view Barcode Management.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -400,7 +490,7 @@ export default function BarcodeManagement() {
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   />
                   <datalist id="product-suggestions">
-                    {mockProducts.map(p => (
+                    {products.map(p => (
                       <option key={p.code} value={p.name} />
                     ))}
                   </datalist>
