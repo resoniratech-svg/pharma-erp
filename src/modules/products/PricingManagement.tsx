@@ -470,6 +470,21 @@ row.retailMargin}"`,
       
       setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
 
+      const products = productService.getProducts();
+
+      const updatedProducts = products.map((product) =>
+        product.code === updatedRecord.productCode
+          ? {
+              ...product,
+              
+              pts: Number(newPricing.pts).toFixed(2),
+              ptr: Number(newPricing.ptr).toFixed(2),
+            }
+          : product,
+      );
+
+      productService.saveProducts(updatedProducts);
+
      
       activityLogService.addLog({
         userId: currentUser?.id,
@@ -504,6 +519,21 @@ row.retailMargin}"`,
         status: newPricing.status as any,
       };
       setData([record, ...data]);
+      const products = productService.getProducts();
+
+      const updatedProducts = products.map((product) =>
+        product.code === record.productCode
+          ? {
+              ...product,
+            
+              pts: Number(newPricing.pts).toFixed(2),
+              ptr: Number(newPricing.ptr).toFixed(2),
+            }
+          : product,
+      );
+
+      productService.saveProducts(updatedProducts);
+
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,

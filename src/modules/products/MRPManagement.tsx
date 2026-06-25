@@ -368,6 +368,20 @@ export default function MRPManagement() {
       };
       
       setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+
+      const products = productService.getProducts();
+
+      const updatedProducts = products.map((product) =>
+        product.code === updatedRecord.productCode
+          ? {
+              ...product,
+              mrp: Number(newMrp.newMrp).toFixed(2),
+            }
+          : product,
+      );
+
+      productService.saveProducts(updatedProducts);
+
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,
@@ -393,6 +407,19 @@ export default function MRPManagement() {
         status: newMrp.status as any
       };
       setData([record, ...data]);
+      const products = productService.getProducts();
+
+      const updatedProducts = products.map((product) =>
+        product.code === record.productCode
+          ? {
+              ...product,
+              mrp: Number(newMrp.newMrp).toFixed(2),
+            }
+          : product,
+      );
+
+      productService.saveProducts(updatedProducts);
+
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,

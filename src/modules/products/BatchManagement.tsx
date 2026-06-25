@@ -14,9 +14,12 @@ import {
 } from './components/shared';
 import { type Column } from './types';
 import { batchService } from "../../services/batchService";
+import { inventoryService } from "../../services/inventoryService";
+import { stockLedgerService } from "../../services/stockLedgerService";
 import  activityLogService  from "../../services/activityLogService";
 import { hasModulePermission } from '../../utils/permissionUtils';
 import { productService } from "../../services/productService";
+import { getExpiryStatus } from "../../utils/expiryUtils";
 
 interface Batch {
   id: string;
@@ -44,7 +47,10 @@ interface Batch {
   storageLocation: string;
   barcode: string;
   remarks: string;
-  status: "Available" | "Expired" | "Quarantine" | "Nearing Expiry";
+  status:
+  | "Healthy"
+  | "Near Expiry"
+  | "Expired";
 }
 
 // const mockProducts = [
@@ -60,13 +66,13 @@ const initialMockData: Batch[] = [
     id: '1', batchNo: 'B-2026-001', productName: 'Amoxicillin 500mg', manufacturer: 'PharmaCorp',
     mfgDate: '2026-01-10', expDate: '2028-01-09', qty: 5000, receivedQty: 5000, availableQty: 5000,
     mrp: '150', ptr: '100', pts: '120', storageLocation: 'A1', barcode: '8901234567890', remarks: 'Good',
-    status: 'Available' 
+    status: "Healthy" 
   },
   { 
     id: '2', batchNo: 'B-2025-890', productName: 'Paracetamol 650mg', manufacturer: 'HealthPlus',
     mfgDate: '2025-12-15', expDate: '2027-12-14', qty: 12000, receivedQty: 12000, availableQty: 12000,
     mrp: '50', ptr: '30', pts: '35', storageLocation: 'B2', barcode: '8901234567891', remarks: '',
-    status: 'Available' 
+    status: "Healthy" 
   },
 ];
 
@@ -142,7 +148,7 @@ export default function BatchManagement() {
     storageLocation: "",
     barcode: "",
     remarks: "",
-    status: "Available",
+    status: "Healthy",
   });
 
   const calculateShelfLife = (mfg?: string, exp?: string) => {
@@ -155,30 +161,21 @@ export default function BatchManagement() {
     return `${diffDays} days`;
   };
 
-  const calculateBatchStatus = (expiryDate: string) => {
-    const today = new Date();
+  // const calculateBatchStatus = (expiryDate: string) => {
+  //   const today = new Date();
 
-    const expiry = new Date(expiryDate);
+  //   const expiry = new Date(expiryDate);
 
-    const days = (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
+  //   const days = (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
 
-    if (days <= 0) return "Expired";
+  //   if (days <= 0) return "Expired";
 
-    if (days <= 90) return "Nearing Expiry";
+  //   if (days <= 90) return "Nearing Expiry";
 
-    return "Available";
-  };
+  //   return "Available";
+  // };
 
-  useEffect(() => {
-    const savedData = batchService.getAll();
-
-    if (savedData.length > 0) {
-      setBatches(savedData);
-    } else {
-      setBatches(initialMockData);
-      batchService.saveAll(initialMockData);
-    }
-  }, []);
+  
   useEffect(() => {
     const savedProducts = productService.getProducts();
 
@@ -234,11 +231,40 @@ export default function BatchManagement() {
   };
 
   const handleSaveBatch = () => {
-    if (!newBatch.batchNo || !newBatch.productName || !newBatch.mfgDate || !newBatch.expDate || !newBatch.receivedQty) {
+    if (
+      !newBatch.batchNo ||
+      !newBatch.productName ||
+      !newBatch.mfgDate ||
+      !newBatch.expDate ||
+      !newBatch.receivedQty
+    ) {
       alert("Please fill all mandatory fields.");
       return;
     }
-    
+
+    // Quantity Validation
+    if (Number(newBatch.receivedQty) <= 0) {
+      alert("Received Quantity must be greater than zero.");
+      return;
+    }
+    // Date Validation
+    if (new Date(newBatch.mfgDate) >= new Date(newBatch.expDate)) {
+      alert("Expiry Date must be greater than Manufacturing Date.");
+      return;
+    }
+
+    //Duplicate batch validation
+    const duplicateBatch = batches.find(
+      (batch) =>
+        batch.batchNo.trim().toLowerCase() ===
+          newBatch.batchNo?.trim().toLowerCase() && batch.id !== newBatch.id,
+    );
+
+    if (duplicateBatch) {
+      alert("Batch Number already exists.");
+      return;
+    }
+
     if (isEditingModal && newBatch.id) {
       const qty = Number(newBatch.availableQty) || Number(newBatch.receivedQty);
       const updatedBatch: Batch = {
@@ -248,7 +274,6 @@ export default function BatchManagement() {
         hsnCode: newBatch.hsnCode,
 
         gst: newBatch.gst,
-        
 
         composition: newBatch.composition,
 
@@ -266,10 +291,12 @@ export default function BatchManagement() {
         storageLocation: newBatch.storageLocation || "",
         barcode: newBatch.barcode || "",
         remarks: newBatch.remarks || "",
-        status: calculateBatchStatus(newBatch.expDate || "") as Batch["status"],
+        status: getExpiryStatus(newBatch.expDate || "") as Batch["status"],
       } as Batch;
-      
-      setBatches(batches.map(b => b.id === updatedBatch.id ? updatedBatch : b));
+
+      setBatches(
+        batches.map((b) => (b.id === updatedBatch.id ? updatedBatch : b)),
+      );
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,
@@ -297,7 +324,7 @@ export default function BatchManagement() {
 
         scheme: newBatch.scheme,
         unit: newBatch.unit || "",
-        
+
         manufacturer: newBatch.manufacturer || "",
         mfgDate: newBatch.mfgDate,
         expDate: newBatch.expDate,
@@ -310,9 +337,75 @@ export default function BatchManagement() {
         storageLocation: newBatch.storageLocation || "",
         barcode: newBatch.barcode || "",
         remarks: newBatch.remarks || "",
-        status: calculateBatchStatus(newBatch.expDate || "") as Batch["status"],
+        status: getExpiryStatus(newBatch.expDate || "") as Batch["status"],
       };
       setBatches([batch, ...batches]);
+      const inventoryRecord = {
+        id: Date.now().toString(),
+
+        productId: batch.productCode || "",
+
+        productCode: batch.productCode || "",
+
+        productName: batch.productName,
+
+        batchNo: batch.batchNo,
+
+        warehouse: batch.storageLocation || "Main Warehouse",
+
+        manufacturer: batch.manufacturer,
+
+        mfgDate: batch.mfgDate,
+
+        expDate: batch.expDate,
+
+        mrp: batch.mrp,
+
+        ptr: batch.ptr,
+
+        pts: batch.pts,
+
+        receivedQty: batch.receivedQty,
+
+        availableQty: batch.availableQty,
+
+        damagedQty: 0,
+
+        expiredQty: 0,
+
+        reorderLevel: 100,
+
+        status: getExpiryStatus(batch.expDate),
+      };
+
+      inventoryService.addRecord(inventoryRecord);
+
+      const ledgerEntry = {
+        id: Date.now().toString(),
+
+        transactionNo: `OPEN-${Date.now()}`,
+
+        transactionDate: new Date().toISOString(),
+
+        productCode: batch.productCode || "",
+
+        productName: batch.productName,
+
+        batchNo: batch.batchNo,
+
+        transactionType: "OPENING",
+
+        inQty: batch.receivedQty,
+
+        outQty: 0,
+
+        balanceQty: batch.availableQty,
+
+        remarks: "Opening Stock",
+      };
+
+      stockLedgerService.addRecord(ledgerEntry);
+
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,
@@ -321,13 +414,46 @@ export default function BatchManagement() {
       });
     }
     setShowBatchModal(false);
-  };
+  };;;
 
 
   const handleDeleteBatch = () => {
     if (!batchToDelete) return;
 
     setBatches(batches.filter((b) => b.id !== batchToDelete.id));
+    const inventoryRecords = inventoryService.getAll();
+
+    const updatedInventoryRecords = inventoryRecords.filter(
+      (record) => record.batchNo !== batchToDelete.batchNo,
+    );
+
+    inventoryService.saveAll(updatedInventoryRecords);
+
+    const ledgerEntry = {
+      id: Date.now().toString(),
+
+      transactionNo: `DEL-${Date.now()}`,
+
+      transactionDate: new Date().toISOString(),
+
+      productCode: batchToDelete.productCode || "",
+
+      productName: batchToDelete.productName,
+
+      batchNo: batchToDelete.batchNo,
+
+      transactionType: "BATCH_DELETED",
+
+      inQty: 0,
+
+      outQty: batchToDelete.availableQty || 0,
+
+      balanceQty: 0,
+
+      remarks: "Batch Deleted",
+    };
+
+    stockLedgerService.addRecord(ledgerEntry);
 
     activityLogService.addLog({
       userId: currentUser?.id,
@@ -364,7 +490,7 @@ export default function BatchManagement() {
       storageLocation: "",
       barcode: "",
       remarks: "",
-      status: "Available",
+      status: "Healthy"
     });
     setShowBatchModal(true);
   };
@@ -401,22 +527,34 @@ export default function BatchManagement() {
 
 
   const columns: Column<Batch>[] = [
-    { key: 'batchNo', label: 'Batch No' },
-    { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.productName}</span> },
-    { key: 'mfgDate', label: 'Mfg Date' },
-    { key: 'expDate', label: 'Exp Date' },
-    { key: 'qty', label: 'Available Qty', render: (row) => row.availableQty },
+    { key: "batchNo", label: "Batch No" },
     {
-      key: 'status',
-      label: 'Status',
+      key: "productName",
+      label: "Product Name",
+      render: (row) => (
+        <span className="font-semibold text-slate-900">{row.productName}</span>
+      ),
+    },
+    { key: "mfgDate", label: "Mfg Date" },
+    { key: "expDate", label: "Exp Date" },
+    { key: "qty", label: "Available Qty", render: (row) => row.availableQty },
+    {
+      key: "status",
+      label: "Status",
       render: (row) => {
-        const variant = row.status === 'Available' ? 'success' : row.status === 'Expired' ? 'danger' : row.status === 'Quarantine' ? 'neutral' : 'warning';
+        const variant =
+          row.status === "Healthy"
+            ? "success"
+            : row.status === "Expired"
+              ? "danger"
+              : "warning";
+
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
     {
-      key: 'id',
-      label: 'Actions',
+      key: "id",
+      label: "Actions",
       render: (row) => (
         <div className="flex gap-3">
           <button
@@ -429,21 +567,20 @@ export default function BatchManagement() {
             View
           </button>
           {canDelete && (
-
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setBatchToDelete(row);
-            }}
-            className="text-rose-600 font-medium hover:text-rose-800"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setBatchToDelete(row);
+              }}
+              className="text-rose-600 font-medium hover:text-rose-800"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           )}
         </div>
-      )
-    }
+      ),
+    },
   ];
 
   const filteredData = batches.filter((item) => {
@@ -469,7 +606,7 @@ export default function BatchManagement() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Batch Management"
-        subtitle="Track batches, expiry dates, and quarantine status."
+        subtitle="Track batches, expiry dates, and  batch health status."
         actions={
           <>
             <ActionButton
@@ -506,10 +643,9 @@ export default function BatchManagement() {
           value={statusFilter}
           onChange={setStatusFilter}
           options={[
-            { label: "Available", value: "Available" },
+            { label: "Healthy", value: "Healthy" },
+            { label: "Near Expiry", value: "Near Expiry" },
             { label: "Expired", value: "Expired" },
-            { label: "Quarantine", value: "Quarantine" },
-            { label: "Nearing Expiry", value: "Nearing Expiry" },
           ]}
           placeholder="All Status"
         />
@@ -640,16 +776,23 @@ export default function BatchManagement() {
                 <label className="block text-sm font-medium mb-1">
                   Received Quantity *
                 </label>
+
                 <input
                   type="number"
                   value={newBatch.receivedQty || ""}
+                  readOnly={isEditingModal}
                   onChange={(e) =>
+                    !isEditingModal &&
                     setNewBatch({
                       ...newBatch,
                       receivedQty: Number(e.target.value),
                     })
                   }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${
+                    isEditingModal
+                      ? "bg-slate-50 text-slate-500 cursor-not-allowed"
+                      : ""
+                  }`}
                 />
               </div>
               <div>
@@ -762,7 +905,7 @@ export default function BatchManagement() {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
-              {isEditingModal && (
+              {/* {isEditingModal && (
                 <div className="md:col-span-2">
                   <label className="block text-sm font-medium mb-1">
                     Status
@@ -783,7 +926,7 @@ export default function BatchManagement() {
                     <option value="Nearing Expiry">Nearing Expiry</option>
                   </select>
                 </div>
-              )}
+              )} */}
             </div>
 
             <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
@@ -971,13 +1114,11 @@ export default function BatchManagement() {
                   value={
                     <Badge
                       variant={
-                        selectedBatch.status === "Available"
+                        selectedBatch.status === "Healthy"
                           ? "success"
                           : selectedBatch.status === "Expired"
                             ? "danger"
-                            : selectedBatch.status === "Quarantine"
-                              ? "neutral"
-                              : "warning"
+                            : "warning"
                       }
                     >
                       {selectedBatch.status}

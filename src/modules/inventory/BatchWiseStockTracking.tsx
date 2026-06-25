@@ -15,6 +15,7 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
+import { inventoryService } from '../../services/inventoryService';
 
 interface BatchItem {
   id: string;
@@ -48,12 +49,12 @@ const parseDate = (dateStr: string) => {
   return new Date(dateStr);
 };
 
-const mockData: BatchItem[] = [
-  { id: '1', batchNo: 'B-2024-001', productName: 'Amoxicillin 500mg', sku: 'PRD-001', category: 'Tablet', mfgDate: '2024-01-10', expiryDate: '2026-01-10', availableQty: 5000, warehouse: 'Main Hub', status: 'Active', mrp: 150, ptr: 100, pts: 120, barcode: '8901234567890', createdBy: 'Admin User', createdDate: '2024-01-12', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-10-01' },
-  { id: '2', batchNo: 'B-2023-089', productName: 'Paracetamol 650mg', sku: 'PRD-002', category: 'Tablet', mfgDate: '2023-08-15', expiryDate: '2025-08-15', availableQty: 1200, warehouse: 'North Zone', status: 'Active', mrp: 50, ptr: 30, pts: 35, barcode: '8901234567891', createdBy: 'Admin User', createdDate: '2023-08-18', lastUpdatedBy: 'System', lastUpdatedDate: '2024-12-10' },
-  { id: '3', batchNo: 'B-2022-045', productName: 'Cough Syrup 100ml', sku: 'PRD-004', category: 'Syrup', mfgDate: '2022-05-01', expiryDate: '2026-07-20', availableQty: 50, warehouse: 'South Zone', status: 'Near Expiry', mrp: 100, ptr: 60, pts: 75, barcode: '8901234567892', createdBy: 'System', createdDate: '2022-05-05', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-11-01' },
-  { id: '4', batchNo: 'B-2021-012', productName: 'Vitamin C 1000mg', sku: 'PRD-005', category: 'Tablet', mfgDate: '2021-02-20', expiryDate: '2023-02-20', availableQty: 0, warehouse: 'Main Hub', status: 'Expired', mrp: 200, ptr: 120, pts: 150, barcode: '8901234567893', createdBy: 'Admin User', createdDate: '2021-02-25', lastUpdatedBy: 'System', lastUpdatedDate: '2023-02-21' },
-];
+// const mockData: BatchItem[] = [
+//   { id: '1', batchNo: 'B-2024-001', productName: 'Amoxicillin 500mg', sku: 'PRD-001', category: 'Tablet', mfgDate: '2024-01-10', expiryDate: '2026-01-10', availableQty: 5000, warehouse: 'Main Hub', status: 'Active', mrp: 150, ptr: 100, pts: 120, barcode: '8901234567890', createdBy: 'Admin User', createdDate: '2024-01-12', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-10-01' },
+//   { id: '2', batchNo: 'B-2023-089', productName: 'Paracetamol 650mg', sku: 'PRD-002', category: 'Tablet', mfgDate: '2023-08-15', expiryDate: '2025-08-15', availableQty: 1200, warehouse: 'North Zone', status: 'Active', mrp: 50, ptr: 30, pts: 35, barcode: '8901234567891', createdBy: 'Admin User', createdDate: '2023-08-18', lastUpdatedBy: 'System', lastUpdatedDate: '2024-12-10' },
+//   { id: '3', batchNo: 'B-2022-045', productName: 'Cough Syrup 100ml', sku: 'PRD-004', category: 'Syrup', mfgDate: '2022-05-01', expiryDate: '2026-07-20', availableQty: 50, warehouse: 'South Zone', status: 'Near Expiry', mrp: 100, ptr: 60, pts: 75, barcode: '8901234567892', createdBy: 'System', createdDate: '2022-05-05', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-11-01' },
+//   { id: '4', batchNo: 'B-2021-012', productName: 'Vitamin C 1000mg', sku: 'PRD-005', category: 'Tablet', mfgDate: '2021-02-20', expiryDate: '2023-02-20', availableQty: 0, warehouse: 'Main Hub', status: 'Expired', mrp: 200, ptr: 120, pts: 150, barcode: '8901234567893', createdBy: 'Admin User', createdDate: '2021-02-25', lastUpdatedBy: 'System', lastUpdatedDate: '2023-02-21' },
+// ];
 
 export default function BatchWiseStockTracking() {
   const [search, setSearch] = useState('');
@@ -63,6 +64,7 @@ export default function BatchWiseStockTracking() {
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const [selectedBatch, setSelectedBatch] = useState<BatchItem | null>(null);
+  const [inventoryData, setInventoryData] = useState<any[]>([]);
 
   const today = getTodayDateStr();
 
@@ -77,6 +79,12 @@ export default function BatchWiseStockTracking() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const records = inventoryService.getAll();
+
+    setInventoryData(records);
+  }, []);
+
   const calculateDaysToExpiry = (expiryDateStr: string) => {
     const expDate = parseDate(expiryDateStr);
     const diffTime = expDate.getTime() - today.getTime();
@@ -86,17 +94,56 @@ export default function BatchWiseStockTracking() {
 
   // Ensure data status aligns with real date calculations dynamically for dashboard and mapping
   const dynamicData: BatchItem[] = useMemo(() => {
-    return mockData.map(item => {
-      const daysToExpiry = calculateDaysToExpiry(item.expiryDate);
-      let calculatedStatus: 'Active' | 'Near Expiry' | 'Expired' = 'Active';
+    return inventoryData.map((item) => {
+      const daysToExpiry = calculateDaysToExpiry(item.expDate);
+
+      let calculatedStatus: "Active" | "Near Expiry" | "Expired" = "Active";
+
       if (daysToExpiry < 0) {
-        calculatedStatus = 'Expired';
-      } else if (daysToExpiry <= 90) { // Using 90 days as standard Near Expiry threshold
-        calculatedStatus = 'Near Expiry';
+        calculatedStatus = "Expired";
+      } else if (daysToExpiry <= 90) {
+        calculatedStatus = "Near Expiry";
       }
-      return { ...item, status: calculatedStatus };
+
+      return {
+        id: item.id,
+
+        batchNo: item.batchNo,
+
+        productName: item.productName,
+
+        sku: item.productCode || "",
+
+        category: "",
+
+        mfgDate: item.mfgDate,
+
+        expiryDate: item.expDate,
+
+        availableQty: item.availableQty,
+
+        warehouse: item.warehouse || "Main Warehouse",
+
+        status: calculatedStatus,
+
+        mrp: Number(item.mrp || 0),
+
+        ptr: Number(item.ptr || 0),
+
+        pts: Number(item.pts || 0),
+
+        barcode: "",
+
+        createdBy: "System",
+
+        createdDate: "",
+
+        lastUpdatedBy: "System",
+
+        lastUpdatedDate: "",
+      };
     });
-  }, [today]);
+  }, [inventoryData, today]);
 
   const filteredData = dynamicData.filter((item) => {
     const matchSearch = item.productName.toLowerCase().includes(search.toLowerCase()) || item.batchNo.toLowerCase().includes(search.toLowerCase());

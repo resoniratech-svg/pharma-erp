@@ -1439,9 +1439,7 @@ activityLogService.addLog({
                 <input
                   type="number"
                   value={newProduct.mrp}
-                  onChange={(e) =>
-                    setNewProduct({ ...newProduct, mrp: e.target.value })
-                  }
+                  readOnly
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -1451,9 +1449,7 @@ activityLogService.addLog({
                 <input
                   type="number"
                   value={newProduct.ptr}
-                  onChange={(e) =>
-                    setNewProduct({ ...newProduct, ptr: e.target.value })
-                  }
+                  readOnly
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -1499,9 +1495,7 @@ activityLogService.addLog({
                 <input
                   type="number"
                   value={newProduct.pts}
-                  onChange={(e) =>
-                    setNewProduct({ ...newProduct, pts: e.target.value })
-                  }
+                  readOnly
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
