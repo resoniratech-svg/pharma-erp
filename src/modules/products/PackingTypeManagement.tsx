@@ -254,13 +254,13 @@ export default function PackingTypeManagement() {
     }
   }, [data]);
 
-  if (!canView) {
-    return (
-      <div className="p-10 text-center">
-        <h2>Access Denied</h2>
-      </div>
-    );
-  }
+  // if (!canView) {
+  //   return (
+  //     <div className="p-10 text-center">
+  //       <h2>Access Denied</h2>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="animate-in fade-in duration-500">

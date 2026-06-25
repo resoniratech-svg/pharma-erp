@@ -18,6 +18,8 @@ import { type Column } from './types';
 
 import { batchService } from "../../services/batchService";
 
+import { getExpiryStatus, getDaysToExpiry } from "../../utils/expiryUtils";
+
 import { expiryTrackingService } from "../../services/expiryTrackingService";
 
 import { hasModulePermission } from '../../utils/permissionUtils';
@@ -37,36 +39,16 @@ interface ExpiryItem {
   status?: string;
 }
 
-const getExpiryStatus = (expiryDate: string) => {
-  const expiry = new Date(expiryDate);
 
-  const today = new Date();
 
-  const daysLeft = Math.ceil(
-    (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-  );
-
-  if (daysLeft <= 0) return "Expired";
-
-  if (daysLeft <= 90) return "Near Expiry";
-
-  return "Healthy";
-};
-
-const getDaysLeft = (expiryDate: string) => {
-  const expiry = new Date(expiryDate);
-  const today = new Date();
-
-  return Math.ceil(
-    (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-  );
-};
 
 
 const getStatusVariant = (status: string) => {
-  if (status === 'Safe') return 'success';
-  if (status === 'Expired' || status === 'Critical') return 'danger';
-  return 'warning';
+  if (status === "Healthy") return "success";
+
+  if (status === "Expired") return "danger";
+
+  return "warning";
 };
 
 
@@ -112,15 +94,10 @@ export default function ExpiryTracking() {
      const batches = batchService.getAll();
 
      const expiryData = batches.map((batch) => {
-      console.log("BATCH DATA", batch);
-      console.log("UNIT", batch.unit);
-       const expiryDate = new Date(batch.expDate);
+      
+       const daysLeft = getDaysToExpiry(batch.expDate);
 
-       const today = new Date();
-
-       const daysLeft = Math.ceil(
-         (expiryDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-       );
+       const status = getExpiryStatus(batch.expDate);
 
        return {
          id: batch.id,
@@ -141,7 +118,7 @@ export default function ExpiryTracking() {
 
          storageLocation: batch.storageLocation,
 
-         status: batch.status,
+         status: status,
        };
      });
 
@@ -212,9 +189,9 @@ export default function ExpiryTracking() {
       key: "daysLeft",
       label: "Days Left",
       render: (row) => {
-        const daysLeft = getDaysLeft(row.expDate);
+        const daysLeft = getDaysToExpiry(row.expDate);
 
-        return daysLeft < 0 ? "Expired" : `${daysLeft} Days`;
+        return daysLeft <= 0 ? "Expired" : `${daysLeft} Days`;
       },
     },
     {
@@ -263,17 +240,17 @@ export default function ExpiryTracking() {
   });
 
 
-  if (!canView) {
-    return (
-      <div className="p-10 text-center">
-        <h2 className="text-xl font-semibold">Access Denied</h2>
+  // if (!canView) {
+  //   return (
+  //     <div className="p-10 text-center">
+  //       <h2 className="text-xl font-semibold">Access Denied</h2>
 
-        <p className="text-slate-500 mt-2">
-          You do not have permission to view Expiry Tracking.
-        </p>
-      </div>
-    );
-  }
+  //       <p className="text-slate-500 mt-2">
+  //         You do not have permission to view Expiry Tracking.
+  //       </p>
+  //     </div>
+  //   );
+  // }
 
   
   
@@ -315,9 +292,8 @@ export default function ExpiryTracking() {
           onChange={setStatusFilter}
           placeholder="All Status"
           options={[
-            { label: "Safe", value: "Safe" },
-            { label: "Nearing Expiry", value: "Nearing Expiry" },
-            { label: "Critical", value: "Critical" },
+            { label: "Healthy", value: "Healthy" },
+            { label: "Near Expiry", value: "Near Expiry" },
             { label: "Expired", value: "Expired" },
           ]}
         />
@@ -393,7 +369,7 @@ export default function ExpiryTracking() {
                 <DrawerField
                   label="Days Left"
                   value={
-                    selectedItem.daysLeft < 0
+                    selectedItem.daysLeft <= 0
                       ? "Expired"
                       : `${selectedItem.daysLeft} Days`
                   }

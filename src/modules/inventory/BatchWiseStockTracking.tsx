@@ -16,6 +16,7 @@ import {
 } from './components/shared';
 import { type Column } from './components/shared';
 import { inventoryService } from '../../services/inventoryService';
+import { getExpiryStatus, getDaysToExpiry } from "../../utils/expiryUtils";
 
 interface BatchItem {
   id: string;
@@ -27,7 +28,7 @@ interface BatchItem {
   expiryDate: string;
   availableQty: number;
   warehouse: string;
-  status: 'Active' | 'Near Expiry' | 'Expired';
+  status: 'Healthy' | 'Near Expiry' | 'Expired';
   mrp: number;
   ptr: number;
   pts: number;
@@ -85,26 +86,18 @@ export default function BatchWiseStockTracking() {
     setInventoryData(records);
   }, []);
 
-  const calculateDaysToExpiry = (expiryDateStr: string) => {
-    const expDate = parseDate(expiryDateStr);
-    const diffTime = expDate.getTime() - today.getTime();
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
+  // const calculateDaysToExpiry = (expiryDateStr: string) => {
+  //   const expDate = parseDate(expiryDateStr);
+  //   const diffTime = expDate.getTime() - today.getTime();
+  //   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  //   return diffDays;
+  // };
 
   // Ensure data status aligns with real date calculations dynamically for dashboard and mapping
   const dynamicData: BatchItem[] = useMemo(() => {
     return inventoryData.map((item) => {
-      const daysToExpiry = calculateDaysToExpiry(item.expDate);
-
-      let calculatedStatus: "Active" | "Near Expiry" | "Expired" = "Active";
-
-      if (daysToExpiry < 0) {
-        calculatedStatus = "Expired";
-      } else if (daysToExpiry <= 90) {
-        calculatedStatus = "Near Expiry";
-      }
-
+      const daysToExpiry = getDaysToExpiry(item.expDate);
+      const calculatedStatus = getExpiryStatus(item.expDate);
       return {
         id: item.id,
 
@@ -153,54 +146,79 @@ export default function BatchWiseStockTracking() {
 
   const summaryMetrics = useMemo(() => {
     const total = dynamicData.length;
-    let active = 0;
+    let healthy = 0;
     let nearExpiry = 0;
     let expired = 0;
 
-    dynamicData.forEach(item => {
-      const expDate = parseDate(item.expiryDate);
-      if (expDate < today) {
+    dynamicData.forEach((item) => {
+      const status = getExpiryStatus(item.expiryDate);
+
+      if (status === "Healthy") {
+        healthy++;
+      } else if (status === "Near Expiry") {
+        nearExpiry++;
+      } else if (status === "Expired") {
         expired++;
-      } else {
-        const days = calculateDaysToExpiry(item.expiryDate);
-        if (days <= 90) {
-          nearExpiry++;
-        } else if (item.availableQty > 0) {
-          active++;
-        }
       }
     });
 
-    return { total, active, nearExpiry, expired };
+    return {
+      total,
+      healthy,
+      nearExpiry,
+      expired,
+    };
   }, [dynamicData, today]);
 
   const columns: Column<BatchItem>[] = [
-    { key: 'batchNo', label: 'Batch No', render: (row) => <span className="font-semibold text-slate-900">{row.batchNo}</span> },
-    { key: 'productName', label: 'Product Name' },
-    { key: 'mfgDate', label: 'MFG Date' },
-    { key: 'expiryDate', label: 'Expiry Date' },
-    { 
-      key: 'id', // Unique key for the pseudo-column
-      label: 'Days To Expiry', 
-      render: (row) => {
-        const days = calculateDaysToExpiry(row.expiryDate);
-        if (days < 0) return <span className="text-rose-600 font-semibold">Expired</span>;
-        return <span>{days} Days</span>;
-      }
-    },
-    { key: 'availableQty', label: 'Available Qty', render: (row) => <span className="font-mono text-slate-700">{row.availableQty}</span> },
-    { key: 'warehouse', label: 'Warehouse' },
     {
-      key: 'status',
-      label: 'Status',
+      key: "batchNo",
+      label: "Batch No",
+      render: (row) => (
+        <span className="font-semibold text-slate-900">{row.batchNo}</span>
+      ),
+    },
+    { key: "productName", label: "Product Name" },
+    { key: "mfgDate", label: "MFG Date" },
+    { key: "expiryDate", label: "Expiry Date" },
+    {
+      key: "id", // Unique key for the pseudo-column
+      label: "Days To Expiry",
       render: (row) => {
-        const variant = row.status === 'Active' ? 'success' : row.status === 'Near Expiry' ? 'warning' : 'danger';
+        const days = getDaysToExpiry(row.expiryDate);
+
+        if (days <= 0) {
+          return <span className="text-rose-600 font-semibold">Expired</span>;
+        }
+
+        return <span>{days} Days</span>;
+      },
+    },
+    {
+      key: "availableQty",
+      label: "Available Qty",
+      render: (row) => (
+        <span className="font-mono text-slate-700">{row.availableQty}</span>
+      ),
+    },
+    { key: "warehouse", label: "Warehouse" },
+    {
+      key: "status",
+      label: "Status",
+      render: (row) => {
+        const variant =
+          row.status === "Healthy"
+            ? "success"
+            : row.status === "Expired"
+              ? "danger"
+              : "warning";
+
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
     {
-      key: 'id',
-      label: 'Actions',
+      key: "id",
+      label: "Actions",
       render: (row) => (
         <button
           onClick={(e) => {
@@ -211,8 +229,8 @@ export default function BatchWiseStockTracking() {
         >
           View
         </button>
-      )
-    }
+      ),
+    },
   ];
 
   const getFormattedDate = () => {
@@ -225,13 +243,13 @@ export default function BatchWiseStockTracking() {
 
   const handleExportExcel = () => {
     const exportData = filteredData.map(row => {
-      const days = calculateDaysToExpiry(row.expiryDate);
+      const days = getDaysToExpiry(row.expiryDate);
       return {
         'Batch No': row.batchNo,
         'Product Name': row.productName,
         'MFG Date': row.mfgDate,
         'Expiry Date': row.expiryDate,
-        'Days To Expiry': days < 0 ? 'Expired' : `${days} Days`,
+        'Days To Expiry': days <= 0 ? 'Expired' : `${days} Days`,
         'Available Qty': row.availableQty,
         'Warehouse': row.warehouse,
         'Status': row.status
@@ -252,13 +270,13 @@ export default function BatchWiseStockTracking() {
     const csvContent = [
       headers.join(','),
       ...filteredData.map(row => {
-        const days = calculateDaysToExpiry(row.expiryDate);
+        const days = getDaysToExpiry(row.expiryDate);
         return [
           row.batchNo, 
           `"${row.productName}"`, 
           row.mfgDate, 
           row.expiryDate, 
-          days < 0 ? 'Expired' : `${days} Days`, 
+          days <= 0 ? 'Expired' : `${days} Days`, 
           row.availableQty, 
           `"${row.warehouse}"`, 
           row.status
@@ -286,15 +304,15 @@ export default function BatchWiseStockTracking() {
         subtitle="Track inventory by batch number, manufacturing date, expiry date, quantity, and stock movement."
         actions={
           <div className="relative inline-block text-left" ref={exportMenuRef}>
-            <ActionButton 
-              variant="secondary" 
+            <ActionButton
+              variant="secondary"
               icon={<Download className="w-4 h-4" />}
               onClick={() => setShowExportMenu(!showExportMenu)}
             >
               Export
               <ChevronDown className="w-3 h-3 ml-1" />
             </ActionButton>
-            
+
             {showExportMenu && (
               <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                 <div className="py-1" role="menu" aria-orientation="vertical">
@@ -329,9 +347,9 @@ export default function BatchWiseStockTracking() {
           bgClass="bg-indigo-50"
         />
         <SummaryCard
-          title="Active Batches"
-          value={summaryMetrics.active.toLocaleString()}
-          subtitle="Healthy stock"
+          title="Healthy Batches"
+          value={summaryMetrics.healthy.toLocaleString()}
+          subtitle="Available for sale"
           icon={<CheckCircle2 className="w-6 h-6" />}
           colorClass="text-emerald-600"
           bgClass="bg-emerald-50"
@@ -355,7 +373,11 @@ export default function BatchWiseStockTracking() {
       </div>
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by batch or product..." />
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search by batch or product..."
+        />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
@@ -365,9 +387,9 @@ export default function BatchWiseStockTracking() {
           value={statusFilter}
           onChange={setStatusFilter}
           options={[
-            { label: 'Active', value: 'Active' },
-            { label: 'Near Expiry', value: 'Near Expiry' },
-            { label: 'Expired', value: 'Expired' },
+            { label: "Healthy", value: "Healthy" },
+            { label: "Near Expiry", value: "Near Expiry" },
+            { label: "Expired", value: "Expired" },
           ]}
           placeholder="All Status"
         />
@@ -390,65 +412,148 @@ export default function BatchWiseStockTracking() {
         {selectedBatch && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Product Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
+                Product Information
+              </h3>
               <div className="space-y-2">
-                <DrawerField label="Product Name" value={selectedBatch.productName} />
+                <DrawerField
+                  label="Product Name"
+                  value={selectedBatch.productName}
+                />
                 <DrawerField label="SKU" value={selectedBatch.sku} />
                 <DrawerField label="Category" value={selectedBatch.category} />
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Batch Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
+                Batch Information
+              </h3>
               <div className="space-y-2">
-                <DrawerField label="Batch Number" value={<span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">{selectedBatch.batchNo}</span>} />
-                <DrawerField label="Manufacturing Date" value={selectedBatch.mfgDate} />
-                <DrawerField label="Expiry Date" value={selectedBatch.expiryDate} />
-                <DrawerField label="Days To Expiry" value={calculateDaysToExpiry(selectedBatch.expiryDate) < 0 ? <span className="text-rose-600 font-semibold">Expired</span> : `${calculateDaysToExpiry(selectedBatch.expiryDate)} Days`} />
-                <DrawerField label="Available Quantity" value={selectedBatch.availableQty.toLocaleString()} />
+                <DrawerField
+                  label="Batch Number"
+                  value={
+                    <span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">
+                      {selectedBatch.batchNo}
+                    </span>
+                  }
+                />
+                <DrawerField
+                  label="Manufacturing Date"
+                  value={selectedBatch.mfgDate}
+                />
+                <DrawerField
+                  label="Expiry Date"
+                  value={selectedBatch.expiryDate}
+                />
+                <DrawerField
+                  label="Days To Expiry"
+                  value={
+                    getDaysToExpiry(selectedBatch.expiryDate) <= 0 ? (
+                      <span className="text-rose-600 font-semibold">
+                        Expired
+                      </span>
+                    ) : (
+                      `${getDaysToExpiry(selectedBatch.expiryDate)} Days`
+                    )
+                  }
+                />
+                <DrawerField
+                  label="Available Quantity"
+                  value={selectedBatch.availableQty.toLocaleString()}
+                />
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Warehouse Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
+                Warehouse Information
+              </h3>
               <div className="space-y-2">
-                <DrawerField label="Warehouse / Location Name" value={selectedBatch.warehouse} />
+                <DrawerField
+                  label="Warehouse / Location Name"
+                  value={selectedBatch.warehouse}
+                />
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Pricing Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
+                Pricing Information
+              </h3>
               <div className="space-y-2">
-                <DrawerField label="MRP" value={`₹${selectedBatch.mrp.toFixed(2)}`} />
-                <DrawerField label="PTR" value={`₹${selectedBatch.ptr.toFixed(2)}`} />
-                <DrawerField label="PTS" value={`₹${selectedBatch.pts.toFixed(2)}`} />
+                <DrawerField
+                  label="MRP"
+                  value={`₹${selectedBatch.mrp.toFixed(2)}`}
+                />
+                <DrawerField
+                  label="PTR"
+                  value={`₹${selectedBatch.ptr.toFixed(2)}`}
+                />
+                <DrawerField
+                  label="PTS"
+                  value={`₹${selectedBatch.pts.toFixed(2)}`}
+                />
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Additional Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
+                Additional Information
+              </h3>
               <div className="space-y-2">
-                <DrawerField label="Barcode" value={<span className="font-mono text-slate-500">{selectedBatch.barcode}</span>} />
+                <DrawerField
+                  label="Barcode"
+                  value={
+                    <span className="font-mono text-slate-500">
+                      {selectedBatch.barcode}
+                    </span>
+                  }
+                />
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Audit Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
+                Audit Information
+              </h3>
               <div className="space-y-2">
-                <DrawerField label="Created By" value={selectedBatch.createdBy} />
-                <DrawerField label="Created Date" value={selectedBatch.createdDate} />
-                <DrawerField label="Last Updated By" value={selectedBatch.lastUpdatedBy} />
-                <DrawerField label="Last Updated Date" value={selectedBatch.lastUpdatedDate} />
+                <DrawerField
+                  label="Created By"
+                  value={selectedBatch.createdBy}
+                />
+                <DrawerField
+                  label="Created Date"
+                  value={selectedBatch.createdDate}
+                />
+                <DrawerField
+                  label="Last Updated By"
+                  value={selectedBatch.lastUpdatedBy}
+                />
+                <DrawerField
+                  label="Last Updated Date"
+                  value={selectedBatch.lastUpdatedDate}
+                />
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Status Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
+                Status Information
+              </h3>
               <div className="space-y-2">
                 <DrawerField
                   label="Status"
                   value={
-                    <Badge variant={selectedBatch.status === 'Active' ? 'success' : selectedBatch.status === 'Near Expiry' ? 'warning' : 'danger'}>
+                    <Badge
+                      variant={
+                        selectedBatch.status === "Healthy"
+                          ? "success"
+                          : selectedBatch.status === "Expired"
+                            ? "danger"
+                            : "warning"
+                      }
+                    >
                       {selectedBatch.status}
                     </Badge>
                   }
@@ -457,7 +562,12 @@ export default function BatchWiseStockTracking() {
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-              <ActionButton variant="secondary" onClick={() => setSelectedBatch(null)}>Close</ActionButton>
+              <ActionButton
+                variant="secondary"
+                onClick={() => setSelectedBatch(null)}
+              >
+                Close
+              </ActionButton>
             </div>
           </div>
         )}

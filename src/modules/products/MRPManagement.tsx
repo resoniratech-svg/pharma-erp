@@ -444,17 +444,17 @@ export default function MRPManagement() {
     }
   };
 
-  if (!canView) {
-    return (
-      <div className="p-10 text-center">
-        <h2 className="text-xl font-semibold">Access Denied</h2>
+  // if (!canView) {
+  //   return (
+  //     <div className="p-10 text-center">
+  //       <h2 className="text-xl font-semibold">Access Denied</h2>
 
-        <p className="text-slate-500 mt-2">
-          You do not have permission to view Product Management.
-        </p>
-      </div>
-    );
-  }
+  //       <p className="text-slate-500 mt-2">
+  //         You do not have permission to view Product Management.
+  //       </p>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="animate-in fade-in duration-500">

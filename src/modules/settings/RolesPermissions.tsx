@@ -44,6 +44,11 @@ export default function RolesPermissions() {
         };
       });
 
+      localStorage.setItem(
+        `permissions_${selectedRole.id}`,
+        JSON.stringify(initialPerms),
+      );
+
       setPermissions(initialPerms);
     }
 
