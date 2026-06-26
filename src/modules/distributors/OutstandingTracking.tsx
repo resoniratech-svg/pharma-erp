@@ -1,37 +1,33 @@
-import { useState, useMemo, useRef, useEffect } from 'react';
-import { Download, AlertTriangle, Eye, ChevronDown } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { Search, Download, Eye, DollarSign, Filter, ChevronDown, CheckCircle2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 import {
-  PageHeader, FilterBar, SearchInput, ActionButton,
+  PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
   TableCard, DataTable, Badge, Drawer, DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 
+// -- Mock Roles & Auth --
 import { 
   ROLE_SUPER_ADMIN, 
-  ROLE_DISTRIBUTOR 
+  ROLE_DISTRIBUTOR, 
+  ROLE_WAREHOUSE_MANAGER 
 } from '../../constants/roles';
 
 // --- Types ---
-type Status = 'Clear' | 'Warning' | 'Critical' | 'Blocked';
-
 interface Invoice {
-  id: string;
   invoiceNo: string;
-  invoiceDate: string;
+  date: string;
+  amount: number;
   dueDate: string;
-  invoiceAmount: number;
-  paidAmount: number;
-  balanceAmount: number;
-  aging: number;
-  status: Status;
-  lastPaymentDate: string;
+  agingDays: number;
+  status: 'Paid' | 'Unpaid';
 }
 
-interface DistributorRecord {
+interface OutstandingRecord {
   id: string;
   distributorName: string;
   distributorCode: string;
@@ -44,53 +40,104 @@ interface DistributorRecord {
   totalOutstanding: number;
   overdueAmount: number;
   maxAging: number;
-  status: Status;
+  status: 'Clear' | 'Overdue';
   lastPaymentDate: string;
   invoices: Invoice[];
 }
 
-// --- Mock Data ---
-const mockData: DistributorRecord[] = [
+const initialOutstandingRecords: OutstandingRecord[] = [
   {
-    id: '1', distributorName: 'Carewell Agencies', distributorCode: 'DIST-003', contactPerson: 'Ramesh Sharma', mobile: '+91 9876543210', gstin: '27AADCA2230F1Z5',
-    creditLimit: 1000000, usedCredit: 845000, availableCredit: 155000, totalOutstanding: 845000, overdueAmount: 420000, maxAging: 75, status: 'Critical', lastPaymentDate: '10-Sep-2026',
+    id: '1',
+    distributorName: 'Metro Pharma Distributors',
+    distributorCode: 'DIST-001',
+    contactPerson: 'Rajesh Sharma',
+    mobile: '+91 98765 43210',
+    gstin: '27AAAAA1111A1Z1',
+    creditLimit: 500000,
+    usedCredit: 10192,
+    availableCredit: 489808,
+    totalOutstanding: 10192,
+    overdueAmount: 0,
+    maxAging: 9,
+    status: 'Clear',
+    lastPaymentDate: '12-Oct-2026',
     invoices: [
-      { id: 'INV-2026-0801', invoiceNo: 'INV-2026-0801', invoiceDate: '01-Aug-2026', dueDate: '31-Aug-2026', invoiceAmount: 500000, paidAmount: 80000, balanceAmount: 420000, aging: 75, status: 'Critical', lastPaymentDate: '10-Sep-2026' },
-      { id: 'INV-2026-0915', invoiceNo: 'INV-2026-0915', invoiceDate: '15-Sep-2026', dueDate: '15-Oct-2026', invoiceAmount: 425000, paidAmount: 0, balanceAmount: 425000, aging: 0, status: 'Clear', lastPaymentDate: '-' },
+      { invoiceNo: 'INV-2026-1001', date: '15-Oct-2026', amount: 10192, dueDate: '18-Oct-2026', agingDays: 9, status: 'Unpaid' },
+      { invoiceNo: 'INV-2026-1002', date: '16-Oct-2026', amount: 5040, dueDate: '19-Oct-2026', agingDays: 8, status: 'Paid' }
     ]
   },
   {
-    id: '2', distributorName: 'Metro Pharma Distributors', distributorCode: 'DIST-001', contactPerson: 'Vikram Singh', mobile: '+91 9988776655', gstin: '27AABCM1234E1Z2',
-    creditLimit: 500000, usedCredit: 210000, availableCredit: 290000, totalOutstanding: 210000, overdueAmount: 50000, maxAging: 40, status: 'Warning', lastPaymentDate: '25-Sep-2026',
+    id: '2',
+    distributorName: 'Global Health Supply',
+    distributorCode: 'DIST-002',
+    contactPerson: 'Anjali Desai',
+    mobile: '+91 91234 56789',
+    gstin: '07BBBBB2222B2Z2',
+    creditLimit: 800000,
+    usedCredit: 16800,
+    availableCredit: 783200,
+    totalOutstanding: 16800,
+    overdueAmount: 16800,
+    maxAging: 35,
+    status: 'Overdue',
+    lastPaymentDate: '05-Oct-2026',
     invoices: [
-      { id: 'INV-2026-0810', invoiceNo: 'INV-2026-0810', invoiceDate: '10-Aug-2026', dueDate: '10-Sep-2026', invoiceAmount: 150000, paidAmount: 100000, balanceAmount: 50000, aging: 40, status: 'Warning', lastPaymentDate: '25-Sep-2026' },
-      { id: 'INV-2026-0925', invoiceNo: 'INV-2026-0925', invoiceDate: '25-Sep-2026', dueDate: '25-Oct-2026', invoiceAmount: 160000, paidAmount: 0, balanceAmount: 160000, aging: 0, status: 'Clear', lastPaymentDate: '-' },
+      { invoiceNo: 'INV-2026-1003', date: '10-Oct-2026', amount: 16800, dueDate: '14-Oct-2026', agingDays: 35, status: 'Unpaid' }
     ]
   },
   {
-    id: '3', distributorName: 'Global Health Supply', distributorCode: 'DIST-002', contactPerson: 'Amit Patel', mobile: '+91 9123456789', gstin: '24AAACG3344D1Z8',
-    creditLimit: 800000, usedCredit: 55000, availableCredit: 745000, totalOutstanding: 55000, overdueAmount: 0, maxAging: 15, status: 'Clear', lastPaymentDate: '05-Oct-2026',
+    id: '3',
+    distributorName: 'Carewell Agencies',
+    distributorCode: 'DIST-003',
+    contactPerson: 'Vikram Malhotra',
+    mobile: '+91 98111 22233',
+    gstin: '29CCCCC3333C3Z3',
+    creditLimit: 400000,
+    usedCredit: 0,
+    availableCredit: 400000,
+    totalOutstanding: 0,
+    overdueAmount: 0,
+    maxAging: 0,
+    status: 'Clear',
+    lastPaymentDate: '20-Sep-2026',
     invoices: [
-      { id: 'INV-2026-1005', invoiceNo: 'INV-2026-1005', invoiceDate: '05-Oct-2026', dueDate: '04-Nov-2026', invoiceAmount: 100000, paidAmount: 45000, balanceAmount: 55000, aging: 15, status: 'Clear', lastPaymentDate: '05-Oct-2026' },
+      { invoiceNo: 'INV-2026-1004', date: '05-Oct-2026', amount: 12320, dueDate: '08-Oct-2026', agingDays: 20, status: 'Paid' }
     ]
-  },
+  }
 ];
 
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function OutstandingTracking() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
-  // Assume logged in distributor details
-  const loggedInDistributorCode = 'DIST-001'; 
+  const loggedInDistributorCode = 'DIST-001';
+
+  // State managed via pipeline synced from orders loop
+  const [records, setRecords] = useState<OutstandingRecord[]>(() => {
+    const trackingData = localStorage.getItem('pharma_erp_outstanding_records');
+    return trackingData ? JSON.parse(trackingData) : initialOutstandingRecords;
+  });
 
   const [search, setSearch] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  // View state
-  const [selectedDistributor, setSelectedDistributor] = useState<DistributorRecord | null>(null);
-  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
+  // Drawers
+  const [selectedRecord, setSelectedRecord] = useState<OutstandingRecord | null>(null);
+  const [paymentModal, setPaymentModal] = useState<{ open: boolean; recordId: string; invoiceNo: string; amount: number } | null>(null);
 
+  // Load latest pipeline mutations on mount or refresh loops
+  useEffect(() => {
+    const trackingData = localStorage.getItem('pharma_erp_outstanding_records');
+    if (trackingData) {
+      setRecords(JSON.parse(trackingData));
+    } else {
+      localStorage.setItem('pharma_erp_outstanding_records', JSON.stringify(initialOutstandingRecords));
+    }
+  }, []);
+
+  // Handle outside click context layers for Export Dropdown menu
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -101,168 +148,148 @@ export default function OutstandingTracking() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter Logic based on Role
-  const filteredData = useMemo(() => {
+  // --- Filtering Framework Pipelines ---
+  const visibleRecords = useMemo(() => {
+    let base = records;
     if (activeRole === ROLE_DISTRIBUTOR) {
-      const myData = mockData.find(d => d.distributorCode === loggedInDistributorCode);
-      if (!myData) return [];
-      return myData.invoices.filter(inv => 
-        inv.invoiceNo.toLowerCase().includes(search.toLowerCase())
+      base = records.filter(r => r.distributorCode === loggedInDistributorCode);
+    }
+    return base.filter(item => {
+      const matchSearch = item.distributorName.toLowerCase().includes(search.toLowerCase()) || 
+                          item.distributorCode.toLowerCase().includes(search.toLowerCase());
+      const matchStatus = statusFilter ? item.status === statusFilter : true;
+      return matchSearch && matchStatus;
+    });
+  }, [records, activeRole, search, statusFilter]);
+
+  // --- Aggregated Corporate KPI Stats Metrics ---
+  const metrics = useMemo(() => {
+    const totalOut = visibleRecords.reduce((sum, r) => sum + r.totalOutstanding, 0);
+    const totalOver = visibleRecords.reduce((sum, r) => sum + r.overdueAmount, 0);
+    const maximumAging = visibleRecords.length > 0 ? Math.max(...visibleRecords.map(r => r.maxAging)) : 0;
+    return { totalOut, totalOver, maximumAging };
+  }, [visibleRecords]);
+
+  // --- Action Scripts to process collections / updates ---
+  const handleClearInvoicePayment = (recordId: string, invoiceNo: string) => {
+    const updatedRecords = records.map(rec => {
+      if (rec.id !== recordId) return rec;
+
+      const updatedInvoices = rec.invoices.map(inv => 
+        inv.invoiceNo === invoiceNo ? { ...inv, status: 'Paid' as const } : inv
       );
-    } else {
-      return mockData.filter(d => 
-        d.distributorName.toLowerCase().includes(search.toLowerCase())
-      );
-    }
-  }, [activeRole, search]);
 
-  // Status Badge Helper
-  const getStatusVariant = (status: Status): BadgeVariant => {
-    if (status === 'Clear') return 'success';
-    if (status === 'Warning') return 'warning';
-    if (status === 'Critical' || status === 'Blocked') return 'danger';
-    return 'neutral';
-  };
+      const activeUnpaids = updatedInvoices.filter(i => i.status === 'Unpaid');
+      const updatedOutstanding = activeUnpaids.reduce((sum, i) => sum + i.amount, 0);
 
-  // Admin Table Columns
-  const adminColumns: Column<DistributorRecord>[] = [
-    { key: 'distributorName', label: 'Distributor', render: (row) => <span className="font-semibold text-slate-900">{row.distributorName}</span> },
-    { key: 'totalOutstanding', label: 'Outstanding Amount', render: (row) => <span className="font-medium text-slate-800">{formatCurrency(row.totalOutstanding)}</span> },
-    { key: 'overdueAmount', label: 'Overdue Amount', render: (row) => <span className={row.overdueAmount > 0 ? 'text-rose-600 font-bold' : 'text-slate-600'}>{formatCurrency(row.overdueAmount)}</span> },
-    { key: 'maxAging', label: 'Aging', render: (row) => `${row.maxAging} Days` },
-    { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
-    {
-      key: 'actions', label: 'Actions', render: (row) => (
-        <button onClick={(e) => { e.stopPropagation(); setSelectedDistributor(row); }} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View">
-          <Eye className="w-4 h-4" />
-        </button>
-      )
-    }
-  ];
+      return {
+        ...rec,
+        totalOutstanding: updatedOutstanding,
+        usedCredit: updatedOutstanding,
+        availableCredit: Math.max(0, rec.creditLimit - updatedOutstanding),
+        overdueAmount: Math.round(updatedOutstanding * 0.10),
+        maxAging: activeUnpaids.length > 0 ? Math.max(...activeUnpaids.map(i => i.agingDays)) : 0,
+        status: updatedOutstanding > rec.creditLimit ? ('Overdue' as const) : ('Clear' as const),
+        lastPaymentDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
+        invoices: updatedInvoices
+      };
+    });
 
-  // Distributor Table Columns
-  const distColumns: Column<Invoice>[] = [
-    { key: 'invoiceNo', label: 'Invoice No', render: (row) => <span className="font-semibold text-slate-900">{row.invoiceNo}</span> },
-    { key: 'invoiceDate', label: 'Invoice Date' },
-    { key: 'dueDate', label: 'Due Date' },
-    { key: 'balanceAmount', label: 'Outstanding Amount', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.balanceAmount)}</span> },
-    { key: 'aging', label: 'Aging', render: (row) => `${row.aging} Days` },
-    { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
-    {
-      key: 'actions', label: 'Actions', render: (row) => (
-        <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(row); }} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View">
-          <Eye className="w-4 h-4" />
-        </button>
-      )
-    }
-  ];
-
-  // Export Logic
-  const getFormattedDate = () => {
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}${mm}${dd}`;
-  };
-
-  const handleExportExcel = () => {
-    let exportData: any[] = [];
-    if (activeRole === ROLE_DISTRIBUTOR) {
-      exportData = (filteredData as Invoice[]).map(row => ({
-        'Invoice No': row.invoiceNo,
-        'Invoice Date': row.invoiceDate,
-        'Due Date': row.dueDate,
-        'Outstanding Amount': row.balanceAmount,
-        'Aging (Days)': row.aging,
-        'Status': row.status
-      }));
-    } else {
-      exportData = (filteredData as DistributorRecord[]).map(row => ({
-        'Distributor': row.distributorName,
-        'Outstanding Amount': row.totalOutstanding,
-        'Overdue Amount': row.overdueAmount,
-        'Aging (Days)': row.maxAging,
-        'Status': row.status
-      }));
-    }
-
-    const worksheet = XLSX.utils.json_to_sheet(exportData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Aging Report');
-    XLSX.writeFile(workbook, `aging_report_${getFormattedDate()}.xlsx`);
-    setShowExportMenu(false);
-  };
-
-  const handleExportCSV = () => {
-    let csvContent = '';
-    if (activeRole === ROLE_DISTRIBUTOR) {
-      const headers = ['Invoice No', 'Invoice Date', 'Due Date', 'Outstanding Amount', 'Aging (Days)', 'Status'];
-      csvContent = [
-        headers.join(','),
-        ...(filteredData as Invoice[]).map(row => 
-          [`"${row.invoiceNo}"`, `"${row.invoiceDate}"`, `"${row.dueDate}"`, row.balanceAmount, row.aging, `"${row.status}"`].join(',')
-        )
-      ].join('\n');
-    } else {
-      const headers = ['Distributor', 'Outstanding Amount', 'Overdue Amount', 'Aging (Days)', 'Status'];
-      csvContent = [
-        headers.join(','),
-        ...(filteredData as DistributorRecord[]).map(row => 
-          [`"${row.distributorName}"`, row.totalOutstanding, row.overdueAmount, row.maxAging, `"${row.status}"`].join(',')
-        )
-      ].join('\n');
-    }
+    setRecords(updatedRecords);
+    localStorage.setItem('pharma_erp_outstanding_records', JSON.stringify(updatedRecords));
     
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    link.href = URL.createObjectURL(blob);
-    link.download = `aging_report_${getFormattedDate()}.csv`;
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Auto-update orders file states mirror matrix
+    const savedOrdersRaw = localStorage.getItem('pharma_erp_orders');
+    if (savedOrdersRaw) {
+      try {
+        const parsedOrders = JSON.parse(savedOrdersRaw);
+        const matchOrderNo = invoiceNo.replace('INV-', 'ORD-');
+        const updatedOrders = parsedOrders.map((o: any) => 
+          o.orderNo === matchOrderNo ? { ...o, status: 'Fulfilled' } : o
+        );
+        localStorage.setItem('pharma_erp_orders', JSON.stringify(updatedOrders));
+      } catch (e) {
+        console.error("Order fulfillment loop mapping bypass", e);
+      }
+    }
+
+    setPaymentModal(null);
+    setSelectedRecord(null);
+  };
+
+  // --- Export Protocols Engine ---
+  const handleExportExcel = () => {
+    const data = visibleRecords.map(r => ({
+      'Code': r.distributorCode,
+      'Distributor Name': r.distributorName,
+      'Credit Limit': r.creditLimit,
+      'Outstanding': r.totalOutstanding,
+      'Overdue Value': r.overdueAmount,
+      'Max Aging Days': r.maxAging,
+      'Status': r.status
+    }));
+    const ws = XLSX.utils.json_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ledger Summary');
+    XLSX.writeFile(wb, `Outstanding_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
     setShowExportMenu(false);
   };
 
   const handleExportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(16);
-    doc.text('Outstanding & Aging Report', 14, 15);
+    doc.text('Outstanding Balances & Credit Ledger Report', 14, 15);
     doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 22);
+    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 21);
 
-    if (activeRole === ROLE_DISTRIBUTOR) {
-      autoTable(doc, {
-        startY: 30,
-        head: [['Invoice No', 'Date', 'Due Date', 'Outstanding Amount', 'Aging', 'Status']],
-        body: (filteredData as Invoice[]).map(row => [
-          row.invoiceNo, row.invoiceDate, row.dueDate, formatCurrency(row.balanceAmount), `${row.aging} Days`, row.status
-        ]),
-        theme: 'grid',
-        headStyles: { fillColor: [139, 92, 246] }
-      });
-    } else {
-      autoTable(doc, {
-        startY: 30,
-        head: [['Distributor', 'Outstanding Amount', 'Overdue Amount', 'Aging', 'Status']],
-        body: (filteredData as DistributorRecord[]).map(row => [
-          row.distributorName, formatCurrency(row.totalOutstanding), formatCurrency(row.overdueAmount), `${row.maxAging} Days`, row.status
-        ]),
-        theme: 'grid',
-        headStyles: { fillColor: [139, 92, 246] }
-      });
-    }
-
-    doc.save(`aging_report_${getFormattedDate()}.pdf`);
+    autoTable(doc, {
+      startY: 28,
+      head: [['Code', 'Distributor Profile Name', 'Credit Limit', 'Total Outstanding', 'Overdue Amount', 'Max Aging']],
+      body: visibleRecords.map(r => [
+        r.distributorCode, r.distributorName, formatCurrency(r.creditLimit),
+        formatCurrency(r.totalOutstanding), formatCurrency(r.overdueAmount), `${r.maxAging} Days`
+      ]),
+      theme: 'grid',
+      headStyles: { fillColor: [124, 58, 237] }
+    });
+    doc.save(`Outstanding_Statement.pdf`);
     setShowExportMenu(false);
   };
+
+  // --- Grid Column Models ---
+  const columns: Column<OutstandingRecord>[] = [
+    { key: 'distributorCode', label: 'Distributor Code', render: (row) => <span className="font-mono text-xs font-semibold text-slate-700">{row.distributorCode}</span> },
+    { key: 'distributorName', label: 'Distributor Name', render: (row) => <span className="font-semibold text-slate-900">{row.distributorName}</span> },
+    { key: 'creditLimit', label: 'Credit Limit', render: (row) => <span>{formatCurrency(row.creditLimit)}</span> },
+    { key: 'totalOutstanding', label: 'Outstanding Balance', render: (row) => <span className="font-bold text-slate-900">{formatCurrency(row.totalOutstanding)}</span> },
+    { key: 'overdueAmount', label: 'Overdue Amount', render: (row) => <span className={`font-medium ${row.overdueAmount > 0 ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>{formatCurrency(row.overdueAmount)}</span> },
+    { key: 'maxAging', label: 'Max Aging', render: (row) => <span className={`font-mono ${row.maxAging > 30 ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{row.maxAging} Days</span> },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (row) => {
+        const variant: BadgeVariant = row.status === 'Overdue' ? 'danger' : 'success';
+        return <Badge variant={variant}>{row.status}</Badge>;
+      }
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row) => (
+        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          <button onClick={() => setSelectedRecord(row)} className="text-slate-400 hover:text-violet-600 p-1 transition-colors" title="View Statement Ledger">
+            <Eye className="w-4 h-4" />
+          </button>
+        </div>
+      )
+    }
+  ];
 
   return (
     <div className="animate-in fade-in duration-500">
       <PageHeader
-        title="Outstanding Tracking"
-        subtitle={activeRole === ROLE_DISTRIBUTOR ? "Track your outstanding invoices, payments, and aging status." : "Track distributor payments, aging reports, and credit limits."}
+        title="Outstanding & Credit Tracking"
+        subtitle="Monitor distributor accounts, outstanding credit limits, collection schedules, and aging invoices."
         actions={
           <div className="relative inline-block text-left" ref={exportMenuRef}>
             <ActionButton 
@@ -270,15 +297,14 @@ export default function OutstandingTracking() {
               icon={<Download className="w-4 h-4" />}
               onClick={() => setShowExportMenu(!showExportMenu)}
             >
-              Export Report
+              Export Statement
               <ChevronDown className="w-3 h-3 ml-1" />
             </ActionButton>
             {showExportMenu && (
               <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                 <div className="py-1">
                   <button onClick={handleExportExcel} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export Excel (.xlsx)</button>
-                  <button onClick={handleExportCSV} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export CSV (.csv)</button>
-                  <button onClick={handleExportPDF} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export PDF (.pdf)</button>
+                  <button onClick={handleExportPDF} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export PDF Report (.pdf)</button>
                 </div>
               </div>
             )}
@@ -286,160 +312,184 @@ export default function OutstandingTracking() {
         }
       />
 
-      {activeRole === ROLE_SUPER_ADMIN && (
-        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-          <AlertTriangle className="w-5 h-5 text-amber-600 mt-0.5" />
+      {/* --- Executive Dashboard KPI Metrics Panel Header Layout --- */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <h3 className="text-sm font-semibold text-amber-800">Payment Collection Alert</h3>
-            <p className="text-sm text-amber-700 mt-1">
-              {formatCurrency(mockData.reduce((acc, curr) => acc + curr.overdueAmount, 0))} is currently overdue across all distributors.
-            </p>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Total Outstanding Pipeline</span>
+            <span className="text-2xl font-black text-slate-900">{formatCurrency(metrics.totalOut)}</span>
           </div>
+          <div className="p-3 bg-violet-50 text-violet-600 rounded-xl"><DollarSign className="w-6 h-6" /></div>
         </div>
-      )}
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Total Overdue Bracket</span>
+            <span className={`text-2xl font-black ${metrics.totalOver > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{formatCurrency(metrics.totalOver)}</span>
+          </div>
+          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl"><DollarSign className="w-6 h-6" /></div>
+        </div>
+
+        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
+          <div>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Highest Account Peak Aging</span>
+            <span className="text-2xl font-black text-slate-900 font-mono">{metrics.maximumAging} Days</span>
+          </div>
+          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Filter className="w-6 h-6" /></div>
+        </div>
+      </div>
 
       <FilterBar>
-        <SearchInput 
-          value={search} 
-          onChange={setSearch} 
-          placeholder={activeRole === ROLE_DISTRIBUTOR ? "Search by Invoice No..." : "Search by Distributor Name..."} 
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by distributor name or registration code..." />
+        <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
+        <div className="flex items-center gap-2">
+          <Filter className="w-4 h-4 text-slate-400" />
+          <span className="text-sm font-medium text-slate-600">Quick Filter:</span>
+        </div>
+        <SelectFilter
+          value={statusFilter}
+          onChange={setStatusFilter}
+          options={[
+            { label: 'Clear Accounts', value: 'Clear' },
+            { label: 'Overdue Breached', value: 'Overdue' }
+          ]}
+          placeholder="All Standings"
         />
       </FilterBar>
 
       <TableCard>
         <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
           <DataTable
-            columns={activeRole === ROLE_DISTRIBUTOR ? distColumns as any : adminColumns as any}
-            data={filteredData as any}
-            emptyMessage="No outstanding records found."
+            columns={columns}
+            data={visibleRecords}
+            emptyMessage="No outstanding account tracking parameters located."
           />
         </div>
       </TableCard>
 
-      {/* --- Super Admin View Drawer --- */}
-      <Drawer open={!!selectedDistributor} onClose={() => setSelectedDistributor(null)} title="Distributor Outstanding Profile">
-        {selectedDistributor && (
+      {/* --- Detail Statements Account Invoice History Side Drawer --- */}
+      <Drawer open={!!selectedRecord} onClose={() => setSelectedRecord(null)} title="Account Statement Ledger">
+        {selectedRecord && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Distributor Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Distributor Name" value={<span className="font-semibold text-slate-900">{selectedDistributor.distributorName}</span>} />
-                <DrawerField label="Distributor Code" value={selectedDistributor.distributorCode} />
-                <DrawerField label="Contact Person" value={selectedDistributor.contactPerson} />
-                <DrawerField label="Mobile" value={selectedDistributor.mobile} />
-                <DrawerField label="GSTIN" value={selectedDistributor.gstin} />
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Distributor Profile Meta</h3>
+              <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <DrawerField label="Corporate Name" value={<span className="font-bold text-slate-900">{selectedRecord.distributorName}</span>} />
+                <DrawerField label="Account ID" value={<span className="font-mono text-xs">{selectedRecord.distributorCode}</span>} />
+                <DrawerField label="Contact Person" value={selectedRecord.contactPerson} />
+                <DrawerField label="Mobile Context" value={selectedRecord.mobile} />
+                <DrawerField label="Tax Matrix GSTIN" value={selectedRecord.gstin} />
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Credit Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Credit Limit" value={<span className="font-semibold">{formatCurrency(selectedDistributor.creditLimit)}</span>} />
-                <DrawerField label="Used Credit" value={formatCurrency(selectedDistributor.usedCredit)} />
-                <DrawerField label="Available Credit" value={<span className="text-emerald-600 font-semibold">{formatCurrency(selectedDistributor.availableCredit)}</span>} />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Outstanding Summary</h3>
-              <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <div className="flex justify-between text-sm text-slate-600">
-                  <span>Total Outstanding</span>
-                  <span className="font-medium text-slate-900">{formatCurrency(selectedDistributor.totalOutstanding)}</span>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Credit Metrics Limits Mapping</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm">
+                  <span className="text-xs text-slate-400 block">Assigned Credit Limit</span>
+                  <span className="text-base font-bold text-slate-900">{formatCurrency(selectedRecord.creditLimit)}</span>
                 </div>
-                <div className="flex justify-between text-sm text-slate-600">
-                  <span>Overdue Amount</span>
-                  <span className={selectedDistributor.overdueAmount > 0 ? "font-bold text-rose-600" : "font-medium"}>{formatCurrency(selectedDistributor.overdueAmount)}</span>
+                <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm">
+                  <span className="text-xs text-slate-400 block">Available Headroom</span>
+                  <span className="text-base font-bold text-emerald-600">{formatCurrency(selectedRecord.availableCredit)}</span>
                 </div>
-                <div className="flex justify-between text-sm text-slate-600">
-                  <span>Oldest Aging</span>
-                  <span className="font-medium">{selectedDistributor.maxAging} Days</span>
+                <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm">
+                  <span className="text-xs text-slate-400 block">Utilized Exposure</span>
+                  <span className="text-base font-bold text-slate-900">{formatCurrency(selectedRecord.usedCredit)}</span>
                 </div>
-                <div className="flex justify-between text-sm text-slate-600 pt-2 border-t border-slate-200 mt-2">
-                  <span>Last Payment Date</span>
-                  <span className="font-medium">{selectedDistributor.lastPaymentDate}</span>
+                <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm">
+                  <span className="text-xs text-slate-400 block">Last Allocation Collection</span>
+                  <span className="text-sm font-semibold text-slate-600 mt-1 block">{selectedRecord.lastPaymentDate}</span>
                 </div>
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Invoice Breakdown</h3>
-              <div className="bg-slate-50 border border-slate-200 rounded-lg overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-100/50 border-b border-slate-200 text-slate-500 uppercase text-xs whitespace-nowrap">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Invoice No</th>
-                      <th className="px-4 py-3 font-semibold">Date</th>
-                      <th className="px-4 py-3 font-semibold">Due Date</th>
-                      <th className="px-4 py-3 font-semibold text-right">Inv Amount</th>
-                      <th className="px-4 py-3 font-semibold text-right">Paid</th>
-                      <th className="px-4 py-3 font-semibold text-right">Balance</th>
-                      <th className="px-4 py-3 font-semibold text-center">Aging</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100 whitespace-nowrap">
-                    {selectedDistributor.invoices.map((inv, idx) => (
-                      <tr key={idx}>
-                        <td className="px-4 py-3 font-medium text-slate-900">{inv.invoiceNo}</td>
-                        <td className="px-4 py-3 text-slate-600">{inv.invoiceDate}</td>
-                        <td className="px-4 py-3 text-slate-600">{inv.dueDate}</td>
-                        <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(inv.invoiceAmount)}</td>
-                        <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(inv.paidAmount)}</td>
-                        <td className="px-4 py-3 text-right font-bold text-slate-900">{formatCurrency(inv.balanceAmount)}</td>
-                        <td className="px-4 py-3 text-center">
-                          <span className={inv.aging > 0 ? 'text-rose-600 font-medium' : 'text-emerald-600 font-medium'}>{inv.aging} Days</span>
-                        </td>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Invoiced Ledgers Log</h3>
+              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 uppercase">
+                      <tr>
+                        <th className="px-3 py-2.5">Invoice Ref</th>
+                        <th className="px-3 py-2.5">Net Bill Value</th>
+                        <th className="px-3 py-2.5">Aging Track</th>
+                        <th className="px-3 py-2.5">Standing</th>
+                        {activeRole !== ROLE_DISTRIBUTOR && <th className="px-3 py-2.5 text-center">Action</th>}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-slate-700">
+                      {selectedRecord.invoices.map((inv, index) => (
+                        <tr key={index} className="hover:bg-slate-50/50">
+                          <td className="px-3 py-3 font-mono font-medium">
+                            {inv.invoiceNo}
+                            <div className="text-[10px] text-slate-400 font-normal">{inv.date}</div>
+                          </td>
+                          <td className="px-3 py-3 font-bold text-slate-900">{formatCurrency(inv.amount)}</td>
+                          <td className="px-3 py-3 font-mono text-slate-500">{inv.status === 'Paid' ? '-' : `${inv.agingDays} Days`}</td>
+                          <td className="px-3 py-3">
+                            <Badge variant={inv.status === 'Paid' ? 'success' : 'warning'}>{inv.status}</Badge>
+                          </td>
+                          {activeRole !== ROLE_DISTRIBUTOR && (
+                            <td className="px-3 py-3 text-center">
+                              {inv.status === 'Unpaid' ? (
+                                <button
+                                  onClick={() => setPaymentModal({ open: true, recordId: selectedRecord.id, invoiceNo: inv.invoiceNo, amount: inv.amount })}
+                                  className="text-emerald-600 hover:text-emerald-800 p-1 font-semibold flex items-center gap-0.5 mx-auto transition-colors"
+                                  title="Log Payment Collection Receive"
+                                >
+                                  <CheckCircle2 className="w-3.5 h-3.5" />
+                                  Pay
+                                </button>
+                              ) : (
+                                <span className="text-slate-400 text-[10px] italic">Settled</span>
+                              )}
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
 
-            <div className="pt-6 border-t border-slate-100 flex justify-end">
-              <ActionButton variant="secondary" onClick={() => setSelectedDistributor(null)}>Close</ActionButton>
+            <div className="pt-4 border-t flex justify-end">
+              <ActionButton variant="secondary" onClick={() => setSelectedRecord(null)}>Close Statement</ActionButton>
             </div>
           </div>
         )}
       </Drawer>
 
-      {/* --- Distributor View Drawer --- */}
-      <Drawer open={!!selectedInvoice} onClose={() => setSelectedInvoice(null)} title="Invoice Outstanding Details">
-        {selectedInvoice && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Invoice Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Invoice No" value={<span className="font-semibold text-slate-900">{selectedInvoice.invoiceNo}</span>} />
-                <DrawerField label="Invoice Date" value={selectedInvoice.invoiceDate} />
-                <DrawerField label="Due Date" value={selectedInvoice.dueDate} />
-                <DrawerField label="Invoice Amount" value={<span className="font-semibold">{formatCurrency(selectedInvoice.invoiceAmount)}</span>} />
-              </div>
+      {/* --- Collection Entry Prompt Window Modal --- */}
+      {paymentModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
+            <h4 className="text-base font-bold text-slate-900 mb-1">Record Inward Collection Settlement</h4>
+            <p className="text-xs text-slate-500 mb-4">You are confirming full receipt parameters against balance invoice sheet item <span className="font-mono font-bold text-slate-800">{paymentModal.invoiceNo}</span>.</p>
+            
+            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mb-5 flex justify-between items-center">
+              <span className="text-xs text-slate-500 font-medium">Receipt Net Value:</span>
+              <span className="text-base font-black text-slate-900">{formatCurrency(paymentModal.amount)}</span>
             </div>
 
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Payment Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Paid Amount" value={<span className="text-emerald-600 font-semibold">{formatCurrency(selectedInvoice.paidAmount)}</span>} />
-                <DrawerField label="Outstanding Amount" value={<span className="font-bold text-rose-600">{formatCurrency(selectedInvoice.balanceAmount)}</span>} />
-                <DrawerField label="Aging" value={`${selectedInvoice.aging} Days`} />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Status Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Status" value={<Badge variant={getStatusVariant(selectedInvoice.status)}>{selectedInvoice.status}</Badge>} />
-                <DrawerField label="Last Payment Date" value={selectedInvoice.lastPaymentDate} />
-              </div>
-            </div>
-
-            <div className="pt-6 border-t border-slate-100 flex justify-end">
-              <ActionButton variant="secondary" onClick={() => setSelectedInvoice(null)}>Close</ActionButton>
+            <div className="flex justify-end gap-3 text-xs">
+              <button 
+                onClick={() => setPaymentModal(null)} 
+                className="px-3.5 py-2 border border-slate-200 text-slate-600 rounded-lg font-medium hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={() => handleClearInvoicePayment(paymentModal.recordId, paymentModal.invoiceNo)} 
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-sm transition-colors"
+              >
+                Approve Payment Receipt
+              </button>
             </div>
           </div>
-        )}
-      </Drawer>
+        </div>
+      )}
     </div>
   );
 }

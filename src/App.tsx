@@ -39,10 +39,10 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+import { GlowCard } from './components/ui/GlowCard';
 
 /* ── Mock Data ───────────────────────────────────────────────────── */
 
-// Primary KPIs
 const primaryKpiData = [
   {
     title: 'Total Revenue',
@@ -94,7 +94,6 @@ const primaryKpiData = [
   },
 ];
 
-// Secondary KPIs
 const secondaryKpiData = [
   {
     title: 'Inventory Value',
@@ -189,10 +188,7 @@ const criticalAlertsData = [
 /* ── Animation Helpers ───────────────────────────────────────────── */
 const containerVariants = {
   hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.1 },
-  },
+  show: { opacity: 1, transition: { staggerChildren: 0.1 } },
 };
 
 const itemVariants = {
@@ -200,15 +196,11 @@ const itemVariants = {
   show: { opacity: 1, y: 0, transition: { duration: 0.4 } },
 };
 
-import { GlowCard } from './components/ui/GlowCard';
-
-/* ── Dashboard Component ─────────────────────────────────────────── */
 export default function Dashboard() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
-
   const isSuperAdmin = [ROLE_SUPER_ADMIN, 'Super Admin', 'System Administrator'].includes(activeRole);
 
-  let displayPrimaryKpis = isSuperAdmin ? primaryKpiData : primaryKpiData;
+  let displayPrimaryKpis = primaryKpiData;
   let displaySecondaryKpis = secondaryKpiData;
 
   if (activeRole === ROLE_WAREHOUSE_MANAGER) {
@@ -252,17 +244,13 @@ export default function Dashboard() {
               glowColor={kpi.glowColor}
               glowColorIdle={kpi.glowColorIdle}
               animationVariants={itemVariants}
-              animationDelay={idx * 1.5} // stagger idle pulse so they don't all pulse together
+              animationDelay={idx * 1.5}
             >
               <div className="flex items-center justify-between mb-4">
                 <div className={`w-12 h-12 rounded-full flex items-center justify-center ${kpi.iconBg}`}>
                   <kpi.icon className={`w-6 h-6 ${kpi.iconColor}`} />
                 </div>
-                <div
-                  className={`flex items-center gap-1 text-sm font-semibold ${
-                    kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'
-                  }`}
-                >
+                <div className={`flex items-center gap-1 text-sm font-semibold ${kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
                   {kpi.isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
                   {kpi.trend}
                 </div>
@@ -291,11 +279,7 @@ export default function Dashboard() {
                   <div className={`w-10 h-10 rounded-full flex items-center justify-center ${kpi.iconBg}`}>
                     <kpi.icon className={`w-5 h-5 ${kpi.iconColor}`} />
                   </div>
-                  <div
-                    className={`flex items-center gap-1 text-sm font-semibold ${
-                      kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'
-                    }`}
-                  >
+                  <div className={`flex items-center gap-1 text-sm font-semibold ${kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {kpi.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
                     {kpi.trend}
                   </div>
@@ -312,101 +296,74 @@ export default function Dashboard() {
         {/* ── Charts & Stock Panel ── */}
         {(showSalesChart || showInventoryHealth) && (
           <div className={`grid grid-cols-1 ${showSalesChart && showInventoryHealth ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-6`}>
-            {/* Sales Performance Trend */}
             {showSalesChart && (
-            <motion.div
-              variants={itemVariants}
-              className={`${showInventoryHealth ? 'lg:col-span-2' : ''} bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300`}
-            >
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-lg font-bold text-slate-800">Sales Performance Trend</h2>
-              <button className="text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
-                View Full Report
-              </button>
-            </div>
-            <div className="h-[280px] w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={salesData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                  <defs>
-                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
-                  <RechartsTooltip
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="sales"
-                    stroke="#7c3aed"
-                    strokeWidth={3}
-                    fillOpacity={1}
-                    fill="url(#colorSales)"
-                    activeDot={{ r: 6, strokeWidth: 0, fill: '#7c3aed' }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </motion.div>
-          )}
-
-          {/* Inventory Health */}
-          {showInventoryHealth && (
-          <motion.div
-            variants={itemVariants}
-            className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col"
-          >
-            <h2 className="text-lg font-bold text-slate-800 mb-2">Inventory Health</h2>
-
-            <div className="h-[180px] w-full relative">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={inventoryData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={55}
-                    outerRadius={75}
-                    paddingAngle={3}
-                    dataKey="value"
-                    stroke="none"
-                  >
-                    {inventoryData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
-                  </Pie>
-                  <RechartsTooltip
-                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 4px rgb(0 0 0 / 0.1)' }}
-                  />
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-2xl font-bold text-slate-800">75%</span>
-                <span className="text-xs text-slate-500 font-medium">Stable</span>
-              </div>
-            </div>
-
-            <div className="mt-auto pt-4 space-y-3">
-              {inventoryData.map((item) => (
-                <div key={item.name} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
-                    <span className="text-sm font-medium text-slate-600">{item.name} Stock</span>
-                  </div>
-                  <span className="text-sm font-bold text-slate-800">{item.value}%</span>
+              <motion.div
+                variants={itemVariants}
+                className={`${showInventoryHealth ? 'lg:col-span-2' : ''} bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300`}
+              >
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-lg font-bold text-slate-800">Sales Performance Trend</h2>
+                  <button className="text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
+                    View Full Report
+                  </button>
                 </div>
-              ))}
-            </div>
-          </motion.div>
-          )}
-        </div>
+                <div className="h-[280px] w-full">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={salesData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.3} />
+                          <stop offset="95%" stopColor="#7c3aed" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                      <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} dy={10} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} />
+                      <RechartsTooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }} />
+                      <Area type="monotone" dataKey="sales" stroke="#7c3aed" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" activeDot={{ r: 6, strokeWidth: 0, fill: '#7c3aed' }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+              </motion.div>
+            )}
+
+            {showInventoryHealth && (
+              <motion.div
+                variants={itemVariants}
+                className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm hover:shadow-md transition-shadow duration-300 flex flex-col"
+              >
+                <h2 className="text-lg font-bold text-slate-800 mb-2">Inventory Health</h2>
+                <div className="h-[180px] w-full relative">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={inventoryData} cx="50%" cy="50%" innerRadius={55} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none">
+                        {inventoryData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                      </Pie>
+                      <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 4px rgb(0 0 0 / 0.1)' }} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                    <span className="text-2xl font-bold text-slate-800">75%</span>
+                    <span className="text-xs text-slate-500 font-medium">Stable</span>
+                  </div>
+                </div>
+                <div className="mt-auto pt-4 space-y-3">
+                  {inventoryData.map((item) => (
+                    <div key={item.name} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
+                        <span className="text-sm font-medium text-slate-600">{item.name} Stock</span>
+                      </div>
+                      <span className="text-sm font-bold text-slate-800">{item.value}%</span>
+                    </div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+          </div>
         )}
 
-        {/* ── Quick Actions (Super Admin Only) ── */}
+        {/* ── Quick Actions (Super Admin Only - Fully Hidden from Distributors) ── */}
         {isSuperAdmin && (
           <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-6">
             <h2 className="text-lg font-bold text-slate-800 mb-6">Quick Actions</h2>
@@ -428,125 +385,119 @@ export default function Dashboard() {
 
         {/* ── Recent Orders Table ── */}
         {showRecentOrders && (
-        <motion.div
-          variants={itemVariants}
-          className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden"
-        >
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-800">Recent Orders</h2>
-            <button className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
-              View All <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/50">
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Order ID</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Client</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {recentOrders.map((order) => {
-                  let StatusIcon = Clock;
-                  let statusColor = 'text-amber-600';
-                  let statusBg = 'bg-amber-50';
+          <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800">Recent Orders</h2>
+              <button className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
+                View All <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Order ID</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Client</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {recentOrders.map((order) => {
+                    let StatusIcon = Clock;
+                    let statusColor = 'text-amber-600';
+                    let statusBg = 'bg-amber-50';
 
-                  if (order.status === 'Shipped') {
-                    StatusIcon = CheckCircle2;
-                    statusColor = 'text-emerald-600';
-                    statusBg = 'bg-emerald-50';
-                  } else if (order.status === 'Failed') {
-                    StatusIcon = XCircle;
-                    statusColor = 'text-rose-600';
-                    statusBg = 'bg-rose-50';
-                  }
+                    if (order.status === 'Shipped') {
+                      StatusIcon = CheckCircle2;
+                      statusColor = 'text-emerald-600';
+                      statusBg = 'bg-emerald-50';
+                    } else if (order.status === 'Failed') {
+                      StatusIcon = XCircle;
+                      statusColor = 'text-rose-600';
+                      statusBg = 'bg-rose-50';
+                    }
 
-                  return (
-                    <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-4 px-6 text-sm font-bold text-slate-800">{order.id}</td>
-                      <td className="py-4 px-6 text-sm font-medium text-slate-600">{order.client}</td>
-                      <td className="py-4 px-6">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusBg} ${statusColor}`}>
-                          <StatusIcon className="w-3.5 h-3.5" />
-                          {order.status}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-sm font-bold text-slate-700">{order.amount}</td>
-                      <td className="py-4 px-6 text-sm font-medium text-slate-500">{order.date}</td>
-                      <td className="py-4 px-6 text-right">
-                        <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors outline-none focus-visible:ring-2 focus-visible:ring-violet-500">
-                          <MoreVertical className="w-5 h-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
+                    return (
+                      <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-4 px-6 text-sm font-bold text-slate-800">{order.id}</td>
+                        <td className="py-4 px-6 text-sm font-medium text-slate-600">{order.client}</td>
+                        <td className="py-4 px-6">
+                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusBg} ${statusColor}`}>
+                            <StatusIcon className="w-3.5 h-3.5" />
+                            {order.status}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-sm font-bold text-slate-700">{order.amount}</td>
+                        <td className="py-4 px-6 text-sm font-medium text-slate-500">{order.date}</td>
+                        <td className="py-4 px-6 text-right">
+                          <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors outline-none">
+                            <MoreVertical className="w-5 h-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
         )}
 
         {/* ── Critical Alerts Table (Super Admin Only) ── */}
         {isSuperAdmin && (
-        <motion.div
-          variants={itemVariants}
-          className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden"
-        >
-          <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-            <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-rose-500" /> Critical Alerts
-            </h2>
-            <button className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
-              View Action Center <ArrowRight className="w-4 h-4" />
-            </button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-slate-50/50">
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Alert Type</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Reference</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Priority</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Created Date</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                  <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100">
-                {criticalAlertsData.map((alert) => {
-                  let priorityColor = 'bg-amber-100 text-amber-700';
-                  if (alert.priority === 'Critical') priorityColor = 'bg-rose-100 text-rose-700';
-                  if (alert.priority === 'High') priorityColor = 'bg-orange-100 text-orange-700';
+          <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-rose-500" /> Critical Alerts
+              </h2>
+              <button className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
+                View Action Center <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Alert Type</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Reference</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Priority</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Created Date</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {criticalAlertsData.map((alert) => {
+                    let priorityColor = 'bg-amber-100 text-amber-700';
+                    if (alert.priority === 'Critical') priorityColor = 'bg-rose-100 text-rose-700';
+                    if (alert.priority === 'High') priorityColor = 'bg-orange-100 text-orange-700';
 
-                  return (
-                    <tr key={alert.id} className="hover:bg-slate-50/80 transition-colors">
-                      <td className="py-4 px-6 text-sm font-bold text-slate-800">{alert.type}</td>
-                      <td className="py-4 px-6 text-sm font-medium text-slate-600">{alert.reference}</td>
-                      <td className="py-4 px-6">
-                        <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${priorityColor}`}>
-                          {alert.priority}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6 text-sm font-medium text-slate-500">{alert.date}</td>
-                      <td className="py-4 px-6 text-sm font-medium text-slate-600">{alert.status}</td>
-                      <td className="py-4 px-6 text-right">
-                        <button className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-full transition-colors outline-none">
-                          <Eye className="w-5 h-5" />
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </motion.div>
+                    return (
+                      <tr key={alert.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-4 px-6 text-sm font-bold text-slate-800">{alert.type}</td>
+                        <td className="py-4 px-6 text-sm font-medium text-slate-600">{alert.reference}</td>
+                        <td className="py-4 px-6">
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${priorityColor}`}>
+                            {alert.priority}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-sm font-medium text-slate-500">{alert.date}</td>
+                        <td className="py-4 px-6 text-sm font-medium text-slate-600">{alert.status}</td>
+                        <td className="py-4 px-6 text-right">
+                          <button className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-full transition-colors outline-none">
+                            <Eye className="w-5 h-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
         )}
       </motion.div>
     </div>

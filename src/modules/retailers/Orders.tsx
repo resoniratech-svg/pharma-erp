@@ -103,11 +103,6 @@ const initialMockData: Order[] = [
   },
 ];
 
-const mockCartItems: OrderItem[] = [
-  { id: 'c1', productName: 'Azithromycin 500mg', productCode: 'AZI-500', quantity: 20, unitPrice: 150, lineTotal: 3000 },
-  { id: 'c2', productName: 'Cetirizine 10mg', productCode: 'CET-10', quantity: 50, unitPrice: 20, lineTotal: 1000, schemeBenefit: '5% Discount' }
-];
-
 export default function Orders() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_RETAILER;
   const isRetailer = activeRole === ROLE_RETAILER;
@@ -122,10 +117,39 @@ export default function Orders() {
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // New Order Form State
-  const [address, setAddress] = useState('123 Apollo Street, HealthCity, HC 500001'); // Pre-fill for demo
+  const [address, setAddress] = useState('123 Apollo Street, HealthCity, HC 500001'); 
   const [contact, setContact] = useState('Rahul Sharma');
   const [mobile, setMobile] = useState('+91 9876543210');
   const [remarks, setRemarks] = useState('');
+
+  const [cartItems, setCartItems] = useState<OrderItem[]>([]);
+
+  useEffect(() => {
+    if (isCreateOpen) {
+      const activeCart = localStorage.getItem('pharma_erp_retailer_cart');
+      if (activeCart) {
+        try {
+          const parsed = JSON.parse(activeCart);
+          // Standardize fields coming from the Product Catalog mapping ecosystem
+          const formattedItems = parsed.map((item: any) => ({
+            id: item.id || Math.random().toString(),
+            productName: item.productName || 'N/A',
+            productCode: item.productCode || 'N/A',
+            quantity: Number(item.quantity || 0),
+            unitPrice: Number(item.ptr || item.unitPrice || 0),
+            schemeBenefit: item.scheme && item.scheme !== 'No Scheme' ? item.scheme : undefined,
+            lineTotal: Number(item.lineTotal || 0)
+          }));
+          setCartItems(formattedItems);
+        } catch (e) {
+          console.error("Failed to parse cart information schema.", e);
+          setCartItems([]);
+        }
+      } else {
+        setCartItems([]);
+      }
+    }
+  }, [isCreateOpen]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -137,7 +161,6 @@ export default function Orders() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter Data
   const baseData = isRetailer ? data.filter(d => d.retailer === 'Apollo Pharmacy') : data;
   const filteredData = baseData.filter((item) => {
     const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase());
@@ -152,7 +175,14 @@ export default function Orders() {
     return 'neutral';
   };
 
-  const formatCurrency = (value: number) => `₹ ${value.toLocaleString('en-IN')}`;
+  // Safe currency converter containing error handling protections against rendering breaks
+  const formatCurrency = (value: any) => {
+    if (value === undefined || value === null || isNaN(Number(value))) {
+      return '₹ 0';
+    }
+    const numericValue = typeof value === 'string' ? parseFloat(value) : value;
+    return `₹ ${numericValue.toLocaleString('en-IN')}`;
+  };
 
   const handleCancelOrder = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -162,17 +192,21 @@ export default function Orders() {
   };
 
   const handlePlaceOrder = () => {
+    if (cartItems.length === 0) {
+      alert("Your order sheet is completely empty. Please pull items from the catalog first.");
+      return;
+    }
     if (!address || !contact || !mobile) {
       alert("Please fill in all required delivery fields.");
       return;
     }
 
-    const totalGross = mockCartItems.reduce((acc, item) => acc + item.lineTotal, 0);
-    const schemeDiscount = 50; // Mock calculation
+    const totalGross = cartItems.reduce((acc, item) => acc + item.lineTotal, 0);
+    const schemeDiscount = totalGross > 2000 ? 50 : 0; 
     const newOrder: Order = {
       id: Math.random().toString(),
       orderNo: `RET-ORD-${Math.floor(4000 + Math.random() * 1000)}`,
-      retailer: 'Apollo Pharmacy', // Assuming current retailer
+      retailer: 'Apollo Pharmacy', 
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
       amount: totalGross,
       schemeDiscount: schemeDiscount,
@@ -183,26 +217,29 @@ export default function Orders() {
       contactPerson: contact,
       mobileNumber: mobile,
       remarks: remarks,
-      items: mockCartItems
+      items: cartItems
     };
 
     setData([newOrder, ...data]);
     setIsCreateOpen(false);
     
-    // Reset form
+    setCartItems([]);
+    localStorage.removeItem('pharma_erp_retailer_cart');
     setRemarks('');
   };
 
+  // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const adminColumns: Column<Order>[] = [
-    { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
-    { key: 'retailer', label: 'Retailer', render: (row) => <span className="text-slate-900">{row.retailer}</span> },
-    { key: 'date', label: 'Order Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
-    { key: 'amount', label: 'Order Value', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.netAmount)}</span> },
-    { key: 'paymentStatus', label: 'Payment Status', render: (row) => <span className={`font-medium ${row.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{row.paymentStatus}</span> },
-    { key: 'status', label: 'Order Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+    { key: 'orderNo', header: 'Order No', accessor: 'orderNo', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
+    { key: 'retailer', header: 'Retailer', accessor: 'retailer', render: (row) => <span className="text-slate-900">{row.retailer}</span> },
+    { key: 'date', header: 'Order Date', accessor: 'date', render: (row) => <span className="text-slate-600">{row.date}</span> },
+    { key: 'amount', header: 'Order Value', accessor: 'netAmount', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.netAmount)}</span> },
+    { key: 'paymentStatus', header: 'Payment Status', accessor: 'paymentStatus', render: (row) => <span className={`font-medium ${row.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{row.paymentStatus}</span> },
+    { key: 'status', header: 'Order Status', accessor: 'status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
     {
       key: 'actions',
-      label: 'Actions',
+      header: 'Actions',
+      accessor: 'id',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Order">
@@ -213,16 +250,18 @@ export default function Orders() {
     }
   ];
 
+  // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const retailerColumns: Column<Order>[] = [
-    { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
-    { key: 'date', label: 'Order Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
-    { key: 'amount', label: 'Order Value', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.netAmount)}</span> },
-    { key: 'paymentStatus', label: 'Payment Status', render: (row) => <span className={`font-medium ${row.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{row.paymentStatus}</span> },
-    { key: 'status', label: 'Order Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
-    { key: 'expectedDeliveryDate', label: 'Expected Delivery Date', render: (row) => <span className="text-slate-600">{row.expectedDeliveryDate || 'TBD'}</span> },
+    { key: 'orderNo', header: 'Order No', accessor: 'orderNo', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
+    { key: 'date', header: 'Order Date', accessor: 'date', render: (row) => <span className="text-slate-600">{row.date}</span> },
+    { key: 'amount', header: 'Order Value', accessor: 'netAmount', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.netAmount)}</span> },
+    { key: 'paymentStatus', header: 'Payment Status', accessor: 'paymentStatus', render: (row) => <span className={`font-medium ${row.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{row.paymentStatus}</span> },
+    { key: 'status', header: 'Order Status', accessor: 'status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+    { key: 'expectedDeliveryDate', header: 'Expected Delivery Date', accessor: 'expectedDeliveryDate', render: (row) => <span className="text-slate-600">{row.expectedDeliveryDate || 'TBD'}</span> },
     {
       key: 'actions',
-      label: 'Actions',
+      header: 'Actions',
+      accessor: 'id',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Order">
@@ -240,7 +279,6 @@ export default function Orders() {
 
   const columns = isRetailer ? retailerColumns : adminColumns;
 
-  // Exports
   const getExportData = () => {
     if (activeRole === ROLE_SUPER_ADMIN) {
       return filteredData.map(item => ({
@@ -305,24 +343,24 @@ export default function Orders() {
     setShowExportMenu(false);
   };
 
-  // View Order Item Columns
+  // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const viewOrderColumns: Column<OrderItem>[] = [
-    { key: 'productName', label: 'Product Name', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
-    { key: 'productCode', label: 'Product Code', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
-    { key: 'quantity', label: 'Quantity', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
-    { key: 'unitPrice', label: 'Unit Price', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
-    { key: 'schemeBenefit', label: 'Scheme Benefit', render: (row) => <span className="text-emerald-600 text-sm">{row.schemeBenefit || '-'}</span> },
-    { key: 'amount', label: 'Line Total', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
+    { key: 'productName', header: 'Product Name', accessor: 'productName', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
+    { key: 'productCode', header: 'Product Code', accessor: 'productCode', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
+    { key: 'quantity', header: 'Quantity', accessor: 'quantity', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
+    { key: 'unitPrice', header: 'Unit Price', accessor: 'unitPrice', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
+    { key: 'schemeBenefit', header: 'Scheme Benefit', accessor: 'schemeBenefit', render: (row) => <span className="text-emerald-600 text-sm">{row.schemeBenefit || '-'}</span> },
+    { key: 'amount', header: 'Line Total', accessor: 'lineTotal', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
   ];
 
-  // Cart Item Columns (for modal)
+  // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const cartColumns: Column<OrderItem>[] = [
-    { key: 'productName', label: 'Product Name', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
-    { key: 'productCode', label: 'Product Code', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
-    { key: 'quantity', label: 'Quantity', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
-    { key: 'unitPrice', label: 'Unit Price', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
-    { key: 'schemeBenefit', label: 'Scheme Benefit', render: (row) => <span className="text-emerald-600 text-sm">{row.schemeBenefit || '-'}</span> },
-    { key: 'lineTotal', label: 'Line Total', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
+    { key: 'productName', header: 'Product Name', accessor: 'productName', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
+    { key: 'productCode', header: 'Product Code', accessor: 'productCode', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
+    { key: 'quantity', header: 'Quantity', accessor: 'quantity', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
+    { key: 'unitPrice', header: 'Unit Price', accessor: 'unitPrice', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
+    { key: 'schemeBenefit', header: 'Scheme Benefit', accessor: 'schemeBenefit', render: (row) => <span className="text-emerald-600 text-sm">{row.schemeBenefit || '-'}</span> },
+    { key: 'lineTotal', header: 'Line Total', accessor: 'lineTotal', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
   ];
 
   return (
@@ -399,7 +437,6 @@ export default function Orders() {
       >
         {viewOrder && (
           <div className="space-y-6 pb-20">
-            {/* Section 1: Order Information */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Order Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -411,7 +448,6 @@ export default function Orders() {
               </div>
             </div>
 
-            {/* Section 2: Retailer Information */}
             {!isRetailer && (
               <div>
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Retailer Information</h3>
@@ -421,7 +457,6 @@ export default function Orders() {
               </div>
             )}
 
-            {/* Section 3: Delivery Information */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Delivery Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -438,7 +473,6 @@ export default function Orders() {
               </div>
             </div>
 
-            {/* Section 4: Order Items */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Order Items</h3>
               <div className="border border-slate-200 rounded-lg overflow-hidden">
@@ -450,7 +484,6 @@ export default function Orders() {
               </div>
             </div>
 
-            {/* Section 5: Order Summary */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Order Summary</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
@@ -474,19 +507,17 @@ export default function Orders() {
                 </div>
               </div>
             </div>
-
           </div>
         )}
       </Drawer>
 
-      {/* Create Order Modal (Retailer Only) */}
+      {/* Create Order Modal */}
       <Modal
         open={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
         title="Create Order"
       >
         <div className="space-y-6">
-          {/* Order Info (Read Only) */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1">Order Number</label>
@@ -498,7 +529,6 @@ export default function Orders() {
             </div>
           </div>
 
-          {/* Delivery Information */}
           <div>
             <h4 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 mb-4">Delivery Information</h4>
             <div className="space-y-4">
@@ -547,37 +577,35 @@ export default function Orders() {
             </div>
           </div>
 
-          {/* Cart Items Section */}
           <div>
             <h4 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 mb-4">Cart Items</h4>
-            <div className="border border-slate-200 rounded-lg overflow-hidden [&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
               <DataTable
                 columns={cartColumns}
-                data={mockCartItems}
+                data={cartItems}
                 emptyMessage="Your cart is empty."
               />
             </div>
           </div>
 
-          {/* Order Summary */}
           <div>
             <h4 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 mb-4">Order Summary</h4>
             <div className="bg-slate-50 p-4 rounded-lg space-y-2">
               <div className="flex justify-between text-sm">
                 <span className="text-slate-600">Total Quantity</span>
-                <span className="font-medium text-slate-900">{mockCartItems.reduce((acc, i) => acc + i.quantity, 0)} Units</span>
+                <span className="font-medium text-slate-900">{cartItems.reduce((acc, i) => acc + i.quantity, 0)} Units</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-600">Total Order Value</span>
-                <span className="font-medium text-slate-900">{formatCurrency(mockCartItems.reduce((acc, i) => acc + i.lineTotal, 0))}</span>
+                <span className="font-medium text-slate-900">{formatCurrency(cartItems.reduce((acc, i) => acc + i.lineTotal, 0))}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-600">Scheme Discount</span>
-                <span className="font-medium text-emerald-600">- {formatCurrency(50)}</span>
+                <span className="font-medium text-emerald-600">- {formatCurrency(cartItems.reduce((acc, i) => acc + i.lineTotal, 0) > 2000 ? 50 : 0)}</span>
               </div>
               <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between">
                 <span className="font-bold text-slate-900">Net Order Value</span>
-                <span className="font-bold text-violet-700">{formatCurrency(mockCartItems.reduce((acc, i) => acc + i.lineTotal, 0) - 50)}</span>
+                <span className="font-bold text-violet-700">{formatCurrency(cartItems.reduce((acc, i) => acc + i.lineTotal, 0) - (cartItems.reduce((acc, i) => acc + i.lineTotal, 0) > 2000 ? 50 : 0))}</span>
               </div>
             </div>
           </div>

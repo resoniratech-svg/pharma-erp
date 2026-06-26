@@ -39,7 +39,7 @@ interface CatalogItem {
   status: 'Available' | 'Low Stock' | 'Out Of Stock';
 }
 
-const mockData: CatalogItem[] = [
+const fallbackCatalogItems: CatalogItem[] = [
   { 
     id: '1', productCode: 'PRD-001', productName: 'Amoxicillin 500mg', company: 'PharmaCorp', category: 'Antibiotics', 
     packType: '10x10 Tablets', mrp: 150.00, ptr: 110.00, pts: 95.00, 
@@ -67,27 +67,13 @@ const mockData: CatalogItem[] = [
     availableStock: 0, reservedStock: 0, reorderLevel: 100, 
     schemeAvailable: 'No Scheme', schemeType: '-', schemeValidFrom: '-', schemeValidTo: '-', schemeDescription: '-',
     status: 'Out Of Stock' 
-  },
-  { 
-    id: '5', productCode: 'PRD-005', productName: 'Ibuprofen 400mg', company: 'HealthPlus', category: 'Analgesics', 
-    packType: '10x10 Tablets', mrp: 95.00, ptr: 75.00, pts: 65.00, 
-    availableStock: 800, reservedStock: 150, reorderLevel: 200, 
-    schemeAvailable: 'No Scheme', schemeType: '-', schemeValidFrom: '-', schemeValidTo: '-', schemeDescription: '-',
-    status: 'Available' 
-  },
-  { 
-    id: '6', productCode: 'PRD-006', productName: 'Azithromycin 250mg', company: 'PharmaCorp', category: 'Antibiotics', 
-    packType: '6 Tablets Strip', mrp: 120.00, ptr: 90.00, pts: 78.00, 
-    availableStock: 150, reservedStock: 20, reorderLevel: 300, 
-    schemeAvailable: 'No Scheme', schemeType: '-', schemeValidFrom: '-', schemeValidTo: '-', schemeDescription: '-',
-    status: 'Low Stock' 
-  },
+  }
 ];
 
 const formatCurrency = (amount: number) => `₹ ${amount.toFixed(2)}`;
 
 export default function ProductCatalog() {
-  const [data] = useState<CatalogItem[]>(mockData);
+  const [data, setData] = useState<CatalogItem[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
@@ -95,6 +81,58 @@ export default function ProductCatalog() {
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const [selectedProduct, setSelectedProduct] = useState<CatalogItem | null>(null);
+
+  // Sync catalog dynamically with newly created products from ProductMaster
+  useEffect(() => {
+    const rawProducts = localStorage.getItem("pharma_erp_products");
+    if (rawProducts) {
+      try {
+        const parsedProducts = JSON.parse(rawProducts);
+        
+        // Map ProductMaster structure cleanly into Catalog format
+        const mappedCatalog: CatalogItem[] = parsedProducts.map((p: any) => {
+          const availStock = p.totalUnits ? Number(p.totalUnits) : 100; // default safe fallback fallback stock allocation
+          const reorderLvl = p.reorderLevel ? Number(p.reorderLevel) : 50;
+
+          // Compute operational availability flags status dynamically
+          let derivedStatus: 'Available' | 'Low Stock' | 'Out Of Stock' = 'Available';
+          if (availStock === 0) {
+            derivedStatus = 'Out Of Stock';
+          } else if (availStock <= reorderLvl) {
+            derivedStatus = 'Low Stock';
+          }
+
+          return {
+            id: p.id || Math.random().toString(),
+            productCode: p.code || 'N/A',
+            productName: p.name || 'Unnamed Product',
+            company: p.manufacturer || 'General Pharma',
+            category: p.category || 'General',
+            packType: p.packingType ? `${p.packingType} (${p.unitsPerPack || 1}s)` : 'Pack',
+            mrp: p.mrp ? Number(p.mrp) : 0,
+            ptr: p.ptr ? Number(p.ptr) : 0,
+            pts: p.pts ? Number(p.pts) : 0,
+            availableStock: availStock,
+            reservedStock: 0,
+            reorderLevel: reorderLvl,
+            schemeAvailable: p.scheme || 'No Scheme',
+            schemeType: p.scheme && p.scheme !== 'No Scheme' ? 'Promotional Offer' : '-',
+            schemeValidFrom: 'Current',
+            schemeValidTo: 'Open',
+            schemeDescription: p.scheme || '-',
+            status: derivedStatus
+          };
+        });
+
+        setData(mappedCatalog);
+      } catch (err) {
+        console.error("Failed to parse master product listings", err);
+        setData(fallbackCatalogItems);
+      }
+    } else {
+      setData(fallbackCatalogItems);
+    }
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -123,7 +161,7 @@ export default function ProductCatalog() {
       totalProducts: data.length,
       availableProducts: data.filter(p => p.availableStock > 0).length,
       activeSchemes: data.filter(p => p.schemeAvailable !== 'No Scheme').length,
-      lowStockProducts: data.filter(p => p.availableStock <= p.reorderLevel && p.availableStock > 0).length, // Can also just use p.status === 'Low Stock'
+      lowStockProducts: data.filter(p => p.status === 'Low Stock').length,
     };
   }, [data]);
 

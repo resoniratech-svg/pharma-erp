@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Download, Filter, ShoppingCart, Eye, ChevronDown, X } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -18,6 +18,10 @@ import {
 import { type Column, type BadgeVariant } from './components/shared';
 import { ROLE_SUPER_ADMIN, ROLE_RETAILER } from '../../constants/roles';
 
+// Import services to fetch live entries from local storage / service pipelines
+import { productService } from "../../services/productService";
+import { schemeService } from "../../services/schemeService";
+
 interface Product {
   id: string;
   code: string;
@@ -32,35 +36,11 @@ interface Product {
   scheme: string | null;
   stock: string;
   status: 'Available' | 'Low Stock' | 'Out Of Stock';
+  schemeType?: string;
+  schemeValidFrom?: string;
+  schemeValidTo?: string;
+  schemeDescription?: string;
 }
-
-const mockData: Product[] = [
-  { 
-    id: '1', code: 'AMX-500', name: 'Amoxicillin 500mg', category: 'Antibiotics', brand: 'GlaxoSmithKline',
-    packSize: '10 x 10 Tablets', baseUnit: 'Strip', unitsPerPack: '10 Tablets', mrp: '₹ 110.00', ptr: '₹ 85.50',
-    scheme: 'Buy 10 Get 1', stock: '5,000 Strips', status: 'Available'
-  },
-  { 
-    id: '2', code: 'PAR-650', name: 'Paracetamol 650mg', category: 'Analgesics', brand: 'Cipla',
-    packSize: '20 x 15 Tablets', baseUnit: 'Box', unitsPerPack: '15 Tablets', mrp: '₹ 30.00', ptr: '₹ 22.00',
-    scheme: '5% Cash Discount', stock: '12,000 Boxes', status: 'Available'
-  },
-  { 
-    id: '3', code: 'COF-100', name: 'Cough Syrup 100ml', category: 'Respiratory', brand: 'Sun Pharma',
-    packSize: '100 ml Bottle', baseUnit: 'Bottle', unitsPerPack: '100 ml', mrp: '₹ 120.00', ptr: '₹ 95.00',
-    scheme: null, stock: '0 Bottles', status: 'Out Of Stock'
-  },
-  { 
-    id: '4', code: 'ATO-10', name: 'Atorvastatin 10mg', category: 'Cardiac', brand: 'Torrent',
-    packSize: '10 x 15 Tablets', baseUnit: 'Strip', unitsPerPack: '15 Tablets', mrp: '₹ 145.00', ptr: '₹ 110.00',
-    scheme: 'Quarter Target Bonus', stock: '1,200 Strips', status: 'Available'
-  },
-  { 
-    id: '5', code: 'MET-500', name: 'Metformin 500mg', category: 'Diabetic', brand: 'USV',
-    packSize: '10 x 10 Tablets', baseUnit: 'Strip', unitsPerPack: '10 Tablets', mrp: '₹ 55.00', ptr: '₹ 42.00',
-    scheme: null, stock: '150 Strips', status: 'Low Stock'
-  },
-];
 
 export default function ProductCatalog() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_RETAILER;
@@ -76,6 +56,9 @@ export default function ProductCatalog() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -86,13 +69,85 @@ export default function ProductCatalog() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredData = mockData.filter((item) => {
-    const searchStr = search.toLowerCase();
-    const matchSearch = item.name.toLowerCase().includes(searchStr) || item.code.toLowerCase().includes(searchStr);
-    const matchCategory = categoryFilter ? item.category === categoryFilter : true;
-    const matchStatus = statusFilter ? item.status === statusFilter : true;
-    return matchSearch && matchCategory && matchStatus;
-  });
+  // Sync real Master database state array rows with Catalog View
+  useEffect(() => {
+    const fetchCatalogData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Fetch products directly from your existing productService backend layer
+        const rawProducts = await productService.getProducts();
+        
+        let schemes: any[] = [];
+        try {
+          schemes = await schemeService.getSchemes();
+        } catch (schemeErr) {
+          console.warn("Scheme engine lookup bypassed:", schemeErr);
+        }
+
+        const mappedProducts: Product[] = (rawProducts || []).map((p: any) => {
+          const linkedScheme = schemes?.find((s: any) => s.id === p.scheme || s.name === p.scheme);
+          
+          // FIXED: Reading fields exactly matching your ProductMaster specification layout keys
+          const rawStockValue = p.totalUnits !== undefined ? p.totalUnits : (p.stock || p.availableStock || '0');
+          const totalStock = typeof rawStockValue === 'number' ? rawStockValue : parseInt(rawStockValue || '0', 10);
+          
+          // Setup a dynamic fallback evaluation checkpoint for warning states
+          const lowLimit = p.reorderLevel ? parseInt(p.reorderLevel, 10) : 20;
+          
+          let computedStatus: Product['status'] = 'Available';
+          if (totalStock <= 0 || p.status === 'Inactive' || p.status === 'Discontinued') {
+            computedStatus = 'Out Of Stock';
+          } else if (totalStock <= lowLimit) {
+            computedStatus = 'Low Stock';
+          }
+
+          return {
+            id: p.id || String(Math.random()),
+            code: p.code || p.productCode || 'N/A',
+            name: p.name || p.productName || 'Unnamed Product',
+            category: p.category || 'General',
+            brand: p.brandName || p.manufacturer || 'N/A',
+            packSize: p.packingType ? `${p.packingType} (${p.unitsPerPack || 10}s)` : `${p.unitsPerPack || 10} Units`,
+            baseUnit: p.packingType || 'Pack',
+            unitsPerPack: String(p.unitsPerPack || '10'),
+            mrp: String(p.mrp).startsWith('₹') ? p.mrp : `₹ ${parseFloat(p.mrp || '0').toFixed(2)}`,
+            ptr: String(p.ptr).startsWith('₹') ? p.ptr : `₹ ${parseFloat(p.ptr || '0').toFixed(2)}`,
+            scheme: p.scheme && p.scheme !== 'None' && p.scheme !== 'No Scheme' ? p.scheme : null,
+            stock: `${totalStock.toLocaleString()} Units`,
+            status: computedStatus,
+            schemeType: linkedScheme?.type || 'N/A',
+            schemeValidFrom: linkedScheme?.validFrom || 'N/A',
+            schemeValidTo: linkedScheme?.validTo || 'N/A',
+            schemeDescription: linkedScheme?.description || 'No promotional conditions found.'
+          };
+        });
+
+        setProducts(mappedProducts);
+      } catch (error) {
+        console.error("Error aligning Catalog component indexes with Product Master:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCatalogData();
+  }, []);
+
+  const dynamicCategories = useMemo(() => {
+    const unique = new Set(products.map(p => p.category).filter(Boolean));
+    return Array.from(unique).map(cat => ({ label: cat, value: cat }));
+  }, [products]);
+
+  const filteredData = useMemo(() => {
+    return products.filter((item) => {
+      const searchStr = search.toLowerCase();
+      const matchSearch = item.name.toLowerCase().includes(searchStr) || item.code.toLowerCase().includes(searchStr);
+      const matchCategory = categoryFilter ? item.category === categoryFilter : true;
+      const matchStatus = statusFilter ? item.status === statusFilter : true;
+      return matchSearch && matchCategory && matchStatus;
+    });
+  }, [search, categoryFilter, statusFilter, products]);
 
   const getStatusVariant = (status: string): BadgeVariant => {
     if (status === 'Available') return 'success';
@@ -101,24 +156,30 @@ export default function ProductCatalog() {
   };
 
   const columns: Column<Product>[] = [
-    { key: 'code', label: 'Product Code', render: (row) => <span className="font-semibold text-slate-700">{row.code}</span> },
-    { key: 'name', label: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
-    { key: 'category', label: 'Category', render: (row) => <span className="text-slate-600">{row.category}</span> },
-    { key: 'packSize', label: 'Pack Size', render: (row) => <span className="text-slate-600">{row.packSize}</span> },
-    { key: 'ptr', label: 'PTR', render: (row) => <span className="font-bold text-violet-700">{row.ptr}</span> },
-    { key: 'scheme', label: 'Active Scheme', render: (row) => row.scheme ? <span className="text-emerald-600 font-medium">{row.scheme}</span> : <Badge variant="neutral">No Active Scheme</Badge> },
-    { key: 'stock', label: 'Available Stock', render: (row) => <span className="font-medium text-slate-800">{row.stock}</span> },
-    { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+    { key: 'code', accessor: 'code', header: 'Product Code', render: (row) => <span className="font-semibold text-slate-700">{row.code}</span> },
+    { key: 'name', accessor: 'name', header: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
+    { key: 'category', accessor: 'category', header: 'Category', render: (row) => <span className="text-slate-600">{row.category}</span> },
+    { key: 'packSize', accessor: 'packSize', header: 'Pack Size', render: (row) => <span className="text-slate-600">{row.packSize}</span> },
+    { key: 'ptr', accessor: 'ptr', header: 'PTR', render: (row) => <span className="font-bold text-violet-700">{row.ptr}</span> },
+    { key: 'scheme', accessor: 'scheme', header: 'Active Scheme', render: (row) => row.scheme ? <span className="text-emerald-600 font-medium">{row.scheme}</span> : <Badge variant="neutral">No Active Scheme</Badge> },
+    { key: 'stock', accessor: 'stock', header: 'Available Stock', render: (row) => <span className="font-medium text-slate-800">{row.stock}</span> },
+    { key: 'status', accessor: 'status', header: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
     {
       key: 'actions',
-      label: 'Actions',
+      accessor: 'id',
+      header: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           <button onClick={() => setSelectedProduct(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
             <Eye className="w-4 h-4" />
           </button>
           {activeRole === ROLE_RETAILER && (
-            <button onClick={() => { setCartProduct(row); setOrderQty('1'); }} className="text-slate-400 hover:text-emerald-600 transition-colors p-1" title="Add To Cart">
+            <button 
+              onClick={() => { setCartProduct(row); setOrderQty('1'); }} 
+              disabled={row.status === 'Out Of Stock'}
+              className="text-slate-400 hover:text-emerald-600 transition-colors p-1 disabled:opacity-30 disabled:cursor-not-allowed" 
+              title="Add To Cart"
+            >
               <ShoppingCart className="w-4 h-4" />
             </button>
           )}
@@ -166,6 +227,7 @@ export default function ProductCatalog() {
 
   const handleExportPDF = () => {
     const data = getExportData();
+    if (data.length === 0) return;
     const doc = new jsPDF('landscape');
     const headers = Object.keys(data[0] || {});
     const body = data.map(obj => headers.map(header => (obj as any)[header]));
@@ -184,13 +246,43 @@ export default function ProductCatalog() {
   };
 
   const handleAddToCart = () => {
-    if (!orderQty || isNaN(Number(orderQty)) || Number(orderQty) <= 0) {
+    if (!orderQty || isNaN(Number(orderQty)) || Number(orderQty) <= 0 || !cartProduct) {
       alert("Please enter a valid order quantity.");
       return;
     }
-    console.log(`Added ${orderQty} of ${cartProduct?.name} to cart.`);
-    alert(`Successfully added ${orderQty} of ${cartProduct?.name} to cart.`);
+    
+    const qty = parseInt(orderQty, 10);
+    const numericPtr = parseFloat(cartProduct.ptr.replace(/[^0-9.]/g, '')) || 0;
+    
+    const cartKey = 'pharma_erp_retailer_cart';
+    const existingCartRaw = localStorage.getItem(cartKey);
+    let currentItems = existingCartRaw ? JSON.parse(existingCartRaw) : [];
+
+    const duplicateIndex = currentItems.findIndex((i: any) => i.productCode === cartProduct.code);
+
+    const cartPayload = {
+      productCode: cartProduct.code,
+      productName: cartProduct.name,
+      packType: cartProduct.packSize,
+      ptr: numericPtr,
+      scheme: cartProduct.scheme || 'No Scheme',
+      quantity: qty,
+      lineTotal: numericPtr * qty
+    };
+
+    if (duplicateIndex > -1) {
+      currentItems[duplicateIndex].quantity += qty;
+      currentItems[duplicateIndex].lineTotal = currentItems[duplicateIndex].quantity * currentItems[duplicateIndex].ptr;
+    } else {
+      currentItems.push(cartPayload);
+    }
+
+    localStorage.setItem(cartKey, JSON.stringify(currentItems));
+    window.dispatchEvent(new Event('cartUpdated'));
+
+    alert(`Successfully added ${qty} of ${cartProduct.name} to cart.`);
     setCartProduct(null);
+    setOrderQty('');
   };
 
   return (
@@ -230,13 +322,7 @@ export default function ProductCatalog() {
         <SelectFilter
           value={categoryFilter}
           onChange={setCategoryFilter}
-          options={[
-            { label: 'Antibiotics', value: 'Antibiotics' },
-            { label: 'Analgesics', value: 'Analgesics' },
-            { label: 'Respiratory', value: 'Respiratory' },
-            { label: 'Cardiac', value: 'Cardiac' },
-            { label: 'Diabetic', value: 'Diabetic' },
-          ]}
+          options={dynamicCategories}
           placeholder="All Categories"
         />
         <SelectFilter
@@ -252,13 +338,19 @@ export default function ProductCatalog() {
       </FilterBar>
 
       <TableCard>
-        <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
-          <DataTable
-            columns={columns}
-            data={filteredData}
-            emptyMessage="No products found matching your search or filters."
-          />
-        </div>
+        {isLoading ? (
+          <div className="p-12 text-center text-slate-500 font-medium animate-pulse">
+            Synchronizing live catalog indexes...
+          </div>
+        ) : (
+          <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
+            <DataTable
+              columns={columns}
+              data={filteredData}
+              emptyMessage="No products found matching your search or filters."
+            />
+          </div>
+        )}
       </TableCard>
 
       <Drawer
@@ -268,7 +360,6 @@ export default function ProductCatalog() {
       >
         {selectedProduct && (
           <div className="space-y-6 pb-20">
-            {/* Section A: Product Information */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Product Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
@@ -279,7 +370,6 @@ export default function ProductCatalog() {
               </div>
             </div>
 
-            {/* Section B: Pricing */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Pricing</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
@@ -288,7 +378,6 @@ export default function ProductCatalog() {
               </div>
             </div>
 
-            {/* Section C: Packaging */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Packaging</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
@@ -298,7 +387,6 @@ export default function ProductCatalog() {
               </div>
             </div>
 
-            {/* Section D: Stock Information */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Stock Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
@@ -307,16 +395,22 @@ export default function ProductCatalog() {
               </div>
             </div>
 
-            {/* Section E: Active Schemes */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Active Schemes</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <DrawerField label="Scheme Name" value={selectedProduct.scheme ? <span className="font-medium text-emerald-600">{selectedProduct.scheme}</span> : <span className="text-slate-500 font-medium">No Active Scheme</span>} />
-                <DrawerField label="Benefit" value={selectedProduct.scheme ? selectedProduct.scheme : '-'} />
+                {selectedProduct.scheme && (
+                  <>
+                    <DrawerField label="Scheme Type" value={selectedProduct.schemeType} />
+                    <DrawerField label="Valid From" value={selectedProduct.schemeValidFrom} />
+                    <DrawerField label="Valid To" value={selectedProduct.schemeValidTo} />
+                    <DrawerField label="Conditions" value={<span className="text-xs text-slate-600 block mt-1">{selectedProduct.schemeDescription}</span>} />
+                  </>
+                )}
               </div>
             </div>
             
-            {activeRole === ROLE_RETAILER && (
+            {activeRole === ROLE_RETAILER && selectedProduct.status !== 'Out Of Stock' && (
               <div className="mt-6 pt-6 border-t border-slate-200">
                 <ActionButton 
                   onClick={() => {
@@ -368,7 +462,7 @@ export default function ProductCatalog() {
                   min="1"
                   value={orderQty}
                   onChange={(e) => setOrderQty(e.target.value)}
-                  className="w-full h-10 px-3 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500" 
+                  className="w-full h-10 px-3 rounded-lg border border-slate-200 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 text-sm" 
                   placeholder="Enter quantity"
                 />
               </div>

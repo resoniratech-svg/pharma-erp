@@ -97,7 +97,12 @@ export default function Orders() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
   const loggedInDistributor = { name: 'Metro Pharma Distributors', code: 'DIST-001' };
 
-  const [orders, setOrders] = useState<Order[]>(initialOrders);
+  // Sync state initialization with localStorage to keep data after refresh
+  const [orders, setOrders] = useState<Order[]>(() => {
+    const savedOrders = localStorage.getItem("pharma_erp_orders");
+    return savedOrders ? JSON.parse(savedOrders) : initialOrders;
+  });
+  
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -152,8 +157,77 @@ export default function Orders() {
     }
   }, [isCreateOpen]);
 
+  // --- Pipeline Sync to update Outstanding System Data ---
+  const syncWithOutstandingLedger = (allOrders: Order[]) => {
+    const savedDistributorsRaw = localStorage.getItem('pharma_erp_distributors');
+    if (!savedDistributorsRaw) return;
+
+    try {
+      const actualDistributors = JSON.parse(savedDistributorsRaw);
+      
+      const outstandingData = actualDistributors.map((dist: any) => {
+        const dCode = dist.code || dist.distributorCode || dist.id;
+        const dName = dist.name || dist.distributorName;
+
+        // Collect all non-draft orders that match this particular distributor profile
+        const distributorOrders = allOrders.filter(o => o.distributorCode === dCode && o.status !== 'Draft');
+
+        let totalTrackedBalance = 0;
+        const associatedInvoices = distributorOrders.map((ord) => {
+          const items = ord.items;
+          const grossAmount = items.reduce((sum, i) => sum + i.amount, 0);
+          const schemeDiscount = items.reduce((sum, i) => i.scheme === '5% Off' ? sum + (i.amount * 0.05) : sum, 0);
+          const afterDiscount = grossAmount - schemeDiscount;
+          const netTotal = Math.round(afterDiscount + (afterDiscount * 0.12));
+
+          totalTrackedBalance += netTotal;
+
+          return {
+            invoiceNo: ord.orderNo.replace('ORD-', 'INV-'),
+            date: ord.date,
+            amount: netTotal,
+            dueDate: ord.expectedDeliveryDate && ord.expectedDeliveryDate !== 'Pending' ? ord.expectedDeliveryDate : ord.date,
+            agingDays: Math.floor(Math.random() * 12) + 1,
+            status: (ord.status === 'Fulfilled' ? 'Paid' : 'Unpaid') as 'Paid' | 'Unpaid'
+          };
+        });
+
+        const activeUnpaids = associatedInvoices.filter(i => i.status === 'Unpaid');
+        const activeOutstanding = activeUnpaids.reduce((sum, i) => sum + i.amount, 0);
+        const creditLimit = Number(dist.creditLimit) || 500000;
+
+        return {
+          id: dist.id,
+          distributorName: dName,
+          distributorCode: dCode,
+          contactPerson: dist.contactPerson || "-",
+          mobile: dist.mobile || "-",
+          gstin: dist.gstin || "-",
+          creditLimit: creditLimit,
+          usedCredit: activeOutstanding,
+          availableCredit: Math.max(0, creditLimit - activeOutstanding),
+          totalOutstanding: activeOutstanding,
+          overdueAmount: Math.round(activeOutstanding * 0.10), 
+          maxAging: activeUnpaids.length > 0 ? Math.max(...activeUnpaids.map(i => i.agingDays)) : 0,
+          status: activeOutstanding > creditLimit ? 'Overdue' : 'Clear',
+          lastPaymentDate: '-',
+          invoices: associatedInvoices
+        };
+      });
+
+      localStorage.setItem('pharma_erp_outstanding_records', JSON.stringify(outstandingData));
+    } catch (err) {
+      console.error("Error synchronizing tracking maps", err);
+    }
+  };
+
   const updateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+    setOrders(updated);
+    localStorage.setItem("pharma_erp_orders", JSON.stringify(updated));
+    
+    // Sync down into the outstanding submodules immediately on administrative edits
+    syncWithOutstandingLedger(updated);
     setViewOrder(null);
   };
 
@@ -269,7 +343,10 @@ export default function Orders() {
 
   const confirmDeleteOrder = () => {
     if (deleteOrder) {
-      setOrders(orders.filter(o => o.id !== deleteOrder.id));
+      const updated = orders.filter(o => o.id !== deleteOrder.id);
+      setOrders(updated);
+      localStorage.setItem("pharma_erp_orders", JSON.stringify(updated));
+      syncWithOutstandingLedger(updated);
       setDeleteOrder(null);
     }
   };
@@ -283,8 +360,27 @@ export default function Orders() {
   };
 
   const handleSaveOrder = (status: OrderStatus) => {
+    let updatedOrders: Order[] = [];
+    
+    // Dynamically retrieve real distributor parameters from the registration database
+    const savedDistributorsRaw = localStorage.getItem('pharma_erp_distributors');
+    let dynamicDistName = loggedInDistributor.name;
+    let dynamicDistCode = loggedInDistributor.code;
+
+    if (savedDistributorsRaw) {
+      try {
+        const parsedDists = JSON.parse(savedDistributorsRaw);
+        if (parsedDists.length > 0) {
+          dynamicDistName = parsedDists[0].name || parsedDists[0].distributorName;
+          dynamicDistCode = parsedDists[0].code || parsedDists[0].distributorCode || parsedDists[0].id;
+        }
+      } catch(e) {
+        console.error("Master profile dynamic mapping failed", e);
+      }
+    }
+    
     if (editingOrderId) {
-      setOrders(orders.map(o => o.id === editingOrderId ? {
+      updatedOrders = orders.map(o => o.id === editingOrderId ? {
         ...o,
         status,
         expectedDeliveryDate: expectedDate || o.expectedDeliveryDate,
@@ -292,13 +388,13 @@ export default function Orders() {
         warehouse,
         remarks,
         items: newOrderItems
-      } : o));
+      } : o);
     } else {
       const newOrder: Order = {
         id: Math.random().toString(36).substring(7),
         orderNo: `ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        distributorName: loggedInDistributor.name,
-        distributorCode: loggedInDistributor.code,
+        distributorName: dynamicDistName,
+        distributorCode: dynamicDistCode,
         date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
         expectedDeliveryDate: expectedDate || 'Pending',
         status: status,
@@ -307,8 +403,17 @@ export default function Orders() {
         remarks,
         items: newOrderItems
       };
-      setOrders([newOrder, ...orders]);
+      updatedOrders = [newOrder, ...orders];
     }
+    
+    setOrders(updatedOrders);
+    localStorage.setItem("pharma_erp_orders", JSON.stringify(updatedOrders));
+    
+    // Fire the calculation tracking update script
+    syncWithOutstandingLedger(updatedOrders);
+    
+    setStatusFilter('');
+    setSearch('');
     
     setIsCreateOpen(false);
     setNewOrderItems([]);
@@ -332,7 +437,6 @@ export default function Orders() {
   const createSummary = calcSummary(newOrderItems);
   const viewSummary = viewOrder ? calcSummary(viewOrder.items) : null;
 
-  // Search Products dynamically from the live database state array
   const filteredProducts = products.filter(p => 
     p.productName.toLowerCase().includes(productSearch.toLowerCase()) || 
     p.productCode.toLowerCase().includes(productSearch.toLowerCase())
@@ -573,7 +677,7 @@ export default function Orders() {
                     <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Approved')}>Approve Order</ActionButton>
                   </>
                 ) : (
-                  <ActionButton variant="secondary" onClick={() => setViewOrder(null)}>View Information</ActionButton>
+                  <ActionButton variant="secondary" onClick={() => setViewOrder(null)}>Close</ActionButton>
                 )
               ) : activeRole === ROLE_DISTRIBUTOR ? (
                 viewOrder.status === 'Draft' ? (
@@ -610,7 +714,6 @@ export default function Orders() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Section A: Order Info */}
               <div className="md:col-span-2 mt-2 first:mt-0">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Order Information</h3>
               </div>
@@ -627,7 +730,6 @@ export default function Orders() {
                 <input type="text" value={`${loggedInDistributor.name} (${loggedInDistributor.code})`} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
               </div>
 
-              {/* Section B: Delivery Info */}
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Delivery Information</h3>
               </div>
@@ -648,7 +750,6 @@ export default function Orders() {
                 <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Optional delivery instructions" className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400" />
               </div>
 
-              {/* Section C: Product Selection */}
               <div className="md:col-span-2 mt-4 relative">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Product Selection</h3>
                 
@@ -668,174 +769,144 @@ export default function Orders() {
                       <div className="fixed inset-0 z-10" onClick={() => setProductSearch('')} />
                       <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
                         {filteredProducts.map(p => (
-                          <div key={p.productCode} onClick={() => { setSelectedProduct(p); setProductSearch(''); }} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded flex justify-between items-center">
-                            <div>
-                              <span className="font-semibold block text-slate-900">{p.productName} <span className="text-slate-500 font-normal">({p.productCode})</span></span>
-                              <span className="text-xs text-slate-500">{p.packType} • Stock: {p.availableStock}</span>
-                            </div>
-                            <span className="text-emerald-600 font-medium text-xs">{p.schemeAvailable}</span>
+                          <div key={p.productCode} onClick={() => { setSelectedProduct(p); setProductSearch(''); }} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded flex justify-between">
+                            <span>{p.productName} ({p.productCode})</span>
+                            <span className="text-xs text-slate-400">PTR: {formatCurrency(p.ptr)}</span>
                           </div>
                         ))}
-                        {filteredProducts.length === 0 && (
-                          <div className="py-2 px-3 text-slate-500 text-sm">No products found</div>
-                        )}
                       </div>
                     </>
                   )}
                 </div>
-
-                {selectedProduct && (
-                  <div className="flex flex-wrap items-end gap-4 p-4 bg-slate-50 border border-slate-200 rounded-lg">
-                    <div className="flex-1 min-w-[200px]">
-                      <div className="text-sm font-bold text-slate-900">{selectedProduct.productName}</div>
-                      <div className="text-xs text-slate-500">{selectedProduct.productCode} • {selectedProduct.packType}</div>
-                      <div className="mt-2 text-sm">
-                        <span className="text-slate-600 mr-4">PTR: <span className="font-semibold text-slate-900">{formatCurrency(selectedProduct.ptr)}</span></span>
-                        <span className="text-emerald-600 text-xs font-semibold px-2 py-0.5 bg-emerald-100 rounded-full">{selectedProduct.schemeAvailable}</span>
-                      </div>
-                    </div>
-                    <div className="w-32">
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Quantity</label>
-                      <input type="number" min="1" max={selectedProduct.availableStock} value={orderQuantity} onChange={e => setOrderQuantity(parseInt(e.target.value) || 0)} className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400" />
-                    </div>
-                    <button 
-                      type="button"
-                      onClick={() => {
-                        setNewOrderItems(prev => [
-                          ...prev,
-                          {
-                            productCode: selectedProduct.productCode,
-                            productName: selectedProduct.productName,
-                            packType: selectedProduct.packType,
-                            ptr: selectedProduct.ptr,
-                            scheme: selectedProduct.schemeAvailable,
-                            quantity: orderQuantity,
-                            amount: selectedProduct.ptr * orderQuantity
-                          }
-                        ]);
-                        setSelectedProduct(null);
-                        setProductSearch('');
-                        setOrderQuantity(1);
-                      }} 
-                      disabled={orderQuantity <= 0 || orderQuantity > selectedProduct.availableStock}
-                      className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-                    >
-                      Add Item
-                    </button>
-                  </div>
-                )}
               </div>
-
-              {/* Section D: Order Items Grid */}
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Order Items</h3>
-                <div className="border border-slate-200 rounded-lg overflow-hidden">
-                  <table className="w-full text-left text-sm">
-                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-600 uppercase text-xs">
-                      <tr>
-                        <th className="px-4 py-3 font-semibold">Product</th>
-                        <th className="px-4 py-3 font-semibold">PTR</th>
-                        <th className="px-4 py-3 font-semibold">Qty</th>
-                        <th className="px-4 py-3 font-semibold">Scheme</th>
-                        <th className="px-4 py-3 font-semibold text-right">Amount</th>
-                        <th className="px-4 py-3 font-semibold text-center">Action</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                      {newOrderItems.length === 0 ? (
-                        <tr><td colSpan={6} className="py-8 text-center text-slate-500">No items added to the order yet.</td></tr>
-                      ) : newOrderItems.map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                          <td className="px-4 py-3">
-                            <div className="font-semibold text-slate-900">{item.productName}</div>
-                            <div className="text-xs text-slate-500">{item.productCode} • {item.packType}</div>
-                          </td>
-                          <td className="px-4 py-3 text-slate-700">{formatCurrency(item.ptr)}</td>
-                          <td className="px-4 py-3 font-mono font-medium text-slate-900">{item.quantity}</td>
-                          <td className="px-4 py-3 text-emerald-600 text-xs font-medium">{item.scheme}</td>
-                          <td className="px-4 py-3 text-right font-bold text-slate-900">{formatCurrency(item.amount)}</td>
-                          <td className="px-4 py-3 text-center">
-                            <button type="button" onClick={() => handleRemoveProduct(idx)} className="text-slate-400 hover:text-rose-500 p-1 transition-colors"><Trash2 className="w-4 h-4 mx-auto" /></button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-
-              {/* Section E: Order Summary */}
-              {newOrderItems.length > 0 && (
-                <div className="md:col-span-2 mt-4 bg-slate-50 p-6 rounded-xl border border-slate-200">
-                  <h3 className="text-sm font-semibold text-slate-700 border-b border-slate-200 pb-2 mb-4">Order Summary</h3>
-                  <div className="space-y-3">
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">Total Items / Quantity</span>
-                      <span className="font-medium text-slate-900">{createSummary.totalItems} Items / {createSummary.totalQuantity} Qty</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-slate-500">Gross Amount</span>
-                      <span className="font-medium text-slate-900">{formatCurrency(createSummary.grossAmount)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span className="text-emerald-600">Scheme Discount</span>
-                      <span className="font-medium text-emerald-600">- {formatCurrency(createSummary.schemeDiscount)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm pb-3 border-b border-slate-200">
-                      <span className="text-slate-500">Estimated GST (12%)</span>
-                      <span className="font-medium text-slate-900">+ {formatCurrency(createSummary.gst)}</span>
-                    </div>
-                    <div className="flex justify-between items-center pt-2">
-                      <span className="text-lg font-medium text-slate-900">Net Amount</span>
-                      <span className="text-2xl font-bold text-violet-600">{formatCurrency(createSummary.netAmount)}</span>
-                    </div>
-                  </div>
-                </div>
-              )}
-
             </div>
 
-            {/* Footer */}
-            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-200">
-              <ActionButton variant="secondary" onClick={() => { setIsCreateOpen(false); setEditingOrderId(null); }}>Cancel</ActionButton>
-              <button 
-                type="button"
-                onClick={() => handleSaveOrder('Draft')}
-                disabled={newOrderItems.length === 0}
-                className="px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 border border-slate-200 rounded-lg hover:bg-slate-200 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
+            {/* --- Product Adder Sub-Form Layout --- */}
+            {selectedProduct && (
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="md:col-span-3 font-semibold text-slate-900">{selectedProduct.productName} ({selectedProduct.productCode})</div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">PTR Rate</label>
+                  <div className="font-medium">{formatCurrency(selectedProduct.ptr)}</div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Available Stock</label>
+                  <div className="font-medium text-slate-700">{selectedProduct.availableStock} Units</div>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Active Scheme</label>
+                  <div className="font-medium text-emerald-600">{selectedProduct.schemeAvailable}</div>
+                </div>
+                <div className="md:col-span-2">
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Order Quantity</label>
+                  <input 
+                    type="number" 
+                    min="1" 
+                    value={orderQuantity} 
+                    onChange={e => setOrderQuantity(Math.max(1, parseInt(e.target.value) || 1))} 
+                    className="w-full border border-slate-200 rounded-lg px-3 py-1.5 bg-white" 
+                  />
+                </div>
+                <div className="flex items-end">
+                  <ActionButton 
+                    onClick={() => {
+                      const amount = selectedProduct.ptr * orderQuantity;
+                      setNewOrderItems([...newOrderItems, {
+                        productCode: selectedProduct.productCode,
+                        productName: selectedProduct.productName,
+                        packType: selectedProduct.packType,
+                        ptr: selectedProduct.ptr,
+                        scheme: selectedProduct.schemeAvailable,
+                        quantity: orderQuantity,
+                        amount: amount
+                      }]);
+                      setSelectedProduct(null);
+                      setOrderQuantity(1);
+                    }}
+                    className="w-full justify-center"
+                  >
+                    Add Product Line
+                  </ActionButton>
+                </div>
+              </div>
+            )}
+
+            {/* --- Selected Items Review Table --- */}
+            {newOrderItems.length > 0 && (
+              <div className="mt-4 border border-slate-200 rounded-xl overflow-hidden mb-6">
+                <table className="w-full text-sm text-left">
+                  <thead className="bg-slate-50 border-b border-slate-200 font-medium text-slate-500">
+                    <tr>
+                      <th className="px-4 py-2">Product</th>
+                      <th className="px-4 py-2">Qty</th>
+                      <th className="px-4 py-2 text-right">Line Value</th>
+                      <th className="px-4 py-2 text-center">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {newOrderItems.map((item, index) => (
+                      <tr key={index}>
+                        <td className="px-4 py-2 font-medium">{item.productName}</td>
+                        <td className="px-4 py-2 font-mono">{item.quantity}</td>
+                        <td className="px-4 py-2 text-right font-medium">{formatCurrency(item.amount)}</td>
+                        <td className="px-4 py-2 text-center">
+                          <button onClick={() => handleRemoveProduct(index)} className="text-rose-500 hover:text-rose-700">
+                            <Trash2 className="w-4 h-4 mx-auto" />
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Summary calculations footer section */}
+            <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col gap-2 mb-6">
+              <div className="flex justify-between text-sm text-slate-600">
+                <span>Gross Value</span>
+                <span>{formatCurrency(createSummary.grossAmount)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-emerald-600">
+                <span>Scheme Adjustments</span>
+                <span>- {formatCurrency(createSummary.schemeDiscount)}</span>
+              </div>
+              <div className="flex justify-between text-sm text-slate-600 pb-2 border-b">
+                <span>GST (12%)</span>
+                <span>+ {formatCurrency(createSummary.gst)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-base text-slate-900">
+                <span>Total Net Value</span>
+                <span>{formatCurrency(createSummary.netAmount)}</span>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <ActionButton variant="secondary" onClick={() => { setIsCreateOpen(false); setEditingOrderId(null); }}>
+                Cancel
+              </ActionButton>
+              <ActionButton variant="secondary" onClick={() => handleSaveOrder('Draft')} disabled={newOrderItems.length === 0 || !deliveryLocation}>
                 Save Draft
-              </button>
-              <button 
-                type="button"
-                onClick={() => handleSaveOrder('Submitted')}
-                disabled={newOrderItems.length === 0 || !deliveryLocation || !expectedDate}
-                className="px-4 py-2 text-sm font-semibold text-white bg-violet-600 rounded-lg hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-              >
-                Submit Order
-              </button>
+              </ActionButton>
+              <ActionButton onClick={() => handleSaveOrder('Submitted')} disabled={newOrderItems.length === 0 || !deliveryLocation}>
+                Submit Purchase Order
+              </ActionButton>
             </div>
 
           </div>
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
+      {/* --- Delete Confirmation Popup --- */}
       {deleteOrder && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
-            <h2 className="text-xl font-bold text-slate-900 mb-4">Delete Order</h2>
-            <p className="text-slate-600 mb-6">
-              Are you sure you want to delete this order? <br/>
-              This action cannot be undone.
-            </p>
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+          <div className="bg-white rounded-xl p-6 max-w-sm w-full shadow-xl">
+            <h4 className="text-lg font-bold text-slate-900 mb-2">Delete Order Confirmation</h4>
+            <p className="text-sm text-slate-500 mb-6">Are you sure you want to permanently delete draft order {deleteOrder.orderNo}?</p>
             <div className="flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setDeleteOrder(null)}>Cancel</ActionButton>
-              <button 
-                onClick={confirmDeleteOrder} 
-                className="px-4 py-2 bg-rose-600 text-white rounded-lg hover:bg-rose-700 font-medium transition-colors"
-              >
-                Delete
+              <button onClick={confirmDeleteOrder} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium shadow-sm">
+                Delete Order
               </button>
             </div>
           </div>

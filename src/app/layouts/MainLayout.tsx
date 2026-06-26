@@ -38,8 +38,6 @@ import mjLogo from '../../assets/logo/mj-healthcare-logo.svg';
 const PRIMARY_HEX = '#7c3aed';
 const BG_HEX = '#f8fafc';
 
-
-
 export type NavItem = {
   label: string;
   path?: string;
@@ -127,7 +125,7 @@ const NAV_ITEMS: NavItem[] = [
   },
   {
     label: 'Retailer Ordering System',
-    icon: ShoppingCart, // Changed icon to represent retail better
+    icon: ShoppingCart,
     subItems: [
       { label: 'Product Browsing', path: '/workspace/retailers/catalog' },
       { label: 'Offer Visibility', path: '/workspace/retailers/offers' },
@@ -181,7 +179,6 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Multi Rate Billing', path: '/workspace/billing/multi-rate-billing' },
     ],
   },
-
   {
     label: 'Pre-Sales CRM',
     icon: HeartHandshake,
@@ -242,11 +239,7 @@ const NAV_ITEMS: NavItem[] = [
   },
 ];
 
-
-
-/* ── Components ──────────────────────────────────────────────────── */
-
-// Generic Breadcrumbs based on route
+/* Generic Breadcrumbs based on route */
 const Breadcrumbs = () => {
   const location = useLocation();
   const pathnames = location.pathname.split('/').filter((x) => x);
@@ -305,12 +298,29 @@ export function MainLayout() {
   const authUser = authUserString ? JSON.parse(authUserString) : null;
   const displayName = authUser ? authUser.fullName : activeRoleData.userName;
   const displayEmail = authUser ? authUser.email : activeRoleData.userEmail;
-  const filteredNavItems = NAV_ITEMS.filter(item => activeRole === ROLE_SUPER_ADMIN || hasPermission(activeRole, item.label)).map(item => {
-    if (activeRole === ROLE_SUPER_ADMIN && item.label === 'Distributor/Stockist Portal') {
-      return { ...item, subItems: item.subItems?.filter(sub => sub.label !== 'Retailer Orders') };
-    }
-    return item;
-  });
+
+  /* ── Dynamic Role Path Switcher ── */
+  const filteredNavItems = NAV_ITEMS.filter(item => activeRole === ROLE_SUPER_ADMIN || hasPermission(activeRole, item.label))
+    .map(item => {
+      // Create a shallow copy of the object before altering properties
+      const mappedItem = { ...item };
+
+      if (activeRole === ROLE_SUPER_ADMIN && mappedItem.label === 'Distributor/Stockist Portal') {
+        mappedItem.subItems = mappedItem.subItems?.filter(sub => sub.label !== 'Retailer Orders');
+      }
+
+      // STRICT PROTECTION: If user is a distributor, point all invoice references to InvoiceDownload.tsx route map
+      if (activeRole === ROLE_DISTRIBUTOR && mappedItem.subItems) {
+        mappedItem.subItems = mappedItem.subItems.map(sub => {
+          if (sub.label === 'Invoice Download') {
+            return { ...sub, path: '/workspace/distributors/invoices' }; // Bound to your InvoiceDownload container view
+          }
+          return sub;
+        });
+      }
+
+      return mappedItem;
+    });
 
   // Close sidebar on route change for mobile
   useEffect(() => {
@@ -318,10 +328,7 @@ export function MainLayout() {
   }, [location.pathname]);
 
   return (
-    <div
-      className="flex h-screen overflow-hidden"
-      style={{ backgroundColor: BG_HEX }}
-    >
+    <div className="flex h-screen overflow-hidden" style={{ backgroundColor: BG_HEX }}>
       {/* ── Mobile Sidebar Overlay ── */}
       {sidebarOpen && (
         <div
@@ -357,40 +364,21 @@ export function MainLayout() {
           {filteredNavItems
             .sort((a, b) => {
               if (activeRole === ROLE_DISTRIBUTOR) {
-                const order = [
-                  "Dashboard",
-                  "Distributor/Stockist Portal",
-                  "Orders",
-                  "Alerts & Notifications",
-                  "Settings",
-                ];
+                const order = ["Dashboard", "Distributor/Stockist Portal", "Orders", "Alerts & Notifications", "Settings"];
                 return order.indexOf(a.label) - order.indexOf(b.label);
               }
               if (activeRole === ROLE_RETAILER) {
-                const order = [
-                  "Dashboard",
-                  "Retailer Ordering System",
-                  "Orders",
-                  "Alerts & Notifications",
-                  "Settings",
-                ];
+                const order = ["Dashboard", "Retailer Ordering System", "Orders", "Alerts & Notifications", "Settings"];
                 return order.indexOf(a.label) - order.indexOf(b.label);
               }
               if (activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
-                const order = [
-                  "Dashboard",
-                  "MR (Medical Representative)",
-                  "GPS & Location Tracking",
-                  "Pre-Sales CRM",
-                  "Alerts & Notifications",
-                  "Settings",
-                ];
+                const order = ["Dashboard", "MR (Medical Representative)", "GPS & Location Tracking", "Pre-Sales CRM", "Alerts & Notifications", "Settings"];
                 return order.indexOf(a.label) - order.indexOf(b.label);
               }
               return 0;
             })
-            .map((rawItem) => {
-              const item = { ...rawItem };
+            .map((item) => {
+              const managedItem = { ...item };
               if (
                 (activeRole === ROLE_WAREHOUSE_MANAGER ||
                   activeRole === ROLE_ACCOUNTANT ||
@@ -398,104 +386,64 @@ export function MainLayout() {
                   activeRole === ROLE_RETAILER ||
                   activeRole === ROLE_MEDICAL_REPRESENTATIVE ||
                   activeRole === ROLE_TRANSPORT_STAFF) &&
-                item.label === "Settings"
+                managedItem.label === "Settings"
               ) {
-                item.subItems = item.subItems?.filter(
-                  (sub) => sub.label === "Profile Settings",
-                );
+                managedItem.subItems = managedItem.subItems?.filter((sub) => sub.label === "Profile Settings");
               }
 
-              const hasSubItems = !!item.subItems && item.subItems.length > 0;
-              const isPathActive = (path: string) =>
-                location.pathname.startsWith(path);
-              const isAnySubActive =
-                hasSubItems &&
-                item.subItems!.some((sub) => isPathActive(sub.path));
-              const isActive =
-                !hasSubItems && item.path
-                  ? isPathActive(item.path)
-                  : isAnySubActive;
-
-              // We can just auto-expand if any sub-item is active, or we could add local state.
-              // For now, let's keep it simple: always expand if active, else we can use a local state.
-              // Let's add a state array to MainLayout `const [expandedMenus, setExpandedMenus] = useState<string[]>(['Products']);`
-
-              const isExpanded =
-                expandedMenus.includes(item.label) || isAnySubActive;
+              const hasSubItems = !!managedItem.subItems && managedItem.subItems.length > 0;
+              const isPathActive = (path: string) => location.pathname.startsWith(path);
+              const isAnySubActive = hasSubItems && managedItem.subItems!.some((sub) => isPathActive(sub.path));
+              const isActive = !hasSubItems && managedItem.path ? isPathActive(managedItem.path) : isAnySubActive;
+              const isExpanded = expandedMenus.includes(managedItem.label) || isAnySubActive;
 
               const toggleMenu = () => {
-                if (expandedMenus.includes(item.label)) {
-                  setExpandedMenus(
-                    expandedMenus.filter((m) => m !== item.label),
-                  );
+                if (expandedMenus.includes(managedItem.label)) {
+                  setExpandedMenus(expandedMenus.filter((m) => m !== managedItem.label));
                 } else {
-                  setExpandedMenus([...expandedMenus, item.label]);
+                  setExpandedMenus([...expandedMenus, managedItem.label]);
                 }
               };
 
-              const activeStyle =
-                isActive && !hasSubItems
-                  ? { backgroundColor: "#f3e8ff", color: PRIMARY_HEX } // violet-100
-                  : {};
+              const activeStyle = isActive && !hasSubItems ? { backgroundColor: "#f3e8ff", color: PRIMARY_HEX } : {};
 
               const itemContent = (
                 <>
-                  <item.icon
-                    className={`w-5 h-5 flex-shrink-0 transition-colors duration-200 ${
-                      isActive
-                        ? ""
-                        : "text-slate-400 group-hover:text-slate-600"
-                    }`}
-                    style={
-                      isActive && !hasSubItems ? { color: PRIMARY_HEX } : {}
-                    }
+                  <managedItem.icon
+                    className={`w-5 h-5 flex-shrink-0 transition-colors duration-200 ${isActive ? "" : "text-slate-400 group-hover:text-slate-600"}`}
+                    style={isActive && !hasSubItems ? { color: PRIMARY_HEX } : {}}
                   />
-                  <span className="flex-1">{item.label}</span>
-                  {hasSubItems &&
-                    (isExpanded ? (
-                      <ChevronDown className="w-4 h-4 text-slate-400" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-slate-400" />
-                    ))}
+                  <span className="flex-1">{managedItem.label}</span>
+                  {hasSubItems && (isExpanded ? <ChevronDown className="w-4 h-4 text-slate-400" /> : <ChevronRight className="w-4 h-4 text-slate-400" />)}
                 </>
               );
 
               const className = `flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 group outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 w-full text-left ${
-                isActive && !hasSubItems
-                  ? "font-semibold"
-                  : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
+                isActive && !hasSubItems ? "font-semibold" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
               }`;
 
               return (
-                <div key={item.label} className="space-y-1">
+                <div key={managedItem.label} className="space-y-1">
                   {hasSubItems ? (
                     <button onClick={toggleMenu} className={className}>
                       {itemContent}
                     </button>
                   ) : (
-                    <Link
-                      to={item.path!}
-                      style={activeStyle}
-                      className={className}
-                    >
+                    <Link to={managedItem.path!} style={activeStyle} className={className}>
                       {itemContent}
                     </Link>
                   )}
 
                   {hasSubItems && isExpanded && (
                     <div className="pl-11 pr-3 space-y-1 mt-1">
-                      {item.subItems!.map((sub) => {
+                      {managedItem.subItems!.map((sub) => {
                         const isSubActive = isPathActive(sub.path);
                         return (
                           <Link
                             key={sub.path}
                             to={sub.path}
                             style={isSubActive ? { color: PRIMARY_HEX } : {}}
-                            className={`block py-2 text-sm font-medium transition-colors ${
-                              isSubActive
-                                ? "text-primary font-semibold"
-                                : "text-slate-500 hover:text-slate-900"
-                            }`}
+                            className={`block py-2 text-sm font-medium transition-colors ${isSubActive ? "text-primary font-semibold" : "text-slate-500 hover:text-slate-900"}`}
                           >
                             {sub.label}
                           </Link>
@@ -565,7 +513,7 @@ export function MainLayout() {
 
             <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
 
-            {/* User Profile */}
+            {/* User Profile Dropdown Content */}
             <div className="relative">
               <button
                 onClick={() => setProfileOpen(!profileOpen)}
@@ -575,22 +523,15 @@ export function MainLayout() {
                   <User className="w-4 h-4" />
                 </div>
                 <div className="hidden md:block text-left">
-                  <p className="text-sm font-semibold text-slate-700 leading-none mb-1">
-                    {displayName}
-                  </p>
-                  <p className="text-xs text-slate-500 leading-none">
-                    {activeRoleData.title}
-                  </p>
+                  <p className="text-sm font-semibold text-slate-700 leading-none mb-1">{displayName}</p>
+                  <p className="text-xs text-slate-500 leading-none">{activeRoleData.title}</p>
                 </div>
               </button>
 
               <AnimatePresence>
                 {profileOpen && (
                   <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setProfileOpen(false)}
-                    />
+                    <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
                     <motion.div
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -598,62 +539,42 @@ export function MainLayout() {
                       transition={{ duration: 0.15, ease: "easeOut" }}
                       className="absolute right-0 top-full mt-2 w-64 bg-white/90 backdrop-blur-xl rounded-xl shadow-lg border border-slate-200 z-50 overflow-hidden"
                     >
-                      {/* Dropdown Header */}
                       <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
                         <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0">
                           <User className="w-6 h-6" />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-sm font-bold text-slate-900 truncate">
-                            {displayName}
-                          </p>
-                          <p className="text-xs font-medium text-primary truncate mb-0.5">
-                            {activeRoleData.title}
-                          </p>
-                          <p className="text-xs text-slate-500 truncate">
-                            {displayEmail}
-                          </p>
+                          <p className="text-sm font-bold text-slate-900 truncate">{displayName}</p>
+                          <p className="text-xs font-medium text-primary truncate mb-0.5">{activeRoleData.title}</p>
+                          <p className="text-xs text-slate-500 truncate">{displayEmail}</p>
                         </div>
                       </div>
 
-                      {/* Dropdown Menu Items */}
                       <div className="p-2 space-y-1">
                         <button
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                          onClick={() => {
-                            setProfileOpen(false);
-                            navigate("/workspace/profile");
-                          }}
+                          onClick={() => { setProfileOpen(false); navigate("/workspace/profile"); }}
                         >
                           <UserCircle className="w-4 h-4 text-slate-400" />
                           My Profile
                         </button>
                         <button
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                          onClick={() => {
-                            setProfileOpen(false);
-                            navigate("/workspace/settings/profile");
-                          }}
+                          onClick={() => { setProfileOpen(false); navigate("/workspace/settings/profile"); }}
                         >
                           <Settings className="w-4 h-4 text-slate-400" />
                           Account Settings
                         </button>
                         <button
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                          onClick={() => {
-                            setProfileOpen(false);
-                            navigate("/workspace/change-password");
-                          }}
+                          onClick={() => { setProfileOpen(false); navigate("/workspace/change-password"); }}
                         >
                           <Key className="w-4 h-4 text-slate-400" />
                           Change Password
                         </button>
                         <button
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-medium text-slate-700 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
-                          onClick={() => {
-                            setProfileOpen(false);
-                            navigate("/workspace/help-support");
-                          }}
+                          onClick={() => { setProfileOpen(false); navigate("/workspace/help-support"); }}
                         >
                           <LifeBuoy className="w-4 h-4 text-slate-400" />
                           Help & Support
@@ -661,36 +582,25 @@ export function MainLayout() {
                       </div>
 
                       <div className="h-px bg-slate-100 w-full" />
-
                       <div className="p-2">
                         <button
                           onClick={() => {
                             setProfileOpen(false);
-
                             const currentUser = authService.getCurrentUser();
-
                             activityLogService.addLog({
                               userId: currentUser?.id,
                               userName: currentUser?.fullName,
                               action: "Logout",
                               module: "Authentication",
                             });
-
-                            const currentRole =
-                              localStorage.getItem("activeRole");
-
+                            const currentRole = localStorage.getItem("activeRole");
                             authService.logout();
-
-                            navigate("/login", {
-                              state: {
-                                roleId: currentRole,
-                              },
-                            });
+                            navigate("/login", { state: { roleId: currentRole } });
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                         >
                           <LogOut className="w-4 h-4" />
-                          Sign Out
+                          Logout
                         </button>
                       </div>
                     </motion.div>
@@ -701,16 +611,10 @@ export function MainLayout() {
           </div>
         </header>
 
-        {/* Content Area */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto relative p-6 lg:p-8">
-          <div className="max-w-7xl mx-auto">
-            <Breadcrumbs />
-
-            {/* Dynamic Module Content */}
-            <div className="animate-in fade-in duration-500">
-              <Outlet />
-            </div>
-          </div>
+        {/* Dynamic Content View Area */}
+        <main className="flex-1 overflow-y-auto p-4 lg:p-8">
+          <Breadcrumbs />
+          <Outlet />
         </main>
       </div>
     </div>
