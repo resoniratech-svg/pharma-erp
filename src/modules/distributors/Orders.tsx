@@ -55,14 +55,6 @@ interface Product {
   schemeAvailable: string;
 }
 
-// --- Mock Data ---
-const mockProducts: Product[] = [
-  { productCode: 'PRD-001', productName: 'Amoxicillin 500mg', packType: '10x10 Tablets', mrp: 150.00, ptr: 110.00, availableStock: 5000, schemeAvailable: '10+1 Free' },
-  { productCode: 'PRD-002', productName: 'Paracetamol 650mg', packType: '15x10 Tablets', mrp: 60.00, ptr: 45.00, availableStock: 250, schemeAvailable: 'No Scheme' },
-  { productCode: 'PRD-003', productName: 'Vitamin C 1000mg', packType: '20 Tablets Tube', mrp: 250.00, ptr: 180.00, availableStock: 1200, schemeAvailable: '5% Off' },
-  { productCode: 'PRD-005', productName: 'Ibuprofen 400mg', packType: '10x10 Tablets', mrp: 95.00, ptr: 75.00, availableStock: 800, schemeAvailable: 'No Scheme' },
-];
-
 const initialOrders: Order[] = [
   {
     id: '1', orderNo: 'ORD-2026-1001', distributorName: 'Metro Pharma Distributors', distributorCode: 'DIST-001',
@@ -103,7 +95,6 @@ const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN',
 
 export default function Orders() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
-  // Assume logged in distributor details if active role is distributor
   const loggedInDistributor = { name: 'Metro Pharma Distributors', code: 'DIST-001' };
 
   const [orders, setOrders] = useState<Order[]>(initialOrders);
@@ -130,6 +121,37 @@ export default function Orders() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [orderQuantity, setOrderQuantity] = useState(1);
 
+  // --- Live Dynamic Products Loading ---
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    const sharedData = localStorage.getItem("pharma_erp_products");
+    if (sharedData) {
+      try {
+        const parsedProducts = JSON.parse(sharedData);
+        const mappedProducts = parsedProducts.map((p: any) => ({
+          productCode: p.code || p.productCode,
+          productName: p.name || p.productName,
+          packType: p.packingType || p.packType || "Standard Pack",
+          mrp: Number(p.mrp) || 0,
+          ptr: Number(p.ptr) || 0,
+          availableStock: Number(p.totalUnits) || 1000, 
+          schemeAvailable: p.scheme && p.scheme !== "No Scheme" ? p.scheme : "No Scheme"
+        }));
+        setProducts(mappedProducts);
+      } catch (e) {
+        console.error("Failed to sync shared product catalog master", e);
+      }
+    } else {
+      setProducts([
+        { productCode: 'PRD-001', productName: 'Amoxicillin 500mg', packType: '10x10 Tablets', mrp: 150.00, ptr: 110.00, availableStock: 5000, schemeAvailable: '10+1 Free' },
+        { productCode: 'PRD-002', productName: 'Paracetamol 650mg', packType: '15x10 Tablets', mrp: 60.00, ptr: 45.00, availableStock: 250, schemeAvailable: 'No Scheme' },
+        { productCode: 'PRD-003', productName: 'Vitamin C 1000mg', packType: '20 Tablets Tube', mrp: 250.00, ptr: 180.00, availableStock: 1200, schemeAvailable: '5% Off' },
+        { productCode: 'PRD-005', productName: 'Ibuprofen 400mg', packType: '10x10 Tablets', mrp: 95.00, ptr: 75.00, availableStock: 800, schemeAvailable: 'No Scheme' },
+      ]);
+    }
+  }, [isCreateOpen]);
+
   const updateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
     setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
     setViewOrder(null);
@@ -150,11 +172,9 @@ export default function Orders() {
     let base = orders;
     if (activeRole === ROLE_DISTRIBUTOR) {
       base = orders.filter(o => o.distributorCode === loggedInDistributor.code);
-    } else if (activeRole === ROLE_WAREHOUSE_MANAGER) { // C&F User
+    } else if (activeRole === ROLE_WAREHOUSE_MANAGER) {
       base = orders.filter(o => o.status === 'Approved');
     }
-    // Admin sees all
-    
     return base.filter(item => {
       const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase()) || 
                           item.distributorName.toLowerCase().includes(search.toLowerCase());
@@ -237,7 +257,6 @@ export default function Orders() {
     setShowExportMenu(false);
   };
 
-  // --- Actions Logic ---
   const handleEditOrder = (order: Order) => {
     setEditingOrderId(order.id);
     setNewOrderItems(order.items);
@@ -259,7 +278,6 @@ export default function Orders() {
     generatePurchaseOrderPdf(order);
   };
 
-  // --- Create/Edit Order Logic ---
   const handleRemoveProduct = (index: number) => {
     setNewOrderItems(newOrderItems.filter((_, i) => i !== index));
   };
@@ -293,7 +311,6 @@ export default function Orders() {
     }
     
     setIsCreateOpen(false);
-    // Reset Form
     setNewOrderItems([]);
     setDeliveryLocation('');
     setExpectedDate('');
@@ -301,15 +318,13 @@ export default function Orders() {
     setEditingOrderId(null);
   };
 
-  // Create Form Summary Calculations
   const calcSummary = (items: OrderItem[]) => {
     const totalItems = items.length;
     const totalQuantity = items.reduce((sum, i) => sum + i.quantity, 0);
     const grossAmount = items.reduce((sum, i) => sum + i.amount, 0);
-    // Simple mock logic for scheme discount based on 5% Off string match or just 0
     const schemeDiscount = items.reduce((sum, i) => i.scheme === '5% Off' ? sum + (i.amount * 0.05) : sum, 0);
     const afterDiscount = grossAmount - schemeDiscount;
-    const gst = afterDiscount * 0.12; // 12% mock GST
+    const gst = afterDiscount * 0.12; 
     const netAmount = afterDiscount + gst;
     return { totalItems, totalQuantity, grossAmount, schemeDiscount, gst, netAmount };
   };
@@ -317,13 +332,12 @@ export default function Orders() {
   const createSummary = calcSummary(newOrderItems);
   const viewSummary = viewOrder ? calcSummary(viewOrder.items) : null;
 
-  // Search Products dynamically
-  const filteredProducts = mockProducts.filter(p => 
+  // Search Products dynamically from the live database state array
+  const filteredProducts = products.filter(p => 
     p.productName.toLowerCase().includes(productSearch.toLowerCase()) || 
     p.productCode.toLowerCase().includes(productSearch.toLowerCase())
   );
 
-  // --- Table Columns ---
   const columns: Column<Order>[] = [
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-slate-900">{row.orderNo}</span> },
     { key: 'date', label: 'Order Date' },
