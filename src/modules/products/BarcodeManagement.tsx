@@ -1,3 +1,4 @@
+// src/modules/products/BarcodeManagement.tsx
 import { useState, useEffect } from "react";
 import { Plus, Filter, Download, Trash2 } from 'lucide-react';
 import {
@@ -14,11 +15,8 @@ import {
 } from './components/shared';
 import { type Column } from './types';
 import { barcodeService } from "../../services/barcodeService";
-
 import { productService } from "../../services/productService";
-
 import activityLogService from "../../services/activityLogService";
-
 import { hasModulePermission } from '../../utils/permissionUtils';
 
 interface Barcode {
@@ -33,14 +31,6 @@ interface Barcode {
   status: 'Active' | 'Inactive' | 'Unassigned';
 }
 
-const mockProducts = [
-  { code: 'PRD-001', name: 'Amoxicillin 500mg' },
-  { code: 'PRD-002', name: 'Paracetamol 650mg' },
-  { code: 'PRD-003', name: 'Cough Syrup 100ml' },
-  { code: 'PRD-004', name: 'Vitamin C 1000mg' },
-  { code: 'PRD-005', name: 'Ibuprofen 400mg' },
-];
-
 const initialMockData: Barcode[] = [
   { id: '1', barcode: '8901234567890', productCode: 'PRD-001', productName: 'Amoxicillin 500mg', type: 'EAN-13', assignedDate: '10-Oct-2025', generatedBy: 'Admin User', generatedDate: '10-Oct-2025', status: 'Active' },
   { id: '2', barcode: '8901234567891', productCode: 'PRD-002', productName: 'Paracetamol 650mg', type: 'EAN-13', assignedDate: '12-Oct-2025', generatedBy: 'System', generatedDate: '12-Oct-2025', status: 'Active' },
@@ -49,7 +39,7 @@ const initialMockData: Barcode[] = [
 ];
 
 export default function BarcodeManagement() {
- const [data, setData] = useState<Barcode[]>([]);
+  const [data, setData] = useState<Barcode[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -61,51 +51,33 @@ export default function BarcodeManagement() {
   const [isEditingModal, setIsEditingModal] = useState(false);
   const [validationError, setValidationError] = useState('');
   const [products, setProducts] = useState<any[]>([]);
+
   useEffect(() => {
     const savedProducts = productService.getProducts();
-
-    setProducts(savedProducts);
+    setProducts(savedProducts || []);
   }, []);
 
   useEffect(() => {
-  const savedData =
-    barcodeService.getAll();
+    const savedData = barcodeService.getAll();
+    if (savedData && savedData.length > 0) {
+      setData(savedData);
+    } else {
+      setData(initialMockData);
+      barcodeService.saveAll(initialMockData);
+    }
+  }, []);
 
-  if (savedData.length > 0) {
-    setData(savedData);
-  } else {
-    setData(initialMockData);
+  useEffect(() => {
+    if (data.length > 0) {
+      barcodeService.saveAll(data);
+    }
+  }, [data]);
 
-    barcodeService.saveAll(
-      initialMockData
-    );
-  }
-}, []);
-
-useEffect(() => {
-  if (data.length > 0) {
-    barcodeService.saveAll(data);
-  }
-}, [data]);
-
-
-const activeRole = localStorage.getItem("activeRole") || "";
-
-const canView = hasModulePermission(activeRole, "Products & Master", "View");
-
-const canCreate = hasModulePermission(
-  activeRole,
-  "Products & Master",
-  "Create",
-);
-
-const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-
-const canDelete = hasModulePermission(
-  activeRole,
-  "Products & Master",
-  "Delete",
-);
+  const activeRole = localStorage.getItem("activeRole") || "";
+  const canView = hasModulePermission(activeRole, "Products & Master", "View");
+  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
+  const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
+  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
 
   const [newBarcode, setNewBarcode] = useState({
     id: '',
@@ -191,15 +163,19 @@ const canDelete = hasModulePermission(
   };
 
   const handleProductSelect = (productName: string) => {
+    // Look across the live system master catalog array list 
     const product = products.find((p) => p.name === productName);
-
     if (product) {
       setNewBarcode((prev) => ({
         ...prev,
-
         productName: product.name,
-
         productCode: product.code,
+      }));
+    } else {
+      setNewBarcode((prev) => ({
+        ...prev,
+        productName: productName,
+        productCode: '', 
       }));
     }
   };
@@ -241,7 +217,8 @@ const canDelete = hasModulePermission(
       return;
     }
 
-    const matchingProduct = mockProducts.find(p => p.name === newBarcode.productName);
+    // FIX: Match against the real loaded live products system array instead of static mockProducts
+    const matchingProduct = products.find(p => p.name === newBarcode.productName);
     if (!matchingProduct) {
       setValidationError("Please select a valid existing product from the list.");
       return;
@@ -253,13 +230,13 @@ const canDelete = hasModulePermission(
       return;
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
     
     if (isEditingModal && newBarcode.id) {
       const updatedRecord: Barcode = {
         id: newBarcode.id,
         barcode: newBarcode.barcodeNumber,
-        productCode: newBarcode.productCode,
+        productCode: newBarcode.productCode || matchingProduct.code,
         productName: newBarcode.productName,
         type: newBarcode.type,
         assignedDate: selectedBarcode?.assignedDate && selectedBarcode.assignedDate !== '-' ? selectedBarcode.assignedDate : today,
@@ -282,7 +259,7 @@ const canDelete = hasModulePermission(
       const record: Barcode = {
         id: Date.now().toString(),
         barcode: newBarcode.barcodeNumber,
-        productCode: newBarcode.productCode,
+        productCode: newBarcode.productCode || matchingProduct.code,
         productName: newBarcode.productName,
         type: newBarcode.type,
         assignedDate: today,
@@ -314,18 +291,6 @@ const canDelete = hasModulePermission(
       setItemToDelete(null);
     }
   };
-
-  // if (!canView) {
-  //   return (
-  //     <div className="p-10 text-center">
-  //       <h2 className="text-xl font-semibold">Access Denied</h2>
-
-  //       <p className="text-slate-500 mt-2">
-  //         You do not have permission to view Barcode Management.
-  //       </p>
-  //     </div>
-  //   );
-  // }
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -483,6 +448,7 @@ const canDelete = hasModulePermission(
                 <label className="block text-sm font-medium mb-1">Product *</label>
                 <div className="relative">
                   <input
+                    type="text"
                     list="product-suggestions"
                     value={newBarcode.productName}
                     onChange={(e) => handleProductSelect(e.target.value)}
@@ -490,8 +456,8 @@ const canDelete = hasModulePermission(
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   />
                   <datalist id="product-suggestions">
-                    {products.map(p => (
-                      <option key={p.code} value={p.name} />
+                    {products.map((p) => (
+                      <option key={p.code || p.id} value={p.name} />
                     ))}
                   </datalist>
                 </div>

@@ -146,9 +146,6 @@ import FranchiseMonitoring from '../../modules/super-admin/FranchiseMonitoring';
 import ExportOrderMonitoring from '../../modules/super-admin/ExportOrderMonitoring';
 import SuperAdminNotificationCenter from '../../modules/super-admin/NotificationCenter';
 import UserActivityLogs from '../../modules/super-admin/UserActivityLogs';
-
-import { ordersRoutes } from '../../modules/orders/routes';
-import { reportsRoutes } from '../../modules/reports/routes';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 
 export const router = createBrowserRouter([
@@ -164,8 +161,6 @@ export const router = createBrowserRouter([
     path: '/login',
     element: <LoginPage />,
   },
-  ...ordersRoutes,
-  ...reportsRoutes,
   {
     path: '/workspace/dashboard',
     element: <MainLayout />,

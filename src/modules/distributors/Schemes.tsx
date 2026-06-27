@@ -18,6 +18,9 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
+// Import the shared schemeService just like in SchemeManagement
+import { schemeService } from "../../services/schemeService";
+
 interface Scheme {
   id: string;
   schemeCode: string;
@@ -26,22 +29,22 @@ interface Scheme {
   applicableTo: string;
   validFrom: string;
   validTo: string;
-  status: 'Draft' | 'Active' | 'Upcoming' | 'Expired' | 'Inactive';
+  status: 'Draft' | 'Active' | 'Upcoming' | 'Expired' | 'Inactive' | 'Cancelled';
   benefit: string;
   product?: string;
   category?: string;
   brand?: string;
 }
 
-const mockData: Scheme[] = [
+const fallbackMockData: Scheme[] = [
   { 
     id: '1', 
     schemeCode: 'SCH-OCT-10', 
     schemeName: 'Buy 10 Get 1 Free (Amoxicillin)', 
     schemeType: 'Quantity Scheme',
     applicableTo: 'All Distributors',
-    validFrom: '01-Oct-2026',
-    validTo: '31-Oct-2026', 
+    validFrom: '2026-10-01',
+    validTo: '2026-10-31', 
     status: 'Active',
     benefit: 'Buy 10 Get 1 Free',
     product: 'Amoxicillin 250mg',
@@ -54,8 +57,8 @@ const mockData: Scheme[] = [
     schemeName: 'Diwali 5% Additional CD', 
     schemeType: 'Cash Discount (CD)',
     applicableTo: 'Gold Tier',
-    validFrom: '15-Oct-2026',
-    validTo: '05-Nov-2026', 
+    validFrom: '2026-10-15',
+    validTo: '2026-11-05', 
     status: 'Upcoming',
     benefit: 'Additional 5% CD',
     category: 'All Products'
@@ -66,8 +69,8 @@ const mockData: Scheme[] = [
     schemeName: 'Quarter End Q2 Target Bonus', 
     schemeType: 'Target Scheme',
     applicableTo: 'All Distributors',
-    validFrom: '15-Sep-2026',
-    validTo: '30-Sep-2026', 
+    validFrom: '2026-09-15',
+    validTo: '2026-09-30', 
     status: 'Expired',
     benefit: 'Quarter Target Bonus',
     category: 'All Products'
@@ -77,6 +80,7 @@ const mockData: Scheme[] = [
 export default function Schemes() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
 
+  const [schemesList, setSchemesList] = useState<Scheme[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [viewScheme, setViewScheme] = useState<Scheme | null>(null);
@@ -88,8 +92,8 @@ export default function Schemes() {
   const [newScheme, setNewScheme] = useState({
     schemeCode: 'SCH-AUTO-GEN',
     schemeName: '',
-    schemeType: '',
-    applicableTo: '',
+    schemeType: 'Quantity Scheme',
+    applicableTo: 'All Distributors',
     validFrom: '',
     validTo: '',
     productCategory: '',
@@ -105,6 +109,32 @@ export default function Schemes() {
     remarks: ''
   });
 
+  // Load dynamically from schemeService on mount
+  useEffect(() => {
+    const savedData = schemeService.getAll();
+    if (savedData && savedData.length > 0) {
+      // Map properties to adapt differences between fields (name vs schemeName, etc.)
+      const normalizedData = savedData.map((item: any) => ({
+        id: item.id || Date.now().toString(),
+        schemeCode: item.schemeCode || '',
+        schemeName: item.name || item.schemeName || '',
+        schemeType: item.type || item.schemeType || 'Quantity Scheme',
+        applicableTo: item.applicableTo || 'All Distributors',
+        validFrom: item.validFrom || '',
+        validTo: item.validTo || '',
+        status: item.status || 'Active',
+        benefit: item.benefit || `${item.benefitType || ''} ${item.benefitValue || ''}`.trim() || `Buy ${item.minQuantity || 10} Get ${item.freeQuantity || 1} Free`,
+        product: item.applicableSelection || item.product || '',
+        category: item.category || '',
+        brand: item.brand || ''
+      }));
+      setSchemesList(normalizedData);
+    } else {
+      setSchemesList(fallbackMockData);
+      schemeService.saveAll(fallbackMockData);
+    }
+  }, [showCreateModal]); // Refresh state when modal closes/submits
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
@@ -115,12 +145,52 @@ export default function Schemes() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const filteredData = mockData.filter((item) => {
+  // Handle publishing a new scheme from this module directly into the service
+  const handlePublishScheme = () => {
+    if (!newScheme.schemeName || !newScheme.validFrom || !newScheme.validTo) {
+      alert("Please fill out the mandatory fields.");
+      return;
+    }
+
+    let dynamicBenefit = 'Promotional Offer';
+    if (newScheme.schemeType === 'Quantity Scheme') {
+      dynamicBenefit = `Buy ${newScheme.buyQuantity || 10} Get ${newScheme.freeQuantity || 1} Free`;
+    } else if (newScheme.schemeType === 'Cash Discount Scheme') {
+      dynamicBenefit = `Additional ${newScheme.discountPercentage || 0}% CD`;
+    } else if (newScheme.schemeType === 'Bonus Scheme') {
+      dynamicBenefit = `${newScheme.bonusQuantity || 1}x ${newScheme.bonusProduct || 'Bonus'}`;
+    } else if (newScheme.schemeType === 'Target Scheme') {
+      dynamicBenefit = `Target Bonus Setup`;
+    }
+
+    const createdRecord: any = {
+      id: Date.now().toString(),
+      schemeCode: `SCH-${Math.floor(1000 + Math.random() * 9000)}`,
+      name: newScheme.schemeName,
+      type: newScheme.schemeType,
+      applicableTo: newScheme.applicableTo,
+      applicableSelection: newScheme.product || newScheme.brand || newScheme.productCategory || 'All Products',
+      benefitType: newScheme.schemeType,
+      benefitValue: newScheme.discountPercentage || newScheme.freeQuantity || 'Configured',
+      minQuantity: newScheme.buyQuantity || '',
+      freeQuantity: newScheme.freeQuantity || '',
+      validFrom: newScheme.validFrom,
+      validTo: newScheme.validTo,
+      remarks: newScheme.remarks,
+      status: 'Active'
+    };
+
+    const currentSaved = schemeService.getAll();
+    const updatedCollection = [createdRecord, ...currentSaved];
+    schemeService.saveAll(updatedCollection);
+    
+    setShowCreateModal(false);
+  };
+
+  const filteredData = schemesList.filter((item) => {
     const searchLower = search.toLowerCase();
     const matchSearch = item.schemeCode.toLowerCase().includes(searchLower) || item.schemeName.toLowerCase().includes(searchLower);
     const matchStatus = statusFilter ? item.status === statusFilter : true;
-    
-    // In distributor view, typically they'd only see applicable schemes, but this is a mock
     return matchSearch && matchStatus;
   });
 
@@ -130,7 +200,8 @@ export default function Schemes() {
       case 'Upcoming': return 'info';
       case 'Draft': return 'secondary';
       case 'Expired': return 'warning';
-      case 'Inactive': return 'danger';
+      case 'Inactive': 
+      case 'Cancelled': return 'danger';
       default: return 'neutral';
     }
   };
@@ -365,7 +436,6 @@ export default function Schemes() {
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Scheme Type</label>
                 <select className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white" value={newScheme.schemeType} onChange={e => setNewScheme({...newScheme, schemeType: e.target.value})}>
-                  <option value="">Select Scheme Type...</option>
                   <option value="Quantity Scheme">Quantity Scheme</option>
                   <option value="Cash Discount Scheme">Cash Discount Scheme</option>
                   <option value="Bonus Scheme">Bonus Scheme</option>
@@ -441,12 +511,6 @@ export default function Schemes() {
                   </div>
                 </>
               )}
-              
-              {!newScheme.schemeType && (
-                <div className="md:col-span-2 text-sm text-slate-500 italic py-2">
-                  Select a scheme type to configure benefits.
-                </div>
-              )}
 
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">D. Eligibility</h3>
@@ -455,7 +519,6 @@ export default function Schemes() {
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Applicable To</label>
                 <select className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white" value={newScheme.applicableTo} onChange={e => setNewScheme({...newScheme, applicableTo: e.target.value})}>
-                  <option value="">Select Target...</option>
                   <option value="All Distributors">All Distributors</option>
                   <option value="Gold Tier">Gold Tier</option>
                   <option value="Silver Tier">Silver Tier</option>
@@ -492,10 +555,10 @@ export default function Schemes() {
               <ActionButton variant="ghost" onClick={() => setShowCreateModal(false)}>
                 Cancel
               </ActionButton>
-              <ActionButton variant="secondary">
+              <ActionButton variant="secondary" onClick={() => setShowCreateModal(false)}>
                 Save Draft
               </ActionButton>
-              <ActionButton onClick={() => setShowCreateModal(false)}>
+              <ActionButton onClick={handlePublishScheme}>
                 Publish Scheme
               </ActionButton>
             </div>
@@ -513,7 +576,6 @@ export default function Schemes() {
           <div className="space-y-6 pb-20">
             {activeRole === ROLE_SUPER_ADMIN ? (
               <>
-                {/* Admin View */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Scheme Information</h3>
                   <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
@@ -551,7 +613,6 @@ export default function Schemes() {
               </>
             ) : (
               <>
-                {/* Distributor View */}
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Scheme Information</h3>
                   <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">

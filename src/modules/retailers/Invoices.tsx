@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Download, Filter, ReceiptText, ChevronDown, Printer, Plus, Trash2 } from 'lucide-react';
+import { Download, Filter, ReceiptText, ChevronDown, Printer, Plus, Trash2, SquarePen } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -52,7 +52,28 @@ interface Invoice {
 
 const initialMockInvoices: Invoice[] = [
   { 
-    id: '1', invoiceNo: 'INV-RET-9912', orderNo: 'ORD-10045', retailer: 'Apollo Pharmacy', retailerCode: 'RET-001',
+    id: '1', invoiceNo: 'INV-gred342', orderNo: 'ORD-dvc3e2', retailer: 'fdcfcxv', retailerCode: 'RET-003',
+    billingAddress: 'Test Address Line', gstNumber: '29ABCDE1234F1Z5',
+    date: '27-Jun-2026', dueDate: '2026-06-30', amount: 1, subtotal: 0.89, gstAmount: 0.11,
+    paidAmount: 0, outstandingAmount: 1, status: 'Unpaid',
+    items: [{ id: 'i10', productName: 'Item A', productCode: 'ITA', quantity: 1, unitPrice: 1, gstPct: 12, lineAmount: 1 }]
+  },
+  { 
+    id: '2', invoiceNo: 'INV-123124', orderNo: 'ORD-dsw1', retailer: 'apollos', retailerCode: 'RET-004',
+    billingAddress: 'Test Address Line B', gstNumber: '29ABCDE1234F1Z5',
+    date: '27-Jun-2026', dueDate: '2026-06-30', amount: 0, subtotal: 0, gstAmount: 0,
+    paidAmount: 0, outstandingAmount: 0, status: 'Unpaid',
+    items: []
+  },
+  { 
+    id: '3', invoiceNo: 'INV-dsszdxv', orderNo: 'ORD-wesd', retailer: 'esdvdv', retailerCode: 'RET-005',
+    billingAddress: 'Test Address Line C', gstNumber: '29ABCDE1234F1Z5',
+    date: '26-Jun-2026', dueDate: '2026-06-30', amount: 0, subtotal: 0, gstAmount: 0,
+    paidAmount: 0, outstandingAmount: 0, status: 'Unpaid',
+    items: []
+  },
+  { 
+    id: '4', invoiceNo: 'INV-RET-9912', orderNo: 'ORD-10045', retailer: 'Apollo Pharmacy', retailerCode: 'RET-001',
     billingAddress: '123 Health Ave, Bangalore, 560001', gstNumber: '29ABCDE1234F1Z5',
     date: '01-Oct-2026', dueDate: '15-Oct-2026', amount: 45000, subtotal: 40178.57, gstAmount: 4821.43,
     paidAmount: 0, outstandingAmount: 45000, status: 'Unpaid',
@@ -62,7 +83,7 @@ const initialMockInvoices: Invoice[] = [
     ]
   },
   { 
-    id: '2', invoiceNo: 'INV-RET-9900', orderNo: 'ORD-10022', retailer: 'MedPlus Store', retailerCode: 'RET-002',
+    id: '5', invoiceNo: 'INV-RET-9900', orderNo: 'ORD-10022', retailer: 'MedPlus Store', retailerCode: 'RET-002',
     billingAddress: '45 Wellness Blvd, Mumbai, 400001', gstNumber: '27FGHIJ5678K1Z2',
     date: '15-Sep-2026', dueDate: '30-Sep-2026', amount: 12000, subtotal: 10714.29, gstAmount: 1285.71,
     paidAmount: 0, outstandingAmount: 12000, status: 'Overdue',
@@ -71,7 +92,7 @@ const initialMockInvoices: Invoice[] = [
     ]
   },
   { 
-    id: '3', invoiceNo: 'INV-RET-9890', orderNo: 'ORD-10010', retailer: 'Apollo Pharmacy', retailerCode: 'RET-001',
+    id: '6', invoiceNo: 'INV-RET-9890', orderNo: 'ORD-10010', retailer: 'Apollo Pharmacy', retailerCode: 'RET-001',
     billingAddress: '123 Health Ave, Bangalore, 560001', gstNumber: '29ABCDE1234F1Z5',
     date: '10-Sep-2026', dueDate: '25-Sep-2026', amount: 5500, subtotal: 4910.71, gstAmount: 589.29,
     paidAmount: 5500, outstandingAmount: 0, status: 'Paid',
@@ -105,6 +126,10 @@ export default function Invoices() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
+  // --- Invoice Editing Pipeline States ---
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+
   // --- New Invoice Creation Modal Form Matrix States ---
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newInvoice, setNewInvoice] = useState({
@@ -136,7 +161,6 @@ export default function Invoices() {
         let updated = false;
         
         const nextInvoices = invoices.map(inv => {
-          // Cross map across items log array matrices
           for (const rec of records) {
             const matchInvoice = rec.invoices.find((i: any) => i.invoiceNo === inv.invoiceNo);
             if (matchInvoice && matchInvoice.status === 'Paid' && inv.status !== 'Paid') {
@@ -241,8 +265,40 @@ export default function Invoices() {
     setShowCreateModal(false);
     
     // Reset inputs
-    setNewInvoice({ invoiceNo: '', orderNo: '', retailer: '', retailerCode: '', billingAddress: '', gstNumber: '', dueDate: '' });
-    setFormItems([{ id: '1', productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }]);
+    NewInvoice({ invoiceNo: '', orderNo: '', retailer: '', retailerCode: '', billingAddress: '', gstNumber: '', dueDate: '' });
+    SetFormItems([{ id: '1', productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }]);
+  };
+
+  // --- Form Edit Request Executions ---
+  const handleOpenEdit = (invoice: Invoice) => {
+    setEditingInvoice({ ...invoice });
+    setShowEditModal(true);
+  };
+
+  const handleEditInvoiceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingInvoice) return;
+
+    let updatedInvoice = { ...editingInvoice };
+    if (!updatedInvoice.invoiceNo.startsWith('INV-')) {
+      updatedInvoice.invoiceNo = `INV-${updatedInvoice.invoiceNo}`;
+    }
+    if (!updatedInvoice.orderNo.startsWith('ORD-')) {
+      updatedInvoice.orderNo = `ORD-${updatedInvoice.orderNo}`;
+    }
+
+    // Auto balance calculations based on status mapping
+    if (updatedInvoice.status === 'Paid') {
+      updatedInvoice.paidAmount = updatedInvoice.amount;
+      updatedInvoice.outstandingAmount = 0;
+    } else if (updatedInvoice.status === 'Unpaid' || updatedInvoice.status === 'Overdue') {
+      updatedInvoice.paidAmount = 0;
+      updatedInvoice.outstandingAmount = updatedInvoice.amount;
+    }
+
+    setInvoices(invoices.map(inv => inv.id === updatedInvoice.id ? updatedInvoice : inv));
+    setShowEditModal(false);
+    setEditingInvoice(null);
   };
 
   const generatePDF = (invoice: Invoice | null, isDownload: boolean = true) => {
@@ -274,6 +330,9 @@ export default function Invoices() {
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           <button onClick={() => setViewInvoice(row)} className="text-violet-600 hover:text-violet-800 text-xs px-2 py-1 flex items-center bg-violet-50 rounded-md font-medium">
             <ReceiptText className="w-3.5 h-3.5 mr-1" /> View
+          </button>
+          <button onClick={() => handleOpenEdit(row)} className="text-amber-600 hover:text-amber-800 p-1 bg-amber-50 rounded-md" title="Edit Invoice">
+            <SquarePen className="w-3.5 h-3.5" />
           </button>
           <button onClick={() => generatePDF(row)} className="text-slate-500 hover:text-slate-700 p-1">
             <Download className="w-4 h-4" />
@@ -500,6 +559,56 @@ export default function Invoices() {
               <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 border border-slate-200 rounded-lg font-medium text-slate-600 hover:bg-slate-50 transition-colors">Dismiss</button>
                 <button type="submit" className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-bold shadow-sm transition-colors">Generate Pipeline Invoice</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- Dialog Component Window: Edit Invoice Form --- */}
+      {showEditModal && editingInvoice && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-y-auto p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
+              <div>
+                <h3 className="text-base font-bold text-slate-900">Modify Existing Pipeline Invoice</h3>
+                <p className="text-xs text-slate-500">Update metadata attributes and log transaction allocations.</p>
+              </div>
+              <button onClick={() => { setShowEditModal(false); setEditingInvoice(null); }} className="text-slate-400 hover:text-slate-600 font-medium text-sm">✕</button>
+            </div>
+
+            <form onSubmit={handleEditInvoiceSubmit} className="p-5 space-y-4 text-xs">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Invoice Number *</label>
+                  <input required placeholder="INV-XXXX" value={editingInvoice.invoiceNo} onChange={e => setEditingInvoice({...editingInvoice, invoiceNo: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Order Reference Mapping *</label>
+                  <input required placeholder="ORD-XXXXX" value={editingInvoice.orderNo} onChange={e => setEditingInvoice({...editingInvoice, orderNo: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
+                </div>
+                <div className="col-span-2">
+                  <label className="block text-slate-600 font-semibold mb-1">Retailer Profile Name *</label>
+                  <input required placeholder="e.g. Apollo Pharmacy" value={editingInvoice.retailer} onChange={e => setEditingInvoice({...editingInvoice, retailer: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Payment Target Due Date</label>
+                  <input type="text" placeholder="YYYY-MM-DD or DD-MMM-YYYY" value={editingInvoice.dueDate} onChange={e => setEditingInvoice({...editingInvoice, dueDate: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
+                </div>
+                <div>
+                  <label className="block text-slate-600 font-semibold mb-1">Payment Status *</label>
+                  <select value={editingInvoice.status} onChange={e => setEditingInvoice({...editingInvoice, status: e.target.value as InvoiceStatus})} className="w-full border border-slate-200 bg-white rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none h-[34px]">
+                    <option value="Paid">Paid</option>
+                    <option value="Unpaid">Unpaid</option>
+                    <option value="Partially Paid">Partially Paid</option>
+                    <option value="Overdue">Overdue</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
+                <button type="button" onClick={() => { setShowEditModal(false); setEditingInvoice(null); }} className="px-4 py-2 border border-slate-200 rounded-lg font-medium text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
+                <button type="submit" className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-bold shadow-sm transition-colors">Save Updates</button>
               </div>
             </form>
           </div>

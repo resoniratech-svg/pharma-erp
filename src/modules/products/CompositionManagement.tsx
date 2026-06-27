@@ -1,5 +1,4 @@
-import { useState } from 'react';
-import { useEffect } from "react";
+import { useState, useEffect } from 'react';
 import { Plus, Filter, Download, Trash2 } from 'lucide-react';
 import {
   PageHeader,
@@ -16,7 +15,6 @@ import {
 import { type Column } from './types';
 import { compositionService } from "../../services/compositionService";
 import activityLogService from "../../services/activityLogService";
-
 
 interface Composition {
   id: string;
@@ -41,22 +39,18 @@ const initialMockData: Composition[] = [
 ];
 
 export default function CompositionManagement() {
-  const [data, setData] = useState<Composition[]>(initialMockData);
+  const [data, setData] = useState<Composition[]>([]);
+
+  // Initialize data safely
   useEffect(() => {
     const savedData = compositionService.getAll();
-
-    if (savedData.length > 0) {
+    if (savedData && savedData.length > 0) {
       setData(savedData);
     } else {
       setData(initialMockData);
-
       compositionService.saveAll(initialMockData);
     }
   }, []);
-
-  useEffect(() => {
-    compositionService.saveAll(data);
-  }, [data]);
 
   const [search, setSearch] = useState('');
   const [scheduleFilter, setScheduleFilter] = useState('');
@@ -76,14 +70,13 @@ export default function CompositionManagement() {
     description: '',
     status: 'Active' as 'Active' | 'Inactive',
   });
+
   const permissions = JSON.parse(
     localStorage.getItem("permissions_SUPER_ADMIN") || "{}",
   );
 
   const canCreate = permissions["Products & Master"]?.Create ?? true;
-
   const canEdit = permissions["Products & Master"]?.Edit ?? true;
-
   const canDelete = permissions["Products & Master"]?.Delete ?? true;
 
   const columns: Column<Composition>[] = [
@@ -123,16 +116,16 @@ export default function CompositionManagement() {
             View
           </button>
           {canDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setItemToDelete(row);
-            }}
-            className="text-rose-600 font-medium hover:text-rose-800"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setItemToDelete(row);
+              }}
+              className="text-rose-600 font-medium hover:text-rose-800"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           )}
         </div>
       )
@@ -140,7 +133,8 @@ export default function CompositionManagement() {
   ];
 
   const filteredData = data.filter((item) => {
-    const matchSearch = item.genericName.toLowerCase().includes(search.toLowerCase()) || item.therapeuticClass.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = (item.genericName?.toLowerCase() || '').includes(search.toLowerCase()) || 
+                        (item.therapeuticClass?.toLowerCase() || '').includes(search.toLowerCase());
     const matchSchedule = scheduleFilter ? item.schedule === scheduleFilter : true;
     return matchSearch && matchSchedule;
   });
@@ -210,6 +204,8 @@ export default function CompositionManagement() {
       return;
     }
     
+    let updatedData: Composition[] = [];
+
     if (isEditingModal && newComp.id) {
       const updatedRecord: Composition = {
         id: newComp.id,
@@ -225,7 +221,7 @@ export default function CompositionManagement() {
         createdDate: selectedComp?.createdDate || new Date().toISOString().split('T')[0]
       };
       
-      setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+      updatedData = data.map(item => item.id === updatedRecord.id ? updatedRecord : item);
       activityLogService.addLog({
         action: "Composition Updated",
         module: "Composition Management",
@@ -247,19 +243,25 @@ export default function CompositionManagement() {
         createdBy: 'Admin User',
         createdDate: new Date().toISOString().split('T')[0]
       };
-      setData([record, ...data]);
+      updatedData = [record, ...data];
+      activityLogService.addLog({
+        action: "Composition Created",
+        module: "Composition Management",
+      });
     }
     
+    // Save to State AND local storage service inside the same transaction
+    setData(updatedData);
+    compositionService.saveAll(updatedData);
     setShowModal(false);
-    activityLogService.addLog({
-      action: "Composition Created",
-      module: "Composition Management",
-    });
   };
 
   const handleDelete = () => {
     if (itemToDelete) {
-      setData(data.filter(item => item.id !== itemToDelete.id));
+      const updatedData = data.filter(item => item.id !== itemToDelete.id);
+      setData(updatedData);
+      compositionService.saveAll(updatedData);
+      
       activityLogService.addLog({
         action: "Composition Deleted",
         module: "Composition Management",
@@ -335,16 +337,10 @@ export default function CompositionManagement() {
       >
         {selectedComp && (
           <div className="space-y-4">
-            <DrawerField
-              label="Generic Name"
-              value={selectedComp.genericName}
-            />
+            <DrawerField label="Generic Name" value={selectedComp.genericName} />
             <DrawerField label="Strength" value={selectedComp.strength} />
             <DrawerField label="Dosage Form" value={selectedComp.dosageForm} />
-            <DrawerField
-              label="Therapeutic Class"
-              value={selectedComp.therapeuticClass}
-            />
+            <DrawerField label="Therapeutic Class" value={selectedComp.therapeuticClass} />
             <DrawerField
               label="Drug Schedule"
               value={
@@ -352,8 +348,7 @@ export default function CompositionManagement() {
                   variant={
                     selectedComp.schedule === "OTC"
                       ? "success"
-                      : selectedComp.schedule === "Schedule H" ||
-                          selectedComp.schedule === "Schedule H1"
+                      : selectedComp.schedule === "Schedule H" || selectedComp.schedule === "Schedule H1"
                         ? "warning"
                         : "danger"
                   }
@@ -362,31 +357,18 @@ export default function CompositionManagement() {
                 </Badge>
               }
             />
-            <DrawerField
-              label="Description"
-              value={selectedComp.description || "N/A"}
-            />
-            <DrawerField
-              label="Linked Products"
-              value={`${selectedComp.associatedProducts} Active Products`}
-            />
+            <DrawerField label="Description" value={selectedComp.description || "N/A"} />
+            <DrawerField label="Linked Products" value={`${selectedComp.associatedProducts} Active Products`} />
             <DrawerField
               label="Status"
               value={
-                <Badge
-                  variant={
-                    selectedComp.status === "Active" ? "success" : "neutral"
-                  }
-                >
+                <Badge variant={selectedComp.status === "Active" ? "success" : "neutral"}>
                   {selectedComp.status}
                 </Badge>
               }
             />
             <DrawerField label="Created By" value={selectedComp.createdBy} />
-            <DrawerField
-              label="Created Date"
-              value={selectedComp.createdDate}
-            />
+            <DrawerField label="Created Date" value={selectedComp.createdDate} />
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3 mt-4">
               {canEdit && (
@@ -394,10 +376,7 @@ export default function CompositionManagement() {
                   Edit Composition
                 </ActionButton>
               )}
-              <ActionButton
-                variant="secondary"
-                onClick={() => setSelectedComp(null)}
-              >
+              <ActionButton variant="secondary" onClick={() => setSelectedComp(null)}>
                 Close
               </ActionButton>
             </div>
@@ -412,12 +391,9 @@ export default function CompositionManagement() {
             <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6 text-rose-600" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">
-              Delete Composition
-            </h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Composition</h3>
             <p className="text-sm text-slate-500 mb-6">
-              Are you sure you want to delete this composition? This action
-              cannot be undone.
+              Are you sure you want to delete this composition? This action cannot be undone.
             </p>
             <div className="flex justify-center gap-3">
               <button
@@ -445,58 +421,40 @@ export default function CompositionManagement() {
               <h2 className="text-xl font-bold text-slate-900">
                 {isEditingModal ? "Edit Composition" : "Add Composition"}
               </h2>
-              <button
-                onClick={() => setShowModal(false)}
-                className="text-slate-500 hover:text-slate-800"
-              >
+              <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-slate-800">
                 ✕
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* BASIC INFORMATION */}
               <div className="md:col-span-2 mt-2 first:mt-0">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  BASIC INFORMATION
-                </h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">BASIC INFORMATION</h3>
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">
-                  Generic Name *
-                </label>
+                <label className="block text-sm font-medium mb-1">Generic Name *</label>
                 <input
                   type="text"
                   value={newComp.genericName}
-                  onChange={(e) =>
-                    setNewComp({ ...newComp, genericName: e.target.value })
-                  }
+                  onChange={(e) => setNewComp({ ...newComp, genericName: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="e.g. Paracetamol"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Strength *
-                </label>
+                <label className="block text-sm font-medium mb-1">Strength *</label>
                 <input
                   type="text"
                   value={newComp.strength}
-                  onChange={(e) =>
-                    setNewComp({ ...newComp, strength: e.target.value })
-                  }
+                  onChange={(e) => setNewComp({ ...newComp, strength: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                   placeholder="e.g. 500mg"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Dosage Form *
-                </label>
+                <label className="block text-sm font-medium mb-1">Dosage Form *</label>
                 <select
                   value={newComp.dosageForm}
-                  onChange={(e) =>
-                    setNewComp({ ...newComp, dosageForm: e.target.value })
-                  }
+                  onChange={(e) => setNewComp({ ...newComp, dosageForm: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
                   <option value="Tablet">Tablet</option>
@@ -510,35 +468,24 @@ export default function CompositionManagement() {
                 </select>
               </div>
 
-              {/* CLASSIFICATION INFORMATION */}
               <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  CLASSIFICATION INFORMATION
-                </h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">CLASSIFICATION INFORMATION</h3>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Therapeutic Class *
-                </label>
+                <label className="block text-sm font-medium mb-1">Therapeutic Class *</label>
                 <input
                   type="text"
                   value={newComp.therapeuticClass}
-                  onChange={(e) =>
-                    setNewComp({ ...newComp, therapeuticClass: e.target.value })
-                  }
+                  onChange={(e) => setNewComp({ ...newComp, therapeuticClass: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                   placeholder="e.g. Analgesic"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Drug Schedule *
-                </label>
+                <label className="block text-sm font-medium mb-1">Drug Schedule *</label>
                 <select
                   value={newComp.schedule}
-                  onChange={(e) =>
-                    setNewComp({ ...newComp, schedule: e.target.value })
-                  }
+                  onChange={(e) => setNewComp({ ...newComp, schedule: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
                   <option value="OTC">OTC</option>
@@ -548,35 +495,24 @@ export default function CompositionManagement() {
                 </select>
               </div>
 
-              {/* ADDITIONAL INFORMATION */}
               <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  ADDITIONAL INFORMATION
-                </h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">ADDITIONAL INFORMATION</h3>
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">
-                  Description
-                </label>
+                <label className="block text-sm font-medium mb-1">Description</label>
                 <textarea
                   rows={2}
                   value={newComp.description}
-                  onChange={(e) =>
-                    setNewComp({ ...newComp, description: e.target.value })
-                  }
+                  onChange={(e) => setNewComp({ ...newComp, description: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                   placeholder="e.g. Used for fever reduction and pain relief."
                 />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">
-                  Status *
-                </label>
+                <label className="block text-sm font-medium mb-1">Status *</label>
                 <select
                   value={newComp.status}
-                  onChange={(e) =>
-                    setNewComp({ ...newComp, status: e.target.value as any })
-                  }
+                  onChange={(e) => setNewComp({ ...newComp, status: e.target.value as any })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
                   <option value="Active">Active</option>
@@ -584,36 +520,21 @@ export default function CompositionManagement() {
                 </select>
               </div>
 
-              {/* AUDIT INFORMATION */}
               <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  AUDIT INFORMATION
-                </h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">AUDIT INFORMATION</h3>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Created By
-                </label>
+                <label className="block text-sm font-medium mb-1">Created By</label>
                 <input
-                  value={
-                    isEditingModal
-                      ? selectedComp?.createdBy || "System"
-                      : "Admin User"
-                  }
+                  value={isEditingModal ? selectedComp?.createdBy || "System" : "Admin User"}
                   readOnly
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Created Date
-                </label>
+                <label className="block text-sm font-medium mb-1">Created Date</label>
                 <input
-                  value={
-                    isEditingModal
-                      ? selectedComp?.createdDate || "N/A"
-                      : new Date().toISOString().split("T")[0]
-                  }
+                  value={isEditingModal ? selectedComp?.createdDate || "N/A" : new Date().toISOString().split("T")[0]}
                   readOnly
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
                 />
@@ -621,12 +542,13 @@ export default function CompositionManagement() {
             </div>
 
             <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
-              <ActionButton
-                variant="secondary"
+              <button
+                type="button"
                 onClick={() => setShowModal(false)}
+                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
               >
                 Cancel
-              </ActionButton>
+              </button>
               <ActionButton onClick={handleSaveComposition}>
                 {isEditingModal ? "Save Changes" : "Save Composition"}
               </ActionButton>

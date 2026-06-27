@@ -210,8 +210,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Bank Reconciliation', path: '/workspace/finance/bank-reco' },
     ],
   },
-  { label: 'Orders', path: '/orders', icon: ShoppingCart },
-  { label: 'Reports', path: '/reports', icon: BarChart3 },
+
   {
     label: 'Alerts & Notifications',
     icon: Bell,
@@ -300,7 +299,10 @@ export function MainLayout() {
   const displayEmail = authUser ? authUser.email : activeRoleData.userEmail;
 
   /* ── Dynamic Role Path Switcher ── */
-  const filteredNavItems = NAV_ITEMS.filter(item => activeRole === ROLE_SUPER_ADMIN || hasPermission(activeRole, item.label))
+  const filteredNavItems = NAV_ITEMS.filter(item => {
+    if (item.label === 'Alerts & Notifications' && activeRole !== ROLE_SUPER_ADMIN) return false;
+    return activeRole === ROLE_SUPER_ADMIN || hasPermission(activeRole, item.label);
+  })
     .map(item => {
       // Create a shallow copy of the object before altering properties
       const mappedItem = { ...item };

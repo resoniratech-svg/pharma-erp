@@ -15,7 +15,6 @@ export default function ProfileSettings() {
   const authUser = authUserString ? JSON.parse(authUserString) : null;
   const [user, setUser] = useState(authUser);
 
-  
   const initialName = authUser ? authUser.fullName : activeRoleData.userName;
   const initialEmail = authUser ? authUser.email : activeRoleData.userEmail;
   const initialMobile = authUser ? authUser.mobile : '+91 9876543210';
@@ -31,22 +30,6 @@ export default function ProfileSettings() {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-
-  // const logAuditActivity = (activity: string) => {
-  //   const logsString = localStorage.getItem('auditLogs');
-  //   const logs = logsString ? JSON.parse(logsString) : [];
-  //   logs.push({
-  //     id: Math.random().toString(36).substr(2, 9),
-  //     dateTime: new Date().toISOString(),
-  //     user: email,
-  //     module: 'Profile Settings',
-  //     activityType: 'Configuration',
-  //     activity,
-  //     ipAddress: '192.168.1.100', // Mock IP
-  //     status: 'Success'
-  //   });
-  //   localStorage.setItem('auditLogs', JSON.stringify(logs));
-  // };
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -89,29 +72,6 @@ export default function ProfileSettings() {
       }
       if (newPassword !== confirmPassword) return alert("Confirm password does not match the new password.");
     }
-
-    // Capture old name to replace in DOM
-    // const oldName = initialName;
-
-    // // Save to LocalStorage
-    // const updatedUser = { 
-    //   ...authUser, 
-    //   fullName: name, 
-    //   email, 
-    //   mobile, 
-    //   profileImage, 
-    //   password: newPassword || authUser?.password || 'Password123!' 
-    // };
-    // authService.updateProfile(updatedUser);
-
-    // // Update global DOM (Navbar & Sidebar user information)
-    // const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT, null);
-    // let node;
-    // while ((node = walker.nextNode())) {
-    //   if (node.nodeValue && node.nodeValue.trim() === oldName) {
-    //     node.nodeValue = node.nodeValue.replace(oldName, name);
-    //   }
-    // }
     
     const updatedUser = {
       ...authUser,
@@ -122,14 +82,18 @@ export default function ProfileSettings() {
       password: newPassword || authUser?.password || "Password123!",
     };
 
+    // 1. Update overall profile management database state
     authService.updateProfile(updatedUser);
 
-    setUser(updatedUser);
+    // 2. Sync the active session token/object in localStorage
+    localStorage.setItem('authUser', JSON.stringify(updatedUser));
 
+    // 3. Update component state safely
+    setUser(updatedUser);
     
     activityLogService.addLog({
-      userId: authUser?.id,
-      userName: authUser?.fullName,
+      userId: updatedUser?.id,
+      userName: updatedUser?.fullName,
       action: newPassword ? "Updated Profile & Password" : "Updated Profile",
       module: "Profile Settings",
     });
@@ -294,4 +258,3 @@ export default function ProfileSettings() {
     </div>
   );
 }
-

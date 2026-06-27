@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Download, ReceiptText, Plus } from 'lucide-react';
+import { Download, ReceiptText, Plus, Pencil } from 'lucide-react'; // Added Pencil icon
 import { jsPDF } from 'jspdf';
 import {
   PageHeader,
@@ -13,8 +13,18 @@ import {
   Drawer,
   DrawerField
 } from './components/shared';
-import { type Column } from './components/shared';
 import { ROLE_SUPER_ADMIN } from '../../constants/roles';
+
+// Import your centralized ledger book service
+import { ledgerService } from '../../services/ledgerService';
+
+// Explicitly define the Column type locally to prevent import resolution failures
+interface Column<T> {
+  key: string;
+  label: string;
+  render?: (row: T) => React.ReactNode;
+}
+
 type InvoiceStatus = 'Paid' | 'Unpaid' | 'Partially Paid' | 'Overdue';
 
 interface InvoiceItem {
@@ -87,12 +97,38 @@ export default function Invoice() {
   const [statusFilter, setStatusFilter] = useState('');
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  
+  // Added states to handle the edit flow
+  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
+  const [updatedStatus, setUpdatedStatus] = useState<InvoiceStatus>('Unpaid');
 
   const [newInvoice, setNewInvoice] = useState({ invoiceNo: '', orderNo: '', retailer: '', retailerCode: '', billingAddress: '', dueDate: '' });
   const [formItems, setFormItems] = useState<InvoiceItem[]>([{ id: '1', productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }]);
 
   useEffect(() => {
     localStorage.setItem('pharma_erp_invoices', JSON.stringify(invoices));
+  }, [invoices]);
+
+  // Sync baseline list items into Ledger Statement state on Component Mount
+  useEffect(() => {
+    const currentLedgers = ledgerService.getAll();
+    
+    invoices.forEach((inv) => {
+      const isAlreadyLogged = currentLedgers.some((ledger) => ledger.refNo === inv.invoiceNo);
+      
+      if (!isAlreadyLogged) {
+        ledgerService.addTransaction({
+          date: inv.date,
+          distributor: inv.retailer,
+          distributorCode: inv.retailerCode,
+          contactPerson: 'Rahul Sharma',
+          refNo: inv.invoiceNo,
+          type: 'Invoice',
+          debitAmount: inv.amount,
+          creditAmount: 0
+        });
+      }
+    });
   }, [invoices]);
 
   // Listen to entries added by distributors real-time
@@ -128,12 +164,15 @@ export default function Invoice() {
     const subtotal = Number((totalLineAmount / 1.12).toFixed(2));
     const gstAmount = Number((totalLineAmount - subtotal).toFixed(2));
 
+    const finalInvoiceNo = newInvoice.invoiceNo.startsWith('INV-') ? newInvoice.invoiceNo : `INV-${newInvoice.invoiceNo}`;
+    const finalRetailerCode = newInvoice.retailerCode || 'DIST-04';
+
     const invoicePayload: Invoice = {
       id: Date.now().toString(),
-      invoiceNo: newInvoice.invoiceNo.startsWith('INV-') ? newInvoice.invoiceNo : `INV-${newInvoice.invoiceNo}`,
+      invoiceNo: finalInvoiceNo,
       orderNo: newInvoice.orderNo.startsWith('ORD-') ? newInvoice.orderNo : `ORD-${newInvoice.orderNo}`,
       retailer: newInvoice.retailer,
-      retailerCode: newInvoice.retailerCode || 'DIST-04',
+      retailerCode: finalRetailerCode,
       billingAddress: newInvoice.billingAddress || 'Distributor Facility Logistics Hub',
       gstNumber: '36ABCDE1234F1Z5',
       date: '26-Jun-2026',
@@ -148,10 +187,40 @@ export default function Invoice() {
       createdBy: 'ADMIN'
     };
 
+    // Direct real-time push to central accounting Ledger when a form is submitted
+    ledgerService.addTransaction({
+      date: '26-Jun-2026',
+      distributor: newInvoice.retailer,
+      distributorCode: finalRetailerCode,
+      contactPerson: 'Rahul Sharma',
+      refNo: finalInvoiceNo,
+      type: 'Invoice',
+      debitAmount: totalLineAmount,
+      creditAmount: 0
+    });
+
     setInvoices([invoicePayload, ...invoices]);
     setShowCreateModal(false);
     setNewInvoice({ invoiceNo: '', orderNo: '', retailer: '', retailerCode: '', billingAddress: '', dueDate: '' });
     setFormItems([{ id: '1', productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }]);
+  };
+
+  const handleOpenEditModal = (invoice: Invoice) => {
+    setEditingInvoice(invoice);
+    setUpdatedStatus(invoice.status);
+  };
+
+  const handleEditInvoiceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingInvoice) return;
+
+    // Map through list updating the specified record's state status
+    const updatedInvoices = invoices.map((inv) => 
+      inv.id === editingInvoice.id ? { ...inv, status: updatedStatus } : inv
+    );
+
+    setInvoices(updatedInvoices);
+    setEditingInvoice(null);
   };
 
   const generatePDF = (invoice: Invoice | null) => {
@@ -179,8 +248,12 @@ export default function Invoice() {
       label: 'ACTIONS',
       render: (row) => (
         <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewInvoice(row)} className="text-slate-500 hover:text-slate-800"><ReceiptText className="w-4 h-4" /></button>
-          <button onClick={() => generatePDF(row)} className="text-slate-500 hover:text-slate-800"><Download className="w-4 h-4" /></button>
+          <button onClick={() => setViewInvoice(row)} className="text-slate-500 hover:text-slate-800" title="View details"><ReceiptText className="w-4 h-4" /></button>
+          
+          {/* New Edit Action Item Button Configuration */}
+          <button onClick={() => handleOpenEditModal(row)} className="text-blue-500 hover:text-blue-700" title="Modify Status"><Pencil className="w-4 h-4" /></button>
+          
+          <button onClick={() => generatePDF(row)} className="text-slate-500 hover:text-slate-800" title="Download PDF"><Download className="w-4 h-4" /></button>
         </div>
       )
     }
@@ -259,6 +332,37 @@ export default function Invoice() {
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-3 py-1.5 border rounded">Cancel</button>
                 <button type="submit" className="px-4 py-1.5 bg-violet-600 text-white rounded font-medium">Issue Document</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* --- New Edit Payment Status Modal --- */}
+      {editingInvoice && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4">
+          <div className="bg-white rounded-xl max-w-sm w-full p-6 border shadow-xl text-xs">
+            <h3 className="text-sm font-bold text-slate-900 mb-2">Update Invoice Status</h3>
+            <p className="text-slate-500 mb-4">Modifying parameters for reference tracking: <strong className="text-slate-800">{editingInvoice.invoiceNo}</strong></p>
+            
+            <form onSubmit={handleEditInvoiceSubmit} className="space-y-4">
+              <div>
+                <label className="block font-medium mb-1">Payment Status</label>
+                <select 
+                  value={updatedStatus} 
+                  onChange={(e) => setUpdatedStatus(e.target.value as InvoiceStatus)}
+                  className="w-full border rounded p-2 bg-white text-slate-700 font-medium"
+                >
+                  <option value="Paid">Paid</option>
+                  <option value="Unpaid">Unpaid</option>
+                  <option value="Partially Paid">Partially Paid</option>
+                  <option value="Overdue">Overdue</option>
+                </select>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-3 border-t">
+                <button type="button" onClick={() => setEditingInvoice(null)} className="px-3 py-1.5 border rounded">Cancel</button>
+                <button type="submit" className="px-4 py-1.5 bg-blue-600 text-white rounded font-medium">Save Changes</button>
               </div>
             </form>
           </div>
