@@ -14,26 +14,29 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
+import { inventoryService } from "../../services/inventoryService";
+import { warehouseService } from "../../services/warehouseService";
+import { productService } from "../../services/productService";
 
 // --- Data Models ---
 
-interface Product {
-  name: string;
-  sku: string;
-  category: string;
-  packType: string;
-  uom: string;
-  reorderLevel: number;
-}
+// interface Product {
+//   name: string;
+//   sku: string;
+//   category: string;
+//   packType: string;
+//   uom: string;
+//   reorderLevel: number;
+// }
 
-interface Location {
-  code: string;
-  name: string;
-  city: string;
-  state: string;
-  type: string;
-  status: 'Active' | 'Inactive';
-}
+// interface Location {
+//   code: string;
+//   name: string;
+//   city: string;
+//   state: string;
+//   type: string;
+//   status: 'Active' | 'Inactive';
+// }
 
 interface InventoryRecord {
   id: string;
@@ -57,78 +60,77 @@ interface InventoryRecord {
   lastUpdatedDate: string;
 }
 
-interface Transaction {
-  sku: string;
-  locationCode: string;
-  type: 'Inward' | 'Outward';
-  qty: number;
-}
+// interface Transaction {
+//   sku: string;
+//   locationCode: string;
+//   type: 'Inward' | 'Outward';
+//   qty: number;
+// }
 
-interface Batch {
-  sku: string;
-  locationCode: string;
-  batchNo: string;
-  expiryDate: string;
-  qty: number;
-}
+// interface Batch {
+//   sku: string;
+//   locationCode: string;
+//   batchNo: string;
+//   expiryDate: string;
+//   qty: number;
+// }
 
-const mockProducts: Product[] = [
-  { name: 'Paracetamol 650mg', sku: 'PRD-001', category: 'Tablets', packType: 'Box', uom: 'Units', reorderLevel: 1000 },
-  { name: 'Amoxicillin 500mg', sku: 'PRD-002', category: 'Capsules', packType: 'Bottle', uom: 'Units', reorderLevel: 500 },
-];
+// const mockProducts: Product[] = [
+//   { name: 'Paracetamol 650mg', sku: 'PRD-001', category: 'Tablets', packType: 'Box', uom: 'Units', reorderLevel: 1000 },
+//   { name: 'Amoxicillin 500mg', sku: 'PRD-002', category: 'Capsules', packType: 'Bottle', uom: 'Units', reorderLevel: 500 },
+// ];
 
-const initialLocations: Location[] = [
-  { code: 'HYD001', name: 'Hyderabad Warehouse', city: 'Hyderabad', state: 'Telangana', type: 'Regional Warehouse', status: 'Active' },
-  { code: 'MUM001', name: 'Mumbai Warehouse', city: 'Mumbai', state: 'Maharashtra', type: 'Regional Warehouse', status: 'Active' },
-  { code: 'DEL001', name: 'Delhi Warehouse', city: 'Delhi', state: 'Delhi', type: 'Distribution Center', status: 'Active' },
-];
+// const initialLocations: Location[] = [
+//   { code: 'HYD001', name: 'Hyderabad Warehouse', city: 'Hyderabad', state: 'Telangana', type: 'Regional Warehouse', status: 'Active' },
+//   { code: 'MUM001', name: 'Mumbai Warehouse', city: 'Mumbai', state: 'Maharashtra', type: 'Regional Warehouse', status: 'Active' },
+//   { code: 'DEL001', name: 'Delhi Warehouse', city: 'Delhi', state: 'Delhi', type: 'Distribution Center', status: 'Active' },
+// ];
 
-// Mapping: `${SKU}_${LocationCode}` -> quantity
-const initialInventoryMap: Record<string, number> = {
-  'PRD-001_HYD001': 5000,
-  'PRD-001_MUM001': 2000,
-  'PRD-001_DEL001': 500,
-  'PRD-002_HYD001': 1200,
-  'PRD-002_MUM001': 0,
-  'PRD-002_DEL001': 1500,
-};
+// // Mapping: `${SKU}_${LocationCode}` -> quantity
+// const initialInventoryMap: Record<string, number> = {
+//   'PRD-001_HYD001': 5000,
+//   'PRD-001_MUM001': 2000,
+//   'PRD-001_DEL001': 500,
+//   'PRD-002_HYD001': 1200,
+//   'PRD-002_MUM001': 0,
+//   'PRD-002_DEL001': 1500,
+// };
 
-const mockTransactions: Transaction[] = [
-  { sku: 'PRD-001', locationCode: 'HYD001', type: 'Inward', qty: 8000 },
-  { sku: 'PRD-001', locationCode: 'HYD001', type: 'Outward', qty: 3000 },
-  { sku: 'PRD-001', locationCode: 'MUM001', type: 'Inward', qty: 4000 },
-  { sku: 'PRD-001', locationCode: 'MUM001', type: 'Outward', qty: 2000 },
-  { sku: 'PRD-001', locationCode: 'DEL001', type: 'Inward', qty: 1000 },
-  { sku: 'PRD-001', locationCode: 'DEL001', type: 'Outward', qty: 500 },
-];
+// const mockTransactions: Transaction[] = [
+//   { sku: 'PRD-001', locationCode: 'HYD001', type: 'Inward', qty: 8000 },
+//   { sku: 'PRD-001', locationCode: 'HYD001', type: 'Outward', qty: 3000 },
+//   { sku: 'PRD-001', locationCode: 'MUM001', type: 'Inward', qty: 4000 },
+//   { sku: 'PRD-001', locationCode: 'MUM001', type: 'Outward', qty: 2000 },
+//   { sku: 'PRD-001', locationCode: 'DEL001', type: 'Inward', qty: 1000 },
+//   { sku: 'PRD-001', locationCode: 'DEL001', type: 'Outward', qty: 500 },
+// ];
 
-const mockBatches: Batch[] = [
-  { sku: 'PRD-001', locationCode: 'HYD001', batchNo: 'B-2025-001', expiryDate: '2026-12-15', qty: 2000 },
-  { sku: 'PRD-001', locationCode: 'HYD001', batchNo: 'B-2025-002', expiryDate: '2027-01-20', qty: 3000 },
-  { sku: 'PRD-001', locationCode: 'MUM001', batchNo: 'B-2024-089', expiryDate: '2025-11-10', qty: 2000 },
-];
+// const mockBatches: Batch[] = [
+//   { sku: 'PRD-001', locationCode: 'HYD001', batchNo: 'B-2025-001', expiryDate: '2026-12-15', qty: 2000 },
+//   { sku: 'PRD-001', locationCode: 'HYD001', batchNo: 'B-2025-002', expiryDate: '2027-01-20', qty: 3000 },
+//   { sku: 'PRD-001', locationCode: 'MUM001', batchNo: 'B-2024-089', expiryDate: '2025-11-10', qty: 2000 },
+// ];
 
 export default function MultiLocationStock() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [locations, setLocations] = useState<Location[]>(initialLocations);
-  const [products] = useState<Product[]>(mockProducts);
-  const [inventoryMap] = useState<Record<string, number>>(initialInventoryMap);
+  const [inventory, setInventory] = useState(inventoryService.getAll());
 
-  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [warehouses, setWarehouses] = useState(warehouseService.getAll());
+
+  const [products] = useState(productService.getProducts());
+  useEffect(() => {
+    setInventory(inventoryService.getAll());
+  }, []);
+
+ 
+  
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const [selectedRecord, setSelectedRecord] = useState<InventoryRecord | null>(null);
 
-  const [newLocation, setNewLocation] = useState<Location>({
-    code: '',
-    name: '',
-    city: '',
-    state: '',
-    type: 'Central Warehouse',
-    status: 'Active'
-  });
+  
 
   // Handle clicking outside export menu to close it
   useEffect(() => {
@@ -142,42 +144,70 @@ export default function MultiLocationStock() {
   }, []);
 
   // Compute flattened table data
-  const computeTableData = (): InventoryRecord[] => {
-    const data: InventoryRecord[] = [];
-    products.forEach(product => {
-      locations.forEach(location => {
-        const qty = inventoryMap[`${product.sku}_${location.code}`] || 0;
-        let status: 'In Stock' | 'Low Stock' | 'Out Of Stock' = 'In Stock';
-        if (qty === 0) status = 'Out Of Stock';
-        else if (qty <= product.reorderLevel) status = 'Low Stock';
-        
-        data.push({
-          id: `${product.sku}_${location.code}`,
-          productName: product.name,
-          sku: product.sku,
-          category: product.category,
-          packType: product.packType,
-          uom: product.uom,
-          location: location.name,
-          locationCode: location.code,
-          city: location.city,
-          state: location.state,
-          type: location.type,
-          locationStatus: location.status,
-          availableQty: qty,
-          reorderLevel: product.reorderLevel,
-          status: status,
-          createdBy: 'Admin User',
-          createdDate: '01-Jun-2026',
-          lastUpdatedBy: 'Inventory Manager',
-          lastUpdatedDate: '10-Jun-2026'
-        });
-      });
-    });
-    return data;
-  };
+  const tableData = inventory.map((stock) => {
 
-  const tableData = computeTableData();
+  const warehouse = warehouses.find(
+    (w) => w.id === stock.warehouseId
+  );
+
+  const product = products.find(
+    (p) => p.code === stock.productCode
+  );
+
+  const reorderLevel = Number(product?.reorderLevel ?? 0);
+
+  let status: "In Stock" | "Low Stock" | "Out Of Stock";
+
+  if (stock.availableQty <= 0) {
+    status = "Out Of Stock";
+  } else if (stock.availableQty <= reorderLevel) {
+    status = "Low Stock";
+  } else {
+    status = "In Stock";
+  }
+
+  return {
+  ...stock,
+
+  sku: stock.productCode,
+
+  productName: stock.productName,
+
+  category: product?.category ?? "",
+
+  packType: product?.packingType ?? "",
+
+  uom: product?.type ?? "",
+
+  location: warehouse
+    ? `${warehouse.code} - ${warehouse.name}`
+    : "",
+
+  locationCode: warehouse?.code ?? "",
+
+  city: warehouse?.city ?? "",
+
+  state: warehouse?.state ?? "",
+
+  type: warehouse?.type ?? "",
+
+  locationStatus: warehouse?.status ?? "",
+
+  availableQty: stock.availableQty,
+
+  reorderLevel,
+
+  status,
+
+  createdBy: "",
+createdDate: "",
+lastUpdatedBy: "",
+lastUpdatedDate: "",
+
+  
+};
+
+});
 
   const filteredData = tableData.filter((item) => {
     const matchesSearch = item.productName.toLowerCase().includes(search.toLowerCase()) || 
@@ -276,75 +306,82 @@ export default function MultiLocationStock() {
     setShowExportMenu(false);
   };
 
-  const openAddLocationModal = () => {
-    setNewLocation({
-      code: '',
-      name: '',
-      city: '',
-      state: '',
-      type: 'Central Warehouse',
-      status: 'Active'
-    });
-    setShowLocationModal(true);
-  };
+  
 
-  const handleSaveLocation = () => {
-    if (!newLocation.code || !newLocation.name || !newLocation.city || !newLocation.state || !newLocation.type || !newLocation.status) {
-      alert("Please fill all mandatory fields.");
-      return;
-    }
+  // const handleSaveLocation = () => {
+  //   if (!newLocation.code || !newLocation.name || !newLocation.city || !newLocation.state || !newLocation.type || !newLocation.status) {
+  //     alert("Please fill all mandatory fields.");
+  //     return;
+  //   }
 
-    const codeExists = locations.some(loc => loc.code.toLowerCase() === newLocation.code.toLowerCase());
-    if (codeExists) {
-      alert("Location Code must be unique.");
-      return;
-    }
+  //   const codeExists = warehouses.some(
+  //     (w) => w.code.toLowerCase() === newLocation.code.toLowerCase(),
+  //   );
 
-    const nameExists = locations.some(loc => loc.name.toLowerCase() === newLocation.name.toLowerCase());
-    if (nameExists) {
-      alert("Location Name must be unique.");
-      return;
-    }
+  //   if (codeExists) {
+  //     alert("Location Code must be unique.");
+  //     return;
+  //   }
 
-    setLocations([...locations, { ...newLocation }]);
-    setShowLocationModal(false);
-  };
+  //   const nameExists = warehouses.some(
+  //     (w) => w.name.toLowerCase() === newLocation.name.toLowerCase(),
+  //   );
 
-  const getStockMovementSummary = (sku: string, locationCode: string) => {
-    const relevantTransactions = mockTransactions.filter(t => t.sku === sku && t.locationCode === locationCode);
-    const totalInward = relevantTransactions.filter(t => t.type === 'Inward').reduce((acc, curr) => acc + curr.qty, 0);
-    const totalOutward = relevantTransactions.filter(t => t.type === 'Outward').reduce((acc, curr) => acc + curr.qty, 0);
-    return { totalInward, totalOutward };
-  };
+  //   if (nameExists) {
+  //     alert("Location Name must be unique.");
+  //     return;
+  //   }
 
-  const getBatchInformation = (sku: string, locationCode: string) => {
-    const relevantBatches = mockBatches.filter(b => b.sku === sku && b.locationCode === locationCode);
+  //   const updatedWarehouses = [
+  //     ...warehouses,
+  //     {
+  //       id: Date.now().toString(),
+  //       ...newLocation,
+  //     },
+  //   ];
+
+  //   setWarehouses(updatedWarehouses);
+
+  //   warehouseService.saveAll(updatedWarehouses);
+
+  //   setShowLocationModal(false);
+  // };
+
+  // const getStockMovementSummary = (sku: string, locationCode: string) => {
+  //   const relevantTransactions = mockTransactions.filter(t => t.sku === sku && t.locationCode === locationCode);
+  //   const totalInward = relevantTransactions.filter(t => t.type === 'Inward').reduce((acc, curr) => acc + curr.qty, 0);
+  //   const totalOutward = relevantTransactions.filter(t => t.type === 'Outward').reduce((acc, curr) => acc + curr.qty, 0);
+  //   return { totalInward, totalOutward };
+  // };
+
+  // const getBatchInformation = (sku: string, locationCode: string) => {
+  //   const relevantBatches = mockBatches.filter(b => b.sku === sku && b.locationCode === locationCode);
     
-    // Ensure accurate active batch count (qty > 0 and expiry in future)
-    const today = new Date();
-    today.setHours(0,0,0,0);
+  //   // Ensure accurate active batch count (qty > 0 and expiry in future)
+  //   const today = new Date();
+  //   today.setHours(0,0,0,0);
 
-    const activeBatchesList = relevantBatches.filter(b => {
-      const exp = new Date(b.expiryDate);
-      return b.qty > 0 && exp >= today;
-    });
+  //   const activeBatchesList = relevantBatches.filter(b => {
+  //     const exp = new Date(b.expiryDate);
+  //     return b.qty > 0 && exp >= today;
+  //   });
 
-    const activeBatchesCount = activeBatchesList.length;
+  //   const activeBatchesCount = activeBatchesList.length;
 
-    // Find nearest expiry
-    let nearestBatch: Batch | null = null;
-    if (activeBatchesList.length > 0) {
-      nearestBatch = activeBatchesList.reduce((prev, curr) => {
-        return new Date(prev.expiryDate) < new Date(curr.expiryDate) ? prev : curr;
-      });
-    }
+  //   // Find nearest expiry
+  //   let nearestBatch: Batch | null = null;
+  //   if (activeBatchesList.length > 0) {
+  //     nearestBatch = activeBatchesList.reduce((prev, curr) => {
+  //       return new Date(prev.expiryDate) < new Date(curr.expiryDate) ? prev : curr;
+  //     });
+  //   }
 
-    return {
-      activeBatches: activeBatchesCount,
-      nearestBatchNo: nearestBatch ? nearestBatch.batchNo : 'N/A',
-      nearestExpiryDate: nearestBatch ? new Date(nearestBatch.expiryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-') : 'N/A'
-    };
-  };
+  //   return {
+  //     activeBatches: activeBatchesCount,
+  //     nearestBatchNo: nearestBatch ? nearestBatch.batchNo : 'N/A',
+  //     nearestExpiryDate: nearestBatch ? new Date(nearestBatch.expiryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-') : 'N/A'
+  //   };
+  // };
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -384,9 +421,9 @@ export default function MultiLocationStock() {
                 </div>
               )}
             </div>
-            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openAddLocationModal}>
+            {/* <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openAddLocationModal}>
               Add Location
-            </ActionButton>
+            </ActionButton> */}
           </>
         }
       />
@@ -420,7 +457,7 @@ export default function MultiLocationStock() {
         />
       </TableCard>
 
-      {/* Add Location Modal */}
+      {/* Add Location Modal
       {showLocationModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -502,7 +539,7 @@ export default function MultiLocationStock() {
             </div>
           </div>
         </div>
-      )}
+      )} */}
 
       {/* Inventory Details Drawer */}
       <Drawer
@@ -551,7 +588,7 @@ export default function MultiLocationStock() {
               </div>
             </div>
 
-            <div>
+            {/* <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Stock Movement Summary</h3>
               <div className="space-y-2">
                 <DrawerField label="Total Inward" value={getStockMovementSummary(selectedRecord.sku, selectedRecord.locationCode).totalInward} />
@@ -567,7 +604,7 @@ export default function MultiLocationStock() {
                 <DrawerField label="Nearest Expiry Batch" value={getBatchInformation(selectedRecord.sku, selectedRecord.locationCode).nearestBatchNo} />
                 <DrawerField label="Expiry Date" value={getBatchInformation(selectedRecord.sku, selectedRecord.locationCode).nearestExpiryDate} />
               </div>
-            </div>
+            </div> */}
 
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Audit Information</h3>

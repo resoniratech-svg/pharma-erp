@@ -18,6 +18,7 @@ import PackingTypeManagement from '../../modules/products/PackingTypeManagement'
 import SchemeManagement from '../../modules/products/SchemeManagement';
 
 // Inventory Module
+import WarehouseMaster from '../../modules/inventory/WarehouseMaster';
 import InventoryOverview from '../../modules/inventory/InventoryOverview';
 import MultiLocationStock from '../../modules/inventory/MultiLocationStock';
 import BatchWiseStockTracking from '../../modules/inventory/BatchWiseStockTracking';
@@ -222,6 +223,7 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute moduleLabel="Inventory & Warehouse Management" />,
         children: [
+          { path: 'warehouse-master', element: <WarehouseMaster /> },
           { path: 'overview', element: <InventoryOverview /> },
           { path: 'multi-location', element: <MultiLocationStock /> },
           { path: 'batch-wise-stock-tracking', element: <BatchWiseStockTracking /> },

@@ -17,6 +17,7 @@ import {
 import { type Column } from './components/shared';
 import { inventoryService } from '../../services/inventoryService';
 import { getExpiryStatus, getDaysToExpiry } from "../../utils/expiryUtils";
+import { batchService } from "../../services/batchService";
 
 interface BatchItem {
   id: string;
@@ -31,7 +32,7 @@ interface BatchItem {
   status: 'Healthy' | 'Near Expiry' | 'Expired';
   mrp: number;
   ptr: number;
-  pts: number;
+
   barcode: string;
   createdBy: string;
   createdDate: string;
@@ -96,8 +97,12 @@ export default function BatchWiseStockTracking() {
   // Ensure data status aligns with real date calculations dynamically for dashboard and mapping
   const dynamicData: BatchItem[] = useMemo(() => {
     return inventoryData.map((item) => {
-      const daysToExpiry = getDaysToExpiry(item.expDate);
-      const calculatedStatus = getExpiryStatus(item.expDate);
+      
+      const batch = batchService
+        .getAll()
+        .find((b) => b.batchNo === item.batchNo);
+
+        const calculatedStatus = getExpiryStatus(batch?.expDate ?? "");
       return {
         id: item.id,
 
@@ -109,21 +114,21 @@ export default function BatchWiseStockTracking() {
 
         category: "",
 
-        mfgDate: item.mfgDate,
+        mfgDate: batch?.mfgDate ?? "",
 
-        expiryDate: item.expDate,
+        expiryDate: batch?.expDate ?? "",
 
         availableQty: item.availableQty,
 
-        warehouse: item.warehouse || "Main Warehouse",
+        warehouse: `${item.warehouseCode} - ${item.warehouseName}`,
 
         status: calculatedStatus,
 
-        mrp: Number(item.mrp || 0),
+        mrp: Number(batch?.mrp ?? 0),
 
-        ptr: Number(item.ptr || 0),
+       ptr: Number(batch?.ptr ?? 0),
 
-        pts: Number(item.pts || 0),
+        
 
         barcode: "",
 
@@ -490,10 +495,7 @@ export default function BatchWiseStockTracking() {
                   label="PTR"
                   value={`₹${selectedBatch.ptr.toFixed(2)}`}
                 />
-                <DrawerField
-                  label="PTS"
-                  value={`₹${selectedBatch.pts.toFixed(2)}`}
-                />
+                
               </div>
             </div>
 

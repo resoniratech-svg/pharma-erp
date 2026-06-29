@@ -14,117 +14,161 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
+import { inventoryService } from "../../services/inventoryService";
+import { batchService } from "../../services/batchService";
+import { productService } from "../../services/productService";
+import { warehouseService } from "../../services/warehouseService";
+
+import {
+  getExpiryStatus,
+  getDaysToExpiry,
+} from "../../utils/expiryUtils";
 
 // --- Deep Mock Data Layer ---
-interface RawDeadStock {
-  id: string;
-  productName: string;
-  sku: string;
-  category: string;
-  batchNo: string;
-  mfgDate: string;
-  expiryDate: string;
-  warehouse: string;
-  location: string;
-  availableQty: number;
-  unitCost: number;
-  lastMovedDate: string;
-  isDiscontinued: boolean;
-  createdDate: string;
-  lastUpdatedDate: string;
-}
+// interface RawDeadStock {
+//   id: string;
+//   productName: string;
+//   sku: string;
+//   category: string;
+//   batchNo: string;
+//   mfgDate: string;
+//   expiryDate: string;
+//   warehouse: string;
+//   location: string;
+//   availableQty: number;
+//   unitCost: number;
+//   lastMovedDate: string;
+//   isDiscontinued: boolean;
+//   createdDate: string;
+//   lastUpdatedDate: string;
+// }
 
-// Generate data relative to "today" to make 'Days Since Last Movement' dynamic but realistic
-const getPastDate = (daysAgo: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() - daysAgo);
-  return d.toISOString().split('T')[0];
-};
+// // Generate data relative to "today" to make 'Days Since Last Movement' dynamic but realistic
+// const getPastDate = (daysAgo: number) => {
+//   const d = new Date();
+//   d.setDate(d.getDate() - daysAgo);
+//   return d.toISOString().split('T')[0];
+// };
 
-const getFutureDate = (daysAhead: number) => {
-  const d = new Date();
-  d.setDate(d.getDate() + daysAhead);
-  return d.toISOString().split('T')[0];
-};
+// const getFutureDate = (daysAhead: number) => {
+//   const d = new Date();
+//   d.setDate(d.getDate() + daysAhead);
+//   return d.toISOString().split('T')[0];
+// };
 
-const rawDatabase: RawDeadStock[] = [
-  {
-    id: 'DS-001',
-    productName: 'Old Formula Syrup',
-    sku: 'PRD-099',
-    category: 'Syrups',
-    batchNo: 'B-2023-01',
-    mfgDate: '2023-01-15',
-    expiryDate: getFutureDate(30), // Near expiry
-    warehouse: 'Hyderabad Warehouse',
-    location: 'Aisle 4, Rack B',
-    availableQty: 450,
-    unitCost: 50,
-    lastMovedDate: getPastDate(850), // 850 days ago
-    isDiscontinued: false,
-    createdDate: '15-Jan-2023',
-    lastUpdatedDate: '15-Jan-2023',
-  },
-  {
-    id: 'DS-002',
-    productName: 'Discontinued Tablets',
-    sku: 'PRD-102',
-    category: 'Tablets',
-    batchNo: 'B-2024-11',
-    mfgDate: '2024-02-10',
-    expiryDate: getFutureDate(400),
-    warehouse: 'Mumbai Warehouse',
-    location: 'Aisle 9, Rack A',
-    availableQty: 1200,
-    unitCost: 12,
-    lastMovedDate: getPastDate(365), // 1 year ago
-    isDiscontinued: true,
-    createdDate: '10-Feb-2024',
-    lastUpdatedDate: '20-Feb-2024',
-  },
-  {
-    id: 'DS-003',
-    productName: 'Vintage Ointment 50g',
-    sku: 'PRD-145',
-    category: 'Ointments',
-    batchNo: 'B-2022-05',
-    mfgDate: '2022-05-20',
-    expiryDate: getPastDate(10), // Expired
-    warehouse: 'Delhi Warehouse',
-    location: 'Aisle 2, Rack C',
-    availableQty: 800,
-    unitCost: 18,
-    lastMovedDate: getPastDate(540), // 540 days ago
-    isDiscontinued: false,
-    createdDate: '20-May-2022',
-    lastUpdatedDate: '22-May-2022',
-  },
-  {
-    id: 'DS-004',
-    productName: 'Seasonal Flu Vaccine (Outdated)',
-    sku: 'PRD-882',
-    category: 'Vaccines',
-    batchNo: 'B-2024-02',
-    mfgDate: '2024-06-01',
-    expiryDate: getFutureDate(180),
-    warehouse: 'Hyderabad Warehouse',
-    location: 'Cold Storage 1',
-    availableQty: 45000,
-    unitCost: 450,
-    lastMovedDate: getPastDate(120),
-    isDiscontinued: false,
-    createdDate: '01-Jun-2024',
-    lastUpdatedDate: '01-Jun-2024',
-  }
-];
+// const rawDatabase: RawDeadStock[] = [
+//   {
+//     id: 'DS-001',
+//     productName: 'Old Formula Syrup',
+//     sku: 'PRD-099',
+//     category: 'Syrups',
+//     batchNo: 'B-2023-01',
+//     mfgDate: '2023-01-15',
+//     expiryDate: getFutureDate(30), // Near expiry
+//     warehouse: 'Hyderabad Warehouse',
+//     location: 'Aisle 4, Rack B',
+//     availableQty: 450,
+//     unitCost: 50,
+//     lastMovedDate: getPastDate(850), // 850 days ago
+//     isDiscontinued: false,
+//     createdDate: '15-Jan-2023',
+//     lastUpdatedDate: '15-Jan-2023',
+//   },
+//   {
+//     id: 'DS-002',
+//     productName: 'Discontinued Tablets',
+//     sku: 'PRD-102',
+//     category: 'Tablets',
+//     batchNo: 'B-2024-11',
+//     mfgDate: '2024-02-10',
+//     expiryDate: getFutureDate(400),
+//     warehouse: 'Mumbai Warehouse',
+//     location: 'Aisle 9, Rack A',
+//     availableQty: 1200,
+//     unitCost: 12,
+//     lastMovedDate: getPastDate(365), // 1 year ago
+//     isDiscontinued: true,
+//     createdDate: '10-Feb-2024',
+//     lastUpdatedDate: '20-Feb-2024',
+//   },
+//   {
+//     id: 'DS-003',
+//     productName: 'Vintage Ointment 50g',
+//     sku: 'PRD-145',
+//     category: 'Ointments',
+//     batchNo: 'B-2022-05',
+//     mfgDate: '2022-05-20',
+//     expiryDate: getPastDate(10), // Expired
+//     warehouse: 'Delhi Warehouse',
+//     location: 'Aisle 2, Rack C',
+//     availableQty: 800,
+//     unitCost: 18,
+//     lastMovedDate: getPastDate(540), // 540 days ago
+//     isDiscontinued: false,
+//     createdDate: '20-May-2022',
+//     lastUpdatedDate: '22-May-2022',
+//   },
+//   {
+//     id: 'DS-004',
+//     productName: 'Seasonal Flu Vaccine (Outdated)',
+//     sku: 'PRD-882',
+//     category: 'Vaccines',
+//     batchNo: 'B-2024-02',
+//     mfgDate: '2024-06-01',
+//     expiryDate: getFutureDate(180),
+//     warehouse: 'Hyderabad Warehouse',
+//     location: 'Cold Storage 1',
+//     availableQty: 45000,
+//     unitCost: 450,
+//     lastMovedDate: getPastDate(120),
+//     isDiscontinued: false,
+//     createdDate: '01-Jun-2024',
+//     lastUpdatedDate: '01-Jun-2024',
+//   }
+// ];
 
 // --- Calculated Interfaces ---
-interface CalculatedDeadStock extends RawDeadStock {
-  daysSinceLastMovement: number;
-  blockedCapital: number;
-  status: 'Dead Stock' | 'Near Expiry' | 'Expired' | 'Discontinued';
-}
+interface CalculatedDeadStock {
 
+  id: string;
+
+  productName: string;
+
+  sku: string;
+
+  category: string;
+
+  batchNo: string;
+
+  warehouse: string;
+
+  location: string;
+
+  availableQty: number;
+
+  unitCost: number;
+
+  expiryDate: string;
+
+  daysToExpiry: number;
+
+  daysSinceLastMovement: number;
+
+  blockedCapital: number;
+
+  status:
+    | "Dead Stock"
+    | "Near Expiry"
+    | "Expired"
+    | "Discontinued";
+
+  createdDate: string;
+
+  lastUpdatedDate: string;
+
+  isDiscontinued: boolean;
+
+}
 const formatCurrency = (value: number) => {
   if (value >= 10000000) return `₹ ${(value / 10000000).toFixed(2)} Cr`;
   if (value >= 100000) return `₹ ${(value / 100000).toFixed(2)} L`;
@@ -132,6 +176,14 @@ const formatCurrency = (value: number) => {
 };
 
 export default function DeadStock() {
+
+  const inventory = inventoryService.getAll();
+
+  const batches = batchService.getAll();
+
+  const products = productService.getProducts();
+
+  const warehouses = warehouseService.getAll();
   const [search, setSearch] = useState('');
 
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -155,37 +207,111 @@ export default function DeadStock() {
     // Normalize to midnight for accurate day calculation
     today.setHours(0, 0, 0, 0);
 
-    return rawDatabase.map(item => {
-      const lastMoved = new Date(item.lastMovedDate);
-      lastMoved.setHours(0, 0, 0, 0);
-      const diffTime = Math.abs(today.getTime() - lastMoved.getTime());
-      const daysSinceLastMovement = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return inventory.map((stock) => {
+      // const lastMoved = new Date(stock.lastUpdated);
+      // lastMoved.setHours(0, 0, 0, 0);
+      // const diffTime = Math.abs(today.getTime() - lastMoved.getTime());
+      // const daysSinceLastMovement = Math.floor(diffTime / (1000 * 60 * 60 * 24));
       
-      const expiry = new Date(item.expiryDate);
-      expiry.setHours(0, 0, 0, 0);
-      const expiryDiffTime = expiry.getTime() - today.getTime();
-      const daysToExpiry = Math.floor(expiryDiffTime / (1000 * 60 * 60 * 24));
+      // const expiry = new Date(expiryDate);
+      // expiry.setHours(0, 0, 0, 0);
+      // const expiryDiffTime = expiry.getTime() - today.getTime();
+      // const daysToExpiry = Math.floor(expiryDiffTime / (1000 * 60 * 60 * 24));
 
-      const blockedCapital = item.availableQty * item.unitCost;
+      // const blockedCapital =
+      //   stock.availableQty * Number(product?.sellingPrice ?? 0);
+      const batch = batches.find((b) => b.batchNo === stock.batchNo);
+
+      const product = products.find((p) => p.code === stock.productCode);
+
+      const warehouse = warehouses.find((w) => w.id === stock.warehouseId);
+
+      const expiryDate = batch?.expDate ?? "";
+
+      const lastMoved = new Date(stock.lastUpdated);
+
+      lastMoved.setHours(0, 0, 0, 0);
+
+      const diffTime = today.getTime() - lastMoved.getTime();
+
+      const daysSinceLastMovement = Math.floor(
+        diffTime / (1000 * 60 * 60 * 24),
+      );
+
+      const daysToExpiry = getDaysToExpiry(expiryDate);
+
+      const expiryStatus = getExpiryStatus(expiryDate);
+      const blockedCapital =
+        stock.availableQty * Number(product?.sellingPrice ?? 0);
 
       // Status Rules Priority: Discontinued -> Expired -> Near Expiry -> Dead Stock
-      let status: CalculatedDeadStock['status'] = 'Dead Stock';
-      if (item.isDiscontinued) {
-        status = 'Discontinued';
-      } else if (daysToExpiry < 0) {
-        status = 'Expired';
-      } else if (daysToExpiry <= 60) {
-        status = 'Near Expiry';
+      let status: CalculatedDeadStock["status"];
+
+      if (product?.status === "Discontinued") {
+        status = "Discontinued";
+      } else if (expiryStatus === "Expired") {
+        status = "Expired";
+      } else if (expiryStatus === "Near Expiry") {
+        status = "Near Expiry";
+      } else {
+        status = "Dead Stock";
       }
 
       return {
-        ...item,
-        daysSinceLastMovement,
-        blockedCapital,
-        status
-      };
+
+    id: stock.id,
+
+    productName:
+        product?.name ?? "",
+
+    sku:
+        stock.productCode,
+
+    category:
+        product?.category ?? "",
+
+    batchNo:
+        stock.batchNo,
+
+    warehouse:
+        warehouse?.name ?? "",
+
+    location:
+        warehouse?.code ?? "",
+
+    availableQty:
+        stock.availableQty,
+
+    unitCost:
+        Number(product?.sellingPrice ?? 0),
+
+    expiryDate,
+
+    daysToExpiry,
+
+    daysSinceLastMovement,
+
+    blockedCapital,
+
+    status,
+
+    createdDate:
+        stock.lastUpdated,
+
+    lastUpdatedDate:
+        stock.lastUpdated,
+
+    isDiscontinued:
+        product?.status === "Discontinued",
+
+};
     });
-  }, []);
+  }, [
+    inventory,
+    batches,
+    products,
+    warehouses,
+]);
 
   // --- Dashboard Card Metrics ---
   const dashboardMetrics = useMemo(() => {
@@ -276,7 +402,7 @@ export default function DeadStock() {
       'Warehouse': row.warehouse,
       'Available Qty': row.availableQty,
       'Days Since Last Movement': row.daysSinceLastMovement,
-      'Last Moved Date': row.lastMovedDate,
+      // 'Last Moved Date': row.lastMovedDate,
       'Expiry Date': row.expiryDate,
       'Blocked Capital': row.blockedCapital,
       'Status': row.status
@@ -307,7 +433,7 @@ export default function DeadStock() {
           `"${row.warehouse}"`,
           row.availableQty, 
           row.daysSinceLastMovement,
-          row.lastMovedDate,
+          // row.lastMovedDate,
           row.expiryDate,
           row.blockedCapital,
           row.status
@@ -442,7 +568,7 @@ export default function DeadStock() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Batch Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Batch Number" value={<span className="font-mono text-slate-700 bg-slate-50 px-2 py-1 rounded border border-slate-100">{selectedRecord.batchNo}</span>} />
-                <DrawerField label="Manufacturing Date" value={selectedRecord.mfgDate} />
+                {/* <DrawerField label="Manufacturing Date" value={selectedRecord.mfgDate} /> */}
                 <DrawerField label="Expiry Date" value={<span className={selectedRecord.status === 'Expired' ? 'text-rose-600 font-semibold' : ''}>{selectedRecord.expiryDate}</span>} />
               </div>
             </div>
@@ -465,7 +591,7 @@ export default function DeadStock() {
               <div className="space-y-2 bg-amber-50 p-4 rounded-xl border border-amber-100">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-amber-800 font-medium">Last Movement Date</span>
-                  <span className="font-semibold text-amber-900">{selectedRecord.lastMovedDate}</span>
+                  {/* <span className="font-semibold text-amber-900">{selectedRecord.lastMovedDate}</span> */}
                 </div>
                 <div className="flex justify-between items-center text-sm pt-2 border-t border-amber-200">
                   <span className="text-amber-800 font-medium">Days Since Last Movement</span>

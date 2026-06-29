@@ -85,6 +85,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Inventory & Warehouse Management',
     icon: ClipboardList,
     subItems: [
+      { label: 'Warehouse Master', path: '/workspace/inventory/warehouse-master' },
       { label: 'Multi-Location Inventory Management', path: '/workspace/inventory/multi-location' },
       { label: 'Batch-wise Stock Tracking', path: '/workspace/inventory/batch-wise-stock-tracking' },
       { label: 'Inward Stock Management', path: '/workspace/inventory/inward' },

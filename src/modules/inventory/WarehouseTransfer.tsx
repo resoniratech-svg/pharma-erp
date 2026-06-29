@@ -14,6 +14,15 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
+import {
+  warehouseTransferService,
+  type WarehouseTransfer,
+} from "../../services/warehouseTransferService";
+
+import { warehouseService } from "../../services/warehouseService";
+import { inventoryService } from "../../services/inventoryService";
+import { productService } from "../../services/productService";
+import { stockLedgerService } from "../../services/stockLedgerService";
 
 // --- Data Models ---
 
@@ -42,84 +51,97 @@ interface Transfer {
   lastUpdatedDate: string;
 }
 
-const mockData: Transfer[] = [
-  { 
-    id: '1', 
-    transferNo: 'TRF-2026-001', 
-    date: '2026-10-14', 
-    fromLocation: 'Hyderabad Warehouse', 
-    toLocation: 'Bangalore Warehouse',
-    remarks: 'Emergency Stock Replenishment',
-    itemsCount: 2, 
-    totalQuantity: 2000,
-    status: 'In Transit',
-    products: [
-      { id: 'p1', product: 'Paracetamol 650mg', batchNo: 'B-2026-01', availableQty: 5000, transferQty: 1000 },
-      { id: 'p2', product: 'Amoxicillin 500mg', batchNo: 'B-2026-02', availableQty: 2000, transferQty: 1000 }
-    ],
-    createdBy: 'Admin User',
-    createdDate: '14-Oct-2026',
-    lastUpdatedBy: 'Admin User',
-    lastUpdatedDate: '14-Oct-2026'
-  },
-  { 
-    id: '2', 
-    transferNo: 'TRF-2026-002', 
-    date: '2026-10-10', 
-    fromLocation: 'Mumbai Warehouse', 
-    toLocation: 'Hyderabad Warehouse',
-    itemsCount: 1, 
-    totalQuantity: 500,
-    status: 'Completed',
-    products: [
-      { id: 'p3', product: 'Vitamin C 1000mg', batchNo: 'B-2026-03', availableQty: 1000, transferQty: 500 }
-    ],
-    createdBy: 'System User',
-    createdDate: '10-Oct-2026',
-    lastUpdatedBy: 'Dispatch Dept',
-    lastUpdatedDate: '11-Oct-2026'
-  },
-];
+// const mockData: Transfer[] = [
+//   { 
+//     id: '1', 
+//     transferNo: 'TRF-2026-001', 
+//     date: '2026-10-14', 
+//     fromLocation: 'Hyderabad Warehouse', 
+//     toLocation: 'Bangalore Warehouse',
+//     remarks: 'Emergency Stock Replenishment',
+//     itemsCount: 2, 
+//     totalQuantity: 2000,
+//     status: 'In Transit',
+//     products: [
+//       { id: 'p1', product: 'Paracetamol 650mg', batchNo: 'B-2026-01', availableQty: 5000, transferQty: 1000 },
+//       { id: 'p2', product: 'Amoxicillin 500mg', batchNo: 'B-2026-02', availableQty: 2000, transferQty: 1000 }
+//     ],
+//     createdBy: 'Admin User',
+//     createdDate: '14-Oct-2026',
+//     lastUpdatedBy: 'Admin User',
+//     lastUpdatedDate: '14-Oct-2026'
+//   },
+//   { 
+//     id: '2', 
+//     transferNo: 'TRF-2026-002', 
+//     date: '2026-10-10', 
+//     fromLocation: 'Mumbai Warehouse', 
+//     toLocation: 'Hyderabad Warehouse',
+//     itemsCount: 1, 
+//     totalQuantity: 500,
+//     status: 'Completed',
+//     products: [
+//       { id: 'p3', product: 'Vitamin C 1000mg', batchNo: 'B-2026-03', availableQty: 1000, transferQty: 500 }
+//     ],
+//     createdBy: 'System User',
+//     createdDate: '10-Oct-2026',
+//     lastUpdatedBy: 'Dispatch Dept',
+//     lastUpdatedDate: '11-Oct-2026'
+//   },
+// ];
 
-const MOCK_LOCATIONS = ['Hyderabad Warehouse', 'Mumbai Warehouse', 'Bangalore Warehouse', 'Delhi Warehouse'];
-const MOCK_PRODUCTS = ['Paracetamol 650mg', 'Amoxicillin 500mg', 'Vitamin C 1000mg', 'Cough Syrup 100ml'];
+// const MOCK_LOCATIONS = ['Hyderabad Warehouse', 'Mumbai Warehouse', 'Bangalore Warehouse', 'Delhi Warehouse'];
+// const MOCK_PRODUCTS = ['Paracetamol 650mg', 'Amoxicillin 500mg', 'Vitamin C 1000mg', 'Cough Syrup 100ml'];
 
-// Mock Batch Database for cross-referencing Available Qty
-const MOCK_BATCHES: Record<string, { batchNo: string, availableQty: number }[]> = {
-  'Paracetamol 650mg': [
-    { batchNo: 'B-2026-01', availableQty: 5000 },
-    { batchNo: 'B-2026-11', availableQty: 1500 }
-  ],
-  'Amoxicillin 500mg': [
-    { batchNo: 'B-2026-02', availableQty: 2000 }
-  ],
-  'Vitamin C 1000mg': [
-    { batchNo: 'B-2026-03', availableQty: 1000 }
-  ],
-  'Cough Syrup 100ml': [
-    { batchNo: 'B-2026-04', availableQty: 800 }
-  ]
-};
+// // Mock Batch Database for cross-referencing Available Qty
+// const MOCK_BATCHES: Record<string, { batchNo: string, availableQty: number }[]> = {
+//   'Paracetamol 650mg': [
+//     { batchNo: 'B-2026-01', availableQty: 5000 },
+//     { batchNo: 'B-2026-11', availableQty: 1500 }
+//   ],
+//   'Amoxicillin 500mg': [
+//     { batchNo: 'B-2026-02', availableQty: 2000 }
+//   ],
+//   'Vitamin C 1000mg': [
+//     { batchNo: 'B-2026-03', availableQty: 1000 }
+//   ],
+//   'Cough Syrup 100ml': [
+//     { batchNo: 'B-2026-04', availableQty: 800 }
+//   ]
+// };
 
 export default function WarehouseTransfer() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
-  const [transferRecords, setTransferRecords] = useState<Transfer[]>(mockData);
+ const [transferRecords, setTransferRecords] = useState<WarehouseTransfer[]>(
+   [],
+ );
+  useEffect(() => {
+    setTransferRecords(warehouseTransferService.getAll());
+  }, []);
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<Transfer | null>(null);
+  //const [selectedRecord, setSelectedRecord] = useState<Transfer | null>(null);
+  const [selectedRecord, setSelectedRecord] =  useState<WarehouseTransfer | null>(null);
 
   // Initiate Transfer Form State
   const [formData, setFormData] = useState({
-    date: new Date().toISOString().split('T')[0],
-    fromLocation: '',
-    toLocation: '',
-    remarks: '',
-    status: 'In Transit' as Transfer['status'],
+    date: "",
+
+    fromWarehouseId: "",
+    toWarehouseId: "",
+
+    remarks: "",
+
+   status: "In Transit" as
+  | "Draft"
+  | "In Transit"
+  | "Completed"
+  | "Cancelled",
   });
 
   const [formProducts, setFormProducts] = useState<TransferLineItem[]>([]);
@@ -140,11 +162,11 @@ export default function WarehouseTransfer() {
     return matchSearch && matchStatus;
   });
 
-  const columns: Column<Transfer>[] = [
+  const columns: Column<WarehouseTransfer>[] = [
     { key: 'transferNo', label: 'Transfer ID', render: (row) => <span className="font-semibold text-violet-700">{row.transferNo}</span> },
     { key: 'date', label: 'Transfer Date' },
-    { key: 'fromLocation', label: 'From Location', render: (row) => <span className="font-medium text-slate-800">{row.fromLocation}</span> },
-    { key: 'toLocation', label: 'To Location', render: (row) => <span className="font-medium text-slate-800">{row.toLocation}</span> },
+    { key: 'fromWarehouseName', label: 'From Location', render: (row) => <span className="font-medium text-slate-800">{row.fromWarehouseName}</span> },
+    { key: 'toWarehouseName', label: 'To Location', render: (row) => <span className="font-medium text-slate-800">{row.toWarehouseName}</span> },
     { key: 'itemsCount', label: 'Total Items' },
     { key: 'totalQuantity', label: 'Total Quantity', render: (row) => row.totalQuantity.toLocaleString() },
     {
@@ -188,8 +210,8 @@ export default function WarehouseTransfer() {
     const exportData = filteredData.map(row => ({
       'Transfer ID': row.transferNo,
       'Transfer Date': row.date,
-      'From Location': row.fromLocation,
-      'To Location': row.toLocation,
+      'From Warehouse': row.fromWarehouseName,
+      'To Warehouse': row.toWarehouseName,
       'Total Items': row.itemsCount,
       'Total Quantity': row.totalQuantity,
       'Status': row.status
@@ -212,8 +234,8 @@ export default function WarehouseTransfer() {
         [
           row.transferNo, 
           row.date, 
-          `"${row.fromLocation}"`, 
-          `"${row.toLocation}"`, 
+          `"${row.fromWarehouseName}"`, 
+          `"${row.toWarehouseName}"`, 
           row.itemsCount, 
           row.totalQuantity, 
           row.status
@@ -237,18 +259,21 @@ export default function WarehouseTransfer() {
   // Initiate Transfer Modal Logic
   const openCreateModal = () => {
     setFormData({
-      date: new Date().toISOString().split('T')[0],
-      fromLocation: '',
-      toLocation: '',
-      remarks: '',
-      status: 'In Transit',
+      date: new Date().toISOString().split("T")[0],
+
+      fromWarehouseId: "",
+      toWarehouseId: "",
+
+      remarks: "",
+
+      status: "In Transit",
     });
     setFormProducts([]);
     setShowCreateModal(true);
   };
 
   const closeCreateModal = () => {
-    const isDirty = formProducts.length > 0 || formData.fromLocation !== '' || formData.toLocation !== '' || formData.remarks !== '';
+    const isDirty = formProducts.length > 0 || formData.fromWarehouseId!== '' || formData.toWarehouseId !== '' || formData.remarks !== '';
     if (isDirty) {
       if (window.confirm("You have unsaved changes. Are you sure you want to close?")) {
         setShowCreateModal(false);
@@ -282,7 +307,15 @@ export default function WarehouseTransfer() {
       
       // Auto-populate batch info when batchNo changes
       if (field === 'batchNo' && updated.product) {
-        const batchInfo = MOCK_BATCHES[updated.product]?.find(b => b.batchNo === value);
+      //  const batchInfo = MOCK_BATCHES[updated.product]?.find(b => b.batchNo === value);
+      const batchInfo = inventory.find(
+  (i) =>
+    i.productCode === updated.product &&
+    i.batchNo === value &&
+    i.warehouseId === formData.fromWarehouseId
+);
+
+updated.availableQty = batchInfo?.availableQty ?? 0;
         if (batchInfo) {
           updated.availableQty = batchInfo.availableQty;
         } else {
@@ -311,12 +344,19 @@ export default function WarehouseTransfer() {
   }, [formProducts]);
 
   const handleSaveTransfer = () => {
-    if (!formData.fromLocation || !formData.toLocation || !formData.date) {
+    if (
+      !formData.fromWarehouseId ||
+      !formData.toWarehouseId ||
+      !formData.date
+    ) {
       alert("Please fill all mandatory fields (Transfer Date, From Location, To Location).");
       return;
     }
 
-    if (formData.fromLocation === formData.toLocation) {
+    if (
+  formData.fromWarehouseId ===
+  formData.toWarehouseId
+){
       alert("From Location and To Location cannot be the same.");
       return;
     }
@@ -344,12 +384,23 @@ export default function WarehouseTransfer() {
     // Save Logic
     const newTransferNo = `TRF-${new Date().getFullYear()}-${String(transferRecords.length + 1).padStart(3, '0')}`;
     
-    const newRecord: Transfer = {
+    const newRecord: WarehouseTransfer = {
       id: Date.now().toString(),
       transferNo: newTransferNo,
       date: formData.date,
-      fromLocation: formData.fromLocation,
-      toLocation: formData.toLocation,
+      fromWarehouseId: formData.fromWarehouseId,
+
+fromWarehouseName:
+  warehouses.find(
+    w => w.id === formData.fromWarehouseId
+  )?.name ?? "",
+
+toWarehouseId: formData.toWarehouseId,
+
+toWarehouseName:
+  warehouses.find(
+    w => w.id === formData.toWarehouseId
+  )?.name ?? "",
       remarks: formData.remarks,
       itemsCount: autoCalculatedMetrics.totalItems,
       totalQuantity: autoCalculatedMetrics.totalQuantity,
@@ -361,10 +412,196 @@ export default function WarehouseTransfer() {
       lastUpdatedDate: new Date().toLocaleDateString('en-GB').replace(/\//g, '-')
     };
 
-    setTransferRecords([newRecord, ...transferRecords]);
+//     const inventoryRecords = inventoryService.getAll();
+
+// formProducts.forEach((item) => {
+//   // Reduce stock in source warehouse
+//   const source = inventoryRecords.find(
+//     (r) =>
+//       r.productCode === item.product &&
+//       r.batchNo === item.batchNo &&
+//       r.warehouseId === formData.fromWarehouseId,
+//   );
+
+//   if (source) {
+//     source.availableQty -= Number(item.transferQty);
+//     source.lastUpdated = new Date().toISOString();
+//   }
+
+//   // Increase stock in destination warehouse
+//   const destination = inventoryRecords.find(
+//     (r) =>
+//       r.productCode === item.product &&
+//       r.batchNo === item.batchNo &&
+//       r.warehouseId === formData.toWarehouseId,
+//   );
+
+//   if (destination) {
+//     destination.availableQty += Number(item.transferQty);
+//     destination.lastUpdated = new Date().toISOString();
+//   } else if (source) {
+//     inventoryRecords.push({
+//       ...source,
+//       id: Date.now().toString() + item.batchNo,
+//       warehouseId: formData.toWarehouseId,
+//       warehouseCode:
+//         warehouses.find((w) => w.id === formData.toWarehouseId)?.code ?? "",
+//       warehouseName:
+//         warehouses.find((w) => w.id === formData.toWarehouseId)?.name ?? "",
+//       availableQty: Number(item.transferQty),
+//       lastUpdated: new Date().toISOString(),
+//     });
+//   }
+// });
+
+// inventoryService.saveAll(inventoryRecords);
+
+// formProducts.forEach((item) => {
+
+//   stockLedgerService.addRecord({
+
+//     id: Date.now().toString() + item.batchNo,
+
+//     date: new Date().toISOString(),
+
+//     productCode: item.product,
+
+//     batchNo: item.batchNo,
+
+//     warehouseId: formData.fromWarehouseId,
+
+//     transactionType: "Transfer Out",
+
+//     quantity: Number(item.transferQty),
+
+//     referenceNo: newTransferNo,
+
+//   });
+
+//   stockLedgerService.addRecord({
+
+//     id: Date.now().toString() + item.batchNo + "IN",
+
+//     date: new Date().toISOString(),
+
+//     productCode: item.product,
+
+//     batchNo: item.batchNo,
+
+//     warehouseId: formData.toWarehouseId,
+
+//     transactionType: "Transfer In",
+
+//     quantity: Number(item.transferQty),
+
+//     referenceNo: newTransferNo,
+
+//   });
+
+// });
+
+if (newRecord.status === "In Transit") {
+
+  const inventoryRecords = inventoryService.getAll();
+
+  formProducts.forEach((item) => {
+
+    const source = inventoryRecords.find(
+      r =>
+        r.productCode === item.product &&
+        r.batchNo === item.batchNo &&
+        r.warehouseId === newRecord.fromWarehouseId
+    );
+
+    if (source) {
+
+      source.availableQty -= Number(item.transferQty);
+
+      source.lastUpdated = new Date().toISOString();
+
+    }
+
+    stockLedgerService.addRecord({
+
+      id: Date.now().toString(),
+
+      date: new Date().toISOString(),
+
+      productCode: item.product,
+
+      batchNo: item.batchNo,
+
+      warehouseId: newRecord.fromWarehouseId,
+
+      transactionType: "Transfer Out",
+
+      quantity: Number(item.transferQty),
+
+      referenceNo: newRecord.transferNo,
+
+    });
+
+  });
+
+  inventoryService.saveAll(inventoryRecords);
+
+}
+
+    warehouseTransferService.addRecord(newRecord);
+
+setTransferRecords(
+  warehouseTransferService.getAll()
+);
     setShowCreateModal(false);
     alert("Warehouse transfer initiated successfully!");
   };
+
+
+  const handleCompleteTransfer = (
+  transfer: WarehouseTransfer,
+) => {
+
+  const transfers = warehouseTransferService.getAll();
+
+  const updatedTransfers: WarehouseTransfer[] = transfers.map((t) =>
+  t.id === transfer.id
+    ? {
+        ...t,
+        status: "Completed" as const,
+        lastUpdatedBy: "System Admin",
+        lastUpdatedDate: new Date().toISOString(),
+      }
+    : t
+);
+
+  warehouseTransferService.saveAll(updatedTransfers);
+
+  setTransferRecords(updatedTransfers);
+
+  setSelectedRecord({
+    ...transfer,
+    status: "Completed",
+  });
+
+  alert("Transfer completed successfully.");
+};
+
+  const warehouses = warehouseService.getAll();
+
+const inventory = inventoryService.getAll();
+
+const products = productService.getProducts();
+
+  const availableProducts = inventory
+    .filter(
+      (stock) =>
+        stock.warehouseId === formData.fromWarehouseId &&
+        stock.availableQty > 0,
+    )
+    .filter(
+      (item, index, arr) =>
+        arr.findIndex((x) => x.productCode === item.productCode) === index,
+    );
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -466,20 +703,29 @@ export default function WarehouseTransfer() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">From Location *</label>
-                    <select value={formData.fromLocation} onChange={e => setFormData({...formData, fromLocation: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                    {/* <select value={formData.fromLocation} onChange={e => setFormData({...formData, fromLocation: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2">
                       <option value="">Select Location</option>
                       {MOCK_LOCATIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    </select> */}
+                    
+
+                    <select  value={formData.fromWarehouseId}onChange={(e) => setFormData({...formData,fromWarehouseId: e.target.value,})  }>
+                        <option value="">Select Warehouse</option>  {warehouses.filter(w => w.status === "Active").map(w => (<option key={w.id} value={w.id}>
+        {w.code} - {w.name}
+      </option>
+    ))}
+</select>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">To Location *</label>
-                    <select value={formData.toLocation} onChange={e => setFormData({...formData, toLocation: e.target.value})} className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${formData.fromLocation && formData.toLocation === formData.fromLocation ? 'border-rose-400 bg-rose-50' : ''}`}>
+                    <select value={formData.toWarehouseId} onChange={e => setFormData({...formData, toWarehouseId: e.target.value})} className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${formData.fromWarehouseId && formData.toWarehouseId === formData.fromWarehouseId ? 'border-rose-400 bg-rose-50' : ''}`}>
                       <option value="">Select Location</option>
-                      {MOCK_LOCATIONS.map(l => <option key={l} value={l}>{l}</option>)}
+                      {warehouses.filter(w => w.status === "Active").map(w => (
+                        <option key={w.id} value={w.id}>
+                          {w.code} - {w.name}
+                        </option>
+                      ))}
                     </select>
-                    {formData.fromLocation && formData.toLocation === formData.fromLocation && (
-                      <p className="text-xs text-rose-600 mt-1">From Location and To Location cannot be the same.</p>
-                    )}
                   </div>
                   <div className="md:col-span-2">
                     <label className="block text-sm font-medium text-slate-700 mb-1">Remarks (Optional)</label>
@@ -514,13 +760,16 @@ export default function WarehouseTransfer() {
                           <td className="px-2 py-2 min-w-[200px]">
                             <select value={prod.product} onChange={e => handleProductChange(prod.id, 'product', e.target.value)} className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm">
                               <option value="">Select Product</option>
-                              {MOCK_PRODUCTS.map(p => <option key={p} value={p}>{p}</option>)}
+                              {availableProducts.map(p => {
+                                const prodDetails = products.find(x => x.code === p.productCode);
+                                return <option key={p.productCode} value={p.productCode}>{prodDetails?.name || p.productCode}</option>;
+                              })}
                             </select>
                           </td>
                           <td className="px-2 py-2 min-w-[150px]">
                             <select value={prod.batchNo} onChange={e => handleProductChange(prod.id, 'batchNo', e.target.value)} className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm" disabled={!prod.product}>
                               <option value="">Select Batch</option>
-                              {prod.product && MOCK_BATCHES[prod.product]?.filter(b => b.availableQty > 0).map(b => (
+                              {prod.product && inventory.filter(i => i.productCode === prod.product && i.warehouseId === formData.fromWarehouseId && i.availableQty > 0).map(b => (
                                 <option key={b.batchNo} value={b.batchNo}>{b.batchNo}</option>
                               ))}
                             </select>
@@ -601,8 +850,12 @@ export default function WarehouseTransfer() {
               <div className="space-y-2">
                 <DrawerField label="Transfer Number" value={<span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">{selectedRecord.transferNo}</span>} />
                 <DrawerField label="Transfer Date" value={selectedRecord.date} />
-                <DrawerField label="From Location" value={selectedRecord.fromLocation} />
-                <DrawerField label="To Location" value={selectedRecord.toLocation} />
+                {/* <DrawerField label="From Location" value={selectedRecord.fromLocation} /> */}
+                                <DrawerField label="From Location" value={selectedRecord.fromWarehouseName} />
+
+                {/* <DrawerField label="To Location" value={selectedRecord.toLocation} /> */}
+                                <DrawerField label="To Location" value={selectedRecord.toWarehouseName} />
+
                 <DrawerField label="Status" value={<Badge variant={selectedRecord.status === 'Completed' ? 'success' : selectedRecord.status === 'In Transit' ? 'info' : selectedRecord.status === 'Cancelled' ? 'danger' : 'warning'}>{selectedRecord.status}</Badge>} />
                 <DrawerField label="Remarks" value={selectedRecord.remarks || 'N/A'} />
               </div>
@@ -660,8 +913,23 @@ export default function WarehouseTransfer() {
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-              <ActionButton variant="secondary" onClick={() => setSelectedRecord(null)}>Close</ActionButton>
-            </div>
+
+  {selectedRecord &&
+ selectedRecord.status === "In Transit" && (
+    <ActionButton
+        onClick={() => handleCompleteTransfer(selectedRecord)}
+    >
+        Complete Transfer
+    </ActionButton>
+)}
+  <ActionButton
+    variant="secondary"
+    onClick={() => setSelectedRecord(null)}
+  >
+    Close
+  </ActionButton>
+
+</div>
           </div>
         )}
       </Drawer>

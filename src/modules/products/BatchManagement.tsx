@@ -13,9 +13,7 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './types';
-import { batchService } from "../../services/batchService";
-import { inventoryService } from "../../services/inventoryService";
-import { stockLedgerService } from "../../services/stockLedgerService";
+import { batchService, type BatchRecord } from "../../services/batchService";
 import  activityLogService  from "../../services/activityLogService";
 import { hasModulePermission } from '../../utils/permissionUtils';
 import { productService } from "../../services/productService";
@@ -35,24 +33,24 @@ interface Batch {
   composition?: string;
   packingType?: string;
   scheme?: string;
+
   manufacturer: string;
+
   mfgDate: string;
   expDate: string;
-  qty: number;
-  receivedQty: number;
-  availableQty: number;
+
   mrp: string;
   ptr: string;
   pts: string;
-  storageLocation: string;
+
   barcode: string;
   remarks: string;
-  status:
-  | "Healthy"
-  | "Near Expiry"
-  | "Expired";
-}
 
+  status:
+    | "Healthy"
+    | "Near Expiry"
+    | "Expired";
+}
 // const mockProducts = [
 //   { name: 'Amoxicillin 500mg', manufacturer: 'PharmaCorp', productType: 'Tablet', mrp: '150', ptr: '100', pts: '120' },
 //   { name: 'Paracetamol 650mg', manufacturer: 'HealthPlus', productType: 'Tablet', mrp: '50', ptr: '30', pts: '35' },
@@ -62,17 +60,33 @@ interface Batch {
 // ];
 
 const initialMockData: Batch[] = [
-  { 
-    id: '1', batchNo: 'B-2026-001', productName: 'Amoxicillin 500mg', manufacturer: 'PharmaCorp',
-    mfgDate: '2026-01-10', expDate: '2028-01-09', qty: 5000, receivedQty: 5000, availableQty: 5000,
-    mrp: '150', ptr: '100', pts: '120', storageLocation: 'A1', barcode: '8901234567890', remarks: 'Good',
-    status: "Healthy" 
+  {
+    id: "1",
+    batchNo: "B-2026-001",
+    productName: "Amoxicillin 500mg",
+    manufacturer: "PharmaCorp",
+    mfgDate: "2026-01-10",
+    expDate: "2028-01-09",
+    mrp: "150",
+    ptr: "100",
+    pts: "120",
+    barcode: "8901234567890",
+    remarks: "Good",
+    status: "Healthy",
   },
-  { 
-    id: '2', batchNo: 'B-2025-890', productName: 'Paracetamol 650mg', manufacturer: 'HealthPlus',
-    mfgDate: '2025-12-15', expDate: '2027-12-14', qty: 12000, receivedQty: 12000, availableQty: 12000,
-    mrp: '50', ptr: '30', pts: '35', storageLocation: 'B2', barcode: '8901234567891', remarks: '',
-    status: "Healthy" 
+  {
+    id: "2",
+    batchNo: "B-2025-890",
+    productName: "Paracetamol 650mg",
+    manufacturer: "HealthPlus",
+    mfgDate: "2025-12-15",
+    expDate: "2027-12-14",
+    mrp: "50",
+    ptr: "30",
+    pts: "35",
+    barcode: "8901234567891",
+    remarks: "",
+    status: "Healthy",
   },
 ];
 
@@ -82,19 +96,18 @@ export default function BatchManagement() {
   const [batches, setBatches] = useState<Batch[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   useEffect(() => {
-    const savedBatches = batchService.getAll();
-
+    const savedBatches = batchService.getAll() as unknown as Batch[];
     if (savedBatches.length > 0) {
       setBatches(savedBatches);
     } else {
       setBatches(initialMockData);
 
-      batchService.saveAll(initialMockData);
+      batchService.saveAll(initialMockData as any);
     }
   }, []);
   useEffect(() => {
     if (batches.length > 0) {
-      batchService.saveAll(batches);
+      batchService.saveAll(batches as any);
     }
   }, [batches]);
   const [search, setSearch] = useState('');
@@ -129,10 +142,8 @@ export default function BatchManagement() {
     batchNo: "",
     productName: "",
     productCode: "",
-
     hsnCode: "",
     gst: "",
-
     composition: "",
     packingType: "",
     scheme: "",
@@ -140,12 +151,9 @@ export default function BatchManagement() {
     unit: "",
     mfgDate: "",
     expDate: "",
-    receivedQty: 0,
-    availableQty: 0,
     mrp: "",
     ptr: "",
     pts: "",
-    storageLocation: "",
     barcode: "",
     remarks: "",
     status: "Healthy",
@@ -184,7 +192,7 @@ export default function BatchManagement() {
 
   useEffect(() => {
     if (batches.length > 0) {
-      batchService.saveAll(batches);
+      batchService.saveAll(batches as any);
     }
   }, [batches]);
 
@@ -235,18 +243,13 @@ export default function BatchManagement() {
       !newBatch.batchNo ||
       !newBatch.productName ||
       !newBatch.mfgDate ||
-      !newBatch.expDate ||
-      !newBatch.receivedQty
+      !newBatch.expDate
     ) {
       alert("Please fill all mandatory fields.");
       return;
     }
 
-    // Quantity Validation
-    if (Number(newBatch.receivedQty) <= 0) {
-      alert("Received Quantity must be greater than zero.");
-      return;
-    }
+    
     // Date Validation
     if (new Date(newBatch.mfgDate) >= new Date(newBatch.expDate)) {
       alert("Expiry Date must be greater than Manufacturing Date.");
@@ -266,7 +269,7 @@ export default function BatchManagement() {
     }
 
     if (isEditingModal && newBatch.id) {
-      const qty = Number(newBatch.availableQty) || Number(newBatch.receivedQty);
+      
       const updatedBatch: Batch = {
         ...newBatch,
         productCode: newBatch.productCode,
@@ -281,14 +284,12 @@ export default function BatchManagement() {
 
         scheme: newBatch.scheme,
         unit: newBatch.unit || "",
-        qty: qty,
-        availableQty: qty,
-        receivedQty: Number(newBatch.receivedQty),
+       
         manufacturer: newBatch.manufacturer || "",
         mrp: newBatch.mrp || "",
         ptr: newBatch.ptr || "",
         pts: newBatch.pts || "",
-        storageLocation: newBatch.storageLocation || "",
+        
         barcode: newBatch.barcode || "",
         remarks: newBatch.remarks || "",
         status: getExpiryStatus(newBatch.expDate || "") as Batch["status"],
@@ -307,7 +308,7 @@ export default function BatchManagement() {
         setSelectedBatch(updatedBatch);
       }
     } else {
-      const qty = Number(newBatch.receivedQty);
+      
       const batch: Batch = {
         id: Date.now().toString(),
         batchNo: newBatch.batchNo,
@@ -328,83 +329,19 @@ export default function BatchManagement() {
         manufacturer: newBatch.manufacturer || "",
         mfgDate: newBatch.mfgDate,
         expDate: newBatch.expDate,
-        qty: qty,
-        receivedQty: qty,
-        availableQty: qty,
+       
         mrp: newBatch.mrp || "",
         ptr: newBatch.ptr || "",
         pts: newBatch.pts || "",
-        storageLocation: newBatch.storageLocation || "",
+        
         barcode: newBatch.barcode || "",
         remarks: newBatch.remarks || "",
         status: getExpiryStatus(newBatch.expDate || "") as Batch["status"],
       };
       setBatches([batch, ...batches]);
-      const inventoryRecord = {
-        id: Date.now().toString(),
+      
 
-        productId: batch.productCode || "",
-
-        productCode: batch.productCode || "",
-
-        productName: batch.productName,
-
-        batchNo: batch.batchNo,
-
-        warehouse: batch.storageLocation || "Main Warehouse",
-
-        manufacturer: batch.manufacturer,
-
-        mfgDate: batch.mfgDate,
-
-        expDate: batch.expDate,
-
-        mrp: batch.mrp,
-
-        ptr: batch.ptr,
-
-        pts: batch.pts,
-
-        receivedQty: batch.receivedQty,
-
-        availableQty: batch.availableQty,
-
-        damagedQty: 0,
-
-        expiredQty: 0,
-
-        reorderLevel: 100,
-
-        status: getExpiryStatus(batch.expDate),
-      };
-
-      inventoryService.addRecord(inventoryRecord);
-
-      const ledgerEntry = {
-        id: Date.now().toString(),
-
-        transactionNo: `OPEN-${Date.now()}`,
-
-        transactionDate: new Date().toISOString(),
-
-        productCode: batch.productCode || "",
-
-        productName: batch.productName,
-
-        batchNo: batch.batchNo,
-
-        transactionType: "OPENING",
-
-        inQty: batch.receivedQty,
-
-        outQty: 0,
-
-        balanceQty: batch.availableQty,
-
-        remarks: "Opening Stock",
-      };
-
-      stockLedgerService.addRecord(ledgerEntry);
+      
 
       activityLogService.addLog({
         userId: currentUser?.id,
@@ -421,39 +358,6 @@ export default function BatchManagement() {
     if (!batchToDelete) return;
 
     setBatches(batches.filter((b) => b.id !== batchToDelete.id));
-    const inventoryRecords = inventoryService.getAll();
-
-    const updatedInventoryRecords = inventoryRecords.filter(
-      (record) => record.batchNo !== batchToDelete.batchNo,
-    );
-
-    inventoryService.saveAll(updatedInventoryRecords);
-
-    const ledgerEntry = {
-      id: Date.now().toString(),
-
-      transactionNo: `DEL-${Date.now()}`,
-
-      transactionDate: new Date().toISOString(),
-
-      productCode: batchToDelete.productCode || "",
-
-      productName: batchToDelete.productName,
-
-      batchNo: batchToDelete.batchNo,
-
-      transactionType: "BATCH_DELETED",
-
-      inQty: 0,
-
-      outQty: batchToDelete.availableQty || 0,
-
-      balanceQty: 0,
-
-      remarks: "Batch Deleted",
-    };
-
-    stockLedgerService.addRecord(ledgerEntry);
 
     activityLogService.addLog({
       userId: currentUser?.id,
@@ -482,12 +386,11 @@ export default function BatchManagement() {
       unit: "",
       mfgDate: "",
       expDate: "",
-      receivedQty: 0,
-      availableQty: 0,
+     
       mrp: "",
       ptr: "",
       pts: "",
-      storageLocation: "",
+      
       barcode: "",
       remarks: "",
       status: "Healthy"
@@ -510,7 +413,7 @@ export default function BatchManagement() {
     const headers = ['Batch No', 'Product Name', 'Mfg Date', 'Exp Date', 'Quantity', 'Status'];
     const csvContent = [
       headers.join(','),
-      ...filteredData.map(row => [row.batchNo, `"${row.productName}"`, row.mfgDate, row.expDate, row.availableQty, row.status].join(','))
+      ...filteredData.map(row => [row.batchNo, `"${row.productName}"`, row.mfgDate, row.expDate, row.status].join(','))
     ].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
@@ -537,7 +440,7 @@ export default function BatchManagement() {
     },
     { key: "mfgDate", label: "Mfg Date" },
     { key: "expDate", label: "Exp Date" },
-    { key: "qty", label: "Available Qty", render: (row) => row.availableQty },
+    
     {
       key: "status",
       label: "Status",
@@ -590,17 +493,17 @@ export default function BatchManagement() {
   });
 
 
-  // if (!canView) {
-  //   return (
-  //     <div className="p-10 text-center">
-  //       <h2 className="text-xl font-semibold">Access Denied</h2>
+  if (!canView) {
+    return (
+      <div className="p-10 text-center">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
 
-  //       <p className="text-slate-500 mt-2">
-  //         You do not have permission to view Batch Management.
-  //       </p>
-  //     </div>
-  //   );
-  // }
+        <p className="text-slate-500 mt-2">
+          You do not have permission to view Batch Management.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -769,32 +672,10 @@ export default function BatchManagement() {
 
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  Quantity Information
+                  Product Information
                 </h3>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Received Quantity *
-                </label>
-
-                <input
-                  type="number"
-                  value={newBatch.receivedQty || ""}
-                  readOnly={isEditingModal}
-                  onChange={(e) =>
-                    !isEditingModal &&
-                    setNewBatch({
-                      ...newBatch,
-                      receivedQty: Number(e.target.value),
-                    })
-                  }
-                  className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${
-                    isEditingModal
-                      ? "bg-slate-50 text-slate-500 cursor-not-allowed"
-                      : ""
-                  }`}
-                />
-              </div>
+              
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Product type
@@ -805,28 +686,7 @@ export default function BatchManagement() {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50"
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Available Quantity
-                </label>
-                <input
-                  type="number"
-                  value={
-                    isEditingModal
-                      ? newBatch.availableQty || 0
-                      : newBatch.receivedQty || 0
-                  }
-                  onChange={(e) =>
-                    isEditingModal &&
-                    setNewBatch({
-                      ...newBatch,
-                      availableQty: Number(e.target.value),
-                    })
-                  }
-                  readOnly={!isEditingModal}
-                  className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${!isEditingModal ? "bg-slate-50" : ""}`}
-                />
-              </div>
+              
 
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
@@ -863,23 +723,7 @@ export default function BatchManagement() {
                   Additional Information
                 </h3>
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Storage Location
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Warehouse A"
-                  value={newBatch.storageLocation}
-                  onChange={(e) =>
-                    setNewBatch({
-                      ...newBatch,
-                      storageLocation: e.target.value,
-                    })
-                  }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
+              
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Barcode
@@ -1058,21 +902,7 @@ export default function BatchManagement() {
                 />
               </div>
             </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
-                Quantity Details
-              </h3>
-              <div className="space-y-2">
-                <DrawerField
-                  label="Received Quantity"
-                  value={selectedBatch.receivedQty?.toString() || "0"}
-                />
-                <DrawerField
-                  label="Available Quantity"
-                  value={selectedBatch.availableQty?.toString() || "0"}
-                />
-              </div>
-            </div>
+           
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
                 Pricing Details
@@ -1097,10 +927,7 @@ export default function BatchManagement() {
                 Additional Information
               </h3>
               <div className="space-y-2">
-                <DrawerField
-                  label="Storage Location"
-                  value={selectedBatch.storageLocation || "N/A"}
-                />
+                
                 <DrawerField
                   label="Barcode"
                   value={selectedBatch.barcode || "N/A"}
