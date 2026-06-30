@@ -18,8 +18,6 @@ import activityLogService from "../../services/activityLogService";
 import authService from '../../services/authService';
 import { hasModulePermission } from '../../utils/permissionUtils';
 
-
-
 interface GST {
   id: string;
   hsnCode: string;
@@ -42,14 +40,10 @@ const initialMockData: GST[] = [
 ];
 
 export default function GSTManagement() {
-  
-
-  
   const [data, setData] = useState<GST[]>([]);
 
   useEffect(() => {
     const savedData = gstService.getAll();
-
     if (savedData.length > 0) {
       setData(savedData);
     } else {
@@ -63,27 +57,13 @@ export default function GSTManagement() {
     }
   }, [data]);
 
-
   const activeRole = localStorage.getItem("activeRole") || "";
-
   const canView = hasModulePermission(activeRole, "Products & Master", "View");
-
-  const canCreate = hasModulePermission(
-    activeRole,
-    "Products & Master",
-    "Create",
-  );
-
+  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-
-  const canDelete = hasModulePermission(
-    activeRole,
-    "Products & Master",
-    "Delete",
-  );
+  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
 
   const currentUser = authService.getCurrentUser();
- 
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -145,16 +125,16 @@ export default function GSTManagement() {
             View
           </button>
           {canDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setItemToDelete(row);
-            }}
-            className="text-rose-600 font-medium hover:text-rose-800"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setItemToDelete(row);
+              }}
+              className="text-rose-600 font-medium hover:text-rose-800"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           )}
         </div>
       )
@@ -173,7 +153,7 @@ export default function GSTManagement() {
       headers.join(','),
       ...filteredData.map(row => 
         [
-          row.hsnCode, 
+          row.hsnCode,
           `"${row.description.replace(/"/g, '""')}"`, 
           row.sgst.replace(/[^0-9.]/g, ''), 
           row.cgst.replace(/[^0-9.]/g, ''), 
@@ -236,12 +216,12 @@ export default function GSTManagement() {
     if (isEditingModal && newGst.id) {
       const updatedRecord: GST = {
         id: newGst.id,
-        hsnCode: newGst.hsnCode, // Should not change due to readOnly, but retained
+        hsnCode: newGst.hsnCode,
         description: newGst.description,
         sgst: formatPct(newGst.sgst),
         cgst: formatPct(newGst.cgst),
         igst: formatPct(newGst.igst),
-        totalGst: newGst.totalGst, // Already auto-calculated and formatted in state effect
+        totalGst: newGst.totalGst,
         createdBy: selectedGST?.createdBy || 'Admin User',
         lastUpdatedBy: 'Admin User',
         lastUpdatedDate: new Date().toISOString().split('T')[0],
@@ -508,6 +488,7 @@ export default function GSTManagement() {
                     setNewGst({ ...newGst, hsnCode: e.target.value })
                   }
                   readOnly={isEditingModal}
+                  maxLength={50}
                   className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${isEditingModal ? "bg-slate-50 opacity-70 cursor-not-allowed" : ""}`}
                   placeholder="e.g. 30049099"
                 />
@@ -522,6 +503,7 @@ export default function GSTManagement() {
                   onChange={(e) =>
                     setNewGst({ ...newGst, description: e.target.value })
                   }
+                  maxLength={500}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                   placeholder="Enter detailed description"
                 />
@@ -545,6 +527,7 @@ export default function GSTManagement() {
                     onChange={(e) =>
                       setNewGst({ ...newGst, sgst: e.target.value })
                     }
+                    maxLength={10}
                     className="w-full border border-slate-200 rounded-lg pr-7 pl-3 py-2"
                   />
                   <span className="absolute right-3 top-2 text-slate-500">
@@ -564,6 +547,7 @@ export default function GSTManagement() {
                     onChange={(e) =>
                       setNewGst({ ...newGst, cgst: e.target.value })
                     }
+                    maxLength={10}
                     className="w-full border border-slate-200 rounded-lg pr-7 pl-3 py-2"
                   />
                   <span className="absolute right-3 top-2 text-slate-500">
@@ -583,6 +567,7 @@ export default function GSTManagement() {
                     onChange={(e) =>
                       setNewGst({ ...newGst, igst: e.target.value })
                     }
+                    maxLength={10}
                     className="w-full border border-slate-200 rounded-lg pr-7 pl-3 py-2"
                   />
                   <span className="absolute right-3 top-2 text-slate-500">

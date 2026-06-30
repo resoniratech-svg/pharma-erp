@@ -115,16 +115,18 @@ export default function BarcodeManagement() {
           >
             View
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setItemToDelete(row);
-            }}
-            className="text-rose-600 font-medium hover:text-rose-800"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {canDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setItemToDelete(row);
+              }}
+              className="text-rose-600 font-medium hover:text-rose-800"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       )
     }
@@ -163,7 +165,6 @@ export default function BarcodeManagement() {
   };
 
   const handleProductSelect = (productName: string) => {
-    // Look across the live system master catalog array list 
     const product = products.find((p) => p.name === productName);
     if (product) {
       setNewBarcode((prev) => ({
@@ -217,7 +218,6 @@ export default function BarcodeManagement() {
       return;
     }
 
-    // FIX: Match against the real loaded live products system array instead of static mockProducts
     const matchingProduct = products.find(p => p.name === newBarcode.productName);
     if (!matchingProduct) {
       setValidationError("Please select a valid existing product from the list.");
@@ -302,9 +302,11 @@ export default function BarcodeManagement() {
             <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />} onClick={handleExport}>
               Export
             </ActionButton>
-            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openNewModal}>
-              Generate Barcode
-            </ActionButton>
+            {canCreate && (
+              <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openNewModal}>
+                Generate Barcode
+              </ActionButton>
+            )}
           </>
         }
       />
@@ -393,7 +395,7 @@ export default function BarcodeManagement() {
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-              <ActionButton onClick={openEditModal}>Edit Barcode</ActionButton>
+              {canEdit && <ActionButton onClick={openEditModal}>Edit Barcode</ActionButton>}
               <ActionButton variant="secondary" onClick={() => setSelectedBarcode(null)}>Close</ActionButton>
             </div>
           </div>
@@ -494,6 +496,7 @@ export default function BarcodeManagement() {
                   type="text"
                   value={newBarcode.barcodeNumber} 
                   onChange={(e) => setNewBarcode({ ...newBarcode, barcodeNumber: e.target.value })} 
+                  maxLength={20}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono" 
                   placeholder="Enter unique barcode number"
                 />

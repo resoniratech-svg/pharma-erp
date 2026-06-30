@@ -280,6 +280,19 @@ export default function ProductMaster() {
     status: "Active" as Product["status"],
   });
 
+  // Reusable helper to clean input to Alphanumeric and hard-limit to 20 characters
+  const handleAlphanumericChange = (fieldName: string, rawValue: string) => {
+    // Allows letters, numbers, and intentional single spaces, strips out special symbols/punctuation
+    const sanitizedValue = rawValue.replace(/[^a-zA-Z0-9 ]/g, "");
+    // Strictly caps string slicing at 20 characters
+    const cappedValue = sanitizedValue.slice(0, 20);
+    
+    setNewProduct((prev) => ({
+      ...prev,
+      [fieldName]: cappedValue,
+    }));
+  };
+
   // Calculate total units dynamically when inputs change
   useEffect(() => {
     if (newProduct.unitsPerPack && newProduct.packsInBox) {
@@ -586,13 +599,13 @@ export default function ProductMaster() {
         subtitle="Manage primary product catalog and essential details."
         actions={
           <>
-            <ActionButton
+            <button
               variant="secondary"
               icon={<Download className="w-4 h-4" />}
               onClick={handleExport}
             >
               Export
-            </ActionButton>
+            </button>
             {canCreate && (
               <ActionButton
                 icon={<Plus className="w-4 h-4" />}
@@ -891,7 +904,7 @@ export default function ProductMaster() {
                 <label className="block text-sm font-medium mb-1">Product Code *</label>
                 <input
                   value={newProduct.code}
-                  onChange={(e) => setNewProduct({ ...newProduct, code: e.target.value })}
+                  onChange={(e) => handleAlphanumericChange("code", e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -900,7 +913,7 @@ export default function ProductMaster() {
                 <label className="block text-sm font-medium mb-1">Product Name *</label>
                 <input
                   value={newProduct.name}
-                  onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
+                  onChange={(e) => handleAlphanumericChange("name", e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -909,7 +922,7 @@ export default function ProductMaster() {
                 <label className="block text-sm font-medium mb-1">Brand Name</label>
                 <input
                   value={newProduct.brandName}
-                  onChange={(e) => setNewProduct({ ...newProduct, brandName: e.target.value })}
+                  onChange={(e) => handleAlphanumericChange("brandName", e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -921,7 +934,7 @@ export default function ProductMaster() {
                     type="text"
                     value={newProduct.category}
                     onChange={(e) => {
-                      setNewProduct({ ...newProduct, category: e.target.value });
+                      handleAlphanumericChange("category", e.target.value);
                       setShowCategoryDropdown(true);
                     }}
                     onFocus={() => setShowCategoryDropdown(true)}
@@ -995,7 +1008,7 @@ export default function ProductMaster() {
                     type="text"
                     value={newProduct.composition}
                     onChange={(e) => {
-                      setNewProduct({ ...newProduct, composition: e.target.value });
+                      handleAlphanumericChange("composition", e.target.value);
                       setShowCompositionDropdown(true);
                     }}
                     onFocus={() => setShowCompositionDropdown(true)}
@@ -1040,7 +1053,7 @@ export default function ProductMaster() {
                     type="text"
                     value={newProduct.scheme}
                     onChange={(e) => {
-                      setNewProduct({ ...newProduct, scheme: e.target.value });
+                      handleAlphanumericChange("scheme", e.target.value);
                       setShowSchemeDropdown(true);
                     }}
                     onFocus={() => setShowSchemeDropdown(true)}
@@ -1082,7 +1095,7 @@ export default function ProductMaster() {
                 <label className="block text-sm font-medium mb-1">Manufacturer</label>
                 <input
                   value={newProduct.manufacturer}
-                  onChange={(e) => setNewProduct({ ...newProduct, manufacturer: e.target.value })}
+                  onChange={(e) => handleAlphanumericChange("manufacturer", e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -1279,7 +1292,8 @@ export default function ProductMaster() {
                 <label className="block text-sm font-medium mb-1">Barcode</label>
                 <input
                   value={newProduct.barcode}
-                  onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
+                  maxLength={20}
+                  onChange={(e) => handleAlphanumericChange("barcode", e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>

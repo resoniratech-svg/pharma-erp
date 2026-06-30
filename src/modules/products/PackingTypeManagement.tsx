@@ -46,20 +46,9 @@ export default function PackingTypeManagement() {
   const activeRole = localStorage.getItem("activeRole") || "";
   
   const canView = hasModulePermission(activeRole, "Products & Master", "View");
-
-  const canCreate = hasModulePermission(
-    activeRole,
-    "Products & Master",
-    "Create",
-  );
-
+  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-
-  const canDelete = hasModulePermission(
-    activeRole,
-    "Products & Master",
-    "Delete",
-  );
+  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
 
   const [newPacking, setNewPacking] = useState({
     id: '',
@@ -100,19 +89,18 @@ export default function PackingTypeManagement() {
             View
           </button>
           {canDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setItemToDelete(row);
-            }}
-            className="text-rose-600 font-medium hover:text-rose-800"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setItemToDelete(row);
+              }}
+              className="text-rose-600 font-medium hover:text-rose-800"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
           )}
         </div>
-
       )
     }
   ];
@@ -226,12 +214,11 @@ export default function PackingTypeManagement() {
   const handleDelete = () => {
     if (itemToDelete) {
       setData(data.filter(item => item.id !== itemToDelete.id));
-
-       activityLogService.addLog({
-         userId: currentUser.id,
-         userName: currentUser.fullName,
-         action: "Packing Type Deleted",
-         module: "Packing Type Management",
+      activityLogService.addLog({
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        action: "Packing Type Deleted",
+        module: "Packing Type Management",
        });
       setItemToDelete(null);
     }
@@ -239,7 +226,6 @@ export default function PackingTypeManagement() {
 
   useEffect(() => {
     const savedData = packingTypeService.getAll();
-
     if (savedData.length > 0) {
       setData(savedData);
     } else {
@@ -253,14 +239,6 @@ export default function PackingTypeManagement() {
       packingTypeService.saveAll(data);
     }
   }, [data]);
-
-  // if (!canView) {
-  //   return (
-  //     <div className="p-10 text-center">
-  //       <h2>Access Denied</h2>
-  //     </div>
-  //   );
-  // }
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -341,9 +319,7 @@ export default function PackingTypeManagement() {
               label="Status"
               value={
                 <Badge
-                  variant={
-                    selectedPacking.status === "Active" ? "success" : "neutral"
-                  }
+                  variant={selectedPacking.status === "Active" ? "success" : "neutral"}
                 >
                   {selectedPacking.status}
                 </Badge>
@@ -378,8 +354,7 @@ export default function PackingTypeManagement() {
               Delete Packing Type
             </h3>
             <p className="text-sm text-slate-500 mb-6">
-              Are you sure you want to delete this packing type? This action
-              cannot be undone.
+              Are you sure you want to delete this packing type? This action cannot be undone.
             </p>
             <div className="flex justify-center gap-3">
               <button
@@ -422,12 +397,14 @@ export default function PackingTypeManagement() {
                   BASIC INFORMATION
                 </h3>
               </div>
+              
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Packing Code *
                 </label>
                 <input
                   type="text"
+                  maxLength={20}
                   value={newPacking.code}
                   onChange={(e) =>
                     setNewPacking({ ...newPacking, code: e.target.value })
@@ -436,20 +413,23 @@ export default function PackingTypeManagement() {
                   placeholder="e.g. BLS-ALU"
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Packing Name *
                 </label>
                 <input
                   type="text"
+                  maxLength={20}
                   value={newPacking.name}
                   onChange={(e) =>
                     setNewPacking({ ...newPacking, name: e.target.value })
                   }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="e.g. Alu-Alu Blister"
                 />
               </div>
+
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Unit of Measure *
@@ -459,7 +439,7 @@ export default function PackingTypeManagement() {
                   onChange={(e) =>
                     setNewPacking({ ...newPacking, uom: e.target.value })
                   }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 >
                   <option value="Strip">Strip</option>
                   <option value="Bottle">Bottle</option>
@@ -471,21 +451,20 @@ export default function PackingTypeManagement() {
                   <option value="Box">Box</option>
                 </select>
               </div>
+
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Description
                 </label>
                 <textarea
                   rows={2}
+                  maxLength={20}
                   value={newPacking.description}
                   onChange={(e) =>
-                    setNewPacking({
-                      ...newPacking,
-                      description: e.target.value,
-                    })
+                    setNewPacking({ ...newPacking, description: e.target.value })
                   }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                  placeholder="e.g. Double aluminum foil blister pack"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  placeholder="e.g. Double aluminum foil"
                 />
               </div>
 
@@ -495,6 +474,7 @@ export default function PackingTypeManagement() {
                   STATUS INFORMATION
                 </h3>
               </div>
+              
               <div>
                 <label className="block text-sm font-medium mb-1">
                   Status *
@@ -502,12 +482,9 @@ export default function PackingTypeManagement() {
                 <select
                   value={newPacking.status}
                   onChange={(e) =>
-                    setNewPacking({
-                      ...newPacking,
-                      status: e.target.value as any,
-                    })
+                    setNewPacking({ ...newPacking, status: e.target.value as any })
                   }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -530,7 +507,6 @@ export default function PackingTypeManagement() {
                   ) {
                     return;
                   }
-
                   handleSavePacking();
                 }}
               >

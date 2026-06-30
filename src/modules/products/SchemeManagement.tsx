@@ -14,12 +14,9 @@ import {
 } from './components/shared';
 import { type Column } from './types';
 
-
 import { schemeService } from "../../services/schemeService";
-
 import activityLogService from "../../services/activityLogService";
-
-import  authService  from "../../services/authService";
+import authService from "../../services/authService";
 import { hasModulePermission } from "../../utils/permissionUtils";
 
 interface Scheme {
@@ -75,20 +72,9 @@ export default function SchemeManagement() {
   const activeRole = localStorage.getItem("activeRole") || "";
 
   const canView = hasModulePermission(activeRole, "Products & Master", "View");
-
-  const canCreate = hasModulePermission(
-    activeRole,
-    "Products & Master",
-    "Create",
-  );
-
+  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-
-  const canDelete = hasModulePermission(
-    activeRole,
-    "Products & Master",
-    "Delete",
-  );
+  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
 
   const [newScheme, setNewScheme] = useState({
     id: '',
@@ -166,11 +152,11 @@ export default function SchemeManagement() {
       ...filteredData.map(row => 
         [
           `="${row.schemeCode}"`, 
-          `"${row.name}"`, 
-          `"${row.type}"`, 
-          `"${row.applicableTo || '-'}"`, 
-          `"${row.validFrom}"`, 
-          `"${row.validTo}"`, 
+          `="${row.name}"`, 
+          `="${row.type}"`, 
+          `="${row.applicableTo || '-'}"`, 
+          `="${row.validFrom}"`, 
+          `="${row.validTo}"`, 
           row.status
         ].join(',')
       )
@@ -538,9 +524,10 @@ export default function SchemeManagement() {
                 </label>
                 <input
                   type="text"
+                  maxLength={20}
                   value={newScheme.schemeCode}
                   onChange={(e) =>
-                    setNewScheme({ ...newScheme, schemeCode: e.target.value })
+                    setNewScheme({ ...newScheme, schemeCode: e.target.value.slice(0, 20) })
                   }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="e.g. SCH-10+1"
@@ -552,9 +539,10 @@ export default function SchemeManagement() {
                 </label>
                 <input
                   type="text"
+                  maxLength={20}
                   value={newScheme.name}
                   onChange={(e) =>
-                    setNewScheme({ ...newScheme, name: e.target.value })
+                    setNewScheme({ ...newScheme, name: e.target.value.slice(0, 20) })
                   }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="e.g. Buy 10 Get 1 Free"
@@ -619,12 +607,13 @@ export default function SchemeManagement() {
                 </label>
                 <input
                   type="text"
+                  maxLength={20}
                   disabled={newScheme.applicableTo === "All Products"}
                   value={newScheme.applicableSelection}
                   onChange={(e) =>
                     setNewScheme({
                       ...newScheme,
-                      applicableSelection: e.target.value,
+                      applicableSelection: e.target.value.slice(0, 20),
                     })
                   }
                   className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${newScheme.applicableTo === "All Products" ? "bg-slate-100 cursor-not-allowed text-slate-400" : "bg-white"}`}
@@ -667,9 +656,10 @@ export default function SchemeManagement() {
                 </label>
                 <input
                   type="number"
+                  maxLength={20}
                   value={newScheme.benefitValue}
                   onChange={(e) =>
-                    setNewScheme({ ...newScheme, benefitValue: e.target.value })
+                    setNewScheme({ ...newScheme, benefitValue: e.target.value.slice(0, 20) })
                   }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                   placeholder="e.g. 5"
@@ -688,9 +678,10 @@ export default function SchemeManagement() {
                 </label>
                 <input
                   type="number"
+                  maxLength={20}
                   value={newScheme.minQuantity}
                   onChange={(e) =>
-                    setNewScheme({ ...newScheme, minQuantity: e.target.value })
+                    setNewScheme({ ...newScheme, minQuantity: e.target.value.slice(0, 20) })
                   }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                   placeholder="e.g. 10"
@@ -702,9 +693,10 @@ export default function SchemeManagement() {
                 </label>
                 <input
                   type="number"
+                  maxLength={20}
                   value={newScheme.freeQuantity}
                   onChange={(e) =>
-                    setNewScheme({ ...newScheme, freeQuantity: e.target.value })
+                    setNewScheme({ ...newScheme, freeQuantity: e.target.value.slice(0, 20) })
                   }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                   placeholder="e.g. 1"
@@ -756,9 +748,10 @@ export default function SchemeManagement() {
                 </label>
                 <textarea
                   rows={2}
+                  maxLength={20}
                   value={newScheme.remarks}
                   onChange={(e) =>
-                    setNewScheme({ ...newScheme, remarks: e.target.value })
+                    setNewScheme({ ...newScheme, remarks: e.target.value.slice(0, 20) })
                   }
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                   placeholder="Enter remarks..."

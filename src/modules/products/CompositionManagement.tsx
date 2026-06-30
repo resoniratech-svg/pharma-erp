@@ -250,7 +250,6 @@ export default function CompositionManagement() {
       });
     }
     
-    // Save to State AND local storage service inside the same transaction
     setData(updatedData);
     compositionService.saveAll(updatedData);
     setShowModal(false);
@@ -434,6 +433,7 @@ export default function CompositionManagement() {
                 <label className="block text-sm font-medium mb-1">Generic Name *</label>
                 <input
                   type="text"
+                  maxLength={20}
                   value={newComp.genericName}
                   onChange={(e) => setNewComp({ ...newComp, genericName: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
@@ -444,6 +444,7 @@ export default function CompositionManagement() {
                 <label className="block text-sm font-medium mb-1">Strength *</label>
                 <input
                   type="text"
+                  maxLength={20}
                   value={newComp.strength}
                   onChange={(e) => setNewComp({ ...newComp, strength: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
@@ -475,6 +476,7 @@ export default function CompositionManagement() {
                 <label className="block text-sm font-medium mb-1">Therapeutic Class *</label>
                 <input
                   type="text"
+                  maxLength={20}
                   value={newComp.therapeuticClass}
                   onChange={(e) => setNewComp({ ...newComp, therapeuticClass: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"

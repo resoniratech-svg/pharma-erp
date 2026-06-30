@@ -51,13 +51,6 @@ interface Batch {
     | "Near Expiry"
     | "Expired";
 }
-// const mockProducts = [
-//   { name: 'Amoxicillin 500mg', manufacturer: 'PharmaCorp', productType: 'Tablet', mrp: '150', ptr: '100', pts: '120' },
-//   { name: 'Paracetamol 650mg', manufacturer: 'HealthPlus', productType: 'Tablet', mrp: '50', ptr: '30', pts: '35' },
-//   { name: 'Cough Syrup 100ml', manufacturer: 'LiquidMeds', productType: 'Syrup', mrp: '100', ptr: '60', pts: '75' },
-//   { name: 'Vitamin C 1000mg', manufacturer: 'VitaCorp', productType: 'Tablet', mrp: '200', ptr: '120', pts: '150' },
-//   { name: 'Ibuprofen 400mg', manufacturer: 'PainRelief Inc', productType: 'Capsule', mrp: '80', ptr: '45', pts: '55' },
-// ];
 
 const initialMockData: Batch[] = [
   {
@@ -95,21 +88,23 @@ export default function BatchManagement() {
 
   const [batches, setBatches] = useState<Batch[]>([]);
   const [products, setProducts] = useState<any[]>([]);
+  
   useEffect(() => {
     const savedBatches = batchService.getAll() as unknown as Batch[];
     if (savedBatches.length > 0) {
       setBatches(savedBatches);
     } else {
       setBatches(initialMockData);
-
       batchService.saveAll(initialMockData as any);
     }
   }, []);
+
   useEffect(() => {
     if (batches.length > 0) {
       batchService.saveAll(batches as any);
     }
   }, [batches]);
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
@@ -122,21 +117,9 @@ export default function BatchManagement() {
   const activeRole = localStorage.getItem("activeRole") || "";
 
   const canView = hasModulePermission(activeRole, "Products & Master", "View");
-
-  const canCreate = hasModulePermission(
-    activeRole,
-    "Products & Master",
-    "Create",
-  );
-
+  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-
-  const canDelete = hasModulePermission(
-    activeRole,
-    "Products & Master",
-    "Delete",
-  );
-
+  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
 
   const [newBatch, setNewBatch] = useState<Partial<Batch> & { unit?: string }>({
     batchNo: "",
@@ -168,66 +151,29 @@ export default function BatchManagement() {
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
     return `${diffDays} days`;
   };
-
-  // const calculateBatchStatus = (expiryDate: string) => {
-  //   const today = new Date();
-
-  //   const expiry = new Date(expiryDate);
-
-  //   const days = (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24);
-
-  //   if (days <= 0) return "Expired";
-
-  //   if (days <= 90) return "Nearing Expiry";
-
-  //   return "Available";
-  // };
-
   
   useEffect(() => {
     const savedProducts = productService.getProducts();
-
     setProducts(savedProducts);
   }, []);
 
-  useEffect(() => {
-    if (batches.length > 0) {
-      batchService.saveAll(batches as any);
-    }
-  }, [batches]);
-
   const handleProductSelect = (productName: string) => {
-    
     const product = products.find((p) => p.name === productName);
-    
 
     if (product) {
-      
       setNewBatch({
         ...newBatch,
-
         productName: product.name,
-
         productCode: product.code || "",
-
         hsnCode: product.hsnCode || "",
-
         gst: product.gst || "",
-
         composition: product.composition || "",
-
         packingType: product.packingType || "",
-
         scheme: product.scheme || "",
-
         manufacturer: product.manufacturer || "",
-
         unit: product.type || "",
-
         mrp: product.mrp || "",
-
         ptr: product.ptr || "",
-
         pts: product.pts || "",
       });
     } else {
@@ -248,7 +194,6 @@ export default function BatchManagement() {
       alert("Please fill all mandatory fields.");
       return;
     }
-
     
     // Date Validation
     if (new Date(newBatch.mfgDate) >= new Date(newBatch.expDate)) {
@@ -256,7 +201,7 @@ export default function BatchManagement() {
       return;
     }
 
-    //Duplicate batch validation
+    // Duplicate batch validation
     const duplicateBatch = batches.find(
       (batch) =>
         batch.batchNo.trim().toLowerCase() ===
@@ -269,27 +214,19 @@ export default function BatchManagement() {
     }
 
     if (isEditingModal && newBatch.id) {
-      
       const updatedBatch: Batch = {
         ...newBatch,
         productCode: newBatch.productCode,
-
         hsnCode: newBatch.hsnCode,
-
         gst: newBatch.gst,
-
         composition: newBatch.composition,
-
         packingType: newBatch.packingType,
-
         scheme: newBatch.scheme,
         unit: newBatch.unit || "",
-       
         manufacturer: newBatch.manufacturer || "",
         mrp: newBatch.mrp || "",
         ptr: newBatch.ptr || "",
         pts: newBatch.pts || "",
-        
         barcode: newBatch.barcode || "",
         remarks: newBatch.remarks || "",
         status: getExpiryStatus(newBatch.expDate || "") as Batch["status"],
@@ -308,40 +245,28 @@ export default function BatchManagement() {
         setSelectedBatch(updatedBatch);
       }
     } else {
-      
       const batch: Batch = {
         id: Date.now().toString(),
-        batchNo: newBatch.batchNo,
-        productName: newBatch.productName,
+        batchNo: newBatch.batchNo!,
+        productName: newBatch.productName!,
         productCode: newBatch.productCode,
-
         hsnCode: newBatch.hsnCode,
-
         gst: newBatch.gst,
-
         composition: newBatch.composition,
-
         packingType: newBatch.packingType,
-
         scheme: newBatch.scheme,
         unit: newBatch.unit || "",
-
         manufacturer: newBatch.manufacturer || "",
-        mfgDate: newBatch.mfgDate,
-        expDate: newBatch.expDate,
-       
+        mfgDate: newBatch.mfgDate!,
+        expDate: newBatch.expDate!,
         mrp: newBatch.mrp || "",
         ptr: newBatch.ptr || "",
         pts: newBatch.pts || "",
-        
         barcode: newBatch.barcode || "",
         remarks: newBatch.remarks || "",
         status: getExpiryStatus(newBatch.expDate || "") as Batch["status"],
       };
       setBatches([batch, ...batches]);
-      
-
-      
 
       activityLogService.addLog({
         userId: currentUser?.id,
@@ -351,7 +276,7 @@ export default function BatchManagement() {
       });
     }
     setShowBatchModal(false);
-  };;;
+  };
 
 
   const handleDeleteBatch = () => {
@@ -375,10 +300,8 @@ export default function BatchManagement() {
       batchNo: "",
       productName: "",
       productCode: "",
-
       hsnCode: "",
       gst: "",
-
       composition: "",
       packingType: "",
       scheme: "",
@@ -386,11 +309,9 @@ export default function BatchManagement() {
       unit: "",
       mfgDate: "",
       expDate: "",
-     
       mrp: "",
       ptr: "",
       pts: "",
-      
       barcode: "",
       remarks: "",
       status: "Healthy"
@@ -426,8 +347,6 @@ export default function BatchManagement() {
     document.body.removeChild(link);
   };
 
-  
-
 
   const columns: Column<Batch>[] = [
     { key: "batchNo", label: "Batch No" },
@@ -440,7 +359,6 @@ export default function BatchManagement() {
     },
     { key: "mfgDate", label: "Mfg Date" },
     { key: "expDate", label: "Exp Date" },
-    
     {
       key: "status",
       label: "Status",
@@ -497,7 +415,6 @@ export default function BatchManagement() {
     return (
       <div className="p-10 text-center">
         <h2 className="text-xl font-semibold">Access Denied</h2>
-
         <p className="text-slate-500 mt-2">
           You do not have permission to view Batch Management.
         </p>
@@ -509,7 +426,7 @@ export default function BatchManagement() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Batch Management"
-        subtitle="Track batches, expiry dates, and  batch health status."
+        subtitle="Track batches, expiry dates, and batch health status."
         actions={
           <>
             <ActionButton
@@ -590,6 +507,7 @@ export default function BatchManagement() {
                   Batch Number *
                 </label>
                 <input
+                  maxLength={20}
                   value={newBatch.batchNo}
                   onChange={(e) =>
                     !isEditingModal &&
@@ -686,7 +604,6 @@ export default function BatchManagement() {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50"
                 />
               </div>
-              
 
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
@@ -730,6 +647,7 @@ export default function BatchManagement() {
                 </label>
                 <input
                   value={newBatch.barcode}
+                  maxLength={20}
                   onChange={(e) =>
                     setNewBatch({ ...newBatch, barcode: e.target.value })
                   }
@@ -749,28 +667,6 @@ export default function BatchManagement() {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
-              {/* {isEditingModal && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">
-                    Status
-                  </label>
-                  <select
-                    value={newBatch.status}
-                    onChange={(e) =>
-                      setNewBatch({
-                        ...newBatch,
-                        status: e.target.value as any,
-                      })
-                    }
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                  >
-                    <option value="Available">Available</option>
-                    <option value="Expired">Expired</option>
-                    <option value="Quarantine">Quarantine</option>
-                    <option value="Nearing Expiry">Nearing Expiry</option>
-                  </select>
-                </div>
-              )} */}
             </div>
 
             <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
@@ -836,6 +732,7 @@ export default function BatchManagement() {
                 <DrawerField
                   label="Batch Number"
                   value={selectedBatch.batchNo || "N/A"}
+                  
                 />
                 <DrawerField
                   label="Product Name"
@@ -845,14 +742,11 @@ export default function BatchManagement() {
                   label="Product Code"
                   value={selectedBatch.productCode || "N/A"}
                 />
-
                 <DrawerField
                   label="HSN Code"
                   value={selectedBatch.hsnCode || "N/A"}
                 />
-
                 <DrawerField label="GST %" value={selectedBatch.gst || "N/A"} />
-
                 <DrawerField
                   label="Composition"
                   value={selectedBatch.composition || "N/A"}
@@ -861,17 +755,14 @@ export default function BatchManagement() {
                   label="Product Type"
                   value={selectedBatch.unit || "N/A"}
                 />
-
                 <DrawerField
                   label="Packing Type"
                   value={selectedBatch.packingType || "N/A"}
                 />
-
                 <DrawerField
                   label="Scheme"
                   value={selectedBatch.scheme || "N/A"}
                 />
-
                 <DrawerField
                   label="Manufacturer"
                   value={selectedBatch.manufacturer || "N/A"}
@@ -902,7 +793,7 @@ export default function BatchManagement() {
                 />
               </div>
             </div>
-           
+            
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
                 Pricing Details
@@ -927,9 +818,9 @@ export default function BatchManagement() {
                 Additional Information
               </h3>
               <div className="space-y-2">
-                
                 <DrawerField
                   label="Barcode"
+                
                   value={selectedBatch.barcode || "N/A"}
                 />
                 <DrawerField
