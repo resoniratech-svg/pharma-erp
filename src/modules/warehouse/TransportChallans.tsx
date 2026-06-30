@@ -1,3 +1,4 @@
+// TransportChallanManagement.tsx
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Download, Filter, ChevronDown, Eye, FileDown, Printer } from 'lucide-react';
 import { generatePdf } from '../../documents/generators/pdfGenerator';
@@ -19,27 +20,7 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
-
-interface Challan {
-  id: string;
-  challanNo: string;
-  challanDate: string;
-  dispatchNo: string;
-  dispatchDate: string;
-  orderNo?: string;
-  customer: string;
-  sourceWarehouse: string;
-  transporter: string;
-  vehicleNo: string;
-  driverName?: string;
-  driverMobile?: string;
-  totalItems: number;
-  totalQty: number;
-  status: 'Generated' | 'In Transit' | 'Delivered' | 'Cancelled';
-  products: { productName: string; batchNo: string; dispatchQty: number; }[];
-  createdBy: string;
-  createdDate: string;
-}
+import { transportChallanService, type Challan } from '../../services/transportChallanService';
 
 let cachedLogoBase64: string | null = null;
 
@@ -83,25 +64,11 @@ export default function TransportChallans() {
   const [newVehicle, setNewVehicle] = useState('');
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverMobile, setNewDriverMobile] = useState('');
+  const [nextChallanNo, setNextChallanNo] = useState('');
 
   useEffect(() => {
-    const storedChallans = localStorage.getItem('pharma_erp_challans');
-    if (storedChallans) {
-      try {
-        setChallans(JSON.parse(storedChallans));
-      } catch (e) {
-        setChallans([]);
-      }
-    }
-    
-    const storedDispatches = localStorage.getItem('pharma_erp_dispatches');
-    if (storedDispatches) {
-      try {
-        setDispatches(JSON.parse(storedDispatches));
-      } catch (e) {
-        setDispatches([]);
-      }
-    }
+    setChallans(transportChallanService.getAllChallans());
+    setDispatches(transportChallanService.getAllDispatches());
 
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -111,6 +78,12 @@ export default function TransportChallans() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    if (showCreateModal) {
+      setNextChallanNo(transportChallanService.generateNextChallanNumber());
+    }
+  }, [showCreateModal, challans]);
 
   useEffect(() => {
     if (selectedDispatchNo) {
@@ -333,8 +306,8 @@ export default function TransportChallans() {
     if (!newTransporter) return alert("Transporter is required.");
     if (!newVehicle) return alert("Vehicle Number is required.");
 
-    const challanNo = `CHL-${new Date().getFullYear()}-${String(challans.length + 1001)}`;
-    const currentUser = JSON.parse(localStorage.getItem('authUser') || '{}');
+    const challanNo = transportChallanService.generateNextChallanNumber();
+    const currentUser = transportChallanService.getCurrentUser();
     
     const newChallanObj: Challan = {
       id: Date.now().toString(),
@@ -357,9 +330,8 @@ export default function TransportChallans() {
       createdDate: new Date().toLocaleString()
     };
 
-    const updatedChallans = [newChallanObj, ...challans];
+    const updatedChallans = transportChallanService.createChallan(newChallanObj);
     setChallans(updatedChallans);
-    localStorage.setItem('pharma_erp_challans', JSON.stringify(updatedChallans));
     
     setShowCreateModal(false);
     
@@ -537,7 +509,7 @@ export default function TransportChallans() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Challan Number</label>
-                <input type="text" value={`CHL-${new Date().getFullYear()}-${String(challans.length + 1001)}`} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 font-mono" />
+                <input type="text" value={nextChallanNo} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 font-mono" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Challan Date *</label>

@@ -19,80 +19,53 @@ import {
   TableCard,
   FilterBar,
   SelectFilter,
+  SearchInput,
+  DataTable,
+  Badge
 } from './components/shared';
-
-// --- Types ---
-interface DispatchRecord {
-  id: string;
-  dispatchNo: string;
-  month: string;
-  transporter: string;
-  expectedDate: string; // YYYY-MM-DD
-  actualDate: string | null; // YYYY-MM-DD
-  status: 'In Transit' | 'Delivered' | 'Delayed' | 'Pending';
-}
-
-// --- Mock Data simulating database spanning multiple modules ---
-const mockDispatches: DispatchRecord[] = [
-  ...Array.from({ length: 150 }, (_, i) => ({
-    id: `D-JAN-${i}`, dispatchNo: `DSP-01-${i}`, month: 'Jan', transporter: 'BlueDart',
-    expectedDate: '2026-01-15', actualDate: '2026-01-14', status: 'Delivered'
-  })),
-  ...Array.from({ length: 5 }, (_, i) => ({
-    id: `D-JAN-DL-${i}`, dispatchNo: `DSP-01-DL-${i}`, month: 'Jan', transporter: 'BlueDart',
-    expectedDate: '2026-01-15', actualDate: '2026-01-17', status: 'Delayed'
-  })),
-  ...Array.from({ length: 180 }, (_, i) => ({
-    id: `D-FEB-${i}`, dispatchNo: `DSP-02-${i}`, month: 'Feb', transporter: 'Delhivery',
-    expectedDate: '2026-02-10', actualDate: '2026-02-09', status: 'Delivered'
-  })),
-  ...Array.from({ length: 12 }, (_, i) => ({
-    id: `D-FEB-DL-${i}`, dispatchNo: `DSP-02-DL-${i}`, month: 'Feb', transporter: 'Delhivery',
-    expectedDate: '2026-02-10', actualDate: '2026-02-12', status: 'Delayed'
-  })),
-  ...Array.from({ length: 220 }, (_, i) => ({
-    id: `D-MAR-${i}`, dispatchNo: `DSP-03-${i}`, month: 'Mar', transporter: 'DTDC',
-    expectedDate: '2026-03-20', actualDate: '2026-03-20', status: 'Delivered'
-  })),
-  ...Array.from({ length: 8 }, (_, i) => ({
-    id: `D-MAR-DL-${i}`, dispatchNo: `DSP-03-DL-${i}`, month: 'Mar', transporter: 'DTDC',
-    expectedDate: '2026-03-20', actualDate: '2026-03-22', status: 'Delayed'
-  })),
-  ...Array.from({ length: 200 }, (_, i) => ({
-    id: `D-APR-${i}`, dispatchNo: `DSP-04-${i}`, month: 'Apr', transporter: 'XpressBees',
-    expectedDate: '2026-04-05', actualDate: '2026-04-04', status: 'Delivered'
-  })),
-  ...Array.from({ length: 15 }, (_, i) => ({
-    id: `D-APR-DL-${i}`, dispatchNo: `DSP-04-DL-${i}`, month: 'Apr', transporter: 'XpressBees',
-    expectedDate: '2026-04-05', actualDate: '2026-04-08', status: 'Delayed'
-  })),
-  ...Array.from({ length: 250 }, (_, i) => ({
-    id: `D-MAY-${i}`, dispatchNo: `DSP-05-${i}`, month: 'May', transporter: 'BlueDart',
-    expectedDate: '2026-05-18', actualDate: '2026-05-18', status: 'Delivered'
-  })),
-  ...Array.from({ length: 20 }, (_, i) => ({
-    id: `D-MAY-DL-${i}`, dispatchNo: `DSP-05-DL-${i}`, month: 'May', transporter: 'Delhivery',
-    expectedDate: '2026-05-18', actualDate: '2026-05-20', status: 'Delayed'
-  })),
-  ...Array.from({ length: 280 }, (_, i) => ({
-    id: `D-JUN-${i}`, dispatchNo: `DSP-06-${i}`, month: 'Jun', transporter: 'DTDC',
-    expectedDate: '2026-06-12', actualDate: '2026-06-11', status: 'Delivered'
-  })),
-  ...Array.from({ length: 30 }, (_, i) => ({
-    id: `D-JUN-TR-${i}`, dispatchNo: `DSP-06-TR-${i}`, month: 'Jun', transporter: 'XpressBees',
-    expectedDate: '2026-06-25', actualDate: null, status: 'In Transit'
-  })),
-] as DispatchRecord[];
+import type { Column, BadgeVariant } from './components/shared';
+import { transportChallanService } from '../../services/transportChallanService';
 
 const MONTH_ORDER = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export default function DispatchReports() {
+  const [data, setData] = useState<any[]>([]);
   const [periodFilter, setPeriodFilter] = useState('All');
+  const [statusFilter, setStatusFilter] = useState('All');
+  const [transporterFilter, setTransporterFilter] = useState('All');
+  const [search, setSearch] = useState('');
   
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    const challans = transportChallanService.getAllChallans();
+    const formatted = challans.map(c => {
+      const dispatchDateStr = c.dispatchDate || c.challanDate || new Date().toISOString();
+      const dispatchDateObj = new Date(dispatchDateStr);
+      const monthIndex = isNaN(dispatchDateObj.getTime()) ? new Date().getMonth() : dispatchDateObj.getMonth();
+      const month = MONTH_ORDER[monthIndex];
+      
+      let deliveryStatus = c.status as string;
+      if (c.status === 'Cancelled') deliveryStatus = 'Returned';
+      if (c.status === 'Generated') deliveryStatus = 'Pending';
+      
+      return {
+        id: c.id,
+        dispatchNo: c.dispatchNo || '—',
+        dispatchDate: c.dispatchDate || '—',
+        customer: c.customer || '—',
+        transporter: c.transporter || '—',
+        challanNo: c.challanNo || '—',
+        lrNumber: c.challanNo ? c.challanNo.replace('CHL-', 'LR-').replace('CHL', 'LR') : '—',
+        deliveryStatus: deliveryStatus,
+        expectedDelivery: c.challanDate || c.dispatchDate || '—',
+        actualDelivery: c.actualDeliveryDate || '—',
+        month
+      };
+    });
+    setData(formatted);
+
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
         setShowExportMenu(false);
@@ -102,18 +75,42 @@ export default function DispatchReports() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Filter records
-  const filteredRecords = useMemo(() => {
-    if (periodFilter === 'All') return mockDispatches;
-    return mockDispatches.filter(d => d.month === periodFilter);
-  }, [periodFilter]);
+  const availableMonths = useMemo(() => {
+    const months = new Set(data.map(d => d.month));
+    return Array.from(months).sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b));
+  }, [data]);
 
-  // Derived KPIs
+  const availableTransporters = useMemo(() => {
+    const trans = new Set(data.map(d => d.transporter).filter(t => t && t !== '—'));
+    return Array.from(trans).sort();
+  }, [data]);
+
+  const filteredRecords = useMemo(() => {
+    return data.filter(d => {
+      if (periodFilter !== 'All' && d.month !== periodFilter) return false;
+      if (statusFilter !== 'All' && d.deliveryStatus !== statusFilter) return false;
+      if (transporterFilter !== 'All' && d.transporter !== transporterFilter) return false;
+      
+      if (search) {
+        const s = search.toLowerCase();
+        return (
+          d.dispatchNo.toLowerCase().includes(s) ||
+          d.challanNo.toLowerCase().includes(s) ||
+          d.lrNumber.toLowerCase().includes(s) ||
+          d.customer.toLowerCase().includes(s) ||
+          d.transporter.toLowerCase().includes(s)
+        );
+      }
+      return true;
+    });
+  }, [data, periodFilter, statusFilter, transporterFilter, search]);
+
   const {
     totalDispatches,
     delayedShipments,
+    inTransitCount,
+    deliveredCount,
     onTimeDeliveryPercent,
-    activeTransportersCount,
     volumeByMonth,
     maxVolume,
     transporterStats
@@ -121,45 +118,45 @@ export default function DispatchReports() {
     const total = filteredRecords.length;
     let delayed = 0;
     let onTime = 0;
-    const transporters = new Set<string>();
+    let inTransit = 0;
+    let delivered = 0;
     
     const monthlyData: Record<string, number> = {};
     const tStats: Record<string, { total: number; delivered: number; delayed: number }> = {};
 
     filteredRecords.forEach(record => {
-      transporters.add(record.transporter);
-      
-      // Volume
       monthlyData[record.month] = (monthlyData[record.month] || 0) + 1;
       
-      // Transporter aggregate
-      if (!tStats[record.transporter]) {
-        tStats[record.transporter] = { total: 0, delivered: 0, delayed: 0 };
+      const t = record.transporter;
+      if (t && t !== '—') {
+        if (!tStats[t]) {
+          tStats[t] = { total: 0, delivered: 0, delayed: 0 };
+        }
+        tStats[t].total += 1;
       }
-      tStats[record.transporter].total += 1;
 
-      // On-time vs Delayed Logic
-      // Assuming 'Delivered' strictly means on-time in this simplified mock if not explicitly 'Delayed'
-      if (record.status === 'Delayed') {
-        delayed += 1;
-        tStats[record.transporter].delayed += 1;
-      } else if (record.status === 'Delivered') {
+      if (record.deliveryStatus === 'In Transit') {
+        inTransit += 1;
+      }
+
+      if (record.deliveryStatus === 'Delivered') {
+        delivered += 1;
         onTime += 1;
-        tStats[record.transporter].delivered += 1;
+        if (t && t !== '—') tStats[t].delivered += 1;
+      } else if (record.deliveryStatus === 'Delayed' || record.deliveryStatus === 'Returned') {
+        delayed += 1;
+        if (t && t !== '—') tStats[t].delayed += 1;
       }
     });
 
-    // We calculate % based on strictly completed shipments (OnTime + Delayed)
     const completed = onTime + delayed;
     const onTimePercent = completed > 0 ? ((onTime / completed) * 100).toFixed(1) : '0.0';
 
-    // Format Volume Trend
     const volumeTrend = Object.keys(monthlyData)
       .sort((a, b) => MONTH_ORDER.indexOf(a) - MONTH_ORDER.indexOf(b))
       .map(month => ({ month, value: monthlyData[month] }));
     const maxVolume = Math.max(...volumeTrend.map(v => v.value), 1);
 
-    // Format Transporter Table
     const tTable = Object.keys(tStats).map(t => {
       const stats = tStats[t];
       const successRate = stats.total > 0 ? ((stats.delivered / stats.total) * 100).toFixed(1) : '0.0';
@@ -175,15 +172,15 @@ export default function DispatchReports() {
     return {
       totalDispatches: total,
       delayedShipments: delayed,
+      inTransitCount: inTransit,
+      deliveredCount: delivered,
       onTimeDeliveryPercent: onTimePercent,
-      activeTransportersCount: transporters.size,
       volumeByMonth: volumeTrend,
       maxVolume,
       transporterStats: tTable
     };
   }, [filteredRecords]);
 
-  // Exports
   const getFormattedDate = () => {
     const d = new Date();
     const yyyy = d.getFullYear();
@@ -192,28 +189,36 @@ export default function DispatchReports() {
     return `${yyyy}${mm}${dd}`;
   };
 
-  const exportDataArray = transporterStats.map(row => ({
+  const exportDataArray = filteredRecords.map(row => ({
+    'Dispatch No': row.dispatchNo,
+    'Dispatch Date': row.dispatchDate,
+    'Customer': row.customer,
     'Transporter': row.transporter,
-    'Total Shipments': row.shipments,
-    'Delivered': row.delivered,
-    'Delayed': row.delayed,
-    'Success Rate (%)': row.success
+    'Challan No': row.challanNo,
+    'LR Number': row.lrNumber,
+    'Delivery Status': row.deliveryStatus,
+    'Expected Delivery': row.expectedDelivery,
+    'Actual Delivery': row.actualDelivery
   }));
 
   const handleExportExcel = () => {
     const worksheet = XLSX.utils.json_to_sheet(exportDataArray);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Performance');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Dispatch Report');
     XLSX.writeFile(workbook, `dispatch_reports_${getFormattedDate()}.xlsx`);
     setShowExportMenu(false);
   };
 
   const handleExportCSV = () => {
-    const headers = ['Transporter', 'Total Shipments', 'Delivered', 'Delayed', 'Success Rate (%)'];
+    const headers = ['Dispatch No', 'Dispatch Date', 'Customer', 'Transporter', 'Challan No', 'LR Number', 'Delivery Status', 'Expected Delivery', 'Actual Delivery'];
     const csvContent = [
       headers.join(','),
       ...exportDataArray.map(row => 
-        [`"${row.Transporter}"`, row['Total Shipments'], row['Delivered'], row['Delayed'], row['Success Rate (%)']].join(',')
+        [
+          `"${row['Dispatch No']}"`, `"${row['Dispatch Date']}"`, `"${row['Customer']}"`,
+          `"${row['Transporter']}"`, `"${row['Challan No']}"`, `"${row['LR Number']}"`,
+          `"${row['Delivery Status']}"`, `"${row['Expected Delivery']}"`, `"${row['Actual Delivery']}"`
+        ].join(',')
       )
     ].join('\n');
     
@@ -229,36 +234,64 @@ export default function DispatchReports() {
   };
 
   const handleExportPDF = () => {
-    const doc = new jsPDF();
+    const doc = new jsPDF('landscape');
     doc.setFontSize(16);
-    doc.text('Dispatch & Logistics Report', 14, 15);
+    doc.text('Dispatch & Logistics Detailed Report', 14, 15);
     
     doc.setFontSize(10);
     doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 22);
     doc.text(`Period: ${periodFilter === 'All' ? 'All Time' : periodFilter}`, 14, 27);
     
     doc.text(`Total Dispatches: ${totalDispatches}`, 14, 37);
-    doc.text(`On-Time Delivery: ${onTimeDeliveryPercent}%`, 14, 42);
-    doc.text(`Delayed Shipments: ${delayedShipments}`, 14, 47);
-    doc.text(`Active Transporters: ${activeTransportersCount}`, 14, 52);
+    doc.text(`Delivered: ${deliveredCount}`, 14, 42);
+    doc.text(`In Transit: ${inTransitCount}`, 60, 37);
+    doc.text(`Delayed: ${delayedShipments}`, 60, 42);
 
     autoTable(doc, {
-      startY: 60,
-      head: [['Transporter', 'Total Shipments', 'Delivered', 'Delayed', 'Success Rate (%)']],
+      startY: 50,
+      head: [['Dispatch No', 'Date', 'Customer', 'Transporter', 'Challan No', 'LR Number', 'Status', 'Expected', 'Actual']],
       body: exportDataArray.map(row => [
-        row.Transporter,
-        row['Total Shipments'],
-        row['Delivered'],
-        row['Delayed'],
-        row['Success Rate (%)']
+        row['Dispatch No'],
+        row['Dispatch Date'],
+        row['Customer'],
+        row['Transporter'],
+        row['Challan No'],
+        row['LR Number'],
+        row['Delivery Status'],
+        row['Expected Delivery'],
+        row['Actual Delivery']
       ]),
       theme: 'grid',
-      headStyles: { fillColor: [139, 92, 246] }
+      headStyles: { fillColor: [139, 92, 246] },
+      styles: { fontSize: 8 }
     });
     
     doc.save(`dispatch_reports_${getFormattedDate()}.pdf`);
     setShowExportMenu(false);
   };
+
+  const columns: Column<any>[] = [
+    { key: 'dispatchNo', label: 'Dispatch No', render: (row) => <span className="font-semibold text-slate-900">{row.dispatchNo}</span> },
+    { key: 'dispatchDate', label: 'Dispatch Date' },
+    { key: 'customer', label: 'Customer', render: (row) => <span className="font-medium text-slate-800">{row.customer}</span> },
+    { key: 'transporter', label: 'Transporter' },
+    { key: 'challanNo', label: 'Challan No', render: (row) => <span className="text-slate-600">{row.challanNo}</span> },
+    { key: 'lrNumber', label: 'LR Number', render: (row) => <span className="text-slate-600">{row.lrNumber}</span> },
+    {
+      key: 'deliveryStatus',
+      label: 'Delivery Status',
+      render: (row) => {
+        let variant: BadgeVariant = 'neutral';
+        if (row.deliveryStatus === 'Delivered') variant = 'success';
+        if (row.deliveryStatus === 'In Transit') variant = 'info';
+        if (row.deliveryStatus === 'Delayed' || row.deliveryStatus === 'Returned') variant = 'danger';
+        if (row.deliveryStatus === 'Pending') variant = 'warning';
+        return <Badge variant={variant}>{row.deliveryStatus}</Badge>;
+      },
+    },
+    { key: 'expectedDelivery', label: 'Expected Delivery' },
+    { key: 'actualDelivery', label: 'Actual Delivery', render: (row) => row.actualDelivery || '—' },
+  ];
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -289,6 +322,8 @@ export default function DispatchReports() {
       />
 
       <FilterBar>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search dispatch, customer, LR..." />
+        <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
           <span className="text-sm font-medium text-slate-600">Filters:</span>
@@ -296,19 +331,30 @@ export default function DispatchReports() {
         <SelectFilter
           value={periodFilter}
           onChange={setPeriodFilter}
+          options={[{ label: 'All Dates', value: 'All' }, ...availableMonths.map(m => ({ label: m, value: m }))]}
+          placeholder="Date Range"
+        />
+        <SelectFilter
+          value={statusFilter}
+          onChange={setStatusFilter}
           options={[
-            { label: 'January', value: 'Jan' },
-            { label: 'February', value: 'Feb' },
-            { label: 'March', value: 'Mar' },
-            { label: 'April', value: 'Apr' },
-            { label: 'May', value: 'May' },
-            { label: 'June', value: 'Jun' },
+            { label: 'All Statuses', value: 'All' },
+            { label: 'Pending', value: 'Pending' },
+            { label: 'In Transit', value: 'In Transit' },
+            { label: 'Delivered', value: 'Delivered' },
+            { label: 'Delayed', value: 'Delayed' },
+            { label: 'Returned', value: 'Returned' }
           ]}
-          placeholder="All Periods"
+          placeholder="Status"
+        />
+        <SelectFilter
+          value={transporterFilter}
+          onChange={setTransporterFilter}
+          options={[{ label: 'All Transporters', value: 'All' }, ...availableTransporters.map(t => ({ label: t, value: t }))]}
+          placeholder="Transporter"
         />
       </FilterBar>
 
-      {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 mb-8">
         <SummaryCard
           title="Total Dispatches"
@@ -320,37 +366,34 @@ export default function DispatchReports() {
         />
 
         <SummaryCard
-          title="On-Time Delivery"
-          value={`${onTimeDeliveryPercent}%`}
-          subtitle="Success Rate"
+          title="Delivered"
+          value={deliveredCount.toLocaleString()}
+          subtitle={`Success Rate: ${onTimeDeliveryPercent}%`}
           icon={<TrendingUp className="w-6 h-6" />}
           colorClass="text-emerald-600"
           bgClass="bg-emerald-50"
         />
 
         <SummaryCard
-          title="Delayed Shipments"
-          value={delayedShipments.toLocaleString()}
-          subtitle="Exceeded ETA"
-          icon={<AlertTriangle className="w-6 h-6" />}
-          colorClass="text-red-600"
-          bgClass="bg-red-50"
-        />
-
-        <SummaryCard
-          title="Active Transporters"
-          value={activeTransportersCount.toLocaleString()}
-          subtitle="Utilized in period"
+          title="In Transit"
+          value={inTransitCount.toLocaleString()}
+          subtitle="Currently Moving"
           icon={<Truck className="w-6 h-6" />}
           colorClass="text-blue-600"
           bgClass="bg-blue-50"
         />
+
+        <SummaryCard
+          title="Delayed"
+          value={delayedShipments.toLocaleString()}
+          subtitle="Requires Action"
+          icon={<AlertTriangle className="w-6 h-6" />}
+          colorClass="text-red-600"
+          bgClass="bg-red-50"
+        />
       </div>
 
-      {/* Analytics Section */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-
-        {/* Dispatch Volume Trend */}
         <TableCard>
           <div className="p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-6">
@@ -384,114 +427,92 @@ export default function DispatchReports() {
           </div>
         </TableCard>
 
-        {/* Transporter Performance */}
         <TableCard>
           <div className="p-6">
             <h3 className="text-lg font-semibold text-slate-900 mb-6">
-              Transporter Performance
+              Transporter Performance Summary
             </h3>
 
-            <div className="space-y-4">
-              {transporterStats.length === 0 ? (
-                <p className="text-sm text-slate-500 py-4 text-center">No transporter data for selected period.</p>
-              ) : transporterStats.map((item) => (
-                <div key={item.transporter}>
-                  <div className="flex justify-between text-sm mb-1">
-                    <span className="text-slate-600">
-                      {item.transporter}
-                    </span>
-                    <span className="font-medium text-slate-900">
-                      {item.success}%
-                    </span>
-                  </div>
-                  <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                      style={{
-                        width: `${item.success}%`,
-                      }}
-                    />
-                  </div>
-                </div>
-              ))}
+            <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50/80 border-b border-slate-200">
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
+                        Transporter
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
+                        Total
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
+                        Delivered
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
+                        Delayed
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
+                        Success
+                      </th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-slate-100">
+                    {transporterStats.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-sm text-slate-500">
+                          No performance data available.
+                        </td>
+                      </tr>
+                    ) : transporterStats.map((item, index) => (
+                      <tr
+                        key={index}
+                        className="transition-colors hover:bg-violet-50/40"
+                      >
+                        <td className="px-4 py-3 text-sm font-medium text-slate-900 whitespace-nowrap">
+                          {item.transporter}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-slate-700 whitespace-nowrap">
+                          {item.shipments}
+                        </td>
+                        <td className="px-4 py-3 text-sm whitespace-nowrap">
+                          <span className="inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700 border border-emerald-200">
+                            {item.delivered}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm whitespace-nowrap">
+                          <span className="inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 border border-red-200">
+                            {item.delayed}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm whitespace-nowrap">
+                          <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700 border border-blue-200">
+                            {item.success}%
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         </TableCard>
       </div>
 
-      {/* Performance Summary Table */}
-      <TableCard>
-        <div>
+      <div className="mt-8">
+        <TableCard>
           <div className="px-6 py-5 border-b border-slate-200">
-            <h3 className="text-lg font-semibold text-slate-900">
-              Transporter Performance Summary
-            </h3>
+            <h3 className="text-lg font-semibold text-slate-900">Detailed Dispatch Report</h3>
           </div>
-
           <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50/80 border-b border-slate-200">
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
-                      Transporter
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
-                      Total Shipments
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
-                      Delivered
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
-                      Delayed
-                    </th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-600 whitespace-nowrap">
-                      Success Rate
-                    </th>
-                  </tr>
-                </thead>
-
-                <tbody className="divide-y divide-slate-100">
-                  {transporterStats.length === 0 ? (
-                    <tr>
-                      <td colSpan={5} className="py-8 text-center text-sm text-slate-500">
-                        No performance data available.
-                      </td>
-                    </tr>
-                  ) : transporterStats.map((item, index) => (
-                    <tr
-                      key={index}
-                      className="transition-colors hover:bg-violet-50/40"
-                    >
-                      <td className="px-6 py-3.5 text-sm font-medium text-slate-900 whitespace-nowrap">
-                        {item.transporter}
-                      </td>
-                      <td className="px-6 py-3.5 text-sm text-slate-700 whitespace-nowrap">
-                        {item.shipments}
-                      </td>
-                      <td className="px-6 py-3.5 text-sm whitespace-nowrap">
-                        <span className="inline-flex items-center rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 border border-emerald-200">
-                          {item.delivered}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3.5 text-sm whitespace-nowrap">
-                        <span className="inline-flex items-center rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 border border-red-200">
-                          {item.delayed}
-                        </span>
-                      </td>
-                      <td className="px-6 py-3.5 text-sm whitespace-nowrap">
-                        <span className="inline-flex items-center rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700 border border-blue-200">
-                          {item.success}%
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              columns={columns}
+              data={filteredRecords}
+              emptyMessage="No dispatch records found."
+            />
           </div>
-        </div>
-      </TableCard>
+        </TableCard>
+      </div>
     </div>
   );
 }

@@ -2,13 +2,44 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import logoPng from '../../assets/logo/mj-healthcare-logo.png';
 
+const getBase64ImageSync = (url: string): string => {
+  if (url.startsWith('data:')) {
+    return url;
+  }
+  try {
+    const xhr = new XMLHttpRequest();
+    xhr.open('GET', url, false);
+    xhr.overrideMimeType('text/plain; charset=x-user-defined');
+    xhr.send();
+    if (xhr.status === 200 || xhr.status === 0) {
+      const responseText = xhr.responseText;
+      let binary = '';
+      for (let i = 0; i < responseText.length; i++) {
+        binary += String.fromCharCode(responseText.charCodeAt(i) & 0xff);
+      }
+      return 'data:image/png;base64,' + window.btoa(binary);
+    }
+  } catch (error) {
+    console.warn('Failed to convert image to base64 synchronously', error);
+  }
+  return url;
+};
+
 export const applyTransportChallanTemplate = (doc: jsPDF, challan: any) => {
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
   
   // 1 & 2. Logo and Company Info (Top Left)
   try {
-    doc.addImage(logoPng, 'PNG', 15, 15, 35, 16);
+    const img = new Image();
+    img.src = logoPng;
+    
+    if (img.complete && img.width > 0) {
+      doc.addImage(img, 'PNG', 15, 15, 35, 16);
+    } else {
+      const base64Logo = getBase64ImageSync(logoPng);
+      doc.addImage(base64Logo, 'PNG', 15, 15, 35, 16);
+    }
   } catch (e) {
     // Fallback if image fails to load
     doc.setFont('helvetica', 'bold');
