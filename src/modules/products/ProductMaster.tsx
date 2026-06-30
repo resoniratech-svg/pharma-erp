@@ -238,6 +238,8 @@ export default function ProductMaster() {
     "Medical Devices", "Surgical Items"
   ]);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
+  const [showCompositionDropdown, setShowCompositionDropdown] = useState(false);
+  const [showSchemeDropdown, setShowSchemeDropdown] = useState(false);
   
   const [products, setProducts] = useState<Product[]>([]);
   const [packingTypes, setPackingTypes] = useState<any[]>([]);
@@ -332,6 +334,16 @@ export default function ProductMaster() {
     const gstData = gstService.getAll();
     setGstRecords(gstData);
   }, []);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && showNewProductModal) {
+        setShowNewProductModal(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [showNewProductModal]);
 
   if (!canView) {
     return (
@@ -850,18 +862,25 @@ export default function ProductMaster() {
       )}
 
       {showNewProductModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="flex items-center justify-between mb-6">
+        <div 
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={() => setShowNewProductModal(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-white sticky top-0 z-10">
               <h2 className="text-xl font-bold text-slate-900">
                 {editMode ? "Edit Product" : "Create New Product"}
               </h2>
-              <button onClick={() => setShowNewProductModal(false)} className="text-slate-500 hover:text-slate-800">
+              <button onClick={() => setShowNewProductModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors outline-none">
                 ✕
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-6 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2 mt-2 first:mt-0">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
                   Basic Information
@@ -969,34 +988,94 @@ export default function ProductMaster() {
                 </select>
               </div>
 
-              <div className="md:col-span-2">
+              <div className="relative">
                 <label className="block text-sm font-medium mb-1">Composition</label>
-                <select
-                  value={newProduct.composition}
-                  onChange={(e) => setNewProduct({ ...newProduct, composition: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                >
-                  <option value="">Select Composition</option>
-                  {compositions.map((item) => (
-                    <option key={item.id} value={item.genericName}>{item.genericName}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={newProduct.composition}
+                    onChange={(e) => {
+                      setNewProduct({ ...newProduct, composition: e.target.value });
+                      setShowCompositionDropdown(true);
+                    }}
+                    onFocus={() => setShowCompositionDropdown(true)}
+                    placeholder="Select or type Composition"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
+                  />
+                  <span
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs cursor-pointer"
+                    onClick={() => setShowCompositionDropdown(!showCompositionDropdown)}
+                  >
+                    ▼
+                  </span>
+                </div>
+
+                {showCompositionDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowCompositionDropdown(false)} />
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                      {compositions
+                        .filter((c) => c.genericName.toLowerCase().includes((newProduct.composition || "").toLowerCase()))
+                        .map((cat) => (
+                          <div
+                            key={cat.id}
+                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded"
+                            onClick={() => {
+                              setNewProduct({ ...newProduct, composition: cat.genericName });
+                              setShowCompositionDropdown(false);
+                            }}
+                          >
+                            {cat.genericName}
+                          </div>
+                        ))}
+                    </div>
+                  </>
+                )}
               </div>
 
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-medium mb-1">Scheme</label>
-                <select
-                  value={newProduct.scheme}
-                  onChange={(e) => setNewProduct({ ...newProduct, scheme: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                >
-                  <option value="">Select Scheme</option>
-                  {schemes
-                    .filter((scheme) => scheme.status === "Active")
-                    .map((scheme) => (
-                      <option key={scheme.id} value={scheme.name}>{scheme.name}</option>
-                    ))}
-                </select>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={newProduct.scheme}
+                    onChange={(e) => {
+                      setNewProduct({ ...newProduct, scheme: e.target.value });
+                      setShowSchemeDropdown(true);
+                    }}
+                    onFocus={() => setShowSchemeDropdown(true)}
+                    placeholder="Select or type Scheme"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
+                  />
+                  <span
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs cursor-pointer"
+                    onClick={() => setShowSchemeDropdown(!showSchemeDropdown)}
+                  >
+                    ▼
+                  </span>
+                </div>
+
+                {showSchemeDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowSchemeDropdown(false)} />
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                      {schemes
+                        .filter((s) => s.status === "Active" && s.name.toLowerCase().includes((newProduct.scheme || "").toLowerCase()))
+                        .map((sch) => (
+                          <div
+                            key={sch.id}
+                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded"
+                            onClick={() => {
+                              setNewProduct({ ...newProduct, scheme: sch.name });
+                              setShowSchemeDropdown(false);
+                            }}
+                          >
+                            {sch.name}
+                          </div>
+                        ))}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div>
@@ -1218,7 +1297,9 @@ export default function ProductMaster() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-8">
+            </div>
+            
+            <div className="p-6 border-t border-slate-100 bg-white sticky bottom-0 z-10 flex justify-end gap-3 rounded-b-2xl">
               <ActionButton variant="secondary" onClick={() => setShowNewProductModal(false)}>
                 Cancel
               </ActionButton>

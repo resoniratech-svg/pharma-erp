@@ -1,8 +1,10 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Download, Filter, ChevronDown, Eye, FileDown, Printer, FileText } from 'lucide-react';
+import { Plus, Download, Filter, ChevronDown, Eye, FileDown, Printer } from 'lucide-react';
 import { generatePdf } from '../../documents/generators/pdfGenerator';
 import { generatePrint } from '../../documents/generators/printGenerator';
-import { generateLRPdf } from '../../documents/generators/generateLRPdf';
+import jsPDF from 'jspdf';
+import { applyTransportChallanTemplate } from '../../documents/templates/TransportChallanTemplate';
+import logoPng from '../../assets/logo/mj-healthcare-logo.png';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
@@ -18,164 +20,89 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 
-// -- Mock Data & Types --
-
-interface DispatchProduct {
-  productName: string;
-  batchNo: string;
-  dispatchQty: number;
-}
-
-interface DispatchInfo {
-  dispatchNo: string;
-  orderNo: string;
-  customer: string;
-  customerContactPerson: string;
-  customerMobile: string;
-  destinationAddr: string;
-  sourceWarehouse: string;
-  transporter: string;
-  vehicleNo: string;
-  driverName: string;
-  driverMobile: string;
-  lrNumber: string;
-  products: DispatchProduct[];
-}
-
 interface Challan {
   id: string;
   challanNo: string;
   challanDate: string;
   dispatchNo: string;
-  orderNo: string;
+  dispatchDate: string;
+  orderNo?: string;
   customer: string;
-  customerContactPerson: string;
-  customerMobile: string;
-  deliveryAddress: string;
   sourceWarehouse: string;
   transporter: string;
   vehicleNo: string;
-  driverName: string;
-  driverMobile: string;
-  lrNumber: string;
-  noOfPackages: number;
+  driverName?: string;
+  driverMobile?: string;
+  totalItems: number;
   totalQty: number;
-  totalWeight: string;
-  expectedDeliveryDate: string;
-  remarks: string;
   status: 'Generated' | 'In Transit' | 'Delivered' | 'Cancelled';
-  products: DispatchProduct[];
+  products: { productName: string; batchNo: string; dispatchQty: number; }[];
   createdBy: string;
   createdDate: string;
-  updatedBy: string;
-  updatedDate: string;
 }
 
-const mockDispatches: DispatchInfo[] = [
-  {
-    dispatchNo: 'DSP-2026-0001',
-    orderNo: 'SO-2026-0102',
-    customer: 'Apollo Hospitals',
-    customerContactPerson: 'Dr. Ramesh',
-    customerMobile: '9876543210',
-    destinationAddr: '123 Apollo Road, Jubilee Hills, Hyderabad',
-    sourceWarehouse: 'Hyderabad Warehouse',
-    transporter: 'VRL Logistics',
-    vehicleNo: 'TS09AB1234',
-    driverName: 'Suresh',
-    driverMobile: '9988776655',
-    lrNumber: 'LR-2026-2001',
-    products: [
-      { productName: 'Paracetamol 500mg', batchNo: 'B-102', dispatchQty: 2000 }
-    ]
-  },
-  {
-    dispatchNo: 'DSP-2026-0002',
-    orderNo: 'SO-2026-0105',
-    customer: 'Care Pharmacy',
-    customerContactPerson: 'Mr. Sharma',
-    customerMobile: '9123456789',
-    destinationAddr: '45 Care Avenue, Andheri West, Mumbai',
-    sourceWarehouse: 'Mumbai Warehouse',
-    transporter: 'Blue Dart',
-    vehicleNo: 'MH02XY5678',
-    driverName: 'Raju',
-    driverMobile: '9876512345',
-    lrNumber: 'LR-2026-2005',
-    products: [
-      { productName: 'Amoxicillin 250mg', batchNo: 'B-105', dispatchQty: 3000 },
-      { productName: 'Cough Syrup 100ml', batchNo: 'B-110', dispatchQty: 1500 }
-    ]
-  }
-];
+let cachedLogoBase64: string | null = null;
 
-const mockTransporters = ['VRL Logistics', 'Blue Dart', 'Delhivery', 'Gati Express'];
-
-const initialChallans: Challan[] = [
-  {
-    id: '1',
-    challanNo: 'CHL-2026-1001',
-    challanDate: '12-Jun-2026',
-    dispatchNo: 'DSP-2026-0001',
-    orderNo: 'SO-2026-0102',
-    customer: 'Apollo Hospitals',
-    customerContactPerson: 'Dr. Ramesh',
-    customerMobile: '9876543210',
-    deliveryAddress: '123 Apollo Road, Jubilee Hills, Hyderabad',
-    sourceWarehouse: 'Hyderabad Warehouse',
-    transporter: 'VRL Logistics',
-    vehicleNo: 'TS09AB1234',
-    driverName: 'Suresh',
-    driverMobile: '9988776655',
-    lrNumber: 'LR-2026-2001',
-    noOfPackages: 25,
-    totalQty: 2000,
-    totalWeight: '850 KG',
-    expectedDeliveryDate: '14-Jun-2026',
-    remarks: 'Handle with care. Temperature controlled shipment.',
-    status: 'In Transit',
-    products: [
-      { productName: 'Paracetamol 500mg', batchNo: 'B-102', dispatchQty: 2000 }
-    ],
-    createdBy: 'System User',
-    createdDate: '12-Jun-2026 10:30 AM',
-    updatedBy: 'System User',
-    updatedDate: '12-Jun-2026 10:30 AM'
+const getLogoBase64 = async (): Promise<string> => {
+  if (cachedLogoBase64) return cachedLogoBase64;
+  try {
+    const res = await fetch(logoPng);
+    const blob = await res.blob();
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        cachedLogoBase64 = reader.result as string;
+        resolve(cachedLogoBase64);
+      };
+      reader.onerror = reject;
+      reader.readAsDataURL(blob);
+    });
+  } catch (error) {
+    console.error('Failed to load logo base64:', error);
+    return '';
   }
-];
+};
 
 export default function TransportChallans() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [challans, setChallans] = useState<Challan[]>(initialChallans);
+  const [challans, setChallans] = useState<Challan[]>([]);
+  const [dispatches, setDispatches] = useState<any[]>([]);
   
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  // View Drawer State
   const [selectedChallan, setSelectedChallan] = useState<Challan | null>(null);
-
-  // Create Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
   const [selectedDispatchNo, setSelectedDispatchNo] = useState('');
   
-  // Auto-populated fields
-  const [activeDispatch, setActiveDispatch] = useState<DispatchInfo | null>(null);
+  const [activeDispatch, setActiveDispatch] = useState<any | null>(null);
   const [newTransporter, setNewTransporter] = useState('');
   const [newVehicle, setNewVehicle] = useState('');
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverMobile, setNewDriverMobile] = useState('');
-  const [newLRNumber, setNewLRNumber] = useState('');
-  
-  // Form input fields
-  const [newNoOfPackages, setNewNoOfPackages] = useState<number | ''>('');
-  const [newTotalWeight, setNewTotalWeight] = useState('');
-  const [newExpectedDate, setNewExpectedDate] = useState('');
-  const [newRemarks, setNewRemarks] = useState('');
 
   useEffect(() => {
+    const storedChallans = localStorage.getItem('pharma_erp_challans');
+    if (storedChallans) {
+      try {
+        setChallans(JSON.parse(storedChallans));
+      } catch (e) {
+        setChallans([]);
+      }
+    }
+    
+    const storedDispatches = localStorage.getItem('pharma_erp_dispatches');
+    if (storedDispatches) {
+      try {
+        setDispatches(JSON.parse(storedDispatches));
+      } catch (e) {
+        setDispatches([]);
+      }
+    }
+
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
         setShowExportMenu(false);
@@ -185,17 +112,15 @@ export default function TransportChallans() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Sync dispatch selection to modal fields
   useEffect(() => {
     if (selectedDispatchNo) {
-      const disp = mockDispatches.find(d => d.dispatchNo === selectedDispatchNo);
+      const disp = dispatches.find(d => d.dispatchId === selectedDispatchNo);
       if (disp) {
         setActiveDispatch(disp);
-        setNewTransporter(disp.transporter);
-        setNewVehicle(disp.vehicleNo);
-        setNewDriverName(disp.driverName);
-        setNewDriverMobile(disp.driverMobile);
-        setNewLRNumber(disp.lrNumber);
+        setNewTransporter(disp.transporter || '');
+        setNewVehicle(disp.vehicleNumber || '');
+        setNewDriverName(disp.driverName || '');
+        setNewDriverMobile(disp.driverMobile || '');
       }
     } else {
       setActiveDispatch(null);
@@ -203,9 +128,8 @@ export default function TransportChallans() {
       setNewVehicle('');
       setNewDriverName('');
       setNewDriverMobile('');
-      setNewLRNumber('');
     }
-  }, [selectedDispatchNo]);
+  }, [selectedDispatchNo, dispatches]);
 
   const filteredData = useMemo(() => {
     return challans.filter((item) => {
@@ -261,22 +185,10 @@ export default function TransportChallans() {
               handleDownloadPDF(row);
             }}
             className="text-slate-400 hover:text-violet-600 transition-colors"
-            title="Download Challan PDF"
+            title="Download PDF"
           >
             <FileDown className="w-4 h-4" />
           </button>
-          {row.lrNumber && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                handleDownloadLR(row);
-              }}
-              className="text-slate-400 hover:text-violet-600 transition-colors"
-              title="Download LR Document"
-            >
-              <FileText className="w-4 h-4" />
-            </button>
-          )}
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -341,66 +253,116 @@ export default function TransportChallans() {
     setShowExportMenu(false);
   };
 
-  const handlePrint = (challan: Challan) => {
-    generatePrint(challan);
+  const handleDownloadPDF = async (challan: Challan) => {
+    const base64 = await getLogoBase64();
+    const originalAddImage = (jsPDF.prototype as any).addImage;
+    
+    if (base64) {
+      (jsPDF.prototype as any).addImage = function(imageData: any, format: any, ...args: any[]) {
+        if (imageData === logoPng) {
+          return originalAddImage.apply(this, [base64, format, ...args]);
+        }
+        return originalAddImage.apply(this, [imageData, format, ...args]);
+      };
+    }
+    
+    try {
+      generatePdf(challan);
+    } finally {
+      if (base64) {
+        (jsPDF.prototype as any).addImage = originalAddImage;
+      }
+    }
   };
 
-  const handleDownloadPDF = (challan: Challan) => {
-    generatePdf(challan);
-  };
+  const handlePrint = async (challan: Challan) => {
+    const base64 = await getLogoBase64();
+    const originalAddImage = (jsPDF.prototype as any).addImage;
+    
+    if (base64) {
+      (jsPDF.prototype as any).addImage = function(imageData: any, format: any, ...args: any[]) {
+        if (imageData === logoPng) {
+          return originalAddImage.apply(this, [base64, format, ...args]);
+        }
+        return originalAddImage.apply(this, [imageData, format, ...args]);
+      };
+    }
 
-  const handleDownloadLR = (challan: Challan) => {
-    generateLRPdf(challan);
+    try {
+      const doc = new jsPDF();
+      applyTransportChallanTemplate(doc, challan);
+      
+      const pdfUrl = doc.output('bloburl');
+      const iframe = document.createElement('iframe');
+      
+      // Use fixed positioning off-screen to avoid display:none print blocking in some browsers
+      iframe.style.position = 'fixed';
+      iframe.style.right = '0';
+      iframe.style.bottom = '0';
+      iframe.style.width = '0';
+      iframe.style.height = '0';
+      iframe.style.border = 'none';
+      iframe.src = pdfUrl.toString();
+      
+      iframe.onload = () => {
+        setTimeout(() => {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        }, 500);
+      };
+      
+      document.body.appendChild(iframe);
+      
+      // Cleanup the iframe after printing dialog appears
+      setTimeout(() => {
+        if (document.body.contains(iframe)) {
+          document.body.removeChild(iframe);
+        }
+      }, 15000);
+    } catch (err) {
+      console.error('Print failed:', err);
+    } finally {
+      if (base64) {
+        (jsPDF.prototype as any).addImage = originalAddImage;
+      }
+    }
   };
 
   const handleGenerateChallan = () => {
     if (!activeDispatch) return alert("Dispatch Number is required.");
     if (!newTransporter) return alert("Transporter is required.");
     if (!newVehicle) return alert("Vehicle Number is required.");
-    if (!newNoOfPackages) return alert("Number Of Packages is required.");
 
-    const totalQty = activeDispatch.products.reduce((acc, curr) => acc + curr.dispatchQty, 0);
-
-    const challanNo = `CHL-2026-${String(challans.length + 1001)}`;
+    const challanNo = `CHL-${new Date().getFullYear()}-${String(challans.length + 1001)}`;
+    const currentUser = JSON.parse(localStorage.getItem('authUser') || '{}');
+    
     const newChallanObj: Challan = {
       id: Date.now().toString(),
       challanNo,
       challanDate: newDate,
-      dispatchNo: activeDispatch.dispatchNo,
-      orderNo: activeDispatch.orderNo,
-      customer: activeDispatch.customer,
-      customerContactPerson: activeDispatch.customerContactPerson,
-      customerMobile: activeDispatch.customerMobile,
-      deliveryAddress: activeDispatch.destinationAddr,
+      dispatchNo: activeDispatch.dispatchId,
+      dispatchDate: activeDispatch.date,
+      orderNo: activeDispatch.orderId || '',
+      customer: activeDispatch.client,
       sourceWarehouse: activeDispatch.sourceWarehouse,
       transporter: newTransporter,
       vehicleNo: newVehicle,
       driverName: newDriverName,
       driverMobile: newDriverMobile,
-      lrNumber: newLRNumber,
-      noOfPackages: Number(newNoOfPackages),
-      totalQty,
-      totalWeight: newTotalWeight,
-      expectedDeliveryDate: newExpectedDate,
-      remarks: newRemarks,
+      totalItems: activeDispatch.totalItems,
+      totalQty: activeDispatch.totalQuantity,
       status: 'Generated',
-      products: activeDispatch.products.map(p => ({ ...p })),
-      createdBy: 'System Admin',
-      createdDate: new Date().toLocaleString(),
-      updatedBy: 'System Admin',
-      updatedDate: new Date().toLocaleString()
+      products: activeDispatch.products.map((p: any) => ({ ...p })),
+      createdBy: currentUser?.fullName || 'System User',
+      createdDate: new Date().toLocaleString()
     };
 
-    setChallans([newChallanObj, ...challans]);
+    const updatedChallans = [newChallanObj, ...challans];
+    setChallans(updatedChallans);
+    localStorage.setItem('pharma_erp_challans', JSON.stringify(updatedChallans));
+    
     setShowCreateModal(false);
     
-    // Trigger PDF Generation
-    generatePdf(newChallanObj);
-    if (newLRNumber) {
-      generateLRPdf(newChallanObj);
-    }
-    
-    // Reset Form
     setNewDate(new Date().toISOString().split('T')[0]);
     setSelectedDispatchNo('');
     setActiveDispatch(null);
@@ -408,14 +370,8 @@ export default function TransportChallans() {
     setNewVehicle('');
     setNewDriverName('');
     setNewDriverMobile('');
-    setNewLRNumber('');
-    setNewNoOfPackages('');
-    setNewTotalWeight('');
-    setNewExpectedDate('');
-    setNewRemarks('');
-    
-    console.log(`[Challan Generated] Linked to dispatch ${activeDispatch.dispatchNo}`);
-    console.log(`[Challan Generated] Linked to transporter ${newTransporter}`);
+
+    alert('Transport Challan generated successfully!');
   };
 
   return (
@@ -478,7 +434,6 @@ export default function TransportChallans() {
         />
       </TableCard>
 
-      {/* Transport Challan Details Drawer */}
       <Drawer open={!!selectedChallan} onClose={() => setSelectedChallan(null)} title="Transport Challan Details">
         {selectedChallan && (
           <div className="space-y-6">
@@ -488,7 +443,6 @@ export default function TransportChallans() {
                 <DrawerField label="Challan Number" value={<span className="font-semibold text-slate-900">{selectedChallan.challanNo}</span>} />
                 <DrawerField label="Challan Date" value={selectedChallan.challanDate} />
                 <DrawerField label="Dispatch Number" value={selectedChallan.dispatchNo} />
-                <DrawerField label="Order Number" value={selectedChallan.orderNo} />
                 <DrawerField label="Status" value={
                   <Badge variant={
                     selectedChallan.status === 'Generated' ? 'info' : 
@@ -502,17 +456,15 @@ export default function TransportChallans() {
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Customer Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Customer & Warehouse</h3>
               <div className="space-y-2">
                 <DrawerField label="Customer Name" value={selectedChallan.customer} />
-                <DrawerField label="Contact Person" value={selectedChallan.customerContactPerson} />
-                <DrawerField label="Mobile Number" value={selectedChallan.customerMobile} />
-                <DrawerField label="Delivery Address" value={<span className="whitespace-pre-line">{selectedChallan.deliveryAddress}</span>} />
+                <DrawerField label="Source Warehouse" value={selectedChallan.sourceWarehouse} />
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Product Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Product Summary</h3>
               <div className="overflow-x-auto border border-slate-200 rounded-lg">
                 <table className="w-full text-left text-sm">
                   <thead>
@@ -530,6 +482,10 @@ export default function TransportChallans() {
                         <td className="py-2 px-3 text-slate-900 font-medium text-right">{p.dispatchQty}</td>
                       </tr>
                     ))}
+                    <tr className="bg-slate-50 font-semibold text-slate-900 border-t border-slate-200">
+                      <td colSpan={2} className="py-2 px-3 text-right">Total Quantity:</td>
+                      <td className="py-2 px-3 text-right text-violet-700">{selectedChallan.totalQty}</td>
+                    </tr>
                   </tbody>
                 </table>
               </div>
@@ -539,20 +495,9 @@ export default function TransportChallans() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Transport Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Transporter" value={selectedChallan.transporter} />
-                <DrawerField label="Vehicle Number" value={selectedChallan.vehicleNo} />
+                <DrawerField label="Vehicle Number" value={<span className="font-mono text-slate-700">{selectedChallan.vehicleNo}</span>} />
                 <DrawerField label="Driver Name" value={selectedChallan.driverName || '—'} />
                 <DrawerField label="Driver Mobile" value={selectedChallan.driverMobile || '—'} />
-                <DrawerField label="LR Number" value={<span className="font-mono text-slate-700">{selectedChallan.lrNumber || '—'}</span>} />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Shipment Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Number Of Packages" value={selectedChallan.noOfPackages} />
-                <DrawerField label="Total Quantity" value={<span className="font-semibold text-slate-900">{selectedChallan.totalQty}</span>} />
-                <DrawerField label="Total Weight" value={selectedChallan.totalWeight || '—'} />
-                <DrawerField label="Expected Delivery Date" value={selectedChallan.expectedDeliveryDate || '—'} />
               </div>
             </div>
 
@@ -561,8 +506,6 @@ export default function TransportChallans() {
               <div className="space-y-2">
                 <DrawerField label="Created By" value={selectedChallan.createdBy} />
                 <DrawerField label="Created Date" value={selectedChallan.createdDate} />
-                <DrawerField label="Updated By" value={selectedChallan.updatedBy} />
-                <DrawerField label="Updated Date" value={selectedChallan.updatedDate} />
               </div>
             </div>
 
@@ -573,7 +516,6 @@ export default function TransportChallans() {
         )}
       </Drawer>
 
-      {/* Generate Challan Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -590,108 +532,98 @@ export default function TransportChallans() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Section 1 - Challan Information */}
               <div className="md:col-span-2 mt-2 first:mt-0">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Challan Information</h3>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Challan Number</label>
-                <input type="text" value={`CHL-2026-${String(challans.length + 1001)}`} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 font-mono" />
+                <input type="text" value={`CHL-${new Date().getFullYear()}-${String(challans.length + 1001)}`} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 font-mono" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Challan Date *</label>
                 <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
-              <div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Dispatch Number *</label>
                 <select value={selectedDispatchNo} onChange={e => setSelectedDispatchNo(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
                   <option value="">Select Dispatch</option>
-                  {mockDispatches.map(d => <option key={d.dispatchNo} value={d.dispatchNo}>{d.dispatchNo}</option>)}
+                  {dispatches.filter(d => ['Ready to Ship', 'Packed', 'Dispatched'].includes(d.status)).map(d => (
+                    <option key={d.dispatchId} value={d.dispatchId}>{d.dispatchId}</option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Order Number</label>
-                <input type="text" value={activeDispatch?.orderNo || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+                <label className="block text-sm font-medium mb-1">Dispatch Date</label>
+                <input type="text" value={activeDispatch?.date || ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Customer</label>
+                <input type="text" value={activeDispatch?.client || ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Customer</label>
-                <input type="text" value={activeDispatch?.customer || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
-              </div>
-
-              {/* Section 2 - Source & Destination */}
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Source & Destination</h3>
-              </div>
-              <div>
                 <label className="block text-sm font-medium mb-1">Source Warehouse</label>
-                <input type="text" value={activeDispatch?.sourceWarehouse || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Delivery Address</label>
-                <input type="text" value={activeDispatch?.destinationAddr || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Contact Person</label>
-                <input type="text" value={activeDispatch?.customerContactPerson || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Mobile Number</label>
-                <input type="text" value={activeDispatch?.customerMobile || ''} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+                <input type="text" value={activeDispatch?.sourceWarehouse || ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
               </div>
 
-              {/* Section 3 - Transport Details */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Product Summary</h3>
+                {activeDispatch ? (
+                  <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                    <table className="w-full text-left text-sm">
+                      <thead>
+                        <tr className="bg-slate-50 border-b border-slate-200">
+                          <th className="py-2 px-3 font-semibold text-slate-600">Product Name</th>
+                          <th className="py-2 px-3 font-semibold text-slate-600">Batch Number</th>
+                          <th className="py-2 px-3 font-semibold text-slate-600 text-right">Dispatch Quantity</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {activeDispatch.products.map((p: any, i: number) => (
+                          <tr key={i} className="border-b border-slate-100 last:border-0">
+                            <td className="py-2 px-3 text-slate-800">{p.productName}</td>
+                            <td className="py-2 px-3 text-slate-600 font-mono text-xs">{p.batchNo}</td>
+                            <td className="py-2 px-3 text-right font-medium text-slate-900">{p.dispatchQty}</td>
+                          </tr>
+                        ))}
+                        <tr className="bg-slate-50 font-semibold text-slate-900 border-t border-slate-200">
+                          <td colSpan={2} className="py-2 px-3 text-right">Total Summary:</td>
+                          <td className="py-2 px-3 text-right text-lg text-violet-700">{activeDispatch.totalQuantity}</td>
+                        </tr>
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-slate-500 text-sm border border-dashed border-slate-200 rounded-lg bg-slate-50">
+                    Select a Dispatch Number to view product summary.
+                  </div>
+                )}
+              </div>
+
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Transport Details</h3>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Transporter *</label>
-                <select value={newTransporter} onChange={e => setNewTransporter(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
-                  <option value="">Select Transporter</option>
-                  {mockTransporters.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <input list="transporters" type="text" value={newTransporter} onChange={e => setNewTransporter(e.target.value)} placeholder="Enter Transporter" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                <datalist id="transporters">
+                  <option value="Blue Dart" />
+                  <option value="Delhivery" />
+                  <option value="DTDC" />
+                  <option value="VRL Logistics" />
+                </datalist>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Vehicle Number</label>
+                <label className="block text-sm font-medium mb-1">Vehicle Number *</label>
                 <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="e.g. MH-01-AB-1234" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Driver Name</label>
-                <input type="text" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} placeholder="Driver Name" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                <input type="text" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} placeholder="Driver Name (Optional)" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Driver Mobile</label>
-                <input type="text" value={newDriverMobile} onChange={e => setNewDriverMobile(e.target.value)} placeholder="Mobile Number" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                <input type="text" value={newDriverMobile} onChange={e => setNewDriverMobile(e.target.value)} placeholder="Mobile Number (Optional)" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">LR Number (Optional)</label>
-                <input type="text" value={newLRNumber} onChange={e => setNewLRNumber(e.target.value)} placeholder="Generated by Transporter" className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-sm" />
-              </div>
-
-              {/* Section 4 - Shipment Details */}
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Shipment Details</h3>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Number of Packages</label>
-                <input type="number" min="1" value={newNoOfPackages} onChange={e => setNewNoOfPackages(e.target.value ? Number(e.target.value) : '')} placeholder="Total Cartons/Boxes" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Total Weight (Kg)</label>
-                <input type="number" value={newTotalWeight} onChange={e => setNewTotalWeight(e.target.value)} placeholder="e.g. 1500" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Total Quantity</label>
-                <input type="text" value={activeDispatch ? activeDispatch.products.reduce((acc, curr) => acc + curr.dispatchQty, 0) : ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-calculated from dispatch" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Expected Delivery Date *</label>
-                <input type="date" value={newExpectedDate} onChange={e => setNewExpectedDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Remarks</label>
-                <input type="text" value={newRemarks} onChange={e => setNewRemarks(e.target.value)} placeholder="Any special instructions for transport" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-
             </div>
 
             <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-200">

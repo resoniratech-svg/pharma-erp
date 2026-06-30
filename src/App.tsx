@@ -40,6 +40,14 @@ import {
   Cell,
 } from 'recharts';
 import { GlowCard } from './components/ui/GlowCard';
+import { useMemo } from 'react';
+import { inventoryService } from './services/inventoryService';
+import { batchService } from './services/batchService';
+import { productService } from './services/productService';
+import { getExpiryStatus } from './utils/expiryUtils';
+import { inwardStockService } from './services/inwardStockService';
+import { outwardStockService } from './services/outwardStockService';
+import { warehouseTransferService } from './services/warehouseTransferService';
 
 /* ── Mock Data ───────────────────────────────────────────────────── */
 
@@ -199,12 +207,159 @@ const itemVariants = {
 export default function Dashboard() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
   const isSuperAdmin = [ROLE_SUPER_ADMIN, 'Super Admin', 'System Administrator'].includes(activeRole);
+  const isWarehouseManager = activeRole === ROLE_WAREHOUSE_MANAGER;
+
+  // Fetch raw data
+  const allInventory = useMemo(() => inventoryService.getAll(), []);
+  const allProducts = useMemo(() => productService.getProducts(), []);
+  const allBatches = useMemo(() => batchService.getAll(), []);
+  const allInward = useMemo(() => inwardStockService.getAll(), []);
+  const allOutward = useMemo(() => outwardStockService.getAll(), []);
+  const allTransfer = useMemo(() => warehouseTransferService.getAll(), []);
+
+  // Calculate KPIs
+  const wmKpis = useMemo(() => {
+    if (!isWarehouseManager) return [];
+    let totalInventory = 0;
+    let lowStockAlerts = 0;
+    let nearExpiryBatches = new Set();
+    let expiredBatches = new Set();
+    
+    allInventory.forEach(inv => {
+      totalInventory += inv.availableQty;
+      const prod = allProducts.find(p => p.code === inv.productCode);
+      if (prod && prod.minimumStock) {
+         if (inv.availableQty < parseInt(prod.minimumStock)) {
+             lowStockAlerts++;
+         }
+      }
+      const batch = allBatches.find(b => b.batchNo === inv.batchNo);
+      if (batch) {
+        const status = getExpiryStatus(batch.expDate);
+        if (status === "Near Expiry") nearExpiryBatches.add(batch.batchNo);
+        if (status === "Expired") expiredBatches.add(batch.batchNo);
+      }
+    });
+
+    return [
+      {
+        title: 'Total Inventory',
+        value: totalInventory.toLocaleString(),
+        trend: 'Current Stock',
+        isPositive: true,
+        icon: Package,
+        iconColor: 'text-blue-600',
+        iconBg: 'bg-blue-50',
+        glowColor: 'rgba(59, 130, 246, 0.55)',
+        glowColorIdle: 'rgba(59, 130, 246, 0.22)',
+        borderGradient: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #bfdbfe 100%)',
+      },
+      {
+        title: 'Low Stock Alerts',
+        value: lowStockAlerts.toString(),
+        trend: 'Needs action',
+        isPositive: lowStockAlerts === 0,
+        icon: AlertTriangle,
+        iconColor: 'text-amber-600',
+        iconBg: 'bg-amber-50',
+        glowColor: 'rgba(245, 158, 11, 0.55)',
+        glowColorIdle: 'rgba(245, 158, 11, 0.22)',
+        borderGradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #fde68a 100%)',
+      },
+      {
+        title: 'Near Expiry Batches',
+        value: nearExpiryBatches.size.toString(),
+        trend: 'Review soon',
+        isPositive: nearExpiryBatches.size === 0,
+        icon: Clock,
+        iconColor: 'text-orange-600',
+        iconBg: 'bg-orange-50',
+        glowColor: 'rgba(249, 115, 22, 0.55)',
+        glowColorIdle: 'rgba(249, 115, 22, 0.22)',
+        borderGradient: 'linear-gradient(135deg, #f97316 0%, #fb923c 50%, #fed7aa 100%)',
+      },
+      {
+        title: 'Expired Batches',
+        value: expiredBatches.size.toString(),
+        trend: 'Remove immediately',
+        isPositive: expiredBatches.size === 0,
+        icon: XCircle,
+        iconColor: 'text-rose-600',
+        iconBg: 'bg-rose-50',
+        glowColor: 'rgba(244, 63, 94, 0.50)',
+        glowColorIdle: 'rgba(244, 63, 94, 0.20)',
+        borderGradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fecdd3 100%)',
+      }
+    ];
+  }, [isWarehouseManager, allInventory, allProducts, allBatches]);
+
+  // Calculate Chart data
+  const wmChartData = useMemo(() => {
+    if (!isWarehouseManager) return [];
+    let healthy = 0;
+    let low = 0;
+    let nearExpiry = 0;
+    let expired = 0;
+
+    allInventory.forEach(inv => {
+      let qty = inv.availableQty;
+      const prod = allProducts.find(p => p.code === inv.productCode);
+      const batch = allBatches.find(b => b.batchNo === inv.batchNo);
+      
+      let isLow = false;
+      if (prod && prod.minimumStock && inv.availableQty < parseInt(prod.minimumStock)) {
+          isLow = true;
+      }
+
+      let expiryStat = "Healthy";
+      if (batch) {
+         expiryStat = getExpiryStatus(batch.expDate);
+      }
+
+      if (expiryStat === "Expired") {
+          expired += qty;
+      } else if (expiryStat === "Near Expiry") {
+          nearExpiry += qty;
+      } else if (isLow) {
+          low += qty;
+      } else {
+          healthy += qty;
+      }
+    });
+
+    return [
+      { name: 'Healthy', value: healthy, color: '#10b981' },
+      { name: 'Low Stock', value: low, color: '#f59e0b' },
+      { name: 'Near Expiry', value: nearExpiry, color: '#f97316' },
+      { name: 'Expired', value: expired, color: '#ef4444' },
+    ].filter(d => d.value > 0);
+  }, [isWarehouseManager, allInventory, allProducts, allBatches]);
+
+  // Activities
+  const wmActivities = useMemo(() => {
+    if (!isWarehouseManager) return [];
+    const list: any[] = [];
+    allInward.forEach(i => list.push({ date: i.date, id: i.id, activity: 'Inward Stock', product: i.products?.[0]?.product || 'Multiple', batch: i.products?.[0]?.batchNo || '-', warehouse: i.warehouseName }));
+    allOutward.forEach(o => list.push({ date: o.date, id: o.id, activity: 'Outward Stock', product: o.products?.[0]?.product || 'Multiple', batch: o.products?.[0]?.batchNo || '-', warehouse: o.warehouseName }));
+    allTransfer.forEach(t => list.push({ date: t.date, id: t.id, activity: 'Warehouse Transfer', product: t.products?.[0]?.product || 'Multiple', batch: t.products?.[0]?.batchNo || '-', warehouse: t.fromWarehouseName + ' -> ' + t.toWarehouseName }));
+    
+    return list.sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 10);
+  }, [isWarehouseManager, allInward, allOutward, allTransfer]);
+
+  // Critical alerts count
+  const wmAlertCounts = useMemo(() => {
+    if (!isWarehouseManager || wmKpis.length === 0) return null;
+    const lowCount = wmKpis[1].value;
+    const nearCount = wmKpis[2].value;
+    const expCount = wmKpis[3].value;
+    return { lowCount, nearCount, expCount };
+  }, [isWarehouseManager, wmKpis]);
 
   let displayPrimaryKpis = primaryKpiData;
   let displaySecondaryKpis = secondaryKpiData;
 
   if (activeRole === ROLE_WAREHOUSE_MANAGER) {
-    displayPrimaryKpis = primaryKpiData.filter(k => ['Active Orders', 'Critical Alerts'].includes(k.title));
+    displayPrimaryKpis = wmKpis;
   } else if (activeRole === ROLE_ACCOUNTANT) {
     displayPrimaryKpis = primaryKpiData.filter(k => ['Total Revenue', 'Outstanding Receivables'].includes(k.title));
   } else if (activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER || activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
@@ -336,28 +491,55 @@ export default function Dashboard() {
                 <div className="h-[180px] w-full relative">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
-                      <Pie data={inventoryData} cx="50%" cy="50%" innerRadius={55} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none">
-                        {inventoryData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
+                      <Pie data={isWarehouseManager ? wmChartData : inventoryData} cx="50%" cy="50%" innerRadius={55} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none">
+                        {(isWarehouseManager ? wmChartData : inventoryData).map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}
                       </Pie>
                       <RechartsTooltip contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 2px 4px rgb(0 0 0 / 0.1)' }} />
                     </PieChart>
                   </ResponsiveContainer>
                   <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                    <span className="text-2xl font-bold text-slate-800">75%</span>
-                    <span className="text-xs text-slate-500 font-medium">Stable</span>
+                    <span className="text-2xl font-bold text-slate-800">
+                      {isWarehouseManager ? (wmChartData.find(d => d.name === 'Healthy')?.value || 0).toLocaleString() : '75%'}
+                    </span>
+                    <span className="text-xs text-slate-500 font-medium">Healthy</span>
                   </div>
                 </div>
                 <div className="mt-auto pt-4 space-y-3">
-                  {inventoryData.map((item) => (
+                  {(isWarehouseManager ? wmChartData : inventoryData).map((item) => (
                     <div key={item.name} className="flex items-center justify-between">
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }} />
                         <span className="text-sm font-medium text-slate-600">{item.name} Stock</span>
                       </div>
-                      <span className="text-sm font-bold text-slate-800">{item.value}%</span>
+                      <span className="text-sm font-bold text-slate-800">
+                        {isWarehouseManager ? item.value.toLocaleString() : `${item.value}%`}
+                      </span>
                     </div>
                   ))}
                 </div>
+                
+                {/* ── Critical Alerts for Warehouse Manager ── */}
+                {isWarehouseManager && wmAlertCounts && (
+                  <div className="mt-4 pt-4 border-t border-slate-100">
+                    <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-1">
+                      <AlertTriangle className="w-4 h-4 text-rose-500" /> Critical Alerts
+                    </h3>
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-amber-50 rounded-lg p-2 text-center">
+                        <div className="text-lg font-bold text-amber-700">{wmAlertCounts.lowCount}</div>
+                        <div className="text-[10px] font-medium text-amber-600 uppercase tracking-wider">Low Stock</div>
+                      </div>
+                      <div className="bg-orange-50 rounded-lg p-2 text-center">
+                        <div className="text-lg font-bold text-orange-700">{wmAlertCounts.nearCount}</div>
+                        <div className="text-[10px] font-medium text-orange-600 uppercase tracking-wider">Near Expiry</div>
+                      </div>
+                      <div className="bg-rose-50 rounded-lg p-2 text-center">
+                        <div className="text-lg font-bold text-rose-700">{wmAlertCounts.expCount}</div>
+                        <div className="text-[10px] font-medium text-rose-600 uppercase tracking-wider">Expired</div>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </motion.div>
             )}
           </div>
@@ -387,7 +569,7 @@ export default function Dashboard() {
         {showRecentOrders && (
           <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-800">Recent Orders</h2>
+              <h2 className="text-lg font-bold text-slate-800">{isWarehouseManager ? 'Recent Inventory Activities' : 'Recent Orders'}</h2>
               <button className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
                 View All <ArrowRight className="w-4 h-4" />
               </button>
@@ -395,51 +577,94 @@ export default function Dashboard() {
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="bg-slate-50/50">
-                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Order ID</th>
-                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Client</th>
-                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
-                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
-                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
-                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
-                  </tr>
+                  {isWarehouseManager ? (
+                    <tr className="bg-slate-50/50">
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Activity</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Batch</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Warehouse</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                  ) : (
+                    <tr className="bg-slate-50/50">
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Order ID</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Client</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                  )}
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {recentOrders.map((order) => {
-                    let StatusIcon = Clock;
-                    let statusColor = 'text-amber-600';
-                    let statusBg = 'bg-amber-50';
+                  {isWarehouseManager ? (
+                    wmActivities.length > 0 ? wmActivities.map((act) => {
+                      let StatusIcon = act.activity === 'Inward Stock' ? ArrowRight : (act.activity === 'Outward Stock' ? TrendingUp : Package);
+                      let statusColor = act.activity === 'Inward Stock' ? 'text-emerald-600' : (act.activity === 'Outward Stock' ? 'text-violet-600' : 'text-blue-600');
+                      let statusBg = act.activity === 'Inward Stock' ? 'bg-emerald-50' : (act.activity === 'Outward Stock' ? 'bg-violet-50' : 'bg-blue-50');
 
-                    if (order.status === 'Shipped') {
-                      StatusIcon = CheckCircle2;
-                      statusColor = 'text-emerald-600';
-                      statusBg = 'bg-emerald-50';
-                    } else if (order.status === 'Failed') {
-                      StatusIcon = XCircle;
-                      statusColor = 'text-rose-600';
-                      statusBg = 'bg-rose-50';
-                    }
-
-                    return (
-                      <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
-                        <td className="py-4 px-6 text-sm font-bold text-slate-800">{order.id}</td>
-                        <td className="py-4 px-6 text-sm font-medium text-slate-600">{order.client}</td>
-                        <td className="py-4 px-6">
-                          <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusBg} ${statusColor}`}>
-                            <StatusIcon className="w-3.5 h-3.5" />
-                            {order.status}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6 text-sm font-bold text-slate-700">{order.amount}</td>
-                        <td className="py-4 px-6 text-sm font-medium text-slate-500">{order.date}</td>
-                        <td className="py-4 px-6 text-right">
-                          <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors outline-none">
-                            <MoreVertical className="w-5 h-5" />
-                          </button>
-                        </td>
+                      return (
+                        <tr key={act.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-4 px-6 text-sm font-medium text-slate-500">{new Date(act.date).toLocaleDateString()}</td>
+                          <td className="py-4 px-6">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusBg} ${statusColor}`}>
+                              <StatusIcon className="w-3.5 h-3.5" />
+                              {act.activity}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-sm font-bold text-slate-800">{act.product}</td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-600">{act.batch}</td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-600">{act.warehouse}</td>
+                          <td className="py-4 px-6 text-right">
+                            <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors outline-none">
+                              <MoreVertical className="w-5 h-5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr>
+                        <td colSpan={6} className="py-8 text-center text-slate-500 font-medium">No recent activities found</td>
                       </tr>
-                    );
-                  })}
+                    )
+                  ) : (
+                    recentOrders.map((order) => {
+                      let StatusIcon = Clock;
+                      let statusColor = 'text-amber-600';
+                      let statusBg = 'bg-amber-50';
+
+                      if (order.status === 'Shipped') {
+                        StatusIcon = CheckCircle2;
+                        statusColor = 'text-emerald-600';
+                        statusBg = 'bg-emerald-50';
+                      } else if (order.status === 'Failed') {
+                        StatusIcon = XCircle;
+                        statusColor = 'text-rose-600';
+                        statusBg = 'bg-rose-50';
+                      }
+
+                      return (
+                        <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-4 px-6 text-sm font-bold text-slate-800">{order.id}</td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-600">{order.client}</td>
+                          <td className="py-4 px-6">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusBg} ${statusColor}`}>
+                              <StatusIcon className="w-3.5 h-3.5" />
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-sm font-bold text-slate-700">{order.amount}</td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-500">{order.date}</td>
+                          <td className="py-4 px-6 text-right">
+                            <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors outline-none">
+                              <MoreVertical className="w-5 h-5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>

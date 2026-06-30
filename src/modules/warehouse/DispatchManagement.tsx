@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Download, Filter, ChevronDown } from 'lucide-react';
+import { Plus, Download, Filter, ChevronDown, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
@@ -14,8 +14,9 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
-
-// -- Mock Data & Types --
+import { warehouseService } from '../../services/warehouseService';
+import { inventoryService, type InventoryRecord } from '../../services/inventoryService';
+import activityLogService from '../../services/activityLogService';
 
 interface OrderProduct {
   productName: string;
@@ -44,78 +45,15 @@ interface Dispatch {
   createdDate: string;
 }
 
-const mockOrders = [
-  { id: 'SO-2026-0102', customer: 'Apollo Hospitals', products: [{ name: 'Paracetamol 500mg', batch: 'B-102', available: 5000 }] },
-  { id: 'SO-2026-0105', customer: 'Care Pharmacy', products: [{ name: 'Amoxicillin 250mg', batch: 'B-105', available: 3000 }, { name: 'Cough Syrup 100ml', batch: 'B-110', available: 1500 }] },
-  { id: 'SO-2026-0108', customer: 'City Clinic', products: [{ name: 'Vitamin C 1000mg', batch: 'B-201', available: 10000 }] }
-];
-
-const mockWarehouses = [
-  'Hyderabad Warehouse',
-  'Mumbai Warehouse',
-  'Delhi Warehouse'
-];
-
-const mockTransporters = [
-  'Blue Dart',
-  'Delhivery',
-  'DTDC',
-  'VRL Logistics'
-];
-
-const initialDispatches: Dispatch[] = [
-  {
-    id: '1',
-    dispatchId: 'DSP-2026-0001',
-    date: '12-Jun-2026',
-    orderId: 'SO-2026-0102',
-    client: 'Apollo Hospitals',
-    sourceWarehouse: 'Hyderabad Warehouse',
-    totalItems: 1,
-    totalQuantity: 2000,
-    status: 'Ready to Ship',
-    products: [{ productName: 'Paracetamol 500mg', batchNo: 'B-102', availableQty: 5000, dispatchQty: 2000 }],
-    transporter: 'Blue Dart',
-    lrNumber: 'LR-2026-1001',
-    vehicleNumber: 'TS09AB1234',
-    driverName: 'Ramesh',
-    driverMobile: '9876543210',
-    createdBy: 'System User',
-    createdDate: '12-Jun-2026 10:00 AM'
-  },
-  {
-    id: '2',
-    dispatchId: 'DSP-2026-0002',
-    date: '12-Jun-2026',
-    orderId: 'SO-2026-0105',
-    client: 'Care Pharmacy',
-    sourceWarehouse: 'Mumbai Warehouse',
-    totalItems: 2,
-    totalQuantity: 4500,
-    status: 'Packed',
-    products: [
-      { productName: 'Amoxicillin 250mg', batchNo: 'B-105', availableQty: 3000, dispatchQty: 3000 },
-      { productName: 'Cough Syrup 100ml', batchNo: 'B-110', availableQty: 1500, dispatchQty: 1500 }
-    ],
-    transporter: 'Delhivery',
-    lrNumber: 'LR-2026-1005',
-    createdBy: 'System User',
-    createdDate: '12-Jun-2026 11:30 AM'
-  }
-];
-
 export default function DispatchManagement() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [dispatches, setDispatches] = useState<Dispatch[]>(initialDispatches);
+  const [dispatches, setDispatches] = useState<Dispatch[]>([]);
   
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  // View Drawer State
   const [selectedDispatch, setSelectedDispatch] = useState<Dispatch | null>(null);
-
-  // Create Modal State
   const [showCreateModal, setShowCreateModal] = useState(false);
   
   const [newDate, setNewDate] = useState(new Date().toISOString().split('T')[0]);
@@ -129,7 +67,23 @@ export default function DispatchManagement() {
   const [newDriverMobile, setNewDriverMobile] = useState('');
   const [newProducts, setNewProducts] = useState<OrderProduct[]>([]);
 
+  const [warehouses, setWarehouses] = useState<any[]>([]);
+  const [availableInventory, setAvailableInventory] = useState<InventoryRecord[]>([]);
+  const [selectedInventoryId, setSelectedInventoryId] = useState('');
+
   useEffect(() => {
+    const stored = localStorage.getItem('pharma_erp_dispatches');
+    if (stored) {
+      try {
+        setDispatches(JSON.parse(stored));
+      } catch (e) {
+        setDispatches([]);
+      }
+    }
+    
+    const whs = warehouseService.getAll();
+    setWarehouses(whs.filter((w: any) => w.status === 'Active'));
+
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
         setShowExportMenu(false);
@@ -139,24 +93,42 @@ export default function DispatchManagement() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Sync order selection to products & customer
-  useEffect(() => {
-    if (newOrder) {
-      const order = mockOrders.find(o => o.id === newOrder);
-      if (order) {
-        setNewCustomer(order.customer);
-        setNewProducts(order.products.map(p => ({
-          productName: p.name,
-          batchNo: p.batch,
-          availableQty: p.available,
-          dispatchQty: 0
-        })));
-      }
+  const handleWarehouseChange = (warehouseName: string) => {
+    setNewWarehouse(warehouseName);
+    setNewProducts([]);
+    setSelectedInventoryId('');
+    const wh = warehouses.find((w: any) => w.name === warehouseName);
+    if (wh) {
+      setAvailableInventory(inventoryService.getByWarehouse(wh.id));
     } else {
-      setNewCustomer('');
-      setNewProducts([]);
+      setAvailableInventory([]);
     }
-  }, [newOrder]);
+  };
+
+  const handleAddProduct = () => {
+    if (!selectedInventoryId) return;
+    const inv = availableInventory.find(i => i.id === selectedInventoryId);
+    if (!inv) return;
+
+    if (newProducts.some(p => p.productName === inv.productName && p.batchNo === inv.batchNo)) {
+      alert("This product batch is already added.");
+      return;
+    }
+
+    setNewProducts([...newProducts, {
+      productName: inv.productName,
+      batchNo: inv.batchNo,
+      availableQty: inv.availableQty,
+      dispatchQty: 1
+    }]);
+    setSelectedInventoryId('');
+  };
+
+  const handleRemoveProduct = (index: number) => {
+    const updated = [...newProducts];
+    updated.splice(index, 1);
+    setNewProducts(updated);
+  };
 
   const handleProductQtyChange = (index: number, val: string) => {
     const qty = parseInt(val, 10) || 0;
@@ -231,6 +203,8 @@ export default function DispatchManagement() {
       'Source Warehouse': row.sourceWarehouse,
       'Total Items': row.totalItems,
       'Total Quantity': row.totalQuantity,
+      'Transporter': row.transporter,
+      'LR Number': row.lrNumber,
       'Status': row.status
     }));
     const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -241,13 +215,13 @@ export default function DispatchManagement() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Dispatch No', 'Dispatch Date', 'Order No', 'Customer', 'Source Warehouse', 'Total Items', 'Total Quantity', 'Status'];
+    const headers = ['Dispatch No', 'Dispatch Date', 'Order No', 'Customer', 'Source Warehouse', 'Total Items', 'Total Quantity', 'Transporter', 'LR Number', 'Status'];
     const csvContent = [
       headers.join(','),
       ...filteredData.map(row => 
         [
           `"${row.dispatchId}"`, `"${row.date}"`, `"${row.orderId}"`, `"${row.client}"`,
-          `"${row.sourceWarehouse}"`, row.totalItems, row.totalQuantity, `"${row.status}"`
+          `"${row.sourceWarehouse}"`, row.totalItems, row.totalQuantity, `"${row.transporter}"`, `"${row.lrNumber}"`, `"${row.status}"`
         ].join(',')
       )
     ].join('\n');
@@ -265,9 +239,11 @@ export default function DispatchManagement() {
 
   const handleSaveDispatch = () => {
     if (!newOrder) return alert("Order Number is required.");
+    if (!newCustomer) return alert("Customer is required.");
     if (!newWarehouse) return alert("Source Warehouse is required.");
     if (!newTransporter) return alert("Transporter is required.");
     if (!newLRNumber) return alert("LR Number is required.");
+    if (newProducts.length === 0) return alert("At least one product must be added to dispatch.");
     
     let totalQty = 0;
     for (const p of newProducts) {
@@ -279,7 +255,9 @@ export default function DispatchManagement() {
 
     if (totalQty <= 0) return alert("Total dispatch quantity must be greater than zero.");
 
-    const dispatchId = `DSP-2026-${String(dispatches.length + 1).padStart(4, '0')}`;
+    const currentUser = JSON.parse(localStorage.getItem('authUser') || '{}');
+    const dispatchId = `DSP-${new Date().getFullYear()}-${String(dispatches.length + 1).padStart(4, '0')}`;
+    
     const newDispatchObj: Dispatch = {
       id: Date.now().toString(),
       dispatchId,
@@ -296,14 +274,32 @@ export default function DispatchManagement() {
       vehicleNumber: newVehicle,
       driverName: newDriverName,
       driverMobile: newDriverMobile,
-      createdBy: 'System Admin',
+      createdBy: currentUser?.fullName || 'System User',
       createdDate: new Date().toLocaleString()
     };
 
-    setDispatches([newDispatchObj, ...dispatches]);
+    const updatedDispatches = [newDispatchObj, ...dispatches];
+    setDispatches(updatedDispatches);
+    localStorage.setItem('pharma_erp_dispatches', JSON.stringify(updatedDispatches));
+    
+    const wh = warehouses.find((w: any) => w.name === newWarehouse);
+    if (wh) {
+      newProducts.forEach(p => {
+        inventoryService.updateAvailableQty(p.batchNo, wh.id, -p.dispatchQty);
+      });
+    }
+
+    try {
+        activityLogService.addLog({
+          userId: currentUser?.id || 'sys',
+          userName: currentUser?.fullName || 'System User',
+          action: `Created Dispatch ${dispatchId} for Order ${newOrder}`,
+          module: 'Dispatch Management'
+        });
+    } catch(e) {}
+    
     setShowCreateModal(false);
     
-    // Reset Form
     setNewDate(new Date().toISOString().split('T')[0]);
     setNewOrder('');
     setNewCustomer('');
@@ -314,12 +310,7 @@ export default function DispatchManagement() {
     setNewDriverName('');
     setNewDriverMobile('');
     setNewProducts([]);
-    
-    console.log(`[Save Logic Executed] Multi-Location Inventory reduced for ${newWarehouse}`);
-    console.log(`[Save Logic Executed] Batch-wise Stock Tracking reduced`);
-    console.log(`[Save Logic Executed] Transport Challan Link created`);
-    console.log(`[Save Logic Executed] LR Tracking Link created for ${newLRNumber}`);
-    console.log(`[Save Logic Executed] Delivery Tracking Link created`);
+    setSelectedInventoryId('');
   };
 
   return (
@@ -385,7 +376,6 @@ export default function DispatchManagement() {
         />
       </TableCard>
 
-      {/* Dispatch Details Drawer */}
       <Drawer open={!!selectedDispatch} onClose={() => setSelectedDispatch(null)} title="Dispatch Details">
         {selectedDispatch && (
           <div className="space-y-6">
@@ -464,7 +454,6 @@ export default function DispatchManagement() {
         )}
       </Drawer>
 
-      {/* Create Dispatch Modal */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -481,14 +470,13 @@ export default function DispatchManagement() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* Dispatch Information */}
               <div className="md:col-span-2 mt-2 first:mt-0">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Dispatch Information</h3>
               </div>
               
               <div>
                 <label className="block text-sm font-medium mb-1">Dispatch Number</label>
-                <input type="text" value={`DSP-2026-${String(dispatches.length + 1).padStart(4, '0')}`} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                <input type="text" value={`DSP-${new Date().getFullYear()}-${String(dispatches.length + 1).padStart(4, '0')}`} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Dispatch Date *</label>
@@ -496,26 +484,41 @@ export default function DispatchManagement() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Order Number *</label>
-                <select value={newOrder} onChange={e => setNewOrder(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
-                  <option value="">Select Order</option>
-                  {mockOrders.map(o => <option key={o.id} value={o.id}>{o.id}</option>)}
-                </select>
+                <input type="text" value={newOrder} onChange={e => setNewOrder(e.target.value)} placeholder="Enter Order Number" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Customer</label>
-                <input type="text" value={newCustomer} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+                <label className="block text-sm font-medium mb-1">Customer *</label>
+                <input type="text" value={newCustomer} onChange={e => setNewCustomer(e.target.value)} placeholder="Enter Customer Name" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Source Warehouse *</label>
-                <select value={newWarehouse} onChange={e => setNewWarehouse(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                <select value={newWarehouse} onChange={e => handleWarehouseChange(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
                   <option value="">Select Warehouse</option>
-                  {mockWarehouses.map(w => <option key={w} value={w}>{w}</option>)}
+                  {warehouses.map(w => <option key={w.id} value={w.name}>{w.name}</option>)}
                 </select>
               </div>
 
-              {/* Product Details */}
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Product Details</h3>
+                
+                {newWarehouse && (
+                  <div className="flex gap-3 mb-4">
+                    <select 
+                      value={selectedInventoryId} 
+                      onChange={e => setSelectedInventoryId(e.target.value)}
+                      className="flex-1 border border-slate-200 rounded-lg px-3 py-2"
+                    >
+                      <option value="">Select Product from Warehouse</option>
+                      {availableInventory.filter(i => i.availableQty > 0).map(i => (
+                        <option key={i.id} value={i.id}>
+                          {i.productName} (Batch: {i.batchNo}) - Available: {i.availableQty}
+                        </option>
+                      ))}
+                    </select>
+                    <ActionButton onClick={handleAddProduct} variant="secondary">Add</ActionButton>
+                  </div>
+                )}
+
                 {newProducts.length > 0 ? (
                   <div className="overflow-x-auto border border-slate-200 rounded-lg">
                     <table className="w-full text-left text-sm">
@@ -525,6 +528,7 @@ export default function DispatchManagement() {
                           <th className="py-2 px-3 font-semibold text-slate-600">Batch No (FEFO)</th>
                           <th className="py-2 px-3 font-semibold text-slate-600 text-right">Available Qty</th>
                           <th className="py-2 px-3 font-semibold text-slate-600 text-right w-40">Dispatch Qty *</th>
+                          <th className="py-2 px-3 font-semibold text-slate-600 w-10"></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -543,33 +547,41 @@ export default function DispatchManagement() {
                                 className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-right"
                               />
                             </td>
+                            <td className="py-2 px-3 text-right">
+                              <button onClick={() => handleRemoveProduct(i)} className="text-rose-500 hover:text-rose-700 transition-colors">
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
                           </tr>
                         ))}
                         <tr className="bg-slate-50 font-semibold text-slate-900 border-t border-slate-200">
                           <td colSpan={2} className="py-2 px-3 text-right">Total Summary:</td>
                           <td className="py-2 px-3 text-right text-slate-500 font-normal">{newProducts.length} Items</td>
                           <td className="py-2 px-3 text-right text-lg text-violet-700">{newProducts.reduce((acc, curr) => acc + curr.dispatchQty, 0)}</td>
+                          <td></td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-slate-500 text-sm border border-dashed border-slate-200 rounded-lg bg-slate-50">
-                    Please select an Order Number to load product details.
+                    {newWarehouse ? "Please select and add products from the warehouse above." : "Please select a Source Warehouse to load available inventory."}
                   </div>
                 )}
               </div>
 
-              {/* Transport Information */}
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Transport Information</h3>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Transporter *</label>
-                <select value={newTransporter} onChange={e => setNewTransporter(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
-                  <option value="">Select Transporter</option>
-                  {mockTransporters.map(t => <option key={t} value={t}>{t}</option>)}
-                </select>
+                <input list="transporters" type="text" value={newTransporter} onChange={e => setNewTransporter(e.target.value)} placeholder="Enter Transporter" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                <datalist id="transporters">
+                  <option value="Blue Dart" />
+                  <option value="Delhivery" />
+                  <option value="DTDC" />
+                  <option value="VRL Logistics" />
+                </datalist>
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">LR Number *</label>

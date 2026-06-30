@@ -230,11 +230,8 @@ const NAV_ITEMS: NavItem[] = [
     icon: Settings,
     subItems: [
       { label: 'Profile Settings', path: '/workspace/settings/profile' },
-      { label: 'Company Settings', path: '/workspace/settings/company' },
-      { label: 'Branch Settings', path: '/workspace/settings/branch' },
       { label: 'User Management', path: '/workspace/settings/users' },
       { label: 'Roles & Permissions', path: '/workspace/settings/roles' },
-      { label: 'System Settings', path: '/workspace/settings/system' },
     ],
   },
 ];
