@@ -15,100 +15,138 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
+import { inventoryService } from "../../services/inventoryService";
+import { productService } from "../../services/productService";
+import { warehouseService } from "../../services/warehouseService";
 
 // --- Deep Mock Data Layer ---
-interface RawInventoryItem {
-  id: string;
-  productName: string;
-  sku: string;
-  category: string;
-  warehouse: string;
-  currentStock: number;
-  reorderLevel: number;
-  criticalLevel: number;
-  safetyStock: number;
-  supplier: string;
-  supplierContact: string;
-  lastPurchaseDate: string;
-  lastSaleDate: string;
-  lastUpdatedDate: string;
-}
+// interface RawInventoryItem {
+//   id: string;
+//   productName: string;
+//   sku: string;
+//   category: string;
+//   warehouse: string;
+//   currentStock: number;
+//   reorderLevel: number;
+//   criticalLevel: number;
+//   safetyStock: number;
+//   supplier: string;
+//   supplierContact: string;
+//   lastPurchaseDate: string;
+//   lastSaleDate: string;
+//   lastUpdatedDate: string;
+// }
 
 // Full inventory state (includes healthy stock which will be filtered out)
-const rawDatabase: RawInventoryItem[] = [
-  {
-    id: 'INV-001',
-    productName: 'Paracetamol 650mg',
-    sku: 'PRD-002',
-    category: 'Tablets',
-    warehouse: 'Hyderabad Warehouse',
-    currentStock: 850,
-    reorderLevel: 2000,
-    criticalLevel: 1000,
-    safetyStock: 500,
-    supplier: 'HealthPlus Inc.',
-    supplierContact: 'contact@healthplus.com',
-    lastPurchaseDate: '15-Aug-2026',
-    lastSaleDate: '18-Oct-2026',
-    lastUpdatedDate: '18-Oct-2026',
-  },
-  {
-    id: 'INV-002',
-    productName: 'Cough Syrup 100ml',
-    sku: 'PRD-003',
-    category: 'Syrups',
-    warehouse: 'Mumbai Warehouse',
-    currentStock: 0,
-    reorderLevel: 500,
-    criticalLevel: 200,
-    safetyStock: 100,
-    supplier: 'MediCare Supply',
-    supplierContact: 'sales@medicare.com',
-    lastPurchaseDate: '01-May-2026',
-    lastSaleDate: '10-Oct-2026',
-    lastUpdatedDate: '10-Oct-2026',
-  },
-  {
-    id: 'INV-003',
-    productName: 'Bandages 10cm',
-    sku: 'PRD-045',
-    category: 'Consumables',
-    warehouse: 'Delhi Warehouse',
-    currentStock: 120,
-    reorderLevel: 300,
-    criticalLevel: 150,
-    safetyStock: 50,
-    supplier: 'Surgicals Ltd.',
-    supplierContact: 'orders@surgicals.com',
-    lastPurchaseDate: '12-Sep-2026',
-    lastSaleDate: '15-Oct-2026',
-    lastUpdatedDate: '15-Oct-2026',
-  },
-  {
-    id: 'INV-004',
-    productName: 'Healthy Vitamin C',
-    sku: 'PRD-099',
-    category: 'Vitamins',
-    warehouse: 'Bangalore Warehouse',
-    currentStock: 5000,
-    reorderLevel: 1000,
-    criticalLevel: 500,
-    safetyStock: 500,
-    supplier: 'VitaLife',
-    supplierContact: 'supply@vitalife.com',
-    lastPurchaseDate: '10-Oct-2026',
-    lastSaleDate: '18-Oct-2026',
-    lastUpdatedDate: '18-Oct-2026',
-  }
-];
+// const rawDatabase: RawInventoryItem[] = [
+//   {
+//     id: 'INV-001',
+//     productName: 'Paracetamol 650mg',
+//     sku: 'PRD-002',
+//     category: 'Tablets',
+//     warehouse: 'Hyderabad Warehouse',
+//     currentStock: 850,
+//     reorderLevel: 2000,
+//     criticalLevel: 1000,
+//     safetyStock: 500,
+//     supplier: 'HealthPlus Inc.',
+//     supplierContact: 'contact@healthplus.com',
+//     lastPurchaseDate: '15-Aug-2026',
+//     lastSaleDate: '18-Oct-2026',
+//     lastUpdatedDate: '18-Oct-2026',
+//   },
+//   {
+//     id: 'INV-002',
+//     productName: 'Cough Syrup 100ml',
+//     sku: 'PRD-003',
+//     category: 'Syrups',
+//     warehouse: 'Mumbai Warehouse',
+//     currentStock: 0,
+//     reorderLevel: 500,
+//     criticalLevel: 200,
+//     safetyStock: 100,
+//     supplier: 'MediCare Supply',
+//     supplierContact: 'sales@medicare.com',
+//     lastPurchaseDate: '01-May-2026',
+//     lastSaleDate: '10-Oct-2026',
+//     lastUpdatedDate: '10-Oct-2026',
+//   },
+//   {
+//     id: 'INV-003',
+//     productName: 'Bandages 10cm',
+//     sku: 'PRD-045',
+//     category: 'Consumables',
+//     warehouse: 'Delhi Warehouse',
+//     currentStock: 120,
+//     reorderLevel: 300,
+//     criticalLevel: 150,
+//     safetyStock: 50,
+//     supplier: 'Surgicals Ltd.',
+//     supplierContact: 'orders@surgicals.com',
+//     lastPurchaseDate: '12-Sep-2026',
+//     lastSaleDate: '15-Oct-2026',
+//     lastUpdatedDate: '15-Oct-2026',
+//   },
+//   {
+//     id: 'INV-004',
+//     productName: 'Healthy Vitamin C',
+//     sku: 'PRD-099',
+//     category: 'Vitamins',
+//     warehouse: 'Bangalore Warehouse',
+//     currentStock: 5000,
+//     reorderLevel: 1000,
+//     criticalLevel: 500,
+//     safetyStock: 500,
+//     supplier: 'VitaLife',
+//     supplierContact: 'supply@vitalife.com',
+//     lastPurchaseDate: '10-Oct-2026',
+//     lastSaleDate: '18-Oct-2026',
+//     lastUpdatedDate: '18-Oct-2026',
+//   }
+// ];
 
 // --- Calculated Interfaces ---
-interface CalculatedLowStock extends RawInventoryItem {
+interface CalculatedLowStock {
+
+  id: string;
+
+  productName: string;
+
+  sku: string;
+
+  category: string;
+
+  warehouse: string;
+
+  location: string;
+
+  currentStock: number;
+
+  reorderLevel: number;
+
+  criticalLevel: number;
+
   suggestedQty: number;
-  status: 'Low Stock' | 'Critical' | 'Out Of Stock' | 'Healthy';
+
+  unit: string;
+
+  supplier: string;
+
+  lastUpdatedDate: string;
+
+  status:
+    | "Low Stock"
+    | "Critical"
+    | "Out Of Stock";
 }
 
 export default function LowStockAlerts() {
+
+  const inventory = inventoryService.getAll();
+
+  const products = productService.getProducts();
+
+  const warehouses = warehouseService.getAll();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
 
@@ -123,7 +161,7 @@ export default function LowStockAlerts() {
   const [poForm, setPoForm] = useState({ purchaseQty: '', expectedDate: '', remarks: '' });
   
   // Local list to persist removals after PO is created (simulating state flow)
-  const [activeAlertsList, setActiveAlertsList] = useState<RawInventoryItem[]>(rawDatabase);
+  
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -137,29 +175,64 @@ export default function LowStockAlerts() {
 
   // --- Dynamic Calculation Engine ---
   const calculatedData: CalculatedLowStock[] = useMemo(() => {
-    return activeAlertsList
-      .map(item => {
-        // Formula: (Reorder Level + Safety Stock) − Current Stock
-        let suggestedQty = (item.reorderLevel + item.safetyStock) - item.currentStock;
-        if (suggestedQty < 0) suggestedQty = 0;
+    return inventory
 
-        let status: CalculatedLowStock['status'] = 'Healthy';
-        if (item.currentStock === 0) {
-          status = 'Out Of Stock';
-        } else if (item.currentStock < item.criticalLevel) {
-          status = 'Critical';
-        } else if (item.currentStock < item.reorderLevel) {
-          status = 'Low Stock';
+      .map((stock) => {
+        const product = products.find((p) => p.code === stock.productCode);
+
+        const warehouse = warehouses.find((w) => w.id === stock.warehouseId);
+
+        const reorderLevel = Number(product?.reorderLevel ?? 0);
+
+        const currentStock = stock.availableQty;
+
+        const criticalLevel = Math.floor(reorderLevel * 0.5);
+
+        const suggestedQty = Math.max(reorderLevel - currentStock, 0);
+
+        let status: CalculatedLowStock["status"];
+
+        if (currentStock === 0) {
+          status = "Out Of Stock";
+        } else if (currentStock <= criticalLevel) {
+          status = "Critical";
+        } else {
+          status = "Low Stock";
         }
 
         return {
-          ...item,
+          id: stock.id,
+
+          productName: product?.name ?? "",
+
+          sku: stock.productCode,
+
+          category: product?.category ?? "",
+
+          warehouse: warehouse?.name ?? "",
+
+          location: warehouse?.code ?? "",
+
+          currentStock,
+
+          reorderLevel,
+
+          criticalLevel,
+
           suggestedQty,
-          status
+
+          unit: product?.type ?? "",
+
+          supplier: product?.manufacturer ?? "",
+
+          lastUpdatedDate: stock.lastUpdated,
+
+          status,
         };
       })
-      .filter(item => item.status !== 'Healthy'); // Filter out healthy stock dynamically!
-  }, [activeAlertsList]);
+
+      .filter((item) => item.currentStock < item.reorderLevel);
+  }, [inventory, products, warehouses]);
 
   // --- Dashboard Card Metrics ---
   const dashboardMetrics = useMemo(() => {
@@ -334,17 +407,17 @@ export default function LowStockAlerts() {
     
     // Simulate procurement workflow: We assume PO is sent, and upon arrival GRN increases stock.
     // For local mock demonstration, we can simulate an immediate stock arrival to resolve the alert.
-    const updatedList = activeAlertsList.map(item => {
-      if (item.id === poRecord?.id) {
-        return {
-          ...item,
-          currentStock: item.currentStock + Number(poForm.purchaseQty)
-        };
-      }
-      return item;
-    });
+    // const updatedList = activeAlertsList.map(item => {
+    //   if (item.id === poRecord?.id) {
+    //     return {
+    //       ...item,
+    //       currentStock: item.currentStock + Number(poForm.purchaseQty)
+    //     };
+    //   }
+    //   return item;
+    // });
 
-    setActiveAlertsList(updatedList);
+    // setActiveAlertsList(updatedList);
     
     alert(`Purchase Order created successfully for ${poRecord?.productName} to supplier ${poRecord?.supplier}.`);
     closePOModal();
@@ -496,18 +569,18 @@ export default function LowStockAlerts() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Supplier Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Primary Supplier" value={selectedRecord.supplier} />
-                <DrawerField label="Supplier Contact" value={<span className="text-violet-600">{selectedRecord.supplierContact}</span>} />
+                {/* <DrawerField label="Supplier Contact" value={<span className="text-violet-600">{selectedRecord.supplierContact}</span>} /> */}
               </div>
             </div>
 
             {/* Movement Information */}
-            <div>
+            {/* <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Movement Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Last Purchase Date" value={selectedRecord.lastPurchaseDate} />
                 <DrawerField label="Last Sale Date" value={selectedRecord.lastSaleDate} />
               </div>
-            </div>
+            </div> */}
 
             {/* Status Information */}
             <div>

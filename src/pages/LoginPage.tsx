@@ -9,6 +9,7 @@ import {
 import { ROLES } from '../constants/roles';
 import { USERS } from '../mock-data/mockUsers';
 import activityLogService from '../services/activityLogService';
+import mjLogo from '../assets/logo/mj-healthcare-logo.svg';
 
 /* ── Types ──────────────────────────────────────────────────────── */
 interface LocationState {
@@ -178,10 +179,7 @@ export default function LoginPage() {
 
         <div className="relative z-10">
           <Link to="/" className="flex items-center gap-3 w-fit">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-[#14B8A6] font-black text-xl">P</span>
-            </div>
-            <span className="text-white font-extrabold tracking-tight text-2xl">Pharma ERP</span>
+            <img src={mjLogo} alt="MJ Healthcare" className="h-14 object-contain" />
           </Link>
         </div>
 

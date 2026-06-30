@@ -162,6 +162,8 @@ interface CalculatedDeadStock {
     | "Expired"
     | "Discontinued";
 
+  lastMovedDate: string;  
+
   createdDate: string;
 
   lastUpdatedDate: string;
@@ -253,8 +255,10 @@ export default function DeadStock() {
         status = "Expired";
       } else if (expiryStatus === "Near Expiry") {
         status = "Near Expiry";
-      } else {
+      } else if (daysSinceLastMovement >= 180 && stock.availableQty > 0) {
         status = "Dead Stock";
+      } else {
+        status = "Near Expiry";
       }
 
       return {
@@ -292,6 +296,7 @@ export default function DeadStock() {
     daysSinceLastMovement,
 
     blockedCapital,
+    lastMovedDate: stock.lastUpdated,
 
     status,
 
@@ -316,8 +321,17 @@ export default function DeadStock() {
   // --- Dashboard Card Metrics ---
   const dashboardMetrics = useMemo(() => {
     const uniqueProducts = new Set(calculatedData.map(c => c.sku)).size;
-    const totalQuantity = calculatedData.reduce((acc, curr) => acc + curr.availableQty, 0);
-    const totalBlockedCapital = calculatedData.reduce((acc, curr) => acc + curr.blockedCapital, 0);
+    const deadStocks = calculatedData.filter((d) => d.status === "Dead Stock");
+
+    const totalQuantity = deadStocks.reduce(
+      (acc, curr) => acc + curr.availableQty,
+      0,
+    );
+
+    const totalBlockedCapital = deadStocks.reduce(
+      (acc, curr) => acc + curr.blockedCapital,
+      0,
+    );
     
     let maxDays = 0;
     calculatedData.forEach(c => {
@@ -402,7 +416,7 @@ export default function DeadStock() {
       'Warehouse': row.warehouse,
       'Available Qty': row.availableQty,
       'Days Since Last Movement': row.daysSinceLastMovement,
-      // 'Last Moved Date': row.lastMovedDate,
+      'Last Moved Date': row.lastMovedDate,
       'Expiry Date': row.expiryDate,
       'Blocked Capital': row.blockedCapital,
       'Status': row.status
@@ -433,7 +447,7 @@ export default function DeadStock() {
           `"${row.warehouse}"`,
           row.availableQty, 
           row.daysSinceLastMovement,
-          // row.lastMovedDate,
+          row.lastMovedDate,
           row.expiryDate,
           row.blockedCapital,
           row.status
@@ -591,7 +605,7 @@ export default function DeadStock() {
               <div className="space-y-2 bg-amber-50 p-4 rounded-xl border border-amber-100">
                 <div className="flex justify-between items-center text-sm">
                   <span className="text-amber-800 font-medium">Last Movement Date</span>
-                  {/* <span className="font-semibold text-amber-900">{selectedRecord.lastMovedDate}</span> */}
+                  <span className="font-semibold text-amber-900">{selectedRecord.lastMovedDate}</span>
                 </div>
                 <div className="flex justify-between items-center text-sm pt-2 border-t border-amber-200">
                   <span className="text-amber-800 font-medium">Days Since Last Movement</span>

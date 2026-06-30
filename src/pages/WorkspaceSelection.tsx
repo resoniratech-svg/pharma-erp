@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
 import { ArrowRight, Lock, ChevronLeft } from 'lucide-react';
 import { ROLES, type Role } from '../constants/roles';
+import mjLogo from '../assets/logo/mj-healthcare-logo.svg';
 
 /* ── Role Card ──────────────────────────────────────────────────── */
 const RoleCard = ({ role, index }: { role: Role; index: number }) => {
@@ -77,17 +78,7 @@ export default function WorkspaceSelection() {
       {/* Header */}
       <header className="w-full px-8 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5">
-          <div className="w-9 h-9 bg-gradient-to-br from-primary to-secondary rounded-xl flex items-center justify-center shadow-md shadow-primary/20">
-            <span className="text-white font-black text-base">P</span>
-          </div>
-          <div className="leading-none">
-            <p className="text-base font-extrabold text-slate-900 tracking-tight">
-              Pharma ERP
-            </p>
-            <p className="text-[10px] font-semibold text-slate-400 tracking-widest uppercase">
-              Platform
-            </p>
-          </div>
+          <img src={mjLogo} alt="MJ Healthcare" className="h-14 object-contain" />
         </Link>
 
         <Link
