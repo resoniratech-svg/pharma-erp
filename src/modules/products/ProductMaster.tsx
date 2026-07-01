@@ -358,16 +358,16 @@ export default function ProductMaster() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showNewProductModal]);
 
-  if (!canView) {
-    return (
-      <div className="p-10 text-center">
-        <h2 className="text-xl font-semibold">Access Denied</h2>
-        <p className="text-slate-500 mt-2">
-          You do not have permission to view Product Management.
-        </p>
-      </div>
-    );
-  }
+  // if (!canView) {
+  //   return (
+  //     <div className="p-10 text-center">
+  //       <h2 className="text-xl font-semibold">Access Denied</h2>
+  //       <p className="text-slate-500 mt-2">
+  //         You do not have permission to view Product Management.
+  //       </p>
+  //     </div>
+  //   );
+  // }
 
   const handleExport = () => {
     const headers = [

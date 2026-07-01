@@ -334,7 +334,7 @@ export function MainLayout() {
           <Link to="/workspace/dashboard" className="flex items-center justify-center w-full outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded">
             {/* YOUR NEW CUSTOM LOGO */}
             <img 
-               src="/Pharma logo.jpeg"  
+               src="/Pharma_logo.jpeg"  
 
             />
 
