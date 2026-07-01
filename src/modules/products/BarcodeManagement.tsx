@@ -1,4 +1,5 @@
-import { useState } from 'react';
+// src/modules/products/BarcodeManagement.tsx
+import { useState, useEffect } from "react";
 import { Plus, Filter, Download, Trash2 } from 'lucide-react';
 import {
   PageHeader,
@@ -13,6 +14,10 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './types';
+import { barcodeService } from "../../services/barcodeService";
+import { productService } from "../../services/productService";
+import activityLogService from "../../services/activityLogService";
+import { hasModulePermission } from '../../utils/permissionUtils';
 
 interface Barcode {
   id: string;
@@ -26,14 +31,6 @@ interface Barcode {
   status: 'Active' | 'Inactive' | 'Unassigned';
 }
 
-const mockProducts = [
-  { code: 'PRD-001', name: 'Amoxicillin 500mg' },
-  { code: 'PRD-002', name: 'Paracetamol 650mg' },
-  { code: 'PRD-003', name: 'Cough Syrup 100ml' },
-  { code: 'PRD-004', name: 'Vitamin C 1000mg' },
-  { code: 'PRD-005', name: 'Ibuprofen 400mg' },
-];
-
 const initialMockData: Barcode[] = [
   { id: '1', barcode: '8901234567890', productCode: 'PRD-001', productName: 'Amoxicillin 500mg', type: 'EAN-13', assignedDate: '10-Oct-2025', generatedBy: 'Admin User', generatedDate: '10-Oct-2025', status: 'Active' },
   { id: '2', barcode: '8901234567891', productCode: 'PRD-002', productName: 'Paracetamol 650mg', type: 'EAN-13', assignedDate: '12-Oct-2025', generatedBy: 'System', generatedDate: '12-Oct-2025', status: 'Active' },
@@ -42,15 +39,45 @@ const initialMockData: Barcode[] = [
 ];
 
 export default function BarcodeManagement() {
-  const [data, setData] = useState<Barcode[]>(initialMockData);
+  const [data, setData] = useState<Barcode[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
+  const currentUser = JSON.parse(localStorage.getItem("authUser") || "{}");
   
   const [selectedBarcode, setSelectedBarcode] = useState<Barcode | null>(null);
   const [itemToDelete, setItemToDelete] = useState<Barcode | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditingModal, setIsEditingModal] = useState(false);
   const [validationError, setValidationError] = useState('');
+  const [products, setProducts] = useState<any[]>([]);
+
+  useEffect(() => {
+    const savedProducts = productService.getProducts();
+    setProducts(savedProducts || []);
+  }, []);
+
+  useEffect(() => {
+    const savedData = barcodeService.getAll();
+    if (savedData && savedData.length > 0) {
+      setData(savedData);
+    } else {
+      setData(initialMockData);
+      barcodeService.saveAll(initialMockData);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (data.length > 0) {
+      barcodeService.saveAll(data);
+    }
+  }, [data]);
+
+  const activeRole = localStorage.getItem("activeRole") || "";
+  const canView = hasModulePermission(activeRole, "Products & Master", "View");
+  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
+  const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
+  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
 
   const [newBarcode, setNewBarcode] = useState({
     id: '',
@@ -88,16 +115,18 @@ export default function BarcodeManagement() {
           >
             View
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setItemToDelete(row);
-            }}
-            className="text-rose-600 font-medium hover:text-rose-800"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {canDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setItemToDelete(row);
+              }}
+              className="text-rose-600 font-medium hover:text-rose-800"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       )
     }
@@ -136,12 +165,20 @@ export default function BarcodeManagement() {
   };
 
   const handleProductSelect = (productName: string) => {
-    const product = mockProducts.find(p => p.name === productName);
-    setNewBarcode(prev => ({
-      ...prev,
-      productName: productName,
-      productCode: product ? product.code : ''
-    }));
+    const product = products.find((p) => p.name === productName);
+    if (product) {
+      setNewBarcode((prev) => ({
+        ...prev,
+        productName: product.name,
+        productCode: product.code,
+      }));
+    } else {
+      setNewBarcode((prev) => ({
+        ...prev,
+        productName: productName,
+        productCode: '', 
+      }));
+    }
   };
 
   const openNewModal = () => {
@@ -181,7 +218,7 @@ export default function BarcodeManagement() {
       return;
     }
 
-    const matchingProduct = mockProducts.find(p => p.name === newBarcode.productName);
+    const matchingProduct = products.find(p => p.name === newBarcode.productName);
     if (!matchingProduct) {
       setValidationError("Please select a valid existing product from the list.");
       return;
@@ -193,13 +230,13 @@ export default function BarcodeManagement() {
       return;
     }
 
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
     
     if (isEditingModal && newBarcode.id) {
       const updatedRecord: Barcode = {
         id: newBarcode.id,
         barcode: newBarcode.barcodeNumber,
-        productCode: newBarcode.productCode,
+        productCode: newBarcode.productCode || matchingProduct.code,
         productName: newBarcode.productName,
         type: newBarcode.type,
         assignedDate: selectedBarcode?.assignedDate && selectedBarcode.assignedDate !== '-' ? selectedBarcode.assignedDate : today,
@@ -209,6 +246,12 @@ export default function BarcodeManagement() {
       };
       
       setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "Barcode Updated",
+        module: "Barcode Management",
+      });
       if (selectedBarcode && selectedBarcode.id === updatedRecord.id) {
         setSelectedBarcode(updatedRecord);
       }
@@ -216,7 +259,7 @@ export default function BarcodeManagement() {
       const record: Barcode = {
         id: Date.now().toString(),
         barcode: newBarcode.barcodeNumber,
-        productCode: newBarcode.productCode,
+        productCode: newBarcode.productCode || matchingProduct.code,
         productName: newBarcode.productName,
         type: newBarcode.type,
         assignedDate: today,
@@ -225,6 +268,12 @@ export default function BarcodeManagement() {
         status: newBarcode.status as any
       };
       setData([record, ...data]);
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "Barcode Created",
+        module: "Barcode Management",
+      });
     }
     
     setShowModal(false);
@@ -233,6 +282,12 @@ export default function BarcodeManagement() {
   const handleDelete = () => {
     if (itemToDelete) {
       setData(data.filter(item => item.id !== itemToDelete.id));
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "Barcode Deleted",
+        module: "Barcode Management",
+      });
       setItemToDelete(null);
     }
   };
@@ -247,9 +302,11 @@ export default function BarcodeManagement() {
             <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />} onClick={handleExport}>
               Export
             </ActionButton>
-            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openNewModal}>
-              Generate Barcode
-            </ActionButton>
+            {canCreate && (
+              <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openNewModal}>
+                Generate Barcode
+              </ActionButton>
+            )}
           </>
         }
       />
@@ -338,7 +395,7 @@ export default function BarcodeManagement() {
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-              <ActionButton onClick={openEditModal}>Edit Barcode</ActionButton>
+              {canEdit && <ActionButton onClick={openEditModal}>Edit Barcode</ActionButton>}
               <ActionButton variant="secondary" onClick={() => setSelectedBarcode(null)}>Close</ActionButton>
             </div>
           </div>
@@ -393,6 +450,7 @@ export default function BarcodeManagement() {
                 <label className="block text-sm font-medium mb-1">Product *</label>
                 <div className="relative">
                   <input
+                    type="text"
                     list="product-suggestions"
                     value={newBarcode.productName}
                     onChange={(e) => handleProductSelect(e.target.value)}
@@ -400,8 +458,8 @@ export default function BarcodeManagement() {
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   />
                   <datalist id="product-suggestions">
-                    {mockProducts.map(p => (
-                      <option key={p.code} value={p.name} />
+                    {products.map((p) => (
+                      <option key={p.code || p.id} value={p.name} />
                     ))}
                   </datalist>
                 </div>
@@ -438,6 +496,7 @@ export default function BarcodeManagement() {
                   type="text"
                   value={newBarcode.barcodeNumber} 
                   onChange={(e) => setNewBarcode({ ...newBarcode, barcodeNumber: e.target.value })} 
+                  maxLength={20}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono" 
                   placeholder="Enter unique barcode number"
                 />

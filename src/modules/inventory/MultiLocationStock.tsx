@@ -9,77 +9,128 @@ import {
   ActionButton,
   TableCard,
   DataTable,
-  Badge
+  Badge,
+  Drawer,
+  DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
+import { inventoryService } from "../../services/inventoryService";
+import { warehouseService } from "../../services/warehouseService";
+import { productService } from "../../services/productService";
 
 // --- Data Models ---
 
-interface Product {
-  name: string;
-  sku: string;
-  reorderLevel: number;
-}
+// interface Product {
+//   name: string;
+//   sku: string;
+//   category: string;
+//   packType: string;
+//   uom: string;
+//   reorderLevel: number;
+// }
 
-interface Location {
-  code: string;
-  name: string;
-  city: string;
-  state: string;
-  type: string;
-  status: 'Active' | 'Inactive';
-}
+// interface Location {
+//   code: string;
+//   name: string;
+//   city: string;
+//   state: string;
+//   type: string;
+//   status: 'Active' | 'Inactive';
+// }
 
 interface InventoryRecord {
   id: string;
   productName: string;
   sku: string;
+  category: string;
+  packType: string;
+  uom: string;
   location: string;
+  locationCode: string;
+  city: string;
+  state: string;
+  type: string;
+  locationStatus: string;
   availableQty: number;
   reorderLevel: number;
   status: 'In Stock' | 'Low Stock' | 'Out Of Stock';
+  createdBy: string;
+  createdDate: string;
+  lastUpdatedBy: string;
+  lastUpdatedDate: string;
 }
 
-const mockProducts: Product[] = [
-  { name: 'Paracetamol 650mg', sku: 'PRD-001', reorderLevel: 1000 },
-  { name: 'Amoxicillin 500mg', sku: 'PRD-002', reorderLevel: 500 },
-];
+// interface Transaction {
+//   sku: string;
+//   locationCode: string;
+//   type: 'Inward' | 'Outward';
+//   qty: number;
+// }
 
-const initialLocations: Location[] = [
-  { code: 'HYD001', name: 'Hyderabad Warehouse', city: 'Hyderabad', state: 'Telangana', type: 'Central Warehouse', status: 'Active' },
-  { code: 'MUM001', name: 'Mumbai Warehouse', city: 'Mumbai', state: 'Maharashtra', type: 'Regional Warehouse', status: 'Active' },
-  { code: 'DEL001', name: 'Delhi Warehouse', city: 'Delhi', state: 'Delhi', type: 'Distribution Center', status: 'Active' },
-];
+// interface Batch {
+//   sku: string;
+//   locationCode: string;
+//   batchNo: string;
+//   expiryDate: string;
+//   qty: number;
+// }
 
-// Mapping: `${SKU}_${LocationCode}` -> quantity
-const initialInventoryMap: Record<string, number> = {
-  'PRD-001_HYD001': 5000,
-  'PRD-001_MUM001': 2000,
-  'PRD-001_DEL001': 500,
-  'PRD-002_HYD001': 1200,
-  'PRD-002_MUM001': 0,
-  'PRD-002_DEL001': 1500,
-};
+// const mockProducts: Product[] = [
+//   { name: 'Paracetamol 650mg', sku: 'PRD-001', category: 'Tablets', packType: 'Box', uom: 'Units', reorderLevel: 1000 },
+//   { name: 'Amoxicillin 500mg', sku: 'PRD-002', category: 'Capsules', packType: 'Bottle', uom: 'Units', reorderLevel: 500 },
+// ];
+
+// const initialLocations: Location[] = [
+//   { code: 'HYD001', name: 'Hyderabad Warehouse', city: 'Hyderabad', state: 'Telangana', type: 'Regional Warehouse', status: 'Active' },
+//   { code: 'MUM001', name: 'Mumbai Warehouse', city: 'Mumbai', state: 'Maharashtra', type: 'Regional Warehouse', status: 'Active' },
+//   { code: 'DEL001', name: 'Delhi Warehouse', city: 'Delhi', state: 'Delhi', type: 'Distribution Center', status: 'Active' },
+// ];
+
+// // Mapping: `${SKU}_${LocationCode}` -> quantity
+// const initialInventoryMap: Record<string, number> = {
+//   'PRD-001_HYD001': 5000,
+//   'PRD-001_MUM001': 2000,
+//   'PRD-001_DEL001': 500,
+//   'PRD-002_HYD001': 1200,
+//   'PRD-002_MUM001': 0,
+//   'PRD-002_DEL001': 1500,
+// };
+
+// const mockTransactions: Transaction[] = [
+//   { sku: 'PRD-001', locationCode: 'HYD001', type: 'Inward', qty: 8000 },
+//   { sku: 'PRD-001', locationCode: 'HYD001', type: 'Outward', qty: 3000 },
+//   { sku: 'PRD-001', locationCode: 'MUM001', type: 'Inward', qty: 4000 },
+//   { sku: 'PRD-001', locationCode: 'MUM001', type: 'Outward', qty: 2000 },
+//   { sku: 'PRD-001', locationCode: 'DEL001', type: 'Inward', qty: 1000 },
+//   { sku: 'PRD-001', locationCode: 'DEL001', type: 'Outward', qty: 500 },
+// ];
+
+// const mockBatches: Batch[] = [
+//   { sku: 'PRD-001', locationCode: 'HYD001', batchNo: 'B-2025-001', expiryDate: '2026-12-15', qty: 2000 },
+//   { sku: 'PRD-001', locationCode: 'HYD001', batchNo: 'B-2025-002', expiryDate: '2027-01-20', qty: 3000 },
+//   { sku: 'PRD-001', locationCode: 'MUM001', batchNo: 'B-2024-089', expiryDate: '2025-11-10', qty: 2000 },
+// ];
 
 export default function MultiLocationStock() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [locations, setLocations] = useState<Location[]>(initialLocations);
-  const [products] = useState<Product[]>(mockProducts);
-  const [inventoryMap] = useState<Record<string, number>>(initialInventoryMap);
+  const [inventory, setInventory] = useState(inventoryService.getAll());
 
-  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [warehouses, setWarehouses] = useState(warehouseService.getAll());
+
+  const [products] = useState(productService.getProducts());
+  useEffect(() => {
+    setInventory(inventoryService.getAll());
+  }, []);
+
+ 
+  
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  const [newLocation, setNewLocation] = useState<Location>({
-    code: '',
-    name: '',
-    city: '',
-    state: '',
-    type: 'Central Warehouse',
-    status: 'Active'
-  });
+  const [selectedRecord, setSelectedRecord] = useState<InventoryRecord | null>(null);
+
+  
 
   // Handle clicking outside export menu to close it
   useEffect(() => {
@@ -93,30 +144,70 @@ export default function MultiLocationStock() {
   }, []);
 
   // Compute flattened table data
-  const computeTableData = (): InventoryRecord[] => {
-    const data: InventoryRecord[] = [];
-    products.forEach(product => {
-      locations.forEach(location => {
-        const qty = inventoryMap[`${product.sku}_${location.code}`] || 0;
-        let status: 'In Stock' | 'Low Stock' | 'Out Of Stock' = 'In Stock';
-        if (qty === 0) status = 'Out Of Stock';
-        else if (qty <= product.reorderLevel) status = 'Low Stock';
-        
-        data.push({
-          id: `${product.sku}_${location.code}`,
-          productName: product.name,
-          sku: product.sku,
-          location: location.name,
-          availableQty: qty,
-          reorderLevel: product.reorderLevel,
-          status: status
-        });
-      });
-    });
-    return data;
-  };
+  const tableData = inventory.map((stock) => {
 
-  const tableData = computeTableData();
+  const warehouse = warehouses.find(
+    (w) => w.id === stock.warehouseId
+  );
+
+  const product = products.find(
+    (p) => p.code === stock.productCode
+  );
+
+  const reorderLevel = Number(product?.reorderLevel ?? 0);
+
+  let status: "In Stock" | "Low Stock" | "Out Of Stock";
+
+  if (stock.availableQty <= 0) {
+    status = "Out Of Stock";
+  } else if (stock.availableQty <= reorderLevel) {
+    status = "Low Stock";
+  } else {
+    status = "In Stock";
+  }
+
+  return {
+  ...stock,
+
+  sku: stock.productCode,
+
+  productName: stock.productName,
+
+  category: product?.category ?? "",
+
+  packType: product?.packingType ?? "",
+
+  uom: product?.type ?? "",
+
+  location: warehouse
+    ? `${warehouse.code} - ${warehouse.name}`
+    : "",
+
+  locationCode: warehouse?.code ?? "",
+
+  city: warehouse?.city ?? "",
+
+  state: warehouse?.state ?? "",
+
+  type: warehouse?.type ?? "",
+
+  locationStatus: warehouse?.status ?? "",
+
+  availableQty: stock.availableQty,
+
+  reorderLevel,
+
+  status,
+
+  createdBy: "",
+createdDate: "",
+lastUpdatedBy: "",
+lastUpdatedDate: "",
+
+  
+};
+
+});
 
   const filteredData = tableData.filter((item) => {
     const matchesSearch = item.productName.toLowerCase().includes(search.toLowerCase()) || 
@@ -142,6 +233,21 @@ export default function MultiLocationStock() {
         return <Badge variant={variant}>{row.status}</Badge>;
       } 
     },
+    {
+      key: 'id',
+      label: 'Actions',
+      render: (row) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedRecord(row);
+          }}
+          className="text-violet-600 font-medium hover:text-violet-800"
+        >
+          View
+        </button>
+      )
+    }
   ];
 
   const getFormattedDate = () => {
@@ -200,39 +306,82 @@ export default function MultiLocationStock() {
     setShowExportMenu(false);
   };
 
-  const openAddLocationModal = () => {
-    setNewLocation({
-      code: '',
-      name: '',
-      city: '',
-      state: '',
-      type: 'Central Warehouse',
-      status: 'Active'
-    });
-    setShowLocationModal(true);
-  };
+  
 
-  const handleSaveLocation = () => {
-    if (!newLocation.code || !newLocation.name || !newLocation.city || !newLocation.state || !newLocation.type || !newLocation.status) {
-      alert("Please fill all mandatory fields.");
-      return;
-    }
+  // const handleSaveLocation = () => {
+  //   if (!newLocation.code || !newLocation.name || !newLocation.city || !newLocation.state || !newLocation.type || !newLocation.status) {
+  //     alert("Please fill all mandatory fields.");
+  //     return;
+  //   }
 
-    const codeExists = locations.some(loc => loc.code.toLowerCase() === newLocation.code.toLowerCase());
-    if (codeExists) {
-      alert("Location Code must be unique.");
-      return;
-    }
+  //   const codeExists = warehouses.some(
+  //     (w) => w.code.toLowerCase() === newLocation.code.toLowerCase(),
+  //   );
 
-    const nameExists = locations.some(loc => loc.name.toLowerCase() === newLocation.name.toLowerCase());
-    if (nameExists) {
-      alert("Location Name must be unique.");
-      return;
-    }
+  //   if (codeExists) {
+  //     alert("Location Code must be unique.");
+  //     return;
+  //   }
 
-    setLocations([...locations, { ...newLocation }]);
-    setShowLocationModal(false);
-  };
+  //   const nameExists = warehouses.some(
+  //     (w) => w.name.toLowerCase() === newLocation.name.toLowerCase(),
+  //   );
+
+  //   if (nameExists) {
+  //     alert("Location Name must be unique.");
+  //     return;
+  //   }
+
+  //   const updatedWarehouses = [
+  //     ...warehouses,
+  //     {
+  //       id: Date.now().toString(),
+  //       ...newLocation,
+  //     },
+  //   ];
+
+  //   setWarehouses(updatedWarehouses);
+
+  //   warehouseService.saveAll(updatedWarehouses);
+
+  //   setShowLocationModal(false);
+  // };
+
+  // const getStockMovementSummary = (sku: string, locationCode: string) => {
+  //   const relevantTransactions = mockTransactions.filter(t => t.sku === sku && t.locationCode === locationCode);
+  //   const totalInward = relevantTransactions.filter(t => t.type === 'Inward').reduce((acc, curr) => acc + curr.qty, 0);
+  //   const totalOutward = relevantTransactions.filter(t => t.type === 'Outward').reduce((acc, curr) => acc + curr.qty, 0);
+  //   return { totalInward, totalOutward };
+  // };
+
+  // const getBatchInformation = (sku: string, locationCode: string) => {
+  //   const relevantBatches = mockBatches.filter(b => b.sku === sku && b.locationCode === locationCode);
+    
+  //   // Ensure accurate active batch count (qty > 0 and expiry in future)
+  //   const today = new Date();
+  //   today.setHours(0,0,0,0);
+
+  //   const activeBatchesList = relevantBatches.filter(b => {
+  //     const exp = new Date(b.expiryDate);
+  //     return b.qty > 0 && exp >= today;
+  //   });
+
+  //   const activeBatchesCount = activeBatchesList.length;
+
+  //   // Find nearest expiry
+  //   let nearestBatch: Batch | null = null;
+  //   if (activeBatchesList.length > 0) {
+  //     nearestBatch = activeBatchesList.reduce((prev, curr) => {
+  //       return new Date(prev.expiryDate) < new Date(curr.expiryDate) ? prev : curr;
+  //     });
+  //   }
+
+  //   return {
+  //     activeBatches: activeBatchesCount,
+  //     nearestBatchNo: nearestBatch ? nearestBatch.batchNo : 'N/A',
+  //     nearestExpiryDate: nearestBatch ? new Date(nearestBatch.expiryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-') : 'N/A'
+  //   };
+  // };
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -272,9 +421,9 @@ export default function MultiLocationStock() {
                 </div>
               )}
             </div>
-            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openAddLocationModal}>
+            {/* <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openAddLocationModal}>
               Add Location
-            </ActionButton>
+            </ActionButton> */}
           </>
         }
       />
@@ -308,16 +457,19 @@ export default function MultiLocationStock() {
         />
       </TableCard>
 
-      {/* Add Location Modal */}
+      {/* Add Location Modal
       {showLocationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">Add Location</h2>
               <button onClick={() => setShowLocationModal(false)} className="text-slate-500 hover:text-slate-800">✕</button>
             </div>
 
-            <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2 mt-2 first:mt-0">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Location Information</h3>
+              </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Location Code *</label>
                 <input 
@@ -328,7 +480,6 @@ export default function MultiLocationStock() {
                   placeholder="e.g. WH001"
                 />
               </div>
-              
               <div>
                 <label className="block text-sm font-medium mb-1">Location Name *</label>
                 <input 
@@ -336,10 +487,9 @@ export default function MultiLocationStock() {
                   value={newLocation.name} 
                   onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })} 
                   className="w-full border border-slate-200 rounded-lg px-3 py-2" 
-                  placeholder="e.g. Hyderabad Warehouse"
+                  placeholder="e.g. Central Warehouse"
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-1">City *</label>
                 <input 
@@ -349,7 +499,6 @@ export default function MultiLocationStock() {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2" 
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-1">State *</label>
                 <input 
@@ -359,21 +508,18 @@ export default function MultiLocationStock() {
                   className="w-full border border-slate-200 rounded-lg px-3 py-2" 
                 />
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-1">Type *</label>
                 <select 
                   value={newLocation.type} 
-                  onChange={(e) => setNewLocation({ ...newLocation, type: e.target.value })} 
+                  onChange={(e) => setNewLocation({ ...newLocation, type: e.target.value as any })} 
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
                   <option value="Central Warehouse">Central Warehouse</option>
-                  <option value="Regional Warehouse">Regional Warehouse</option>
-                  <option value="Branch Warehouse">Branch Warehouse</option>
-                  <option value="Distribution Center">Distribution Center</option>
+                  <option value="Regional Hub">Regional Hub</option>
+                  <option value="Branch">Branch</option>
                 </select>
               </div>
-
               <div>
                 <label className="block text-sm font-medium mb-1">Status *</label>
                 <select 
@@ -387,13 +533,95 @@ export default function MultiLocationStock() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-200">
               <ActionButton variant="secondary" onClick={() => setShowLocationModal(false)}>Cancel</ActionButton>
-              <ActionButton onClick={handleSaveLocation}>Save</ActionButton>
+              <ActionButton onClick={handleSaveLocation}>Save Location</ActionButton>
             </div>
           </div>
         </div>
-      )}
+      )} */}
+
+      {/* Inventory Details Drawer */}
+      <Drawer
+        open={!!selectedRecord}
+        onClose={() => setSelectedRecord(null)}
+        title="Inventory Details"
+      >
+        {selectedRecord && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Product Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Product Name" value={selectedRecord.productName} />
+                <DrawerField label="SKU" value={selectedRecord.sku} />
+                <DrawerField label="Category" value={selectedRecord.category} />
+                <DrawerField label="Pack Type" value={selectedRecord.packType} />
+                <DrawerField label="Unit of Measure" value={selectedRecord.uom} />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Location Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Location Code" value={selectedRecord.locationCode} />
+                <DrawerField label="Location Name" value={selectedRecord.location} />
+                <DrawerField label="City" value={selectedRecord.city} />
+                <DrawerField label="State" value={selectedRecord.state} />
+                <DrawerField label="Type" value={selectedRecord.type} />
+                <DrawerField label="Status" value={selectedRecord.locationStatus} />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Inventory Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Available Quantity" value={selectedRecord.availableQty} />
+                <DrawerField label="Reorder Level" value={selectedRecord.reorderLevel} />
+                <DrawerField 
+                  label="Inventory Status" 
+                  value={
+                    <Badge variant={selectedRecord.status === 'In Stock' ? 'success' : selectedRecord.status === 'Low Stock' ? 'warning' : 'danger'}>
+                      {selectedRecord.status}
+                    </Badge>
+                  } 
+                />
+              </div>
+            </div>
+
+            {/* <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Stock Movement Summary</h3>
+              <div className="space-y-2">
+                <DrawerField label="Total Inward" value={getStockMovementSummary(selectedRecord.sku, selectedRecord.locationCode).totalInward} />
+                <DrawerField label="Total Outward" value={getStockMovementSummary(selectedRecord.sku, selectedRecord.locationCode).totalOutward} />
+                <DrawerField label="Current Balance" value={selectedRecord.availableQty} />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Batch Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Active Batches" value={getBatchInformation(selectedRecord.sku, selectedRecord.locationCode).activeBatches} />
+                <DrawerField label="Nearest Expiry Batch" value={getBatchInformation(selectedRecord.sku, selectedRecord.locationCode).nearestBatchNo} />
+                <DrawerField label="Expiry Date" value={getBatchInformation(selectedRecord.sku, selectedRecord.locationCode).nearestExpiryDate} />
+              </div>
+            </div> */}
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Audit Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Created By" value={selectedRecord.createdBy} />
+                <DrawerField label="Created Date" value={selectedRecord.createdDate} />
+                <DrawerField label="Last Updated By" value={selectedRecord.lastUpdatedBy} />
+                <DrawerField label="Last Updated Date" value={selectedRecord.lastUpdatedDate} />
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
+              <ActionButton variant="secondary" onClick={() => setSelectedRecord(null)}>Close</ActionButton>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }

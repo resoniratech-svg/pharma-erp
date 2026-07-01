@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { Download, Filter, Search } from 'lucide-react';
+// LRTracking.tsx
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { Download, Filter, Eye, MapPin, ChevronDown } from 'lucide-react';
+import * as XLSX from 'xlsx';
 import {
   PageHeader,
   FilterBar,
@@ -9,52 +11,139 @@ import {
   TableCard,
   DataTable,
   Badge,
+  Drawer,
+  DrawerField
 } from './components/shared';
-import { type Column } from './components/shared';
-
-interface LRRecord {
-  id: string;
-  lrNumber: string;
-  transporter: string;
-  dispatchId: string;
-  date: string;
-  status: 'In Transit' | 'Delivered' | 'Pending';
-}
-
-const mockData: LRRecord[] = [
-  { id: '1', lrNumber: 'LR-2026-4412', transporter: 'VRL Logistics', dispatchId: 'DSP-2026-001', date: '14-Oct-2026', status: 'In Transit' },
-  { id: '2', lrNumber: 'LR-2026-4413', transporter: 'Gati Express', dispatchId: 'DSP-2026-002', date: '15-Oct-2026', status: 'Pending' },
-];
+import { type Column, type BadgeVariant } from './components/shared';
+import { transportChallanService, type LRRecord } from '../../services/transportChallanService';
 
 export default function LRTracking() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  
+  const [showExportMenu, setShowExportMenu] = useState(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+  
+  const [selectedLR, setSelectedLR] = useState<LRRecord | null>(null);
+  const [drawerMode, setDrawerMode] = useState<'view' | 'track'>('view');
+  
+  const [lrData, setLrData] = useState<LRRecord[]>([]);
+
+  useEffect(() => {
+    setLrData(transportChallanService.getAllLRRecords());
+
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const filteredData = useMemo(() => {
+    return lrData.filter((item) => {
+      const searchStr = search.toLowerCase();
+      const matchSearch = 
+        item.lrNumber.toLowerCase().includes(searchStr) || 
+        item.customer.toLowerCase().includes(searchStr) || 
+        item.transporter.toLowerCase().includes(searchStr);
+      const matchStatus = statusFilter ? item.status === statusFilter : true;
+      return matchSearch && matchStatus;
+    });
+  }, [search, statusFilter, lrData]);
+
+  const getFormattedDate = () => {
+    const d = new Date();
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${yyyy}${mm}${dd}`;
+  };
+
+  const handleExportExcel = () => {
+    const exportData = filteredData.map(row => ({
+      'LR No': row.lrNumber,
+      'Customer': row.customer,
+      'Transporter': row.transporter,
+      'Dispatch Date': row.dispatchDate,
+      'Status': row.status
+    }));
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'LR Tracking');
+    XLSX.writeFile(workbook, `lr_tracking_${getFormattedDate()}.xlsx`);
+    setShowExportMenu(false);
+  };
+
+  const handleExportCSV = () => {
+    const headers = ['LR No', 'Customer', 'Transporter', 'Dispatch Date', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredData.map(row => 
+        [
+          `"${row.lrNumber}"`, `"${row.customer}"`, `"${row.transporter}"`,
+          `"${row.dispatchDate}"`, `"${row.status}"`
+        ].join(',')
+      )
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = `lr_tracking_${getFormattedDate()}.csv`;
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setShowExportMenu(false);
+  };
+
+  const handleOpenDrawer = (record: LRRecord, mode: 'view' | 'track') => {
+    setDrawerMode(mode);
+    setSelectedLR(record);
+  };
 
   const columns: Column<LRRecord>[] = [
-    { key: 'lrNumber', label: 'LR Number', render: (row) => <span className="font-semibold text-slate-900">{row.lrNumber}</span> },
+    { key: 'lrNumber', label: 'LR No', render: (row) => <span className="font-semibold text-slate-900">{row.lrNumber}</span> },
+    { key: 'customer', label: 'Customer', render: (row) => <span className="font-medium text-slate-800">{row.customer}</span> },
     { key: 'transporter', label: 'Transporter' },
-    { key: 'dispatchId', label: 'Dispatch ID', render: (row) => <span className="font-medium text-slate-800">{row.dispatchId}</span> },
-    { key: 'date', label: 'Date' },
+    { key: 'dispatchDate', label: 'Dispatch Date', render: (row) => <span className="text-slate-600">{row.dispatchDate}</span> },
     {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        const variant = row.status === 'Delivered' ? 'success' : row.status === 'In Transit' ? 'info' : 'warning';
+        let variant: BadgeVariant = 'neutral';
+        if (row.status === 'Delivered') variant = 'success';
+        if (row.status === 'In Transit') variant = 'info';
+        if (row.status === 'Pending') variant = 'warning';
+        if (row.status === 'Delayed') variant = 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
     {
-      key: 'action',
-      label: 'Track',
-      render: () => <button className="text-violet-600 hover:text-violet-700 p-1"><Search className="w-4 h-4" /></button>
+      key: 'actions',
+      label: 'Actions',
+      render: (row) => (
+        <div className="flex items-center gap-3">
+          <button
+            onClick={(e) => { e.stopPropagation(); handleOpenDrawer(row, 'view'); }}
+            className="text-slate-400 hover:text-violet-600 transition-colors"
+            title="View Details"
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); handleOpenDrawer(row, 'track'); }}
+            className="text-slate-400 hover:text-violet-600 transition-colors"
+            title="Track Shipment"
+          >
+            <MapPin className="w-4 h-4" />
+          </button>
+        </div>
+      )
     }
   ];
-
-  const filteredData = mockData.filter((item) => {
-    const matchSearch = item.lrNumber.toLowerCase().includes(search.toLowerCase()) || item.transporter.toLowerCase().includes(search.toLowerCase());
-    const matchStatus = statusFilter ? item.status === statusFilter : true;
-    return matchSearch && matchStatus;
-  });
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -62,16 +151,33 @@ export default function LRTracking() {
         title="LR Number Tracking"
         subtitle="Track Lorry Receipts (LR) and live shipment status."
         actions={
-          <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />}>Export Log</ActionButton>
+          <div className="relative inline-block text-left" ref={exportMenuRef}>
+            <ActionButton 
+              variant="secondary" 
+              icon={<Download className="w-4 h-4" />}
+              onClick={() => setShowExportMenu(!showExportMenu)}
+            >
+              Export
+              <ChevronDown className="w-3 h-3 ml-1" />
+            </ActionButton>
+            {showExportMenu && (
+              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
+                <div className="py-1" role="menu" aria-orientation="vertical">
+                  <button onClick={handleExportExcel} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export Excel (.xlsx)</button>
+                  <button onClick={handleExportCSV} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export CSV (.csv)</button>
+                </div>
+              </div>
+            )}
+          </div>
         }
       />
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search LR or transporter..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search LR, customer or transporter..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
-          <span className="text-sm font-medium text-slate-600">Filters:</span>
+          <span className="text-sm font-medium text-slate-600">Status:</span>
         </div>
         <SelectFilter
           value={statusFilter}
@@ -80,18 +186,117 @@ export default function LRTracking() {
             { label: 'Pending', value: 'Pending' },
             { label: 'In Transit', value: 'In Transit' },
             { label: 'Delivered', value: 'Delivered' },
+            { label: 'Delayed', value: 'Delayed' },
           ]}
-          placeholder="All Status"
+          placeholder="All Statuses"
         />
       </FilterBar>
 
       <TableCard>
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          emptyMessage="No LR records found."
-        />
+        <div className="overflow-x-auto">
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            emptyMessage="No LR records found."
+          />
+        </div>
       </TableCard>
+
+      <Drawer 
+        open={!!selectedLR} 
+        onClose={() => setSelectedLR(null)} 
+        title={drawerMode === 'view' ? "LR Details" : "Track Shipment"}
+      >
+        {selectedLR && (
+          <div className="space-y-6">
+            {drawerMode === 'track' && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Tracking Timeline</h3>
+                <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
+                  <div className="space-y-6">
+                    {selectedLR.timeline.map((event, idx) => {
+                      const isLast = idx === selectedLR.timeline.length - 1;
+                      return (
+                        <div key={idx} className="relative flex gap-4">
+                          {!isLast && (
+                            <div className="absolute left-1.5 top-6 bottom-[-24px] w-0.5 bg-slate-200" />
+                          )}
+                          <div className="relative">
+                            <div className={`w-3 h-3 mt-1.5 rounded-full ring-4 ring-white relative z-10 shrink-0 ${isLast ? 'bg-violet-600' : 'bg-slate-300'}`} />
+                            {isLast && (
+                              <div className="absolute top-1.5 left-0 w-3 h-3 rounded-full bg-violet-600 animate-ping opacity-75" />
+                            )}
+                          </div>
+                          <div>
+                            <div className="text-xs font-medium text-slate-500 mb-0.5">{event.date} {event.time}</div>
+                            <div className={`text-sm ${isLast ? 'font-bold text-violet-700' : 'font-semibold text-slate-900'}`}>
+                              {event.status}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {drawerMode === 'view' && (
+              <>
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Shipment Information</h3>
+                  <div className="space-y-2">
+                    <DrawerField label="LR Number" value={<span className="font-semibold text-slate-900">{selectedLR.lrNumber}</span>} />
+                    <DrawerField label="Challan Number" value={selectedLR.challanNo} />
+                    <DrawerField label="Dispatch Number" value={selectedLR.dispatchId} />
+                    <DrawerField label="Dispatch Date" value={selectedLR.dispatchDate} />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Transport Information</h3>
+                  <div className="space-y-2">
+                    <DrawerField label="Transporter" value={selectedLR.transporter} />
+                    <DrawerField label="Vehicle Number" value={selectedLR.vehicleNo} />
+                    <DrawerField label="Driver Name" value={selectedLR.driverName} />
+                    <DrawerField label="Driver Mobile" value={selectedLR.driverMobile} />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Customer Information</h3>
+                  <div className="space-y-2">
+                    <DrawerField label="Customer Name" value={selectedLR.customer} />
+                    <DrawerField label="Delivery Address" value={<span className="whitespace-pre-line">{selectedLR.deliveryAddress}</span>} />
+                  </div>
+                </div>
+
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Delivery Information</h3>
+                  <div className="space-y-2">
+                    <DrawerField label="Current Status" value={
+                      <Badge variant={
+                        selectedLR.status === 'Delivered' ? 'success' : 
+                        selectedLR.status === 'In Transit' ? 'info' : 
+                        selectedLR.status === 'Pending' ? 'warning' : 'danger'
+                      }>
+                        {selectedLR.status}
+                      </Badge>
+                    } />
+                    <DrawerField label="Current Location" value={selectedLR.currentLocation} />
+                    <DrawerField label="ETA" value={selectedLR.eta} />
+                    <DrawerField label="Last Updated" value={selectedLR.lastUpdated} />
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="pt-6 border-t border-slate-100 flex justify-end">
+              <ActionButton variant="secondary" onClick={() => setSelectedLR(null)}>Close</ActionButton>
+            </div>
+          </div>
+        )}
+      </Drawer>
     </div>
   );
 }

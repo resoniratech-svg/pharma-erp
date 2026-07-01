@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from "react";
 import { Plus, Filter, Download, Trash2 } from 'lucide-react';
 import {
   PageHeader,
@@ -13,6 +13,9 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './types';
+import { packingTypeService } from "../../services/packingTypeService";
+import activityLogService from "../../services/activityLogService";
+import { hasModulePermission } from '../../utils/permissionUtils';
 
 interface PackingType {
   id: string;
@@ -31,7 +34,7 @@ const initialMockData: PackingType[] = [
 ];
 
 export default function PackingTypeManagement() {
-  const [data, setData] = useState<PackingType[]>(initialMockData);
+  const [data, setData] = useState<PackingType[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
@@ -39,6 +42,13 @@ export default function PackingTypeManagement() {
   const [itemToDelete, setItemToDelete] = useState<PackingType | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [isEditingModal, setIsEditingModal] = useState(false);
+
+  const activeRole = localStorage.getItem("activeRole") || "";
+  
+  const canView = hasModulePermission(activeRole, "Products & Master", "View");
+  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
+  const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
+  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
 
   const [newPacking, setNewPacking] = useState({
     id: '',
@@ -48,6 +58,8 @@ export default function PackingTypeManagement() {
     description: '',
     status: 'Active' as 'Active' | 'Inactive',
   });
+
+  const currentUser = JSON.parse(localStorage.getItem("authUser") || "{}");
 
   const columns: Column<PackingType>[] = [
     { key: 'name', label: 'Packing Name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
@@ -76,16 +88,18 @@ export default function PackingTypeManagement() {
           >
             View
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setItemToDelete(row);
-            }}
-            className="text-rose-600 font-medium hover:text-rose-800"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {canDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setItemToDelete(row);
+              }}
+              className="text-rose-600 font-medium hover:text-rose-800"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       )
     }
@@ -167,6 +181,12 @@ export default function PackingTypeManagement() {
       };
       
       setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+      activityLogService.addLog({
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        action: "Packing Type Updated",
+        module: "Packing Type Management",
+      });
       if (selectedPacking && selectedPacking.id === updatedRecord.id) {
         setSelectedPacking(updatedRecord);
       }
@@ -180,6 +200,12 @@ export default function PackingTypeManagement() {
         status: newPacking.status as 'Active' | 'Inactive'
       };
       setData([record, ...data]);
+      activityLogService.addLog({
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        action: "Packing Type Created",
+        module: "Packing Type Management",
+      });
     }
     
     setShowModal(false);
@@ -188,9 +214,31 @@ export default function PackingTypeManagement() {
   const handleDelete = () => {
     if (itemToDelete) {
       setData(data.filter(item => item.id !== itemToDelete.id));
+      activityLogService.addLog({
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        action: "Packing Type Deleted",
+        module: "Packing Type Management",
+       });
       setItemToDelete(null);
     }
   };
+
+  useEffect(() => {
+    const savedData = packingTypeService.getAll();
+    if (savedData.length > 0) {
+      setData(savedData);
+    } else {
+      setData(initialMockData);
+      packingTypeService.saveAll(initialMockData);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (data.length > 0) {
+      packingTypeService.saveAll(data);
+    }
+  }, [data]);
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -199,18 +247,31 @@ export default function PackingTypeManagement() {
         subtitle="Manage product packaging materials and units of measure."
         actions={
           <>
-            <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />} onClick={handleExport}>
+            <ActionButton
+              variant="secondary"
+              icon={<Download className="w-4 h-4" />}
+              onClick={handleExport}
+            >
               Export
             </ActionButton>
-            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openNewModal}>
-              Add Packing Type
-            </ActionButton>
+            {canCreate && (
+              <ActionButton
+                icon={<Plus className="w-4 h-4" />}
+                onClick={openNewModal}
+              >
+                Add Packing Type
+              </ActionButton>
+            )}
           </>
         }
       />
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search packing or code..." />
+        <SearchInput
+          value={search}
+          onChange={setSearch}
+          placeholder="Search packing or code..."
+        />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
@@ -220,8 +281,8 @@ export default function PackingTypeManagement() {
           value={statusFilter}
           onChange={setStatusFilter}
           options={[
-            { label: 'Active', value: 'Active' },
-            { label: 'Inactive', value: 'Inactive' },
+            { label: "Active", value: "Active" },
+            { label: "Inactive", value: "Inactive" },
           ]}
           placeholder="All Status"
         />
@@ -246,20 +307,37 @@ export default function PackingTypeManagement() {
           <div className="space-y-4">
             <DrawerField label="Packing Code" value={selectedPacking.code} />
             <DrawerField label="Packing Name" value={selectedPacking.name} />
-            <DrawerField label="Unit of Measure" value={<Badge variant="purple">{selectedPacking.uom}</Badge>} />
-            <DrawerField label="Description" value={selectedPacking.description || 'N/A'} />
+            <DrawerField
+              label="Unit of Measure"
+              value={<Badge variant="purple">{selectedPacking.uom}</Badge>}
+            />
+            <DrawerField
+              label="Description"
+              value={selectedPacking.description || "N/A"}
+            />
             <DrawerField
               label="Status"
               value={
-                <Badge variant={selectedPacking.status === 'Active' ? 'success' : 'neutral'}>
+                <Badge
+                  variant={selectedPacking.status === "Active" ? "success" : "neutral"}
+                >
                   {selectedPacking.status}
                 </Badge>
               }
             />
-            
+
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3 mt-4">
-              <ActionButton onClick={openEditModal}>Edit Packing Type</ActionButton>
-              <ActionButton variant="secondary" onClick={() => setSelectedPacking(null)}>Close</ActionButton>
+              {canEdit && (
+                <ActionButton onClick={openEditModal}>
+                  Edit Packing Type
+                </ActionButton>
+              )}
+              <ActionButton
+                variant="secondary"
+                onClick={() => setSelectedPacking(null)}
+              >
+                Close
+              </ActionButton>
             </div>
           </div>
         )}
@@ -272,12 +350,19 @@ export default function PackingTypeManagement() {
             <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6 text-rose-600" />
             </div>
-            <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Packing Type</h3>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">
+              Delete Packing Type
+            </h3>
             <p className="text-sm text-slate-500 mb-6">
               Are you sure you want to delete this packing type? This action cannot be undone.
             </p>
             <div className="flex justify-center gap-3">
-              <button onClick={() => setItemToDelete(null)} className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button
+                onClick={() => setItemToDelete(null)}
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
+              >
+                Cancel
+              </button>
               <button
                 onClick={handleDelete}
                 className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 transition-colors"
@@ -294,41 +379,67 @@ export default function PackingTypeManagement() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">{isEditingModal ? 'Edit Packing Type' : 'Add Packing Type'}</h2>
-              <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-slate-800">✕</button>
+              <h2 className="text-xl font-bold text-slate-900">
+                {isEditingModal ? "Edit Packing Type" : "Add Packing Type"}
+              </h2>
+              <button
+                onClick={() => setShowModal(false)}
+                className="text-slate-500 hover:text-slate-800"
+              >
+                ✕
+              </button>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
               {/* BASIC INFORMATION */}
               <div className="mt-2 first:mt-0">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">BASIC INFORMATION</h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
+                  BASIC INFORMATION
+                </h3>
               </div>
+              
               <div>
-                <label className="block text-sm font-medium mb-1">Packing Code *</label>
-                <input 
+                <label className="block text-sm font-medium mb-1">
+                  Packing Code *
+                </label>
+                <input
                   type="text"
-                  value={newPacking.code} 
-                  onChange={(e) => setNewPacking({ ...newPacking, code: e.target.value })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500" 
+                  maxLength={20}
+                  value={newPacking.code}
+                  onChange={(e) =>
+                    setNewPacking({ ...newPacking, code: e.target.value })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="e.g. BLS-ALU"
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium mb-1">Packing Name *</label>
-                <input 
+                <label className="block text-sm font-medium mb-1">
+                  Packing Name *
+                </label>
+                <input
                   type="text"
-                  value={newPacking.name} 
-                  onChange={(e) => setNewPacking({ ...newPacking, name: e.target.value })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2" 
+                  maxLength={20}
+                  value={newPacking.name}
+                  onChange={(e) =>
+                    setNewPacking({ ...newPacking, name: e.target.value })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                   placeholder="e.g. Alu-Alu Blister"
                 />
               </div>
+
               <div>
-                <label className="block text-sm font-medium mb-1">Unit of Measure *</label>
-                <select 
-                  value={newPacking.uom} 
-                  onChange={(e) => setNewPacking({ ...newPacking, uom: e.target.value })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                <label className="block text-sm font-medium mb-1">
+                  Unit of Measure *
+                </label>
+                <select
+                  value={newPacking.uom}
+                  onChange={(e) =>
+                    setNewPacking({ ...newPacking, uom: e.target.value })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 >
                   <option value="Strip">Strip</option>
                   <option value="Bottle">Bottle</option>
@@ -340,27 +451,40 @@ export default function PackingTypeManagement() {
                   <option value="Box">Box</option>
                 </select>
               </div>
+
               <div>
-                <label className="block text-sm font-medium mb-1">Description</label>
-                <textarea 
+                <label className="block text-sm font-medium mb-1">
+                  Description
+                </label>
+                <textarea
                   rows={2}
-                  value={newPacking.description} 
-                  onChange={(e) => setNewPacking({ ...newPacking, description: e.target.value })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2" 
-                  placeholder="e.g. Double aluminum foil blister pack"
+                  maxLength={20}
+                  value={newPacking.description}
+                  onChange={(e) =>
+                    setNewPacking({ ...newPacking, description: e.target.value })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  placeholder="e.g. Double aluminum foil"
                 />
               </div>
 
               {/* STATUS INFORMATION */}
               <div className="mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">STATUS INFORMATION</h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
+                  STATUS INFORMATION
+                </h3>
               </div>
+              
               <div>
-                <label className="block text-sm font-medium mb-1">Status *</label>
-                <select 
-                  value={newPacking.status} 
-                  onChange={(e) => setNewPacking({ ...newPacking, status: e.target.value as any })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                <label className="block text-sm font-medium mb-1">
+                  Status *
+                </label>
+                <select
+                  value={newPacking.status}
+                  onChange={(e) =>
+                    setNewPacking({ ...newPacking, status: e.target.value as any })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -369,8 +493,25 @@ export default function PackingTypeManagement() {
             </div>
 
             <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
-              <ActionButton variant="secondary" onClick={() => setShowModal(false)}>Cancel</ActionButton>
-              <ActionButton onClick={handleSavePacking}>{isEditingModal ? 'Save Changes' : 'Save Packing Type'}</ActionButton>
+              <ActionButton
+                variant="secondary"
+                onClick={() => setShowModal(false)}
+              >
+                Cancel
+              </ActionButton>
+              <ActionButton
+                onClick={() => {
+                  if (
+                    (isEditingModal && !canEdit) ||
+                    (!isEditingModal && !canCreate)
+                  ) {
+                    return;
+                  }
+                  handleSavePacking();
+                }}
+              >
+                {isEditingModal ? "Save Changes" : "Save Packing Type"}
+              </ActionButton>
             </div>
           </div>
         </div>

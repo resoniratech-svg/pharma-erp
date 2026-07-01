@@ -18,6 +18,7 @@ import PackingTypeManagement from '../../modules/products/PackingTypeManagement'
 import SchemeManagement from '../../modules/products/SchemeManagement';
 
 // Inventory Module
+import WarehouseMaster from '../../modules/inventory/WarehouseMaster';
 import InventoryOverview from '../../modules/inventory/InventoryOverview';
 import MultiLocationStock from '../../modules/inventory/MultiLocationStock';
 import BatchWiseStockTracking from '../../modules/inventory/BatchWiseStockTracking';
@@ -41,6 +42,7 @@ import DispatchReports from '../../modules/warehouse/DispatchReports';
 import DistributorList from '../../modules/distributors/DistributorList';
 import DistributorProductCatalog from '../../modules/distributors/ProductCatalog';
 import DistributorOrders from '../../modules/distributors/Orders';
+import DistributorRetailerOrders from '../../modules/distributors/RetailerOrders';
 import OrderHistory from '../../modules/distributors/OrderHistory';
 import OutstandingTracking from '../../modules/distributors/OutstandingTracking';
 import Ledgers from '../../modules/distributors/Ledgers';
@@ -134,6 +136,7 @@ import SystemSettings from '../../modules/settings/SystemSettings';
 
 // Super Admin Module
 import RoleBasedAccess from '../../modules/super-admin/RoleBasedAccess';
+import AdminManagement from '../../modules/super-admin/AdminManagement';
 import AllIndiaSales from '../../modules/super-admin/AllIndiaSales';
 import StatePerformance from '../../modules/super-admin/StatePerformance';
 import ProductProfitability from '../../modules/super-admin/ProductProfitability';
@@ -144,9 +147,6 @@ import FranchiseMonitoring from '../../modules/super-admin/FranchiseMonitoring';
 import ExportOrderMonitoring from '../../modules/super-admin/ExportOrderMonitoring';
 import SuperAdminNotificationCenter from '../../modules/super-admin/NotificationCenter';
 import UserActivityLogs from '../../modules/super-admin/UserActivityLogs';
-
-import { ordersRoutes } from '../../modules/orders/routes';
-import { reportsRoutes } from '../../modules/reports/routes';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 
 export const router = createBrowserRouter([
@@ -162,8 +162,6 @@ export const router = createBrowserRouter([
     path: '/login',
     element: <LoginPage />,
   },
-  ...ordersRoutes,
-  ...reportsRoutes,
   {
     path: '/workspace/dashboard',
     element: <MainLayout />,
@@ -182,6 +180,7 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute moduleLabel="Super Admin" />,
         children: [
           { path: 'role-based-access', element: <RoleBasedAccess /> },
+          { path: 'admin-management', element: <AdminManagement /> },
           { path: 'all-india-sales', element: <AllIndiaSales /> },
           { path: 'state-performance', element: <StatePerformance /> },
           { path: 'product-profitability', element: <ProductProfitability /> },
@@ -224,6 +223,7 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute moduleLabel="Inventory & Warehouse Management" />,
         children: [
+          { path: 'warehouse-master', element: <WarehouseMaster /> },
           { path: 'overview', element: <InventoryOverview /> },
           { path: 'multi-location', element: <MultiLocationStock /> },
           { path: 'batch-wise-stock-tracking', element: <BatchWiseStockTracking /> },
@@ -265,6 +265,7 @@ export const router = createBrowserRouter([
           { path: 'list', element: <DistributorList /> },
           { path: 'product-catalog', element: <DistributorProductCatalog /> },
           { path: 'orders', element: <DistributorOrders /> },
+          { path: 'retailer-orders', element: <DistributorRetailerOrders /> },
           { path: 'order-history', element: <OrderHistory /> },
           { path: 'outstanding', element: <OutstandingTracking /> },
           { path: 'ledgers', element: <Ledgers /> },

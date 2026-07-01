@@ -17,12 +17,12 @@ const DUR  = 60;            // rotation duration (seconds)
 const MODULES = [
   { name: 'Product Management',      icon: Package,    color: '#00D9A3', bg: '#CCFBF1', angle: -45  },
   { name: 'Inventory & Warehouse Management',     icon: Warehouse,  color: '#00BCD4', bg: '#E0F7FA', angle: 0    },
-  { name: 'C&F Management',     icon: Building2,  color: '#3B82F6', bg: '#DBEAFE', angle: 45   },
-  { name: 'Wholesale Billing System',       icon: Receipt,    color: '#F59E0B', bg: '#FEF3C7', angle: 90   },
-  { name: 'Pre-Sales CRM',           icon: Users,      color: '#8B5CF6', bg: '#EDE9FE', angle: 135  },
-  { name: 'GPS & Location Tracking',           icon: Navigation, color: '#EF4444', bg: '#FEE2E2', angle: 180  },
-  { name: 'Analytics',     icon: BarChart3,  color: '#6366F1', bg: '#EEF2FF', angle: 225  },
-  { name: 'Accounting & Finance',       icon: Calculator, color: '#10B981', bg: '#D1FAE5', angle: 270  },
+  { name: 'Accounting & Finance',     icon: Calculator,  color: '#F59E0B', bg: '#FEF3C7', angle: 45   },
+  { name: 'Distributors',       icon: Building2,    color: '#3B82F6', bg: '#DBEAFE', angle: 90   },
+  { name: 'Retailers',           icon: Users,      color: '#8B5CF6', bg: '#EDE9FE', angle: 135  },
+  { name: 'Medical Representative',           icon: Navigation, color: '#EF4444', bg: '#FEE2E2', angle: 180  },
+  { name: 'Wholesale Billing System',     icon: Receipt,  color: '#6366F1', bg: '#EEF2FF', angle: 225  },
+  { name: 'C & F Management',       icon: BarChart3, color: '#10B981', bg: '#D1FAE5', angle: 270  },
 ];
 
 /* ── Component ─────────────────────────────────────────────────── */
@@ -166,7 +166,7 @@ export const OrbitalSystem = () => (
         const y   = C + R2 * Math.sin(rad);
 
         // Label offset: push text outward along the radial direction
-        const LO  = 40;  // label distance from icon center
+        const LO  = 55;  // label distance from icon center
         const lx  = Math.cos(rad) * LO;
         const ly  = Math.sin(rad) * LO;
 
@@ -197,17 +197,20 @@ export const OrbitalSystem = () => (
 
             {/* Label — rotates WITH the ring */}
             <div
-              className="absolute pointer-events-none"
+              className="absolute pointer-events-none flex items-center justify-center"
               style={{
-                top:       ICON / 2 + ly - 8,
+                top:       ICON / 2 + ly,
                 left:      ICON / 2 + lx,
                 transform: `translate(-50%, -50%) rotate(${mod.angle}deg)`,
-                whiteSpace:'nowrap',
+                width: 140,
               }}
             >
               <span
-                className="text-[10px] font-bold tracking-wide transition-colors group-hover/module:text-slate-900"
-                style={{ color: '#64748B' }}
+                className="text-[12px] md:text-sm font-bold tracking-tight transition-colors text-slate-800 text-center leading-tight whitespace-normal drop-shadow-sm group-hover/module:text-slate-900"
+                style={{ 
+                  color: '#1e293b', 
+                  textShadow: '0 2px 4px rgba(255,255,255,0.9), 0 0 10px rgba(255,255,255,0.8)' 
+                }}
               >
                 {mod.name}
               </span>
@@ -220,7 +223,17 @@ export const OrbitalSystem = () => (
     {/* ── Centre hub ───────────────────────────────────────────── */}
     <motion.div
       className="absolute flex flex-col items-center justify-center z-10 cursor-pointer"
-      whileHover={{ scale: 1.05 }}
+      whileHover="hover"
+      variants={{
+        hover: {
+          scale: 1.05,
+          x: [0, 6, -6, 0],
+          transition: {
+            scale: { duration: 0.3, ease: "easeOut" },
+            x: { repeat: Infinity, duration: 3, ease: "easeInOut" }
+          }
+        }
+      }}
       style={{
         width:     120,
         height:    120,

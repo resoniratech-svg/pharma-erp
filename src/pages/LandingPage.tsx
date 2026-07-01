@@ -1,11 +1,12 @@
 import { Link } from 'react-router';
 import { motion } from 'framer-motion';
+import mjLogo from '../assets/logo/mj-healthcare-logo.svg';
 import {
   ArrowRight, CheckCircle2, Package, Warehouse, Receipt, Users, 
   Navigation, Zap, Globe2, Activity, Star, ShieldCheck,
-  Calculator, Building2, Server, Database, LineChart
+  Calculator, Building2, Server, Database, LineChart,
+  ClipboardList, Truck, Factory, User, ShoppingCart, FileCheck
 } from 'lucide-react';
-import { OrbitalSystem } from '../components/animations/OrbitalSystem';
 
 /* ─── Motion helpers ─────────────────────────────────────────────── */
 const fadeUp = (delay = 0) => ({
@@ -20,16 +21,10 @@ const fadeUp = (delay = 0) => ({
 ═══════════════════════════════════════════════════════════════════ */
 const Navbar = () => (
   <nav className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-b border-white/50 shadow-sm shadow-slate-100/50 transition-all">
-    <div className="max-w-7xl mx-auto px-6 h-[70px] flex items-center justify-between">
+    <div className="max-w-7xl mx-auto px-6 h-[80px] flex items-center justify-between">
       {/* Logo */}
       <Link to="/" className="flex items-center gap-3">
-        <div className="w-9 h-9 rounded-xl flex items-center justify-center shadow-lg shadow-primary/25"
-          style={{ background: 'linear-gradient(135deg, #00D9A3, #00BCD4)' }}>
-          <span className="text-white font-black text-base">P</span>
-        </div>
-        <span className="text-lg font-extrabold text-slate-900 tracking-tight">
-          Pharma <span className="text-gradient">ERP</span>
-        </span>
+        <img src={mjLogo} alt="MJ Healthcare" className="h-14 object-contain" />
       </Link>
 
       {/* Nav links */}
@@ -53,15 +48,63 @@ const Navbar = () => (
   </nav>
 );
 
+const HeroFeatureGrid = () => (
+  <div className="flex flex-col items-center justify-center w-full mt-10 lg:mt-0">
+    <h3 className="text-2xl font-bold mb-12 tracking-tight text-center drop-shadow-sm text-transparent bg-clip-text bg-gradient-to-r from-[#2563EB] to-[#4F46E5]">
+      India's No. 1 Trusted Pharma ERP
+    </h3>
+    <div className="grid grid-cols-3 gap-x-8 gap-y-10 w-full max-w-xl">
+      {/* Row 1 */}
+      <div className="flex flex-col items-center text-center gap-4">
+        <div className="w-20 h-20 rounded-3xl bg-teal-50/80 flex items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-1 transition-all">
+          <ClipboardList className="w-8 h-8 text-teal-500" />
+        </div>
+        <span className="text-sm font-bold text-slate-800 leading-tight">Inventory<br/>Management</span>
+      </div>
+      <div className="flex flex-col items-center text-center gap-4">
+        <div className="w-20 h-20 rounded-3xl bg-blue-50/80 flex items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-1 transition-all">
+          <Truck className="w-8 h-8 text-blue-500" />
+        </div>
+        <span className="text-sm font-bold text-slate-800 leading-tight">Sales &<br/>Distribution</span>
+      </div>
+      <div className="flex flex-col items-center text-center gap-4">
+        <div className="w-20 h-20 rounded-3xl bg-indigo-50/80 flex items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-1 transition-all">
+          <Factory className="w-8 h-8 text-indigo-500" />
+        </div>
+        <span className="text-sm font-bold text-slate-800 leading-tight">Manufacturing</span>
+      </div>
+      {/* Row 2 */}
+      <div className="flex flex-col items-center text-center gap-4">
+        <div className="w-20 h-20 rounded-3xl bg-violet-50/80 flex items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-1 transition-all">
+          <User className="w-8 h-8 text-violet-500" />
+        </div>
+        <span className="text-sm font-bold text-slate-800 leading-tight">Medical<br/>Representative</span>
+      </div>
+      <div className="flex flex-col items-center text-center gap-4">
+        <div className="w-20 h-20 rounded-3xl bg-green-50/80 flex items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-1 transition-all">
+          <ShoppingCart className="w-8 h-8 text-green-500" />
+        </div>
+        <span className="text-sm font-bold text-slate-800 leading-tight">Purchase<br/>Management</span>
+      </div>
+      <div className="flex flex-col items-center text-center gap-4">
+        <div className="w-20 h-20 rounded-3xl bg-amber-50/80 flex items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-1 transition-all">
+          <FileCheck className="w-8 h-8 text-amber-500" />
+        </div>
+        <span className="text-sm font-bold text-slate-800 leading-tight">GST Billing &<br/>Compliance</span>
+      </div>
+    </div>
+  </div>
+);
+
 /* ═══════════════════════════════════════════════════════════════════
    HERO
 ═══════════════════════════════════════════════════════════════════ */
 const Hero = () => (
-  <section className="relative min-h-screen flex items-center pt-[70px] overflow-hidden">
+  <section className="relative min-h-screen flex items-center pt-[80px] overflow-hidden">
     {/* Gradient background */}
     <div className="absolute inset-0"
       style={{
-        background: 'radial-gradient(120% 120% at 50% -10%, #ffffff 0%, #f0f9ff 40%, #e0fdf4 100%)',
+        background: 'radial-gradient(120% 120% at 50% -10%, #ffffff 0%, #f0f9ff 50%, #e0f2fe 100%)',
       }} />
 
     {/* Decorative blobs */}
@@ -75,41 +118,23 @@ const Hero = () => (
     <div className="max-w-7xl mx-auto px-6 w-full relative z-10 grid lg:grid-cols-[1.1fr_0.9fr] gap-12 items-center py-16">
       {/* Left — copy */}
       <motion.div {...{ initial: { opacity: 0, y: 36 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.8 } }}>
-        {/* Status badge */}
-        <div className="inline-flex items-center gap-2.5 px-4 py-2 rounded-full bg-white/60 backdrop-blur-md border border-white/60 shadow-sm mb-8 hover:shadow-md transition-shadow">
-          <span className="flex h-2 w-2 rounded-full bg-primary animate-pulse" />
-          <span className="text-sm font-semibold text-slate-700">Enterprise Edition v3.0</span>
-          <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-        </div>
-
         {/* Headline */}
-        <h1 className="text-5xl lg:text-[72px] font-black text-slate-900 leading-[1.05] mb-8 tracking-tight">
-          The Operating System for <br />
-          <span className="relative inline-block">
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D9A3] to-[#4F46E5]">
-              Modern Pharma
-            </span>
-          </span>
+        <h1 className="text-5xl lg:text-[72px] font-black leading-[1.05] mb-4 tracking-tight">
+          <span className="text-[#0D1B3D]">MJ</span>{' '}
+          <span className="text-[#5B6BC6]">Healthcare</span>
         </h1>
+        <h2 className="text-3xl lg:text-4xl font-bold text-[#333333] mb-8 tracking-tight">
+          Care. Innovate. Cure.
+        </h2>
 
         {/* Sub-copy */}
         <p className="text-xl text-slate-600 mb-10 leading-relaxed max-w-[560px] font-medium">
-          Products, inventory, warehouses, billing, CRM, and analytics — unified into a single, intelligent enterprise platform.
+          Products, inventory, warehouses, billing, CRM <br/>
+          unified into a single, intelligent enterprise platform.
         </p>
 
-        {/* Compliance pills */}
-        <div className="flex flex-wrap gap-3 mb-12">
-          {['GST Compliant', 'FDA 21 CFR', 'ISO 27001', 'CDSCO Ready'].map((f) => (
-            <span key={f}
-              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-white/80 backdrop-blur-sm border border-slate-200/80 text-xs font-bold text-slate-600 shadow-sm hover:border-primary/40 hover:text-primary transition-all">
-              <CheckCircle2 className="w-3.5 h-3.5 text-primary" />
-              {f}
-            </span>
-          ))}
-        </div>
-
         {/* CTAs */}
-        <div className="flex items-center gap-5">
+        <div className="flex items-center gap-5 mt-4">
           <Link to="/workspace"
             className="inline-flex items-center gap-2.5 px-8 py-4 rounded-full text-base font-bold text-white shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/30"
             style={{
@@ -117,19 +142,15 @@ const Hero = () => (
             }}>
             Enter Platform <ArrowRight className="w-5 h-5" />
           </Link>
-          <a href="#platform"
-            className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-slate-700 bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 transition-all duration-300">
-            Book Demo
-          </a>
         </div>
       </motion.div>
 
-      {/* Right — orbital */}
+      {/* Right — features */}
       <motion.div
         {...{ initial: { opacity: 0, scale: 0.85 }, animate: { opacity: 1, scale: 1 }, transition: { duration: 1.2, delay: 0.3 } }}
-        className="hidden lg:flex items-center justify-center relative"
+        className="hidden lg:flex items-center justify-center relative w-full h-full"
         style={{ overflow: 'visible' }}>
-        <OrbitalSystem />
+        <HeroFeatureGrid />
       </motion.div>
     </div>
   </section>

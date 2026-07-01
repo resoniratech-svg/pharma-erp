@@ -7,7 +7,9 @@ import {
   Activity, Dna,
 } from 'lucide-react';
 import { ROLES } from '../constants/roles';
-import { USERS } from '../constants/users';
+import { USERS } from '../mock-data/mockUsers';
+import activityLogService from '../services/activityLogService';
+import mjLogo from '../assets/logo/mj-healthcare-logo.svg';
 
 /* ── Types ──────────────────────────────────────────────────────── */
 interface LocationState {
@@ -129,13 +131,30 @@ export default function LoginPage() {
       return;
     }
 
+    if (user.roleId !== role.id) {
+      setLoading(false);
+      setEmailErr(`Invalid credentials for ${role.title} workspace.`);
+      setPasswordErr('');
+      return;
+    }
+
     setLoading(false);
     setSuccess(true);
 
     await new Promise((res) => setTimeout(res, 700));
-    localStorage.setItem('activeRole', user.roleId);
-    localStorage.setItem('authUser', JSON.stringify(user));
-    navigate('/workspace/dashboard');
+    localStorage.setItem("activeRole", user.roleId);
+    localStorage.setItem("workspaceRole", role.id);
+    localStorage.setItem("userId", user.id);
+    localStorage.setItem("authUser", JSON.stringify(user));
+
+    activityLogService.addLog({
+      userId: user.id,
+      userName: user.fullName,
+      action: "Login",
+      module: "Authentication",
+    });
+
+    navigate("/workspace/dashboard");
   };
 
   return (
@@ -160,10 +179,7 @@ export default function LoginPage() {
 
         <div className="relative z-10">
           <Link to="/" className="flex items-center gap-3 w-fit">
-            <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-lg">
-              <span className="text-[#14B8A6] font-black text-xl">P</span>
-            </div>
-            <span className="text-white font-extrabold tracking-tight text-2xl">Pharma ERP</span>
+            <img src={mjLogo} alt="MJ Healthcare" className="h-14 object-contain" />
           </Link>
         </div>
 
