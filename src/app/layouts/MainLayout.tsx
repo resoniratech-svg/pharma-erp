@@ -186,10 +186,10 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Follow-Up Management', path: '/workspace/crm/follow-ups' },
       { label: 'Meeting Scheduling', path: '/workspace/crm/meetings' },
       { label: 'Activity Tracking', path: '/workspace/crm/activities' },
+      { label: 'Lead Conversion Tracking', path: '/workspace/crm/lead-conversion-tracking' },
       { label: 'Doctor/Hospital CRM', path: '/workspace/crm/doctors' },
       { label: 'Distributor Onboarding CRM', path: '/workspace/crm/distributors' },
       { label: 'Sales Activity Monitoring', path: '/workspace/crm/pipeline' },
-      { label: 'Lead Conversion Tracking', path: '/workspace/crm/lead-conversion-tracking' },
     ],
   },
   {
@@ -291,6 +291,15 @@ export function MainLayout() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Auto-expand the active menu when the route changes
+  useEffect(() => {
+    NAV_ITEMS.forEach(item => {
+      if (item.subItems?.some(sub => location.pathname.startsWith(sub.path))) {
+        setExpandedMenus(prev => prev.includes(item.label) ? prev : [...prev, item.label]);
+      }
+    });
+  }, [location.pathname]);
+
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
   const activeRoleData = ROLES.find(r => r.id === activeRole) || ROLES[0];
   const authUserString = localStorage.getItem('authUser');
@@ -321,14 +330,17 @@ export function MainLayout() {
         }`}
       >
         {/* Sidebar Header */}
-        <div className="h-16 flex items-center justify-between px-6 border-b border-slate-100 flex-shrink-0">
-          <Link to="/workspace/dashboard" className="flex items-center gap-3 outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center bg-primary" style={{ backgroundColor: PRIMARY_HEX }}>
-              <span className="text-white font-bold text-sm" style={{ fontFamily: 'var(--font-heading)' }}>P</span>
-            </div>
-            <span className="text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
+        <div className="h-[90px] flex items-center justify-center border-b border-slate-100 flex-shrink-0 overflow-hidden relative">
+          <Link to="/workspace/dashboard" className="flex items-center justify-center w-full outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded">
+            {/* YOUR NEW CUSTOM LOGO */}
+            <img 
+               src="/Pharma logo.jpeg"  
+
+            />
+
+            {/* <span className="text-lg font-bold text-slate-900 tracking-tight" style={{ fontFamily: 'var(--font-heading)' }}>
               Pharma ERP
-            </span>
+            </span> */}
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -365,11 +377,8 @@ export function MainLayout() {
             const isAnySubActive = hasSubItems && item.subItems!.some((sub) => isPathActive(sub.path));
             const isActive = !hasSubItems && item.path ? isPathActive(item.path) : isAnySubActive;
             
-            // We can just auto-expand if any sub-item is active, or we could add local state. 
-            // For now, let's keep it simple: always expand if active, else we can use a local state.
-            // Let's add a state array to MainLayout `const [expandedMenus, setExpandedMenus] = useState<string[]>(['Products']);`
-
-            const isExpanded = expandedMenus.includes(item.label) || isAnySubActive;
+            // Menu is expanded based purely on state, allowing manual collapsing even if active.
+            const isExpanded = expandedMenus.includes(item.label);
 
             const toggleMenu = () => {
               if (expandedMenus.includes(item.label)) {
@@ -422,7 +431,22 @@ export function MainLayout() {
 
                 {hasSubItems && isExpanded && (
                   <div className="pl-11 pr-3 space-y-1 mt-1">
-                    {item.subItems!.map((sub) => {
+                    {item.subItems!.filter(sub => {
+                      // Manual Role-Based filtering for Notifications
+                      if (item.label === 'Alerts & Notifications') {
+                        if (activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
+                          return sub.label === 'Meeting Reminders' || sub.label === 'Follow-Up Reminders';
+                        }
+                        //if (activeRole === ROLE_ACCOUNTANT) {
+                        //  return sub.label === 'Payment Reminders' || sub.label === 'Activity Notifications';
+                        //}
+                        // Super Admin sees everything
+                        if (activeRole === ROLE_SUPER_ADMIN) return true;
+                        
+                        return true; 
+                      }
+                      return true;
+                    }).map((sub) => {
                       const isSubActive = isPathActive(sub.path);
                       return (
                         <Link

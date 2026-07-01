@@ -58,7 +58,39 @@ export function SelectFilter({ value, onChange, options, placeholder = 'All' }: 
   );
 }
 
-export function ActionButton({ onClick, variant = 'primary', children, icon, className = '' }: { onClick?: () => void; variant?: 'primary' | 'secondary' | 'ghost'; children: ReactNode; icon?: ReactNode; className?: string; }) {
+// export function ActionButton({ onClick, variant = 'primary', children, icon, className = '' }: { onClick?: () => void; variant?: 'primary' | 'secondary' | 'ghost'; children: ReactNode; icon?: ReactNode; className?: string; }) {
+//   const styles = {
+//     primary: 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm shadow-violet-200',
+//     secondary: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200',
+//     ghost: 'bg-transparent hover:bg-slate-100 text-slate-600',
+//   };
+
+//   return (
+//     <button
+//       onClick={onClick}
+//       className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 ${styles[variant]} ${className}`}
+//     >
+//       {icon}
+//       {children}
+//     </button>
+//   );
+// }
+
+export function ActionButton({ 
+  onClick, 
+  disabled = false, 
+  variant = 'primary', 
+  children, 
+  icon, 
+  className = '' 
+}: { 
+  onClick?: () => void; 
+  disabled?: boolean; 
+  variant?: 'primary' | 'secondary' | 'ghost'; 
+  children: ReactNode; 
+  icon?: ReactNode; 
+  className?: string; 
+}) {
   const styles = {
     primary: 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm shadow-violet-200',
     secondary: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200',
@@ -68,7 +100,8 @@ export function ActionButton({ onClick, variant = 'primary', children, icon, cla
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 ${styles[variant]} ${className}`}
+      disabled={disabled}
+      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 ${styles[variant]} ${className} ${disabled ? 'opacity-50 cursor-not-allowed pointer-events-none' : ''}`}
     >
       {icon}
       {children}
@@ -179,4 +212,6 @@ export function SummaryCard({ title, value, subtitle, icon, colorClass, bgClass 
       </div>
     </div>
   );
+
+  
 }

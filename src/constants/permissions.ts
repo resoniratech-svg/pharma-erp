@@ -5,7 +5,6 @@ import {
   ROLE_DISTRIBUTOR,
   ROLE_RETAILER,
   ROLE_MEDICAL_REPRESENTATIVE,
-  ROLE_TRANSPORT_STAFF,
 } from './roles';
 
 export const ROLE_PERMISSIONS: Record<string, string[]> = {
@@ -60,13 +59,6 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'MR (Medical Representative)',
     'GPS & Location Tracking',
     'Pre-Sales CRM',
-    'Alerts & Notifications',
-    'Settings',
-  ],
-  [ROLE_TRANSPORT_STAFF]: [
-    'Dashboard',
-    'C&F Management', // Includes Dispatch
-    'GPS & Location Tracking',
     'Alerts & Notifications',
     'Settings',
   ],

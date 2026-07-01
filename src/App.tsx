@@ -128,6 +128,7 @@ const itemVariants = {
 };
 
 import { GlowCard } from './components/ui/GlowCard';
+import MRDashboard from './modules/mr/MRDashboard';
 
 /* ── Dashboard Component ─────────────────────────────────────────── */
 export default function Dashboard() {
@@ -148,7 +149,11 @@ export default function Dashboard() {
 
   const showSalesChart = [ROLE_SUPER_ADMIN, ROLE_ACCOUNTANT].includes(activeRole);
   const showInventoryHealth = [ROLE_SUPER_ADMIN, ROLE_WAREHOUSE_MANAGER].includes(activeRole);
-  const showRecentOrders = [ROLE_SUPER_ADMIN, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_MEDICAL_REPRESENTATIVE, ROLE_ACCOUNTANT, ROLE_WAREHOUSE_MANAGER].includes(activeRole);
+  const showRecentOrders = [ROLE_SUPER_ADMIN, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_ACCOUNTANT, ROLE_WAREHOUSE_MANAGER].includes(activeRole);
+
+  if (activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
+    return <MRDashboard />;
+  }
 
   return (
     <div className="pb-8">

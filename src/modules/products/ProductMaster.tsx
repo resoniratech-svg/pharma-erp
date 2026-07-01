@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Filter, Download } from 'lucide-react';
+import { Plus, Filter, Download, Trash2 } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -23,9 +23,12 @@ interface Product {
   category: string;
   type: string;
   manufacturer: string;
+  composition?: string;
+  barcode?: string;
 
   packingType: string;
   unitsPerPack: string;
+  packsInBox?: string;
 
   mrp: string;
   ptr: string;
@@ -135,10 +138,20 @@ const initialProducts: Product[] = [
 ];
 
 export default function ProductMaster() {
-  const [search, setSearch] = useState('');
-  const [categoryFilter, setCategoryFilter] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [search, setSearch] = useState("");
+  const [categoryFilter, setCategoryFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+
+  const [categories, setCategories] = useState([
+    "Antibiotics", "Analgesics", "Antipyretics", "Anti-inflammatory", 
+    "Antifungals", "Antivirals", "Cardiac", "Diabetic", 
+    "Respiratory", "Gastroenterology", "Neurology", "Dermatology", 
+    "Orthopedics", "Pediatrics", "Vitamins & Supplements", 
+    "Medical Devices", "Surgical Items"
+  ]);
+  const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   
   const [products, setProducts] = useState(initialProducts);
 
@@ -153,6 +166,8 @@ export default function ProductMaster() {
     name: "",
     genericName: "",
     brandName: "",
+    composition: "",
+    barcode: "",
 
     category: "",
     type: "",
@@ -160,6 +175,7 @@ export default function ProductMaster() {
 
     packingType: "",
     unitsPerPack: "",
+    packsInBox: "",
 
     mrp: "",
     ptr: "",
@@ -212,10 +228,7 @@ export default function ProductMaster() {
   const handleSaveProduct = () => {
     if (
       !newProduct.code ||
-      !newProduct.name ||
-      !newProduct.category ||
-      !newProduct.type ||
-      !newProduct.manufacturer
+      !newProduct.name
     ) {
       alert("Please fill all required fields");
       return;
@@ -239,10 +252,13 @@ export default function ProductMaster() {
         category: newProduct.category,
         type: newProduct.type,
         manufacturer: newProduct.manufacturer,
+        composition: newProduct.composition,
+        barcode: newProduct.barcode,
         genericName: newProduct.genericName,
         brandName: newProduct.brandName,
         packingType: newProduct.packingType,
         unitsPerPack: newProduct.unitsPerPack,
+        packsInBox: newProduct.packsInBox,
         mrp: newProduct.mrp,
         ptr: newProduct.ptr,
         pts: newProduct.pts,
@@ -266,10 +282,13 @@ export default function ProductMaster() {
       category: "",
       type: "",
       manufacturer: "",
+      composition: "",
+      barcode: "",
       genericName: "",
       brandName: "",
       packingType: "",
       unitsPerPack: "",
+      packsInBox: "",
       mrp: "",
       ptr: "",
       pts: "",
@@ -286,6 +305,8 @@ export default function ProductMaster() {
 
       genericName: newProduct.genericName,
       brandName: newProduct.brandName,
+      composition: newProduct.composition,
+      barcode: newProduct.barcode,
 
       category: newProduct.category,
       type: newProduct.type,
@@ -293,6 +314,7 @@ export default function ProductMaster() {
 
       packingType: newProduct.packingType,
       unitsPerPack: newProduct.unitsPerPack,
+      packsInBox: newProduct.packsInBox,
 
       mrp: newProduct.mrp,
       ptr: newProduct.ptr,
@@ -311,6 +333,8 @@ export default function ProductMaster() {
 
       genericName: "",
       brandName: "",
+      composition: "",
+      barcode: "",
 
       category: "",
       type: "",
@@ -318,6 +342,7 @@ export default function ProductMaster() {
 
       packingType: "",
       unitsPerPack: "",
+      packsInBox: "",
 
       mrp: "",
       ptr: "",
@@ -336,11 +361,13 @@ export default function ProductMaster() {
     {
       key: "code",
       label: "Code",
+      width: "10%",
     },
 
     {
       key: "name",
       label: "Product Name",
+      width: "25%",
       render: (row) => (
         <span className="font-semibold text-slate-900">{row.name}</span>
       ),
@@ -349,33 +376,39 @@ export default function ProductMaster() {
     {
       key: "category",
       label: "Category",
+      width: "12%",
     },
 
     {
       key: "type",
       label: "Type",
+      width: "10%",
     },
 
     {
       key: "manufacturer",
       label: "Manufacturer",
+      width: "15%",
     },
 
     {
       key: "mrp",
       label: "MRP",
+      width: "8%",
       render: (row) => `₹ ${row.mrp}`,
     },
 
     {
       key: "gst",
       label: "GST %",
+      width: "8%",
       render: (row) => `${row.gst}%`,
     },
 
     {
       key: "status",
       label: "Status",
+      width: "10%",
       render: (row) => {
         const variant =
           row.status === "Active"
@@ -391,9 +424,9 @@ export default function ProductMaster() {
     {
       key: "actions",
       label: "Actions",
-
+      width: "120px",
       render: (row) => (
-        <div className="flex gap-2">
+        <div className="flex gap-3">
           <button
             onClick={(e) => {
               e.stopPropagation();
@@ -402,6 +435,16 @@ export default function ProductMaster() {
             className="text-violet-600 font-medium hover:text-violet-800"
           >
             View
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setProductToDelete(row);
+            }}
+            className="text-rose-600 font-medium hover:text-rose-800"
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
           </button>
         </div>
       ),
@@ -446,11 +489,14 @@ export default function ProductMaster() {
                   name: "",
                   genericName: "",
                   brandName: "",
+                  composition: "",
+                  barcode: "",
                   category: "",
                   type: "",
                   manufacturer: "",
                   packingType: "",
                   unitsPerPack: "",
+                  packsInBox: "",
                   mrp: "",
                   ptr: "",
                   pts: "",
@@ -482,12 +528,7 @@ export default function ProductMaster() {
         <SelectFilter
           value={categoryFilter}
           onChange={setCategoryFilter}
-          options={[
-            { label: "Antibiotics", value: "Antibiotics" },
-            { label: "Analgesics", value: "Analgesics" },
-            { label: "Respiratory", value: "Respiratory" },
-            { label: "Vitamins", value: "Vitamins" },
-          ]}
+          options={categories.map(c => ({ label: c, value: c }))}
           placeholder="All Categories"
         />
         <SelectFilter
@@ -524,21 +565,21 @@ export default function ProductMaster() {
                 Basic Information
               </h3>
 
-              <DrawerField label="Product Code" value={selectedProduct.code} />
-              <DrawerField label="Product Name" value={selectedProduct.name} />
-              <DrawerField
-                label="Generic Name"
-                value={selectedProduct.genericName}
-              />
+              <DrawerField label="Product Code" value={selectedProduct.code || "N/A"} />
+              <DrawerField label="Product Name" value={selectedProduct.name || "N/A"} />
               <DrawerField
                 label="Brand Name"
-                value={selectedProduct.brandName}
+                value={selectedProduct.brandName || "N/A"}
               />
-              <DrawerField label="Category" value={selectedProduct.category} />
-              <DrawerField label="Product Type" value={selectedProduct.type} />
+              <DrawerField label="Category" value={selectedProduct.category || "N/A"} />
+              <DrawerField label="Product Type" value={selectedProduct.type || "N/A"} />
+              <DrawerField
+                label="Composition"
+                value={selectedProduct.composition || "N/A"}
+              />
               <DrawerField
                 label="Manufacturer"
-                value={selectedProduct.manufacturer}
+                value={selectedProduct.manufacturer || "N/A"}
               />
             </div>
 
@@ -550,12 +591,26 @@ export default function ProductMaster() {
 
               <DrawerField
                 label="Packing Type"
-                value={selectedProduct.packingType}
+                value={selectedProduct.packingType || "N/A"}
               />
 
               <DrawerField
                 label="Units Per Pack"
-                value={selectedProduct.unitsPerPack}
+                value={selectedProduct.unitsPerPack || "N/A"}
+              />
+
+              <DrawerField
+                label="Packs In Box"
+                value={selectedProduct.packsInBox || "N/A"}
+              />
+
+              <DrawerField
+                label="Total Units"
+                value={
+                  selectedProduct.unitsPerPack && selectedProduct.packsInBox
+                    ? (Number(selectedProduct.unitsPerPack) * Number(selectedProduct.packsInBox)).toString()
+                    : "N/A"
+                }
               />
             </div>
 
@@ -565,11 +620,11 @@ export default function ProductMaster() {
                 Pricing Details
               </h3>
 
-              <DrawerField label="MRP" value={`₹ ${selectedProduct.mrp}`} />
+              <DrawerField label="MRP" value={selectedProduct.mrp ? `₹ ${selectedProduct.mrp}` : "N/A"} />
 
-              <DrawerField label="PTR" value={`₹ ${selectedProduct.ptr}`} />
+              <DrawerField label="PTR" value={selectedProduct.ptr ? `₹ ${selectedProduct.ptr}` : "N/A"} />
 
-              <DrawerField label="PTS" value={`₹ ${selectedProduct.pts}`} />
+              <DrawerField label="PTS" value={selectedProduct.pts ? `₹ ${selectedProduct.pts}` : "N/A"} />
             </div>
 
             {/* Tax Details */}
@@ -578,9 +633,18 @@ export default function ProductMaster() {
                 Tax Details
               </h3>
 
-              <DrawerField label="GST %" value={`${selectedProduct.gst}%`} />
+              <DrawerField label="GST %" value={selectedProduct.gst ? `${selectedProduct.gst}%` : "N/A"} />
 
-              <DrawerField label="HSN Code" value={selectedProduct.hsnCode} />
+              <DrawerField label="HSN Code" value={selectedProduct.hsnCode || "N/A"} />
+            </div>
+
+            {/* Additional Information */}
+            <div>
+              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
+                Additional Information
+              </h3>
+
+              <DrawerField label="Barcode" value={selectedProduct.barcode || "N/A"} />
             </div>
 
             {/* Status */}
@@ -620,10 +684,13 @@ export default function ProductMaster() {
                     category: selectedProduct.category,
                     type: selectedProduct.type,
                     manufacturer: selectedProduct.manufacturer,
+                    composition: selectedProduct.composition || "",
+                    barcode: selectedProduct.barcode || "",
                     genericName: selectedProduct.genericName,
                     brandName: selectedProduct.brandName,
                     packingType: selectedProduct.packingType,
                     unitsPerPack: selectedProduct.unitsPerPack,
+                    packsInBox: selectedProduct.packsInBox || "",
                     mrp: selectedProduct.mrp,
                     ptr: selectedProduct.ptr,
                     pts: selectedProduct.pts,
@@ -652,9 +719,40 @@ export default function ProductMaster() {
         )}
       </Drawer>
 
+      {/* Delete Confirmation Modal */}
+      {productToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+            <h2 className="text-xl font-bold text-slate-900 mb-2">Delete Product</h2>
+            <p className="text-slate-600 mb-6 leading-relaxed">
+              Are you sure you want to delete this product?
+              <br />
+              This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3 mt-4">
+              <ActionButton
+                variant="secondary"
+                onClick={() => setProductToDelete(null)}
+              >
+                Cancel
+              </ActionButton>
+              <button
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-200"
+                onClick={() => {
+                  setProducts((prev) => prev.filter((p) => p.id !== productToDelete.id));
+                  setProductToDelete(null);
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {showNewProductModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">
                 {editMode ? "Edit Product" : "Create New Product"}
@@ -669,110 +767,108 @@ export default function ProductMaster() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Product Code *
-                </label>
+              <div className="md:col-span-2 mt-2 first:mt-0">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Product Information</h3>
+              </div>
 
+              <div>
+                <label className="block text-sm font-medium mb-1">Product Code *</label>
                 <input
                   value={newProduct.code}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      code: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setNewProduct({ ...newProduct, code: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Product Name *
-                </label>
-
+                <label className="block text-sm font-medium mb-1">Product Name *</label>
                 <input
                   value={newProduct.name}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      name: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Generic Name *
-                </label>
-
-                <input
-                  value={newProduct.genericName}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      genericName: e.target.value,
-                    })
-                  }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Brand Name *
-                </label>
-
+                <label className="block text-sm font-medium mb-1">Brand Name</label>
                 <input
                   value={newProduct.brandName}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      brandName: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setNewProduct({ ...newProduct, brandName: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Category *
-                </label>
+              <div className="relative">
+                <label className="block text-sm font-medium mb-1">Category</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={newProduct.category}
+                    onChange={(e) => {
+                      setNewProduct({ ...newProduct, category: e.target.value });
+                      setShowCategoryDropdown(true);
+                    }}
+                    onFocus={() => setShowCategoryDropdown(true)}
+                    placeholder="Select or type Category"
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
+                  />
+                  <span 
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs cursor-pointer"
+                    onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
+                  >
+                    ▼
+                  </span>
+                </div>
 
-                <select
-                  value={newProduct.category}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      category: e.target.value,
-                    })
-                  }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                >
-                  <option value="">Select Category</option>
-                  <option>Antibiotics</option>
-                  <option>Analgesics</option>
-                  <option>Respiratory</option>
-                  <option>Vitamins</option>
-                </select>
+                {showCategoryDropdown && (
+                  <>
+                    <div 
+                      className="fixed inset-0 z-10" 
+                      onClick={() => setShowCategoryDropdown(false)}
+                    />
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                      {categories
+                        .filter((c) => c.toLowerCase().includes((newProduct.category || "").toLowerCase()))
+                        .map((cat) => (
+                          <div
+                            key={cat}
+                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded"
+                            onClick={() => {
+                              setNewProduct({ ...newProduct, category: cat });
+                              setShowCategoryDropdown(false);
+                            }}
+                          >
+                            {cat}
+                          </div>
+                        ))}
+                      
+                      {(newProduct.category || "").trim() !== "" && !categories.some(c => c.toLowerCase() === (newProduct.category || "").trim().toLowerCase()) && (
+                        <div
+                          className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
+                          onClick={() => {
+                            const newCat = (newProduct.category || "").trim();
+                            setCategories([...categories, newCat]);
+                            setNewProduct({ ...newProduct, category: newCat });
+                            setShowCategoryDropdown(false);
+                          }}
+                        >
+                          Create "{newProduct.category.trim()}"
+                        </div>
+                      )}
+                      
+                      {categories.filter((c) => c.toLowerCase().includes((newProduct.category || "").toLowerCase())).length === 0 && (newProduct.category || "").trim() === "" && (
+                        <div className="px-3 py-2 text-sm text-slate-500">No categories found</div>
+                      )}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Product Type *
-                </label>
-
+                <label className="block text-sm font-medium mb-1">Product Type</label>
                 <select
                   value={newProduct.type}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      type: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setNewProduct({ ...newProduct, type: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
                   <option value="">Select Type</option>
@@ -780,22 +876,54 @@ export default function ProductMaster() {
                   <option>Capsule</option>
                   <option>Syrup</option>
                   <option>Injection</option>
+                  <option>Drops</option>
+                  <option>Ointment</option>
+                  <option>Cream</option>
+                  <option>Gel</option>
+                  <option>Lotion</option>
+                  <option>Powder</option>
+                  <option>Sachet</option>
+                  <option>Suspension</option>
+                  <option>Inhaler</option>
+                  <option>Spray</option>
+                  <option>Vaccine</option>
+                  <option>Implant</option>
+                  <option>Softgel</option>
+                  <option>Mouthwash</option>
+                  <option>Shampoo</option>
+                  <option>Soap</option>
                 </select>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  Packing Type *
-                </label>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Composition</label>
+                <textarea
+                  value={newProduct.composition}
+                  onChange={(e) => setNewProduct({ ...newProduct, composition: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  rows={2}
+                  placeholder="e.g. Paracetamol 500mg"
+                />
+              </div>
 
+              <div>
+                <label className="block text-sm font-medium mb-1">Manufacturer</label>
+                <input
+                  value={newProduct.manufacturer}
+                  onChange={(e) => setNewProduct({ ...newProduct, manufacturer: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Packaging Information</h3>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Packing Type</label>
                 <select
                   value={newProduct.packingType}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      packingType: e.target.value,
-                    })
-                  }
+                  onChange={(e) => setNewProduct({ ...newProduct, packingType: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
                   <option value="">Select Packing</option>
@@ -803,145 +931,132 @@ export default function ProductMaster() {
                   <option>Blister Pack</option>
                   <option>Bottle</option>
                   <option>Box</option>
+                  <option>Carton</option>
+                  <option>Tube</option>
+                  <option>Sachet</option>
+                  <option>Vial</option>
+                  <option>Ampoule</option>
+                  <option>Pouch</option>
+                  <option>Jar</option>
+                  <option>Can</option>
+                  <option>Packet</option>
+                  <option>Container</option>
+                  <option>Kit</option>
+                  <option>Combo Pack</option>
                 </select>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Units Per Pack *
-                </label>
-
+                <label className="block text-sm font-medium mb-1">Packs In Box</label>
                 <input
-                  value={newProduct.unitsPerPack}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      unitsPerPack: e.target.value,
-                    })
-                  }
                   type="number"
+                  value={newProduct.packsInBox}
+                  onChange={(e) => setNewProduct({ ...newProduct, packsInBox: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">
-                  Manufacturer *
-                </label>
-
+                <label className="block text-sm font-medium mb-1">Units Per Pack</label>
                 <input
-                  value={newProduct.manufacturer}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      manufacturer: e.target.value,
-                    })
+                  type="number"
+                  value={newProduct.unitsPerPack}
+                  onChange={(e) => setNewProduct({ ...newProduct, unitsPerPack: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Total Units</label>
+                <input
+                  type="text"
+                  readOnly
+                  value={
+                    newProduct.unitsPerPack && newProduct.packsInBox
+                      ? (Number(newProduct.unitsPerPack) * Number(newProduct.packsInBox)).toString()
+                      : ""
                   }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
+                />
+              </div>
+
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Pricing & Tax</h3>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">MRP</label>
+                <input
+                  type="number"
+                  value={newProduct.mrp}
+                  onChange={(e) => setNewProduct({ ...newProduct, mrp: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">PTR</label>
+                <input
+                  type="number"
+                  value={newProduct.ptr}
+                  onChange={(e) => setNewProduct({ ...newProduct, ptr: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">PTS</label>
+                <input
+                  type="number"
+                  value={newProduct.pts}
+                  onChange={(e) => setNewProduct({ ...newProduct, pts: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">GST %</label>
+                <input
+                  type="number"
+                  placeholder="Enter GST %"
+                  value={newProduct.gst}
+                  onChange={(e) => setNewProduct({ ...newProduct, gst: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">HSN Code</label>
+                <input
+                  value={newProduct.hsnCode}
+                  onChange={(e) => setNewProduct({ ...newProduct, hsnCode: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                />
+              </div>
+
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Additional Information</h3>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Barcode</label>
+                <input
+                  value={newProduct.barcode}
+                  onChange={(e) => setNewProduct({ ...newProduct, barcode: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-1">Status</label>
-
                 <select
                   value={newProduct.status}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      status: e.target.value as Product["status"],
-                    })
-                  }
+                  onChange={(e) => setNewProduct({ ...newProduct, status: e.target.value as Product["status"] })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 >
                   <option>Active</option>
                   <option>Inactive</option>
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">MRP *</label>
-
-                <input
-                  value={newProduct.mrp}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      mrp: e.target.value,
-                    })
-                  }
-                  type="number"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">PTR *</label>
-
-                <input
-                  value={newProduct.ptr}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      ptr: e.target.value,
-                    })
-                  }
-                  type="number"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">PTS *</label>
-
-                <input
-                  value={newProduct.pts}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      pts: e.target.value,
-                    })
-                  }
-                  type="number"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">GST %</label>
-
-                <select
-                  value={newProduct.gst}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      gst: e.target.value,
-                    })
-                  }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                >
-                  <option value="">Select GST</option>
-                  <option>5</option>
-                  <option>12</option>
-                  <option>18</option>
-                  <option>28</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  HSN Code *
-                </label>
-
-                <input
-                  value={newProduct.hsnCode}
-                  onChange={(e) =>
-                    setNewProduct({
-                      ...newProduct,
-                      hsnCode: e.target.value,
-                    })
-                  }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
               </div>
             </div>
 

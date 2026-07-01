@@ -21,11 +21,26 @@ interface ExpiryItem {
   batchNo: string;
   productName: string;
   category: string;
+  mfgDate?: string;
   expDate: string;
   qty: number;
   daysLeft: number;
-  status: 'Safe' | 'Nearing Expiry' | 'Critical' | 'Expired';
+  storageLocation?: string;
+  status?: string;
 }
+
+const getExpiryStatus = (daysLeft: number) => {
+  if (daysLeft < 0) return 'Expired';
+  if (daysLeft <= 30) return 'Critical';
+  if (daysLeft <= 180) return 'Nearing Expiry';
+  return 'Safe';
+};
+
+const getStatusVariant = (status: string) => {
+  if (status === 'Safe') return 'success';
+  if (status === 'Expired' || status === 'Critical') return 'danger';
+  return 'warning';
+};
 
 const mockData: ExpiryItem[] = [
   {
@@ -33,40 +48,44 @@ const mockData: ExpiryItem[] = [
     batchNo: 'B-2024-331',
     productName: 'Ibuprofen 400mg',
     category: 'Tablet',
+    mfgDate: '10-Jul-2024',
     expDate: '09-Jul-2026',
     qty: 800,
     daysLeft: 31,
-    status: 'Nearing Expiry',
+    storageLocation: 'Warehouse A',
   },
   {
     id: '2',
     batchNo: 'B-2024-450',
     productName: 'Azithromycin 500mg',
     category: 'Tablet',
+    mfgDate: '26-Jun-2024',
     expDate: '25-Jun-2026',
     qty: 1200,
     daysLeft: 17,
-    status: 'Critical',
+    storageLocation: 'Rack A-12',
   },
   {
     id: '3',
     batchNo: 'B-2023-112',
     productName: 'Cough Syrup 100ml',
     category: 'Syrup',
+    mfgDate: '01-Jun-2023',
     expDate: '31-May-2026',
     qty: 0,
     daysLeft: -8,
-    status: 'Expired',
+    storageLocation: 'Shelf B-4',
   },
   {
     id: '4',
     batchNo: 'B-2025-890',
     productName: 'Paracetamol 650mg',
     category: 'Tablet',
+    mfgDate: '15-Dec-2025',
     expDate: '14-Dec-2027',
     qty: 12000,
     daysLeft: 554,
-    status: 'Safe',
+    storageLocation: 'Cold Storage',
   },
 ];
 
@@ -74,6 +93,26 @@ export default function ExpiryTracking() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [selectedItem, setSelectedItem] = useState<ExpiryItem | null>(null);
+
+  const handleExport = () => {
+    const headers = ['Batch No', 'Product Name', 'Category', 'Expiry Date', 'Quantity', 'Days Left', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredData.map(row => {
+        const status = getExpiryStatus(row.daysLeft);
+        return [row.batchNo, `"${row.productName}"`, row.category, row.expDate, row.qty, row.daysLeft, status].join(',');
+      })
+    ].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'expiry_export.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
 
   const columns: Column<ExpiryItem>[] = [
     {
@@ -113,22 +152,32 @@ export default function ExpiryTracking() {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        const variant =
-          row.status === 'Safe'
-            ? 'success'
-            : row.status === 'Expired'
-            ? 'danger'
-            : row.status === 'Critical'
-            ? 'danger'
-            : 'warning';
-
+        const computedStatus = getExpiryStatus(row.daysLeft);
+        const variant = getStatusVariant(computedStatus);
         return (
           <Badge variant={variant}>
-            {row.status}
+            {computedStatus}
           </Badge>
         );
       },
     },
+    {
+      key: 'id',
+      label: 'Actions',
+      render: (row) => (
+        <div className="flex gap-3">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedItem(row);
+            }}
+            className="text-violet-600 font-medium hover:text-violet-800"
+          >
+            View
+          </button>
+        </div>
+      )
+    }
   ];
 
   const filteredData = mockData.filter((item) => {
@@ -140,8 +189,9 @@ export default function ExpiryTracking() {
         .toLowerCase()
         .includes(search.toLowerCase());
 
+    const computedStatus = getExpiryStatus(item.daysLeft);
     const matchesStatus = statusFilter
-      ? item.status === statusFilter
+      ? computedStatus === statusFilter
       : true;
 
     return matchesSearch && matchesStatus;
@@ -157,6 +207,7 @@ export default function ExpiryTracking() {
             <ActionButton
               variant="secondary"
               icon={<Download className="w-4 h-4" />}
+              onClick={handleExport}
             >
               Export
             </ActionButton>
@@ -208,59 +259,46 @@ export default function ExpiryTracking() {
         title="Expiry Details"
       >
         {selectedItem && (
-          <div className="space-y-2">
-            <DrawerField
-              label="Batch Number"
-              value={selectedItem.batchNo}
-            />
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Batch Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Batch Number" value={selectedItem.batchNo || 'N/A'} />
+                <DrawerField label="Product Name" value={selectedItem.productName || 'N/A'} />
+                <DrawerField label="Category" value={selectedItem.category || 'N/A'} />
+                <DrawerField label="Storage Location" value={selectedItem.storageLocation || 'N/A'} />
+              </div>
+            </div>
 
-            <DrawerField
-              label="Product Name"
-              value={selectedItem.productName}
-            />
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Expiry Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Manufacturing Date" value={selectedItem.mfgDate || 'N/A'} />
+                <DrawerField label="Expiry Date" value={selectedItem.expDate || 'N/A'} />
+                <DrawerField label="Days Left" value={selectedItem.daysLeft < 0 ? 'Expired' : `${selectedItem.daysLeft} Days`} />
+              </div>
+            </div>
 
-            <DrawerField
-              label="Category"
-              value={selectedItem.category}
-            />
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Stock Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Available Quantity" value={selectedItem.qty?.toString() || '0'} />
+              </div>
+            </div>
 
-            <DrawerField
-              label="Expiry Date"
-              value={selectedItem.expDate}
-            />
-
-            <DrawerField
-              label="Quantity"
-              value={selectedItem.qty}
-            />
-
-            <DrawerField
-              label="Days Left"
-              value={
-                selectedItem.daysLeft < 0
-                  ? 'Expired'
-                  : `${selectedItem.daysLeft} Days`
-              }
-            />
-
-            <DrawerField
-              label="Status"
-              value={
-                <Badge
-                  variant={
-                    selectedItem.status === 'Safe'
-                      ? 'success'
-                      : selectedItem.status === 'Expired'
-                      ? 'danger'
-                      : selectedItem.status === 'Critical'
-                      ? 'danger'
-                      : 'warning'
-                  }
-                >
-                  {selectedItem.status}
-                </Badge>
-              }
-            />
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Status Information</h3>
+              <div className="space-y-2">
+                <DrawerField 
+                  label="Current Status" 
+                  value={
+                    <Badge variant={getStatusVariant(getExpiryStatus(selectedItem.daysLeft))}>
+                      {getExpiryStatus(selectedItem.daysLeft)}
+                    </Badge>
+                  } 
+                />
+              </div>
+            </div>
           </div>
         )}
       </Drawer>

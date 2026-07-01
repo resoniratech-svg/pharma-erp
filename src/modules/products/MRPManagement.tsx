@@ -3,6 +3,7 @@ import {
   Filter,
   Download,
   Plus,
+  Trash2,
 } from 'lucide-react';
 
 import {
@@ -14,6 +15,8 @@ import {
   TableCard,
   DataTable,
   Badge,
+  Drawer,
+  DrawerField,
 } from './components/shared';
 
 import { type Column } from './types';
@@ -23,21 +26,36 @@ interface MRPItem {
   productCode: string;
   productName: string;
   category: string;
+  productType?: string;
   mrp: number;
+  previousMrp?: number;
   effectiveDate: string;
   revisedBy: string;
-  status: 'Active' | 'Scheduled' | 'Expired';
+  revisionReason?: string;
+  remarks?: string;
+  status: 'Active' | 'Scheduled' | 'Expired' | 'Draft' | 'Cancelled';
 }
 
-const mockData: MRPItem[] = [
+const mockProducts = [
+  { code: 'PRD-001', name: 'Paracetamol 650mg', category: 'Tablet', productType: 'Tablet', currentMrp: 120 },
+  { code: 'PRD-002', name: 'Amoxicillin 500mg', category: 'Capsule', productType: 'Capsule', currentMrp: 185 },
+  { code: 'PRD-003', name: 'Vitamin C 1000mg', category: 'Tablet', productType: 'Tablet', currentMrp: 240 },
+  { code: 'PRD-004', name: 'Cough Syrup 100ml', category: 'Syrup', productType: 'Syrup', currentMrp: 95 },
+];
+
+const initialMockData: MRPItem[] = [
   {
     id: '1',
     productCode: 'PRD-001',
     productName: 'Paracetamol 650mg',
     category: 'Tablet',
+    productType: 'Tablet',
     mrp: 120,
-    effectiveDate: '01-Jun-2026',
+    previousMrp: 110,
+    effectiveDate: '2026-06-01',
     revisedBy: 'Admin',
+    revisionReason: 'Cost Increase',
+    remarks: 'Routine inflation adjustment',
     status: 'Active',
   },
   {
@@ -45,9 +63,13 @@ const mockData: MRPItem[] = [
     productCode: 'PRD-002',
     productName: 'Amoxicillin 500mg',
     category: 'Capsule',
+    productType: 'Capsule',
     mrp: 185,
-    effectiveDate: '15-Jun-2026',
+    previousMrp: 185,
+    effectiveDate: '2026-06-15',
     revisedBy: 'Admin',
+    revisionReason: 'Marketing Strategy',
+    remarks: 'No change in price',
     status: 'Active',
   },
   {
@@ -55,9 +77,13 @@ const mockData: MRPItem[] = [
     productCode: 'PRD-003',
     productName: 'Vitamin C 1000mg',
     category: 'Tablet',
+    productType: 'Tablet',
     mrp: 240,
-    effectiveDate: '01-Jul-2026',
+    previousMrp: 210,
+    effectiveDate: '2026-07-01',
     revisedBy: 'Pricing Team',
+    revisionReason: 'Distributor Request',
+    remarks: 'Approved by board',
     status: 'Scheduled',
   },
   {
@@ -65,16 +91,42 @@ const mockData: MRPItem[] = [
     productCode: 'PRD-004',
     productName: 'Cough Syrup 100ml',
     category: 'Syrup',
+    productType: 'Syrup',
     mrp: 95,
-    effectiveDate: '01-Jan-2025',
+    previousMrp: 90,
+    effectiveDate: '2025-01-01',
     revisedBy: 'Admin',
+    revisionReason: 'Cost Reduction',
+    remarks: 'Old stock clearance',
     status: 'Expired',
   },
 ];
 
 export default function MRPManagement() {
+  const [data, setData] = useState<MRPItem[]>(initialMockData);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  
+  const [showModal, setShowModal] = useState(false);
+  const [isEditingModal, setIsEditingModal] = useState(false);
+  
+  const [selectedItem, setSelectedItem] = useState<MRPItem | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<MRPItem | null>(null);
+
+  const [newMrp, setNewMrp] = useState({
+    id: '',
+    productName: '',
+    productCode: '',
+    category: '',
+    productType: '',
+    currentMrp: '',
+    newMrp: '',
+    effectiveDate: '',
+    revisionReason: '',
+    remarks: '',
+    revisedBy: 'Admin User',
+    status: 'Draft' as 'Draft' | 'Scheduled' | 'Active' | 'Cancelled' | 'Expired'
+  });
 
   const columns: Column<MRPItem>[] = [
     {
@@ -117,6 +169,8 @@ export default function MRPManagement() {
               ? 'success'
               : row.status === 'Scheduled'
               ? 'warning'
+              : row.status === 'Draft' || row.status === 'Cancelled'
+              ? 'neutral'
               : 'danger'
           }
         >
@@ -124,16 +178,39 @@ export default function MRPManagement() {
         </Badge>
       ),
     },
+    {
+      key: 'id',
+      label: 'ACTIONS',
+      render: (row) => (
+        <div className="flex gap-3">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedItem(row);
+            }}
+            className="text-violet-600 font-medium hover:text-violet-800"
+          >
+            View
+          </button>
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setItemToDelete(row);
+            }}
+            className="text-rose-600 font-medium hover:text-rose-800"
+            title="Delete"
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+        </div>
+      )
+    }
   ];
 
-  const filteredData = mockData.filter((item) => {
+  const filteredData = data.filter((item) => {
     const matchesSearch =
-      item.productName
-        .toLowerCase()
-        .includes(search.toLowerCase()) ||
-      item.productCode
-        .toLowerCase()
-        .includes(search.toLowerCase());
+      item.productName.toLowerCase().includes(search.toLowerCase()) ||
+      item.productCode.toLowerCase().includes(search.toLowerCase());
 
     const matchesStatus = statusFilter
       ? item.status === statusFilter
@@ -141,6 +218,142 @@ export default function MRPManagement() {
 
     return matchesSearch && matchesStatus;
   });
+
+  const handleExport = () => {
+    const headers = ['Product Code', 'Product Name', 'Category', 'MRP', 'Effective Date', 'Revised By', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredData.map(row => 
+        [row.productCode, `"${row.productName}"`, row.category, row.mrp, row.effectiveDate, row.revisedBy, row.status].join(',')
+      )
+    ].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'mrp_export.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleProductSelect = (productName: string) => {
+    const product = mockProducts.find(p => p.name === productName);
+    if (product) {
+      setNewMrp({
+        ...newMrp,
+        productName: product.name,
+        productCode: product.code,
+        category: product.category,
+        productType: product.productType,
+        currentMrp: product.currentMrp.toString()
+      });
+    } else {
+      setNewMrp({
+        ...newMrp,
+        productName: productName,
+        productCode: '',
+        category: '',
+        productType: '',
+        currentMrp: ''
+      });
+    }
+  };
+
+  const openNewModal = () => {
+    setIsEditingModal(false);
+    setNewMrp({
+      id: '',
+      productName: '',
+      productCode: '',
+      category: '',
+      productType: '',
+      currentMrp: '',
+      newMrp: '',
+      effectiveDate: '',
+      revisionReason: '',
+      remarks: '',
+      revisedBy: 'Admin User',
+      status: 'Draft'
+    });
+    setShowModal(true);
+  };
+
+  const openEditModal = () => {
+    if (!selectedItem) return;
+    setIsEditingModal(true);
+    const product = mockProducts.find(p => p.name === selectedItem.productName);
+    setNewMrp({
+      id: selectedItem.id,
+      productName: selectedItem.productName,
+      productCode: selectedItem.productCode,
+      category: selectedItem.category,
+      productType: selectedItem.productType || product?.productType || '',
+      currentMrp: product?.currentMrp.toString() || '',
+      newMrp: selectedItem.mrp.toString(),
+      effectiveDate: selectedItem.effectiveDate,
+      revisionReason: selectedItem.revisionReason || '',
+      remarks: selectedItem.remarks || '',
+      revisedBy: selectedItem.revisedBy,
+      status: selectedItem.status
+    });
+    setShowModal(true);
+  };
+
+  const handleSaveMrp = () => {
+    if (!newMrp.productName || !newMrp.newMrp || !newMrp.effectiveDate || !newMrp.revisionReason || !newMrp.status) {
+      alert("Please fill all mandatory fields (*).");
+      return;
+    }
+    
+    if (isEditingModal && newMrp.id) {
+      const updatedRecord: MRPItem = {
+        id: newMrp.id,
+        productCode: newMrp.productCode || 'N/A',
+        productName: newMrp.productName,
+        category: newMrp.category || 'N/A',
+        productType: newMrp.productType,
+        mrp: Number(newMrp.newMrp),
+        previousMrp: Number(newMrp.currentMrp) || undefined,
+        effectiveDate: newMrp.effectiveDate,
+        revisionReason: newMrp.revisionReason,
+        remarks: newMrp.remarks,
+        revisedBy: newMrp.revisedBy,
+        status: newMrp.status as any
+      };
+      
+      setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+      if (selectedItem && selectedItem.id === updatedRecord.id) {
+        setSelectedItem(updatedRecord);
+      }
+    } else {
+      const record: MRPItem = {
+        id: Date.now().toString(),
+        productCode: newMrp.productCode || 'N/A',
+        productName: newMrp.productName,
+        category: newMrp.category || 'N/A',
+        productType: newMrp.productType,
+        mrp: Number(newMrp.newMrp),
+        previousMrp: Number(newMrp.currentMrp) || undefined,
+        effectiveDate: newMrp.effectiveDate,
+        revisionReason: newMrp.revisionReason,
+        remarks: newMrp.remarks,
+        revisedBy: newMrp.revisedBy,
+        status: newMrp.status as any
+      };
+      setData([record, ...data]);
+    }
+    
+    setShowModal(false);
+  };
+
+  const handleDelete = () => {
+    if (itemToDelete) {
+      setData(data.filter(item => item.id !== itemToDelete.id));
+      setItemToDelete(null);
+    }
+  };
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -152,12 +365,14 @@ export default function MRPManagement() {
             <ActionButton
               variant="secondary"
               icon={<Download className="w-4 h-4" />}
+              onClick={handleExport}
             >
               Export
             </ActionButton>
 
             <ActionButton
               icon={<Plus className="w-4 h-4" />}
+              onClick={openNewModal}
             >
               New MRP
             </ActionButton>
@@ -186,18 +401,11 @@ export default function MRPManagement() {
           onChange={setStatusFilter}
           placeholder="All Status"
           options={[
-            {
-              label: 'Active',
-              value: 'Active',
-            },
-            {
-              label: 'Scheduled',
-              value: 'Scheduled',
-            },
-            {
-              label: 'Expired',
-              value: 'Expired',
-            },
+            { label: 'Active', value: 'Active' },
+            { label: 'Scheduled', value: 'Scheduled' },
+            { label: 'Draft', value: 'Draft' },
+            { label: 'Expired', value: 'Expired' },
+            { label: 'Cancelled', value: 'Cancelled' },
           ]}
         />
       </FilterBar>
@@ -206,9 +414,200 @@ export default function MRPManagement() {
         <DataTable
           columns={columns}
           data={filteredData}
+          onRowClick={(row) => setSelectedItem(row)}
           emptyMessage="No MRP records found."
         />
       </TableCard>
+
+      {/* MRP Details Drawer */}
+      <Drawer open={!!selectedItem} onClose={() => setSelectedItem(null)} title="MRP Details">
+        {selectedItem && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Product Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Product Code" value={selectedItem.productCode || 'N/A'} />
+                <DrawerField label="Product Name" value={selectedItem.productName || 'N/A'} />
+                <DrawerField label="Category" value={selectedItem.category || 'N/A'} />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Pricing Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Previous MRP" value={selectedItem.previousMrp ? `₹${selectedItem.previousMrp}` : 'N/A'} />
+                <DrawerField label="Current MRP" value={`₹${selectedItem.mrp}`} />
+                <DrawerField label="Effective Date" value={selectedItem.effectiveDate || 'N/A'} />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Revision Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Revision Reason" value={selectedItem.revisionReason || 'N/A'} />
+                <DrawerField label="Remarks" value={selectedItem.remarks || 'N/A'} />
+                <DrawerField label="Revised By" value={selectedItem.revisedBy || 'N/A'} />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Status Information</h3>
+              <div className="space-y-2">
+                <DrawerField 
+                  label="Status" 
+                  value={
+                    <Badge variant={selectedItem.status === 'Active' ? 'success' : selectedItem.status === 'Scheduled' ? 'warning' : selectedItem.status === 'Draft' || selectedItem.status === 'Cancelled' ? 'neutral' : 'danger'}>
+                      {selectedItem.status}
+                    </Badge>
+                  } 
+                />
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
+              <ActionButton onClick={openEditModal}>Edit MRP</ActionButton>
+              <ActionButton variant="secondary" onClick={() => setSelectedItem(null)}>Close</ActionButton>
+            </div>
+          </div>
+        )}
+      </Drawer>
+
+      {/* Delete Confirmation Modal */}
+      {itemToDelete && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-in zoom-in-95 duration-200">
+            <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
+              <Trash2 className="w-6 h-6 text-rose-600" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-900 mb-2">Delete MRP Record</h3>
+            <p className="text-sm text-slate-500 mb-6">
+              Are you sure you want to delete this MRP record? This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button onClick={() => setItemToDelete(null)} className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
+              <button
+                onClick={handleDelete}
+                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 transition-colors"
+              >
+                Confirm Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* New/Edit MRP Modal */}
+      {showModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-slate-900">{isEditingModal ? 'Edit MRP' : 'New MRP'}</h2>
+              <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-slate-800">✕</button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* PRODUCT INFORMATION */}
+              <div className="md:col-span-2 mt-2 first:mt-0">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">PRODUCT INFORMATION</h3>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Product *</label>
+                <select 
+                  value={newMrp.productName} 
+                  onChange={(e) => !isEditingModal && handleProductSelect(e.target.value)} 
+                  disabled={isEditingModal}
+                  className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${isEditingModal ? 'bg-slate-50 opacity-70 cursor-not-allowed' : ''}`}
+                >
+                  <option value="">Select Product</option>
+                  {mockProducts.map(p => <option key={p.code} value={p.name}>{p.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Product Code</label>
+                <input value={newMrp.productCode} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Category</label>
+                <input value={newMrp.category} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Product Type</label>
+                <input value={newMrp.productType} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
+              </div>
+
+              {/* CURRENT PRICING INFORMATION */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">CURRENT PRICING INFORMATION</h3>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Current MRP</label>
+                <input value={newMrp.currentMrp ? `₹${newMrp.currentMrp}` : ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
+              </div>
+
+              {/* NEW PRICING INFORMATION */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">NEW PRICING INFORMATION</h3>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">New MRP *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-2 text-slate-500">₹</span>
+                  <input type="number" value={newMrp.newMrp} onChange={(e) => setNewMrp({ ...newMrp, newMrp: e.target.value })} className="w-full border border-slate-200 rounded-lg pl-7 pr-3 py-2" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Effective Date *</label>
+                <input type="date" value={newMrp.effectiveDate} onChange={(e) => setNewMrp({ ...newMrp, effectiveDate: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+
+              {/* REVISION INFORMATION */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">REVISION INFORMATION</h3>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Revision Reason *</label>
+                <select value={newMrp.revisionReason} onChange={(e) => setNewMrp({ ...newMrp, revisionReason: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                  <option value="">Select Reason</option>
+                  <option value="Cost Increase">Cost Increase</option>
+                  <option value="Cost Reduction">Cost Reduction</option>
+                  <option value="Government Regulation">Government Regulation</option>
+                  <option value="Marketing Strategy">Marketing Strategy</option>
+                  <option value="Distributor Request">Distributor Request</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Remarks</label>
+                <textarea rows={2} value={newMrp.remarks} onChange={(e) => setNewMrp({ ...newMrp, remarks: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Revised By</label>
+                <input value={newMrp.revisedBy} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
+              </div>
+
+              {/* STATUS INFORMATION */}
+              <div className="md:col-span-2 mt-4">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">STATUS INFORMATION</h3>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Status *</label>
+                <select value={newMrp.status} onChange={(e) => setNewMrp({ ...newMrp, status: e.target.value as any })} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                  <option value="Draft">Draft</option>
+                  <option value="Scheduled">Scheduled</option>
+                  <option value="Active">Active</option>
+                  <option value="Cancelled">Cancelled</option>
+                  <option value="Expired">Expired</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
+              <ActionButton variant="secondary" onClick={() => setShowModal(false)}>Cancel</ActionButton>
+              <ActionButton onClick={handleSaveMrp}>{isEditingModal ? 'Save Changes' : 'Save MRP'}</ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Download, Filter, Activity, Users, Store, ClipboardList, Target, TrendingUp, CheckCircle2, Map, Calendar } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Download, Filter, Activity, Users, Store, ClipboardList, Target, CheckCircle2, Map, Bell } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -17,35 +17,47 @@ interface ActivityItem {
   id: string;
   activityId: string;
   mrName: string;
-  activityType: string;
+  activityType: 'Doctor Visit' | 'Chemist Visit' | 'Order Booking' | 'Attendance' | 'Expense Claim' | 'DCR Submission' | 'Meeting' | 'Product Promotion' | 'Follow-Up' | 'Target Achievement';
   customerName: string;
   territory: string;
+  date: string;
   startTime: string;
   endTime: string;
   duration: string;
   status: 'Completed' | 'In Progress' | 'Pending' | 'Missed';
 }
 
-const mockActivities: ActivityItem[] = [
-  { id: '1', activityId: 'ACT-001', mrName: 'Rahul Sharma', activityType: 'Doctor Visit', customerName: 'Dr. A.K. Singh', territory: 'South Mumbai', startTime: '10:00 AM', endTime: '10:30 AM', duration: '30 mins', status: 'Completed' },
-  { id: '2', activityId: 'ACT-002', mrName: 'Rahul Sharma', activityType: 'Chemist Visit', customerName: 'Apollo Pharmacy', territory: 'South Mumbai', startTime: '10:45 AM', endTime: '11:00 AM', duration: '15 mins', status: 'Completed' },
-  { id: '3', activityId: 'ACT-003', mrName: 'Neha Gupta', activityType: 'Order Booking', customerName: 'Care Hospital', territory: 'Andheri West', startTime: '11:30 AM', endTime: '-', duration: '-', status: 'In Progress' },
-  { id: '4', activityId: 'ACT-004', mrName: 'Amit Kumar', activityType: 'Meeting', customerName: 'Regional Office', territory: 'Thane', startTime: '02:00 PM', endTime: '03:00 PM', duration: '-', status: 'Pending' },
-  { id: '5', activityId: 'ACT-005', mrName: 'Rahul Sharma', activityType: 'Product Promotion', customerName: 'Dr. Verma', territory: 'South Mumbai', startTime: '12:00 PM', endTime: '12:00 PM', duration: '-', status: 'Missed' },
-];
-
-const timelineEvents = [
-  { time: '10:00 AM', title: 'Visit Start', description: 'Arrived at Dr. A.K. Singh clinic', icon: Map, color: 'text-blue-500' },
-  { time: '10:30 AM', title: 'Visit End', description: 'Sample delivered, feedback collected', icon: CheckCircle2, color: 'text-emerald-500' },
-  { time: '10:45 AM', title: 'Chemist Check', description: 'RCPA at Apollo Pharmacy', icon: Store, color: 'text-indigo-500' },
-  { time: '11:30 AM', title: 'Order Booking', description: 'Booking 15 units of Amoxicillin', icon: ClipboardList, color: 'text-amber-500' },
-  { time: '02:00 PM', title: 'Meeting Attendance', description: 'Monthly performance review', icon: Users, color: 'text-purple-500' },
-  { time: '05:00 PM', title: 'Route Completion', description: 'South Mumbai daily beat ended', icon: Target, color: 'text-slate-500' },
-];
-
 export default function ActivityTracking() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [activities, setActivities] = useState<ActivityItem[]>([]);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('@web_activities');
+    if (stored) {
+      setActivities(JSON.parse(stored));
+    } else {
+      setActivities([]);
+    }
+  }, []);
+
+  const handleExport = () => {
+    const headers = ['Activity ID', 'MR Name', 'Activity Type', 'Customer', 'Territory', 'Date', 'Start Time', 'End Time', 'Duration', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...activities.map(a => [
+        a.activityId, `"${a.mrName}"`, a.activityType, `"${a.customerName}"`, `"${a.territory}"`, a.date, a.startTime, a.endTime, a.duration, a.status
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `Activity_Tracking_Export_${new Date().toISOString().split('T')[0]}.csv`;
+    link.click();
+    window.URL.revokeObjectURL(url);
+  };
 
   const columns: Column<ActivityItem>[] = [
     { key: 'activityId', label: 'Activity ID', render: (row) => <span className="font-semibold text-slate-900">{row.activityId}</span> },
@@ -53,6 +65,7 @@ export default function ActivityTracking() {
     { key: 'activityType', label: 'Activity Type' },
     { key: 'customerName', label: 'Customer Name' },
     { key: 'territory', label: 'Territory' },
+    { key: 'date', label: 'Date', render: (row) => <span className="font-medium text-slate-700">{row.date}</span> },
     { key: 'startTime', label: 'Start Time' },
     { key: 'endTime', label: 'End Time' },
     { key: 'duration', label: 'Duration' },
@@ -62,30 +75,48 @@ export default function ActivityTracking() {
       render: (row) => {
         let variant: any = 'default';
         switch (row.status) {
-          case 'Completed':
-            variant = 'success';
-            break;
-          case 'In Progress':
-            variant = 'info';
-            break;
-          case 'Pending':
-            variant = 'warning';
-            break;
-          case 'Missed':
-            variant = 'danger';
-            break;
+          case 'Completed': variant = 'success'; break;
+          case 'In Progress': variant = 'info'; break;
+          case 'Pending': variant = 'warning'; break;
+          case 'Missed': variant = 'danger'; break;
         }
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
   ];
 
-  const filteredData = mockActivities.filter((item) => {
+  const filteredData = activities.filter((item) => {
     const matchSearch = item.mrName.toLowerCase().includes(search.toLowerCase()) || 
                         item.customerName.toLowerCase().includes(search.toLowerCase()) ||
                         item.activityType.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
+  });
+
+  const totalActivities = activities.length;
+  const docVisits = activities.filter(a => a.activityType === 'Doctor Visit').length;
+  const chemistVisits = activities.filter(a => a.activityType === 'Chemist Visit').length;
+  const ordersGenerated = activities.filter(a => a.activityType === 'Order Booking').length;
+
+  // Generate timeline dynamically from stored activities
+  const timelineEvents = activities.map(act => {
+    let icon = CheckCircle2;
+    let color = 'text-slate-500';
+    if (act.activityType === 'Doctor Visit') { icon = Map; color = 'text-blue-500'; }
+    else if (act.activityType === 'Chemist Visit') { icon = Store; color = 'text-emerald-500'; }
+    else if (act.activityType === 'Order Booking') { icon = ClipboardList; color = 'text-amber-500'; }
+    else if (act.activityType === 'Meeting') { icon = Users; color = 'text-purple-500'; }
+    else if (act.activityType === 'Attendance') { icon = CheckCircle2; color = 'text-violet-500'; }
+    else if (act.activityType === 'Follow-Up') { icon = Bell; color = 'text-rose-500'; }
+    else if (act.activityType === 'Target Achievement') { icon = Target; color = 'text-emerald-600'; }
+
+    return {
+      time: act.startTime,
+      title: act.activityType,
+      description: `Customer: ${act.customerName} - ${act.territory}`,
+      icon,
+      color
+    };
   });
 
   return (
@@ -94,15 +125,15 @@ export default function ActivityTracking() {
         title="Activity Tracking"
         subtitle="Track and monitor MR field activities, visit performance, customer interactions, route completion, and daily productivity."
         actions={
-          <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />}>Export Activities</ActionButton>
+          <ActionButton onClick={handleExport} variant="secondary" icon={<Download className="w-4 h-4" />}>Export Activities</ActionButton>
         }
       />
 
-      {/* KPI Cards (5 grid layout for requested fields) */}
+      {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <SummaryCard
-          title="Total Activities Today"
-          value="145"
+          title="Total Activities Logged"
+          value={totalActivities.toString()}
           subtitle="All reps"
           icon={<Activity className="w-5 h-5" />}
           colorClass="text-violet-600"
@@ -110,15 +141,15 @@ export default function ActivityTracking() {
         />
         <SummaryCard
           title="Doctor Visits Completed"
-          value="82"
-          subtitle="Target: 100"
+          value={docVisits.toString()}
+          subtitle="Target tracked"
           icon={<Users className="w-5 h-5" />}
           colorClass="text-blue-600"
           bgClass="bg-blue-50"
         />
         <SummaryCard
           title="Chemist Visits Completed"
-          value="45"
+          value={chemistVisits.toString()}
           subtitle="RCPA tracked"
           icon={<Store className="w-5 h-5" />}
           colorClass="text-emerald-600"
@@ -126,7 +157,7 @@ export default function ActivityTracking() {
         />
         <SummaryCard
           title="Orders Generated"
-          value="24"
+          value={ordersGenerated.toString()}
           subtitle="POB collected"
           icon={<ClipboardList className="w-5 h-5" />}
           colorClass="text-indigo-600"
@@ -134,7 +165,7 @@ export default function ActivityTracking() {
         />
         <SummaryCard
           title="Target Achievement"
-          value="82%"
+          value={totalActivities > 0 ? "100%" : "0%"}
           subtitle="Monthly average"
           icon={<Target className="w-5 h-5" />}
           colorClass="text-emerald-600"
@@ -147,25 +178,6 @@ export default function ActivityTracking() {
         {/* Main Content Area */}
         <div className="xl:col-span-3 flex flex-col gap-8">
           
-          {/* Analytics Section */}
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-              <TrendingUp className="w-6 h-6 text-emerald-500 mb-2 opacity-80" />
-              <h3 className="text-xs font-semibold text-slate-800 mb-1 text-center">Visit Completion Rate</h3>
-              <p className="text-xl font-bold text-slate-900">85%</p>
-            </div>
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-              <Map className="w-6 h-6 text-indigo-500 mb-2 opacity-80" />
-              <h3 className="text-xs font-semibold text-slate-800 mb-1 text-center">Territory Performance</h3>
-              <p className="text-xl font-bold text-slate-900">South Zone</p>
-            </div>
-            <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center">
-              <Calendar className="w-6 h-6 text-amber-500 mb-2 opacity-80" />
-              <h3 className="text-xs font-semibold text-slate-800 mb-1 text-center">Monthly Trend</h3>
-              <p className="text-xl font-bold text-slate-900">+12%</p>
-            </div>
-          </div>
-
           <FilterBar>
             <SearchInput value={search} onChange={setSearch} placeholder="Search MR, customer, or type..." />
             <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
@@ -184,7 +196,6 @@ export default function ActivityTracking() {
               ]}
               placeholder="Status"
             />
-            {/* Territory, Date Range, Activity Type filters can be added here */}
           </FilterBar>
 
           <TableCard>
@@ -200,55 +211,32 @@ export default function ActivityTracking() {
         {/* Right Sidebar - Timeline & Performance */}
         <div className="xl:col-span-1 flex flex-col gap-6">
           
-          {/* Performance Section */}
-          <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-            <h3 className="text-md font-semibold text-slate-900 mb-4">Overall Performance</h3>
-            <div className="space-y-4">
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600">Planned Visits</span>
-                <span className="text-sm font-semibold text-slate-900">120</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600">Completed Visits</span>
-                <span className="text-sm font-semibold text-emerald-600">102</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600">Missed Visits</span>
-                <span className="text-sm font-semibold text-danger-600">8</span>
-              </div>
-              <div className="flex justify-between items-center">
-                <span className="text-sm text-slate-600">Avg Visit Duration</span>
-                <span className="text-sm font-semibold text-slate-900">22 mins</span>
-              </div>
-              <div className="pt-4 border-t border-slate-100 flex justify-between items-center">
-                <span className="text-sm font-semibold text-slate-800">Productivity Score</span>
-                <span className="text-lg font-bold text-primary">8.5/10</span>
-              </div>
-            </div>
-          </div>
-
           {/* Daily Activity Timeline */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex-1">
-            <h3 className="text-md font-semibold text-slate-900 mb-6">Daily Activity Timeline (Demo MR)</h3>
-            <div className="relative border-l-2 border-slate-100 ml-3 space-y-6">
-              {timelineEvents.map((event, index) => {
-                const Icon = event.icon;
-                return (
-                  <div key={index} className="relative pl-6">
-                    <div className="absolute -left-[17px] top-1 bg-white p-1 rounded-full border-2 border-slate-100">
-                      <Icon className={`w-4 h-4 ${event.color}`} />
-                    </div>
-                    <div>
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{event.time}</span>
-                        <h4 className="text-sm font-semibold text-slate-800">{event.title}</h4>
+            <h3 className="text-md font-semibold text-slate-900 mb-6">Daily Activity Timeline</h3>
+            {timelineEvents.length === 0 ? (
+              <p className="text-sm text-slate-500 italic">No activities logged yet.</p>
+            ) : (
+              <div className="relative border-l-2 border-slate-100 ml-3 space-y-6">
+                {timelineEvents.map((event, index) => {
+                  const Icon = event.icon;
+                  return (
+                    <div key={index} className="relative pl-6">
+                      <div className="absolute -left-[17px] top-1 bg-white p-1 rounded-full border-2 border-slate-100">
+                        <Icon className={`w-4 h-4 ${event.color}`} />
                       </div>
-                      <p className="text-sm text-slate-600">{event.description}</p>
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-semibold text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">{event.time}</span>
+                          <h4 className="text-sm font-semibold text-slate-800">{event.title}</h4>
+                        </div>
+                        <p className="text-sm text-slate-600">{event.description}</p>
+                      </div>
                     </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </div>
