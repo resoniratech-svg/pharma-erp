@@ -144,7 +144,8 @@ const GeoTaggedDoctorVisitsScreen = () => {
               }
 
               let distanceColor = '#EF4444';
-              if (item.distanceVerified.includes('Yes')) {
+             // if (item.distanceVerified.includes('Yes')) {
+             if (item.distanceVerified.includes('Verified')){
                 distanceColor = '#10B981';
               } else if (item.distanceVerified.includes('Pending')) {
                 distanceColor = '#F59E0B';

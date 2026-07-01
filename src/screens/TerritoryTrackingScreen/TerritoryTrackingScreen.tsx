@@ -186,34 +186,6 @@ const TerritoryTrackingScreen = () => {
     }, [])
   );
 
-  const seedDemoData = async () => {
-    setLoading(true);
-    try {
-      const demoTerritories = [
-        { id: '1', area: 'Hyderabad Central', district: 'Hyderabad', state: 'Telangana', doctorsCount: 12, chemistsCount: 15, coverage: 82, lastActivity: '11-Jun-2026', status: 'Active Beat' },
-        { id: '2', area: 'Secunderabad Route', district: 'Secunderabad', state: 'Telangana', doctorsCount: 8, chemistsCount: 10, coverage: 75, lastActivity: '10-Jun-2026', status: 'Active Beat' },
-        { id: '3', area: 'Ameerpet X Roads', district: 'Hyderabad', state: 'Telangana', doctorsCount: 15, chemistsCount: 8, coverage: 50, lastActivity: '08-Jun-2026', status: 'Secondary Beat' },
-        { id: '4', area: 'Koti Market', district: 'Hyderabad', state: 'Telangana', doctorsCount: 10, chemistsCount: 20, coverage: 90, lastActivity: '12-Jun-2026', status: 'Active Beat' },
-      ];
-      
-      const demoBeatDetails = {
-        '1': { doctors: ['Dr. A.K. Singh (Cardiologist)', 'Dr. S. K. Sen (Paediatrician)'], chemists: ['Apollo Pharmacy'] },
-        '2': { doctors: ['Dr. Neha Gupta (Gynaecologist)'], chemists: ['Care Chemists'] },
-        '3': { doctors: ['Dr. Verma (Orthopaedic)'], chemists: ['LifeCare Drugs'] },
-        '4': { doctors: ['Dr. Batra (General Physician)'], chemists: ['Jan Aushadhi Store'] },
-      };
-
-      await AsyncStorage.setItem('@assigned_territories', JSON.stringify(demoTerritories));
-      await AsyncStorage.setItem('@user_hq', 'Hyderabad HQ (South Division)');
-      await AsyncStorage.setItem('@assigned_beat_details', JSON.stringify(demoBeatDetails));
-      await loadData(false);
-    } catch (err) {
-      console.log('Failed to seed demo territories', err);
-      setError('Failed to seed demo data.');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -324,14 +296,9 @@ const TerritoryTrackingScreen = () => {
               <View style={styles.emptyCard}>
                 <Ionicons name="map-outline" size={48} color="#94A3B8" />
                 <Text style={styles.emptyText}>No territories assigned</Text>
-                <Text style={styles.emptySubText}>
-                  Please contact your administrator{__DEV__ && " or load sample demo data for evaluation"}.
+                          <Text style={styles.emptySubText}>
+                  Please contact your administrator.
                 </Text>
-                {__DEV__ && (
-                  <TouchableOpacity style={styles.seedButton} onPress={seedDemoData}>
-                    <Text style={styles.seedButtonText}>Load Sample Data</Text>
-                  </TouchableOpacity>
-                )}
               </View>
             ) : (
               <>
@@ -747,22 +714,22 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: 'bold',
   },
-  seedButton: {
-    backgroundColor: '#4F46E5',
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 24,
-    shadowColor: '#4F46E5',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 6,
-    elevation: 3,
-  },
-  seedButtonText: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: 'bold',
-  },
+  // seedButton: {
+  //   backgroundColor: '#4F46E5',
+  //   paddingHorizontal: 24,
+  //   paddingVertical: 12,
+  //   borderRadius: 24,
+  //   shadowColor: '#4F46E5',
+  //   shadowOffset: { width: 0, height: 4 },
+  //   shadowOpacity: 0.2,
+  //   shadowRadius: 6,
+  //   elevation: 3,
+  // },
+  // seedButtonText: {
+  //   color: '#FFFFFF',
+  //   fontSize: 14,
+  //   fontWeight: 'bold',
+  // },
   topCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 12,

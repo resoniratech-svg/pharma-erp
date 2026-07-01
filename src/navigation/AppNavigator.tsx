@@ -132,6 +132,7 @@ import React from 'react';
 import ActivityTrackingScreen from '../screens/ActivityTrackingScreen/ActivityTrackingScreen';
 import AttendanceScreen from '../screens/AttendanceScreen/AttendanceScreen';
 import BookOrderScreen from '../screens/BookOrderScreen/BookOrderScreen';
+
 import CheckInScreen from '../screens/CheckInScreen/CheckInScreen';
 import CheckOutScreen from '../screens/CheckOutScreen/CheckOutScreen';
 import ChemistVisitScreen from '../screens/ChemistVisitScreen/ChemistVisitScreen';

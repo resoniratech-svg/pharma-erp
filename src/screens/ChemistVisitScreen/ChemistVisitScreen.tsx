@@ -289,16 +289,31 @@ const ChemistVisitScreen = () => {
     let currentLon: number | undefined = undefined;
     let distVerified = 'Pending Verification';
 
-    try {
-      if (Platform.OS !== 'web') {
-        let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
-        if (locationStatus === 'granted') {
-          let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-          currentLat = loc.coords.latitude;
-          currentLon = loc.coords.longitude;
-          distVerified = 'Verified (within 50m)';
-        }
+    // try {
+    //   if (Platform.OS !== 'web') {
+    //     let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+    //     if (locationStatus === 'granted') {
+    //       let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+    //       currentLat = loc.coords.latitude;
+    //       currentLon = loc.coords.longitude;
+    //       distVerified = 'Verified (within 50m)';
+    //     }
+    //   }
+    // } catch (e) {
+    //   console.log('Location error:', e);
+    // }
+        try {
+      let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+      if (locationStatus === 'granted') {
+        let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+        currentLat = loc.coords.latitude;
+        currentLon = loc.coords.longitude;
+        distVerified = 'Verified (within 50m)';
       }
+      else{
+         distVerified = 'Location Permission Denied';
+      }
+      
     } catch (e) {
       console.log('Location error:', e);
     }

@@ -4,7 +4,7 @@ import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import {
   Platform,
-  RefreshControl,
+  RefreshControl,  
   ScrollView,
   StyleSheet,
   Text,
@@ -133,51 +133,33 @@ const RouteHistoryScreen = () => {
       const val = item.date || item.visitDate || item.timestamp || item.id;
       if (!val) return false;
 
-      // Parse selectedDateStr (DD-MM-YYYY)
-      const selParts = selectedDateStr.split('-');
-      if (selParts.length !== 3) return false;
-      const selD = parseInt(selParts[0], 10);
-      const selM = parseInt(selParts[1], 10);
-      const selY = parseInt(selParts[2], 10);
-
-      let valD = 0, valM = 0, valY = 0;
-      
+      // Handle "19-Jun-2026 12:50 PM" or "19-06-2026" directly
       if (typeof val === 'string' && val.includes('-')) {
-         const datePart = val.split(' ')[0];
-         const parts = datePart.split('-');
-         if (parts.length === 3) {
-            if (parts[0].length === 4) {
-               // YYYY-MM-DD
-               valY = parseInt(parts[0], 10);
-               valM = parseInt(parts[1], 10);
-               valD = parseInt(parts[2], 10);
-            } else {
-               // DD-MM-YYYY or DD-MMM-YYYY
-               valD = parseInt(parts[0], 10);
-               valY = parseInt(parts[2], 10);
-               if (!isNaN(parseInt(parts[1], 10))) {
-                  valM = parseInt(parts[1], 10);
-               } else {
-                  const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
-                  valM = months.indexOf(parts[1].toLowerCase()) + 1;
-               }
-            }
-         }
-      } else {
-        let ts = Number(val);
-        if (isNaN(ts) && typeof val === 'string') {
-          const match = val.match(/\d{10,13}/);
-          if (match) ts = Number(match[0]);
-        }
-        if (!isNaN(ts) && ts > 0) {
-          const dateObj = new Date(ts);
-          valD = dateObj.getDate();
-          valM = dateObj.getMonth() + 1;
-          valY = dateObj.getFullYear();
+         const datePart = val.split(' ')[0]; // gets "19-Jun-2026"
+         const normalized = normalizeTourPlanDate(datePart);
+         if (normalized === selectedDateStr) return true;
+      }
+
+      if (typeof val === 'string' && /^\d{2}-\d{2}-\d{4}$/.test(val)) {
+        return val === selectedDateStr;
+      }
+
+      let ts = Number(val);
+      if (isNaN(ts) && typeof val === 'string') {
+        const match = val.match(/\d{10,13}/);
+        if (match) {
+          ts = Number(match[0]);
         }
       }
 
-      return valD === selD && valM === selM && valY === selY;
+      if (isNaN(ts) || ts <= 0) return false;
+
+      const dateObj = new Date(ts);
+      const day = dateObj.getDate().toString().padStart(2, '0');
+      const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+      const year = dateObj.getFullYear();
+      const formattedDate = `${day}-${month}-${year}`;
+      return formattedDate === selectedDateStr;
     } catch (err) {
       console.log('isSameDay verification failed:', err);
       return false;
@@ -235,8 +217,7 @@ const RouteHistoryScreen = () => {
 
       // 3. Compute Summary Card Stats
       const salesToday = chemistsToday.reduce((sum: number, item: any) => {
-        // AI FIX: Added pobAmount fallback for chemist sales
-        return sum + (parseFloat(item.orderValue || item.pobAmount) || 0);
+        return sum + (parseFloat(item.orderValue) || 0);
       }, 0);
 
       const visited = docsToday.length + chemistsToday.length;
@@ -296,8 +277,7 @@ const RouteHistoryScreen = () => {
         const hasGps = v.latitude && v.longitude && v.latitude !== 'No GPS Data';
         
         eventsList.push({
-          // AI FIX: Use visitTime from DoctorVisitScreen
-          time: v.visitTime || v.time || '10:30 AM',
+          time: v.time || '10:30 AM',
           title: `🩺 Doctor Visited: ${docFormattedName}`,
           subtitle: `Hospital/Clinic: ${v.hospital || 'Clinic'} (${v.specialty || 'General'})`,
           type: 'doctor',
@@ -310,13 +290,11 @@ const RouteHistoryScreen = () => {
 
       // D. Add Chemist Visits / Orders (safe orderValue parsing and null names)
       chemistsToday.forEach((v: any) => {
-        // AI FIX: Safely parse pobAmount alongside orderValue
-        const orderValNum = Number(v.orderValue || v.pobAmount) || 0;
+        const orderValNum = Number(v.orderValue) || 0;
         const hasGps = v.latitude && v.longitude && v.latitude !== 'No GPS Data';
         
         eventsList.push({
-          // AI FIX: Use visitTime from ChemistVisitScreen
-          time: v.visitTime || v.time || '02:00 PM',
+          time: v.time || '02:00 PM',
           title: `💊 Chemist Visited: ${v.shopName || 'Unknown Shop'}`,
           subtitle: `Chemist: ${v.chemistName || 'Staff'} (Location: ${v.area || 'N/A'})`,
           type: 'chemist',

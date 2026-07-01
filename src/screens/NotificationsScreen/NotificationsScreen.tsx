@@ -636,28 +636,10 @@ const NotificationsScreen = () => {
         }
       }
 
-      // 3. Keep standard system announcements
-      const systemMessages: NotificationItem[] = [
-        {
-          id: 'sys-1',
-          type: 'announcement',
-          title: '📢 Q2 Incentive Scheme Released',
-          message: 'The new Q2 incentive structures for field achievements are now live in the ERP portal.',
-          time: '3 days ago',
-          unread: false,
-        },
-        {
-          id: 'sys-2',
-          type: 'message',
-          title: '👤 Manager Message: Target Audit',
-          message: 'Area Manager: Please ensure all tour plans for this week are logged and chemist orders submitted.',
-          time: '2 days ago',
-          unread: false,
-        }
-      ];
-
+    
       // Merge dynamic with saved (to preserve 'unread' status if user clicked them)
-      const finalNotifs = [...dynamicNotifs, ...systemMessages].map((n: any) => {
+     // const finalNotifs = [...dynamicNotifs, ...systemMessages].map((n: any) => {
+const finalNotifs = [...dynamicNotifs].map((n: any) => {
         const existing = savedNotifs.find((sn: any) => sn.id === n.id);
         return {
           ...n,
