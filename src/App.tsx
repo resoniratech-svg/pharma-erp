@@ -41,6 +41,7 @@ import {
 } from 'recharts';
 import { GlowCard } from './components/ui/GlowCard';
 import { useMemo } from 'react';
+import { useNavigate } from 'react-router';
 import { inventoryService } from './services/inventoryService';
 import { batchService } from './services/batchService';
 import { productService } from './services/productService';
@@ -205,6 +206,7 @@ const itemVariants = {
 };
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
   const isSuperAdmin = [ROLE_SUPER_ADMIN, 'Super Admin', 'System Administrator'].includes(activeRole);
   const isWarehouseManager = activeRole === ROLE_WAREHOUSE_MANAGER;
@@ -570,7 +572,16 @@ export default function Dashboard() {
           <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800">{isWarehouseManager ? 'Recent Inventory Activities' : 'Recent Orders'}</h2>
-              <button className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
+              <button 
+                onClick={() => {
+                  if (isWarehouseManager) {
+                    navigate('/workspace/inventory/multi-location');
+                  } else {
+                    alert("TODO: Navigate to Recent Orders History");
+                  }
+                }}
+                className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors"
+              >
                 View All <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -584,7 +595,6 @@ export default function Dashboard() {
                       <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
                       <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Batch</th>
                       <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Warehouse</th>
-                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
                     </tr>
                   ) : (
                     <tr className="bg-slate-50/50">
@@ -613,19 +623,25 @@ export default function Dashboard() {
                               {act.activity}
                             </span>
                           </td>
-                          <td className="py-4 px-6 text-sm font-bold text-slate-800">{act.product}</td>
+                          <td className="py-4 px-6">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-800">
+                                {allProducts.find(p => p.code === act.product || p.name === act.product)?.name || act.product}
+                              </span>
+                              {allProducts.find(p => p.code === act.product || p.name === act.product)?.code && (
+                                <span className="text-xs font-medium text-slate-500 mt-0.5">
+                                  {allProducts.find(p => p.code === act.product || p.name === act.product)?.code}
+                                </span>
+                              )}
+                            </div>
+                          </td>
                           <td className="py-4 px-6 text-sm font-medium text-slate-600">{act.batch}</td>
                           <td className="py-4 px-6 text-sm font-medium text-slate-600">{act.warehouse}</td>
-                          <td className="py-4 px-6 text-right">
-                            <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors outline-none">
-                              <MoreVertical className="w-5 h-5" />
-                            </button>
-                          </td>
                         </tr>
                       );
                     }) : (
                       <tr>
-                        <td colSpan={6} className="py-8 text-center text-slate-500 font-medium">No recent activities found</td>
+                        <td colSpan={5} className="py-8 text-center text-slate-500 font-medium">No recent activities found</td>
                       </tr>
                     )
                   ) : (
