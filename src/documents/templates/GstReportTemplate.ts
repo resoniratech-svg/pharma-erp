@@ -1,5 +1,8 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { applyDocumentHeader } from '../shared/DocumentHeader';
+import { applyDocumentFooter } from '../shared/DocumentFooter';
+import { applySignatureBlock } from '../shared/SignatureBlock';
 
 export const applyGstReportTemplate = (doc: jsPDF, payload: any) => {
   const { fy, period, branch, division, data, summary } = payload;
@@ -12,36 +15,29 @@ export const applyGstReportTemplate = (doc: jsPDF, payload: any) => {
     return `Rs. ${formatted}`;
   };
 
-  const currentDate = new Date().toLocaleString();
-
-  // Header
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text('Company Name: Pharma ERP Pvt. Ltd.', 14, 15);
-  
-  doc.setFontSize(14);
-  doc.text('GST Reports', 14, 23);
+  const startY = applyDocumentHeader(doc, 'GST REPORT');
+  let currentY = startY;
 
   // Metadata
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(50, 50, 50);
-  doc.text(`Generated Date & Time: ${currentDate}`, 14, 30);
-  doc.text(`Financial Year: ${fy === 'All' ? 'Overall' : fy}`, 14, 36);
-  doc.text(`GST Period: ${period === 'All' ? 'Overall' : period}`, 14, 42);
-  doc.text(`Branch: ${branch}`, 120, 36);
-  doc.text(`Division: ${division}`, 120, 42);
+  doc.text(`Financial Year: ${fy === 'All' ? 'Overall' : fy}`, 14, currentY);
+  doc.text(`GST Period: ${period === 'All' ? 'Overall' : period}`, 14, currentY + 6);
+  doc.text(`Branch: ${branch}`, 120, currentY);
+  doc.text(`Division: ${division}`, 120, currentY + 6);
 
   // Summary Section
+  currentY += 16;
   doc.setFontSize(12);
   doc.setFont('helvetica', 'bold');
-  doc.text('Summary Section', 14, 52);
+  doc.text('Summary Section', 14, currentY);
   
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
-  doc.text(`Output GST Liability: ${formatCurrency(summary.outputGst)}`, 14, 58);
-  doc.text(`Input Tax Credit: ${formatCurrency(summary.inputTaxCredit)}`, 14, 64);
-  doc.text(`Net GST Payable: ${formatCurrency(summary.netGstPayable)}`, 14, 70);
+  doc.text(`Output GST Liability: ${formatCurrency(summary.outputGst)}`, 14, currentY + 6);
+  doc.text(`Input Tax Credit: ${formatCurrency(summary.inputTaxCredit)}`, 14, currentY + 12);
+  doc.text(`Net GST Payable: ${formatCurrency(summary.netGstPayable)}`, 14, currentY + 18);
 
   // Table Data
   const pdfTableData = data.map((row: any) => {
@@ -61,7 +57,7 @@ export const applyGstReportTemplate = (doc: jsPDF, payload: any) => {
   });
 
   autoTable(doc, {
-    startY: 78,
+    startY: currentY + 26,
     head: [['Return Type', 'GST Period', 'Financial Year', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Total GST', 'Due Date', 'Filing Date', 'Status']],
     body: pdfTableData,
     theme: 'grid',
@@ -79,28 +75,10 @@ export const applyGstReportTemplate = (doc: jsPDF, payload: any) => {
       8: { cellWidth: 15 },
       9: { cellWidth: 15 },
       10: { cellWidth: 20 },
-    },
-    didDrawPage: (dataInfo: any) => {
-      try {
-        doc.setFontSize(8);
-        doc.setTextColor(100, 100, 100);
-        const pageSize = doc.internal.pageSize;
-        const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
-        const pageWidth = pageSize.width ? pageSize.width : pageSize.getWidth();
-        
-        doc.text(
-          'Generated from Pharma ERP',
-          14,
-          pageHeight - 10
-        );
-        doc.text(
-          `Page ${dataInfo.pageNumber}`,
-          pageWidth - 20,
-          pageHeight - 10
-        );
-      } catch (err) {
-        console.error('Error drawing page footer:', err);
-      }
     }
   });
+
+  const finalY = (doc as any).lastAutoTable.finalY + 15;
+  applySignatureBlock(doc, finalY);
+  applyDocumentFooter(doc);
 };

@@ -32,6 +32,19 @@ import {
   Pie,
   Cell,
 } from 'recharts';
+<<<<<<< HEAD
+=======
+import { GlowCard } from './components/ui/GlowCard';
+import { useMemo } from 'react';
+import { useNavigate } from 'react-router';
+import { inventoryService } from './services/inventoryService';
+import { batchService } from './services/batchService';
+import { productService } from './services/productService';
+import { getExpiryStatus } from './utils/expiryUtils';
+import { inwardStockService } from './services/inwardStockService';
+import { outwardStockService } from './services/outwardStockService';
+import { warehouseTransferService } from './services/warehouseTransferService';
+>>>>>>> 62b50eb (updated files)
 
 /* ── Mock Data ───────────────────────────────────────────────────── */
 
@@ -132,6 +145,7 @@ import MRDashboard from './modules/mr/MRDashboard';
 
 /* ── Dashboard Component ─────────────────────────────────────────── */
 export default function Dashboard() {
+  const navigate = useNavigate();
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
 
   let displayKpis = kpiData;
@@ -304,6 +318,7 @@ export default function Dashboard() {
 
         {/* ── Recent Orders Table ── */}
         {showRecentOrders && (
+<<<<<<< HEAD
         <motion.div
           variants={itemVariants}
           className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden"
@@ -366,6 +381,178 @@ export default function Dashboard() {
             </table>
           </div>
         </motion.div>
+=======
+          <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800">{isWarehouseManager ? 'Recent Inventory Activities' : 'Recent Orders'}</h2>
+              <button 
+                onClick={() => {
+                  if (isWarehouseManager) {
+                    navigate('/workspace/inventory/multi-location');
+                  } else {
+                    alert("TODO: Navigate to Recent Orders History");
+                  }
+                }}
+                className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors"
+              >
+                View All <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  {isWarehouseManager ? (
+                    <tr className="bg-slate-50/50">
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Activity</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Batch</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Warehouse</th>
+                    </tr>
+                  ) : (
+                    <tr className="bg-slate-50/50">
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Order ID</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Client</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Amount</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
+                      <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Actions</th>
+                    </tr>
+                  )}
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {isWarehouseManager ? (
+                    wmActivities.length > 0 ? wmActivities.map((act) => {
+                      let StatusIcon = act.activity === 'Inward Stock' ? ArrowRight : (act.activity === 'Outward Stock' ? TrendingUp : Package);
+                      let statusColor = act.activity === 'Inward Stock' ? 'text-emerald-600' : (act.activity === 'Outward Stock' ? 'text-violet-600' : 'text-blue-600');
+                      let statusBg = act.activity === 'Inward Stock' ? 'bg-emerald-50' : (act.activity === 'Outward Stock' ? 'bg-violet-50' : 'bg-blue-50');
+
+                      return (
+                        <tr key={act.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-4 px-6 text-sm font-medium text-slate-500">{new Date(act.date).toLocaleDateString()}</td>
+                          <td className="py-4 px-6">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusBg} ${statusColor}`}>
+                              <StatusIcon className="w-3.5 h-3.5" />
+                              {act.activity}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6">
+                            <div className="flex flex-col">
+                              <span className="text-sm font-bold text-slate-800">
+                                {allProducts.find(p => p.code === act.product || p.name === act.product)?.name || act.product}
+                              </span>
+                              {allProducts.find(p => p.code === act.product || p.name === act.product)?.code && (
+                                <span className="text-xs font-medium text-slate-500 mt-0.5">
+                                  {allProducts.find(p => p.code === act.product || p.name === act.product)?.code}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-600">{act.batch}</td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-600">{act.warehouse}</td>
+                        </tr>
+                      );
+                    }) : (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-500 font-medium">No recent activities found</td>
+                      </tr>
+                    )
+                  ) : (
+                    recentOrders.map((order) => {
+                      let StatusIcon = Clock;
+                      let statusColor = 'text-amber-600';
+                      let statusBg = 'bg-amber-50';
+
+                      if (order.status === 'Shipped') {
+                        StatusIcon = CheckCircle2;
+                        statusColor = 'text-emerald-600';
+                        statusBg = 'bg-emerald-50';
+                      } else if (order.status === 'Failed') {
+                        StatusIcon = XCircle;
+                        statusColor = 'text-rose-600';
+                        statusBg = 'bg-rose-50';
+                      }
+
+                      return (
+                        <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
+                          <td className="py-4 px-6 text-sm font-bold text-slate-800">{order.id}</td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-600">{order.client}</td>
+                          <td className="py-4 px-6">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusBg} ${statusColor}`}>
+                              <StatusIcon className="w-3.5 h-3.5" />
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-sm font-bold text-slate-700">{order.amount}</td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-500">{order.date}</td>
+                          <td className="py-4 px-6 text-right">
+                            <button className="p-2 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors outline-none">
+                              <MoreVertical className="w-5 h-5" />
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+        )}
+
+        {/* ── Critical Alerts Table (Super Admin Only) ── */}
+        {isSuperAdmin && (
+          <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <AlertTriangle className="w-5 h-5 text-rose-500" /> Critical Alerts
+              </h2>
+              <button className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
+                View Action Center <ArrowRight className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-slate-50/50">
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Alert Type</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Reference</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Priority</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Created Date</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th>
+                    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {criticalAlertsData.map((alert) => {
+                    let priorityColor = 'bg-amber-100 text-amber-700';
+                    if (alert.priority === 'Critical') priorityColor = 'bg-rose-100 text-rose-700';
+                    if (alert.priority === 'High') priorityColor = 'bg-orange-100 text-orange-700';
+
+                    return (
+                      <tr key={alert.id} className="hover:bg-slate-50/80 transition-colors">
+                        <td className="py-4 px-6 text-sm font-bold text-slate-800">{alert.type}</td>
+                        <td className="py-4 px-6 text-sm font-medium text-slate-600">{alert.reference}</td>
+                        <td className="py-4 px-6">
+                          <span className={`inline-flex px-2.5 py-1 rounded-full text-xs font-bold ${priorityColor}`}>
+                            {alert.priority}
+                          </span>
+                        </td>
+                        <td className="py-4 px-6 text-sm font-medium text-slate-500">{alert.date}</td>
+                        <td className="py-4 px-6 text-sm font-medium text-slate-600">{alert.status}</td>
+                        <td className="py-4 px-6 text-right">
+                          <button className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-full transition-colors outline-none">
+                            <Eye className="w-5 h-5" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
+>>>>>>> 62b50eb (updated files)
         )}
       </motion.div>
     </div>

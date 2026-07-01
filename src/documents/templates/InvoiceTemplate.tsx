@@ -1,6 +1,9 @@
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { ROLE_SUPER_ADMIN, ROLE_DISTRIBUTOR, ROLE_RETAILER } from '../../constants/roles';
+import { applyDocumentHeader } from '../shared/DocumentHeader';
+import { applyDocumentFooter } from '../shared/DocumentFooter';
+import { applySignatureBlock } from '../shared/SignatureBlock';
 
 export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => {
   const pageWidth = doc.internal.pageSize.width;
@@ -13,25 +16,8 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
     }).format(amount || 0);
   };
 
-  // Header Background
-  doc.setFillColor(124, 58, 237); // violet-600
-  doc.rect(0, 0, pageWidth, 40, 'F');
-
-  // Company Details (White Text)
-  doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
-  doc.setFont('helvetica', 'bold');
-  doc.text('PHARMA ERP', 15, 20);
-
-  doc.setFontSize(10);
-  doc.setFont('helvetica', 'normal');
-  doc.text('123 Health Avenue, Medical District', 15, 28);
-  doc.text('Mumbai, Maharashtra 400001', 15, 34);
-
-  // Document Title
-  doc.setFontSize(28);
-  doc.setFont('helvetica', 'bold');
-  doc.text('TAX INVOICE', pageWidth - 15, 25, { align: 'right' });
+  const startY = applyDocumentHeader(doc, 'TAX INVOICE');
+  let currentY = startY;
 
   // Reset text color for body
   doc.setTextColor(51, 65, 85);
@@ -39,18 +25,18 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   // Invoice Details Section
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
-  doc.text('Invoice Details:', 15, 55);
+  doc.text('Invoice Details:', 15, currentY);
   
   doc.setFont('helvetica', 'normal');
-  doc.text(`Invoice No: ${invoice.invoiceNo || '-'}`, 15, 62);
-  doc.text(`Date: ${invoice.date || '-'}`, 15, 68);
-  doc.text(`Due Date: ${invoice.dueDate || '-'}`, 15, 74);
-  doc.text(`Status: ${invoice.status || '-'}`, 15, 80);
-  if (invoice.orderNo) doc.text(`Order No: ${invoice.orderNo}`, 15, 86);
+  doc.text(`Invoice No: ${invoice.invoiceNo || '-'}`, 15, currentY + 7);
+  doc.text(`Date: ${invoice.date || '-'}`, 15, currentY + 13);
+  doc.text(`Due Date: ${invoice.dueDate || '-'}`, 15, currentY + 19);
+  doc.text(`Status: ${invoice.status || '-'}`, 15, currentY + 25);
+  if (invoice.orderNo) doc.text(`Order No: ${invoice.orderNo}`, 15, currentY + 31);
 
   // Bill To Section
   doc.setFont('helvetica', 'bold');
-  doc.text('Bill To:', pageWidth / 2, 55);
+  doc.text('Bill To:', pageWidth / 2, currentY);
   
   doc.setFont('helvetica', 'normal');
   
@@ -60,18 +46,18 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   const gst = invoice.gstNumber || invoice.gstin || '27AADCB2230M1Z2';
 
   if (role === ROLE_SUPER_ADMIN) {
-    doc.text(`Name: ${entityName}`, pageWidth / 2, 62);
-    doc.text(`Code: ${entityCode}`, pageWidth / 2, 68);
-    doc.text(`GSTIN: ${gst}`, pageWidth / 2, 74);
-    doc.text(`Billing Address: ${address}`, pageWidth / 2, 80);
+    doc.text(`Name: ${entityName}`, pageWidth / 2, currentY + 7);
+    doc.text(`Code: ${entityCode}`, pageWidth / 2, currentY + 13);
+    doc.text(`GSTIN: ${gst}`, pageWidth / 2, currentY + 19);
+    doc.text(`Billing Address: ${address}`, pageWidth / 2, currentY + 25);
   } else if (role === ROLE_DISTRIBUTOR || role === ROLE_RETAILER) {
-    doc.text(`Name: ${entityName}`, pageWidth / 2, 62);
-    doc.text(`GSTIN: ${gst}`, pageWidth / 2, 68);
-    doc.text(`Billing Address: ${address}`, pageWidth / 2, 74);
+    doc.text(`Name: ${entityName}`, pageWidth / 2, currentY + 7);
+    doc.text(`GSTIN: ${gst}`, pageWidth / 2, currentY + 13);
+    doc.text(`Billing Address: ${address}`, pageWidth / 2, currentY + 19);
   } else {
     // Default fallback
-    doc.text(`Customer: ${entityName}`, pageWidth / 2, 62);
-    doc.text(`Billing Address: ${address}`, pageWidth / 2, 68);
+    doc.text(`Customer: ${entityName}`, pageWidth / 2, currentY + 7);
+    doc.text(`Billing Address: ${address}`, pageWidth / 2, currentY + 13);
   }
 
   // Items Table
@@ -86,7 +72,7 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   ]) || [];
 
   autoTable(doc, {
-    startY: 95,
+    startY: currentY + 40,
     head: [['#', 'Product Description', 'Batch/Code', 'Qty', 'Unit Price', 'GST%', 'Amount']],
     body: tableData.length ? tableData : [['-', 'No items found', '-', '-', '-', '-', '-']],
     theme: 'striped',
@@ -135,8 +121,6 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   doc.text('A/C No: 502000XXXXXX', 15, finalY + 14);
   doc.text('IFSC: HDFC0001234', 15, finalY + 21);
 
-  // Footer
-  doc.setFontSize(8);
-  doc.setTextColor(148, 163, 184); // slate-400
-  doc.text('This is a computer generated invoice and does not require a physical signature.', pageWidth / 2, 280, { align: 'center' });
+  applySignatureBlock(doc, paymentY + 15);
+  applyDocumentFooter(doc);
 };

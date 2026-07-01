@@ -1,84 +1,17 @@
-import jsPDF from 'jspdf';
+import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import logoPng from '../../assets/logo/mj-healthcare-logo.png';
-
-const getBase64ImageSync = (url: string): string => {
-  if (url.startsWith('data:')) {
-    return url;
-  }
-  try {
-    const xhr = new XMLHttpRequest();
-    xhr.open('GET', url, false);
-    xhr.overrideMimeType('text/plain; charset=x-user-defined');
-    xhr.send();
-    if (xhr.status === 200 || xhr.status === 0) {
-      const responseText = xhr.responseText;
-      let binary = '';
-      for (let i = 0; i < responseText.length; i++) {
-        binary += String.fromCharCode(responseText.charCodeAt(i) & 0xff);
-      }
-      return 'data:image/png;base64,' + window.btoa(binary);
-    }
-  } catch (error) {
-    console.warn('Failed to convert image to base64 synchronously', error);
-  }
-  return url;
-};
+import { applyDocumentHeader } from '../shared/DocumentHeader';
+import { applyDocumentFooter } from '../shared/DocumentFooter';
+import { applySignatureBlock } from '../shared/SignatureBlock';
 
 export const applyTransportChallanTemplate = (doc: jsPDF, challan: any) => {
   const pageWidth = doc.internal.pageSize.width;
   const pageHeight = doc.internal.pageSize.height;
-  
-  // 1 & 2. Logo and Company Info (Top Left)
-  try {
-    const img = new Image();
-    img.src = logoPng;
-    
-    if (img.complete && img.width > 0) {
-      doc.addImage(img, 'PNG', 15, 15, 35, 16);
-    } else {
-      const base64Logo = getBase64ImageSync(logoPng);
-      doc.addImage(base64Logo, 'PNG', 15, 15, 35, 16);
-    }
-  } catch (e) {
-    // Fallback if image fails to load
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
-    doc.setTextColor(31, 41, 55);
-    doc.text('MJ HEALTHCARE', 15, 25);
-  }
 
-  const headerX = 60;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.setTextColor(31, 41, 55);
-  doc.text('MJ HEALTH CARE', headerX, 20);
-
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(9);
-  doc.setTextColor(75, 85, 99);
-  doc.text('123 Health Avenue, Medical District', headerX, 25);
-  doc.text('Mumbai, Maharashtra 400001', headerX, 29);
-  doc.text('GSTIN: 27AADCMJ1234H1Z5', headerX, 33);
-  doc.text('Phone: +91 98765 43210  |  Email: info@mjhealthcare.com', headerX, 37);
-
-  // 3. Title (Centered)
-  const titleY = 46;
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(16);
-  doc.setTextColor(31, 41, 55);
-  doc.text('TRANSPORT CHALLAN', pageWidth / 2, titleY, { align: 'center' });
-  
-  // Decorative title underline
-  doc.setDrawColor(156, 163, 175);
-  doc.setLineWidth(0.5);
-  doc.line(65, titleY + 3, pageWidth / 2 - 2, titleY + 3);
-  doc.line(pageWidth / 2 + 2, titleY + 3, 145, titleY + 3);
-  doc.setFillColor(156, 163, 175);
-  doc.circle(pageWidth / 2, titleY + 3, 0.8, 'F');
+const startY = applyDocumentHeader(doc, 'TRANSPORT CHALLAN');
 
   // 4. Document Info Box
-  const docInfoY = 55;
+  const docInfoY = startY;
   doc.setDrawColor(209, 213, 219);
   doc.setLineWidth(0.3);
   doc.rect(15, docInfoY, 180, 15);
@@ -113,7 +46,7 @@ export const applyTransportChallanTemplate = (doc: jsPDF, challan: any) => {
   doc.text(statusText, 172.5, docInfoY + 11.2, { align: 'center' });
 
   // 5. Consignor & Consignee Panels
-  const panelsY = 75;
+  const panelsY = docInfoY + 20;
   const panelH = 40;
   
   // Consignor (Left)
@@ -187,7 +120,7 @@ export const applyTransportChallanTemplate = (doc: jsPDF, challan: any) => {
   doc.text(challan.customerMobile || 'On Record', rightValueX, rowStart + rowGap * 4);
 
   // 6. Transport Information
-  const transportY = 120;
+  const transportY = panelsY + 45;
   doc.setDrawColor(209, 213, 219);
   doc.rect(15, transportY, 180, 25);
   doc.setFillColor(229, 231, 235);
@@ -319,27 +252,8 @@ export const applyTransportChallanTemplate = (doc: jsPDF, challan: any) => {
     doc.text(line, 18, termsY + 13 + (index * 5));
   });
 
-  // 9. Signatures Box
-  const sigY = termsY + 35;
-  doc.setDrawColor(209, 213, 219);
-  doc.rect(15, sigY, 180, 25);
-  
-  const centers = [15 + 22.5, 15 + 67.5, 15 + 112.5, 15 + 157.5];
-  const labels = ['Prepared By', 'Checked By', 'Receiver Signature', 'Authorized Signatory'];
-  
-  doc.setLineDashPattern([1, 1], 0);
-  doc.setDrawColor(156, 163, 175);
-  
-  centers.forEach((cx, i) => {
-    doc.line(cx - 15, sigY + 15, cx + 15, sigY + 15);
-    doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(31, 41, 55);
-    doc.text(labels[i], cx, sigY + 20, { align: 'center' });
-  });
-  
-  // Reset dash pattern for subsequent PDF generations
-  doc.setLineDashPattern([], 0);
+  applySignatureBlock(doc, finalY + 15);
+  applyDocumentFooter(doc);
 };
 
 export default function TransportChallanTemplate() {

@@ -1,75 +1,67 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { applyDocumentHeader } from '../shared/DocumentHeader';
+import { applyDocumentFooter } from '../shared/DocumentFooter';
+import { applySignatureBlock } from '../shared/SignatureBlock';
 
 export const applyLRTemplate = (doc: jsPDF, challan: any) => {
-  // Company Header / Title
-  doc.setFontSize(22);
-  doc.setTextColor(40, 40, 40);
-  doc.text('LORRY RECEIPT', 105, 20, { align: 'center' });
-  
-  doc.setFontSize(14);
-  doc.text('Pharma ERP Company', 105, 28, { align: 'center' });
-  
-  doc.setFontSize(10);
-  doc.setTextColor(100, 100, 100);
-  doc.text('123 Corporate Ave, Mumbai, India | GSTIN: 27AABCU9603R1ZX', 105, 34, { align: 'center' });
-  
-  doc.setLineWidth(0.5);
-  doc.setDrawColor(200, 200, 200);
-  doc.line(14, 38, 196, 38);
+  const startY = applyDocumentHeader(doc, 'LORRY RECEIPT');
 
   doc.setFontSize(10);
   doc.setTextColor(60, 60, 60);
   
+  const currentY = startY;
+
   // LR & Dispatch Header Information
   doc.setFont('helvetica', 'bold');
-  doc.text('LR Number:', 14, 48);
+  doc.text('LR Number:', 14, currentY);
   doc.setFont('helvetica', 'normal');
-  doc.text(challan.lrNumber || 'N/A', 40, 48);
+  doc.text(challan.lrNumber || 'N/A', 40, currentY);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('LR Date:', 14, 55);
+  doc.text('LR Date:', 14, currentY + 7);
   doc.setFont('helvetica', 'normal');
-  doc.text(challan.challanDate || '', 40, 55);
+  doc.text(challan.challanDate || '', 40, currentY + 7);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Dispatch No:', 130, 48);
+  doc.text('Dispatch No:', 130, currentY);
   doc.setFont('helvetica', 'normal');
-  doc.text(challan.dispatchNo || 'N/A', 155, 48);
+  doc.text(challan.dispatchNo || 'N/A', 155, currentY);
 
   doc.setFont('helvetica', 'bold');
-  doc.text('Challan No:', 130, 55);
+  doc.text('Challan No:', 130, currentY + 7);
   doc.setFont('helvetica', 'normal');
-  doc.text(challan.challanNo || '', 155, 55);
+  doc.text(challan.challanNo || '', 155, currentY + 7);
 
   // Consignee Information section
+  const sectionY = currentY + 15;
   doc.setFillColor(245, 245, 245);
-  doc.rect(14, 63, 85, 8, 'F');
+  doc.rect(14, sectionY, 85, 8, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.text('Consignee (Customer) Information', 16, 68.5);
+  doc.text('Consignee (Customer) Information', 16, sectionY + 5.5);
 
   doc.setFont('helvetica', 'normal');
-  doc.text(`Name: ${challan.customer || ''}`, 14, 78);
-  doc.text(`Contact: ${challan.customerContactPerson || ''} (${challan.customerMobile || ''})`, 14, 85);
+  doc.text(`Name: ${challan.customer || ''}`, 14, sectionY + 15);
+  doc.text(`Contact: ${challan.customerContactPerson || ''} (${challan.customerMobile || ''})`, 14, sectionY + 22);
   
   const splitAddress = doc.splitTextToSize(`Address: ${challan.deliveryAddress || ''}`, 85);
-  doc.text(splitAddress, 14, 92);
+  doc.text(splitAddress, 14, sectionY + 29);
 
   // Transport Information section
   doc.setFillColor(245, 245, 245);
-  doc.rect(110, 63, 86, 8, 'F');
+  doc.rect(110, sectionY, 86, 8, 'F');
   doc.setFont('helvetica', 'bold');
-  doc.text('Transport Information', 112, 68.5);
+  doc.text('Transport Information', 112, sectionY + 5.5);
 
   doc.setFont('helvetica', 'normal');
-  doc.text(`Transporter: ${challan.transporter || ''}`, 110, 78);
-  doc.text(`Vehicle No: ${challan.vehicleNo || ''}`, 110, 85);
-  doc.text(`Driver Name: ${challan.driverName || 'N/A'}`, 110, 92);
-  doc.text(`Driver Mobile: ${challan.driverMobile || 'N/A'}`, 110, 99);
+  doc.text(`Transporter: ${challan.transporter || ''}`, 110, sectionY + 15);
+  doc.text(`Vehicle No: ${challan.vehicleNo || ''}`, 110, sectionY + 22);
+  doc.text(`Driver Name: ${challan.driverName || 'N/A'}`, 110, sectionY + 29);
+  doc.text(`Driver Mobile: ${challan.driverMobile || 'N/A'}`, 110, sectionY + 36);
 
   // Product Details Table
   autoTable(doc, {
-    startY: 115,
+    startY: sectionY + 52,
     head: [['S.No', 'Product Name', 'Batch', 'Qty']],
     body: challan.products ? challan.products.map((p: any, i: number) => [
       (i + 1).toString(),
@@ -88,7 +80,7 @@ export const applyLRTemplate = (doc: jsPDF, challan: any) => {
   });
 
   // Footer / Totals
-  const finalY = (doc as any).lastAutoTable.finalY || 115;
+  const finalY = (doc as any).lastAutoTable.finalY || sectionY + 52;
   
   doc.setFont('helvetica', 'bold');
   doc.text('Total Packages:', 14, finalY + 10);
@@ -105,10 +97,9 @@ export const applyLRTemplate = (doc: jsPDF, challan: any) => {
   doc.setFont('helvetica', 'normal');
   doc.text(challan.totalQty?.toString() || '0', 180, finalY + 10, { align: 'right' });
 
-  // Signatures
-  doc.setFont('helvetica', 'bold');
-  doc.text('For Transporter', 14, finalY + 45);
-  doc.text('Consignee Signature', 150, finalY + 45);
+  // Signatures & Footer
+  applySignatureBlock(doc, finalY + 25);
+  applyDocumentFooter(doc);
 };
 
 // Default export to maintain the template architecture pattern

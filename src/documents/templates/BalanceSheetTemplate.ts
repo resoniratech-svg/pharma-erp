@@ -1,5 +1,8 @@
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+import { applyDocumentHeader } from '../shared/DocumentHeader';
+import { applyDocumentFooter } from '../shared/DocumentFooter';
+import { applySignatureBlock } from '../shared/SignatureBlock';
 
 export const applyBalanceSheetTemplate = (doc: jsPDF, data: any) => {
   const { fy, asOnDate, branch, division, liabilitiesItems, assetsItems } = data;
@@ -15,22 +18,16 @@ export const applyBalanceSheetTemplate = (doc: jsPDF, data: any) => {
     return isNegative ? `(${formatted})` : formatted;
   };
 
-  // Header
-  doc.setFontSize(16);
-  doc.setFont('helvetica', 'bold');
-  doc.text(`Pharma ERP Pvt. Ltd.`, 14, 15);
-  
-  doc.setFontSize(12);
-  doc.setFont('helvetica', 'normal');
-  doc.text(`Balance Sheet`, 14, 22);
+  const startY = applyDocumentHeader(doc, 'BALANCE SHEET');
+  const currentY = startY;
 
   // Metadata
   doc.setFontSize(10);
   doc.setTextColor(80, 80, 80);
-  doc.text(`Financial Year: ${fy}`, 14, 30);
-  doc.text(`As On: ${asOnDate}`, 14, 35);
-  doc.text(`Branch: ${branch}`, 110, 30);
-  doc.text(`Division: ${division}`, 110, 35);
+  doc.text(`Financial Year: ${fy}`, 14, currentY);
+  doc.text(`As On: ${asOnDate}`, 14, currentY + 5);
+  doc.text(`Branch: ${branch}`, 110, currentY);
+  doc.text(`Division: ${division}`, 110, currentY + 5);
 
   // Table Data
   const pdfTableData = liabilitiesItems.map((liab: any, i: number) => {
@@ -42,7 +39,7 @@ export const applyBalanceSheetTemplate = (doc: jsPDF, data: any) => {
   });
 
   (doc as any).autoTable({
-    startY: 45,
+    startY: currentY + 15,
     head: [['Liabilities', 'Amount (Rs)', 'Assets', 'Amount (Rs)']],
     body: pdfTableData,
     theme: 'grid',
@@ -55,4 +52,8 @@ export const applyBalanceSheetTemplate = (doc: jsPDF, data: any) => {
       3: { cellWidth: 35, halign: 'right' },
     }
   });
+
+  const finalY = (doc as any).lastAutoTable.finalY + 15;
+  applySignatureBlock(doc, finalY);
+  applyDocumentFooter(doc);
 };
