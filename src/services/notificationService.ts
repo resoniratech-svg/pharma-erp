@@ -107,7 +107,37 @@ export const NotificationService = {
       });
     });
 
+    // 5. CUSTOM NOTIFICATIONS
+    const customNotifs = JSON.parse(localStorage.getItem('custom_notifications') || '[]');
+    customNotifs.forEach((n: any) => {
+      notifications.push({
+        ...n,
+        read: readStatus.includes(n.id)
+      });
+    });
+
     return notifications.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  },
+
+  addNotification: (n: {
+    title: string;
+    message: string;
+    type: 'payment' | 'inventory' | 'mr' | 'gps' | 'crm' | 'warehouse' | 'system' | 'meeting' | 'dispatch' | 'expiry' | 'target';
+    priority: 'critical' | 'high' | 'medium' | 'low' | 'info';
+    module: string;
+    isActionRequired?: boolean;
+    actionUrl?: string;
+  }) => {
+    const customNotifs = JSON.parse(localStorage.getItem('custom_notifications') || '[]');
+    const newNotif = {
+      ...n,
+      id: `custom-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+      isActionRequired: n.isActionRequired || false,
+      createdAt: new Date().toISOString()
+    };
+    customNotifs.push(newNotif);
+    localStorage.setItem('custom_notifications', JSON.stringify(customNotifs));
+    notifyUI();
   },
 
   getUnreadCount: () => {

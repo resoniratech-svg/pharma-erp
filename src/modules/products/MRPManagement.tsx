@@ -25,7 +25,6 @@ import { productService } from '../../services/productService';
 import activityLogService  from '../../services/activityLogService';
 import { hasModulePermission } from '../../utils/permissionUtils';
 
-
 interface MRPItem {
   id: string;
   productCode: string;
@@ -41,40 +40,38 @@ interface MRPItem {
   status: 'Active' | 'Scheduled' | 'Expired' | 'Draft' | 'Cancelled';
 }
 
-
-
 const initialMockData: MRPItem[] = [
   {
     id: '1',
-    productCode: 'PRD-001',
+    productCode: 'PRD-000002',
     productName: 'Paracetamol 650mg',
     category: 'Tablet',
     productType: 'Tablet',
     mrp: 120,
     previousMrp: 110,
     effectiveDate: '2026-06-01',
-    revisedBy: 'Admin',
+    revisedBy: 'Admin User',
     revisionReason: 'Cost Increase',
     remarks: 'Routine inflation adjustment',
     status: 'Active',
   },
   {
     id: '2',
-    productCode: 'PRD-002',
+    productCode: 'PRD-000001',
     productName: 'Amoxicillin 500mg',
     category: 'Capsule',
     productType: 'Capsule',
     mrp: 185,
     previousMrp: 185,
     effectiveDate: '2026-06-15',
-    revisedBy: 'Admin',
+    revisedBy: 'Admin User',
     revisionReason: 'Marketing Strategy',
     remarks: 'No change in price',
     status: 'Active',
   },
   {
     id: '3',
-    productCode: 'PRD-003',
+    productCode: 'PRD-000004',
     productName: 'Vitamin C 1000mg',
     category: 'Tablet',
     productType: 'Tablet',
@@ -88,14 +85,14 @@ const initialMockData: MRPItem[] = [
   },
   {
     id: '4',
-    productCode: 'PRD-004',
+    productCode: 'PRD-000003',
     productName: 'Cough Syrup 100ml',
     category: 'Syrup',
     productType: 'Syrup',
     mrp: 95,
     previousMrp: 90,
     effectiveDate: '2025-01-01',
-    revisedBy: 'Admin',
+    revisedBy: 'Admin User',
     revisionReason: 'Cost Reduction',
     remarks: 'Old stock clearance',
     status: 'Expired',
@@ -104,49 +101,70 @@ const initialMockData: MRPItem[] = [
 
 export default function MRPManagement() {
   const [data, setData] = useState<MRPItem[]>([]);
-  useEffect(() => {
-    const savedData = mrpService.getAll();
+  const currentUser = JSON.parse(localStorage.getItem("authUser") || "{}");
+  const activeRole = localStorage.getItem("activeRole") || "";
+  const [products, setProducts] = useState<any[]>([]);
 
-    if (savedData.length) {
-      setData(savedData);
-    }
-  }, []);
   useEffect(() => {
-    mrpService.saveAll(data);
+    const savedProducts = productService.getProducts();
+    setProducts(savedProducts);
+
+    const savedData = mrpService.getAll();
+    let loadedData = savedData.length ? savedData : initialMockData;
+    
+    // Auto-update Scheduled to Active when effective date is reached
+    const todayStr = new Date().toISOString().split('T')[0];
+    let changed = false;
+    
+    let updatedData = loadedData.map((item: MRPItem) => {
+      if (item.status === 'Scheduled' && item.effectiveDate <= todayStr) {
+        changed = true;
+        return { ...item, status: 'Active' as const };
+      }
+      return item;
+    });
+
+    // Enforce single active MRP rule if we flipped status
+    if (changed) {
+      const productsWithActive = Array.from(new Set(updatedData.filter((i:any) => i.status === 'Active').map((i:any) => i.productCode)));
+      productsWithActive.forEach(code => {
+        const activeItems = updatedData.filter((i:any) => i.productCode === code && i.status === 'Active');
+        if (activeItems.length > 1) {
+          activeItems.sort((a:any, b:any) => b.effectiveDate.localeCompare(a.effectiveDate));
+          const latestActiveId = activeItems[0].id;
+          updatedData = updatedData.map((item:any) => {
+            if (item.productCode === code && item.status === 'Active' && item.id !== latestActiveId) {
+              return { ...item, status: 'Expired' as const };
+            }
+            return item;
+          });
+        }
+      });
+    }
+
+    if (!savedData.length || changed) {
+      mrpService.saveAll(updatedData);
+    }
+    setData(updatedData);
+  }, []);
+
+  useEffect(() => {
+    if (data.length > 0) {
+      mrpService.saveAll(data);
+    }
   }, [data]);
 
-
-  const activeRole = localStorage.getItem("activeRole") || "";
-
   const canView = hasModulePermission(activeRole, "Products & Master", "View");
-
-  const canCreate = hasModulePermission(
-    activeRole,
-    "Products & Master",
-    "Create",
-  );
-
+  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
+  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
 
-  const canDelete = hasModulePermission(
-    activeRole,
-    "Products & Master",
-    "Delete",
-  );
-
-
-  const currentUser = JSON.parse(localStorage.getItem("authUser") || "{}");
-  const [products, setProducts] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
   const [showModal, setShowModal] = useState(false);
   const [isEditingModal, setIsEditingModal] = useState(false);
-  
   const [selectedItem, setSelectedItem] = useState<MRPItem | null>(null);
-  useEffect(() => {
-    setProducts(productService.getProducts());
-  }, []);
   const [itemToDelete, setItemToDelete] = useState<MRPItem | null>(null);
 
   const [newMrp, setNewMrp] = useState({
@@ -163,6 +181,33 @@ export default function MRPManagement() {
     revisedBy: 'Admin User',
     status: 'Draft' as 'Draft' | 'Scheduled' | 'Active' | 'Cancelled' | 'Expired'
   });
+
+  const checkMrpInUse = (mrpItem: MRPItem) => {
+    const invoices = JSON.parse(localStorage.getItem("billing_gst_invoices") || "[]");
+    return invoices.some((inv: any) =>
+      inv.items.some((item: any) => item.productCode === mrpItem.productCode && Number(item.mrp) === mrpItem.mrp)
+    );
+  };
+
+  const resolveStatus = (effDateStr: string, currentStatus: MRPItem['status']): MRPItem['status'] => {
+    if (['Cancelled', 'Expired', 'Draft'].includes(currentStatus)) {
+      return currentStatus;
+    }
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (effDateStr > todayStr) {
+      return 'Scheduled';
+    } else {
+      return 'Active';
+    }
+  };
+
+  const calculatePriceChangePercentage = (oldPrice: number | undefined, newPrice: number) => {
+    if (oldPrice === undefined || oldPrice === 0) return null;
+    const diff = newPrice - oldPrice;
+    const pct = (diff / oldPrice) * 100;
+    const sign = pct >= 0 ? '+' : '';
+    return `${sign}${pct.toFixed(1)}%`;
+  };
 
   const columns: Column<MRPItem>[] = [
     {
@@ -290,7 +335,7 @@ export default function MRPManagement() {
         productName: product.name,
         productCode: product.code,
         category: product.category,
-        productType: product.productType,
+        productType: product.productType || '',
         currentMrp: String(product.mrp || '')
       });
     } else {
@@ -315,10 +360,10 @@ export default function MRPManagement() {
       productType: '',
       currentMrp: '',
       newMrp: '',
-      effectiveDate: '',
+      effectiveDate: new Date().toISOString().split('T')[0],
       revisionReason: '',
       remarks: '',
-      revisedBy: 'Admin User',
+      revisedBy: currentUser?.fullName || 'Admin User',
       status: 'Draft'
     });
     setShowModal(true);
@@ -326,6 +371,10 @@ export default function MRPManagement() {
 
   const openEditModal = () => {
     if (!selectedItem) return;
+    if (selectedItem.status === 'Cancelled' || selectedItem.status === 'Expired') {
+      alert("Error: Cannot edit Cancelled or Expired MRP records.");
+      return;
+    }
     setIsEditingModal(true);
     const product = products.find((p) => p.name === selectedItem.productName);
     setNewMrp({
@@ -334,7 +383,7 @@ export default function MRPManagement() {
       productCode: selectedItem.productCode,
       category: selectedItem.category,
       productType: selectedItem.productType || product?.productType || '',
-      currentMrp: product?.currentMrp.toString() || '',
+      currentMrp: product?.mrp ? String(product.mrp) : '',
       newMrp: selectedItem.mrp.toString(),
       effectiveDate: selectedItem.effectiveDate,
       revisionReason: selectedItem.revisionReason || '',
@@ -350,6 +399,61 @@ export default function MRPManagement() {
       alert("Please fill all mandatory fields (*).");
       return;
     }
+
+    const newMrpVal = Number(newMrp.newMrp);
+    if (isNaN(newMrpVal) || newMrpVal <= 0) {
+      alert("Error: MRP must be a positive numeric value greater than 0.");
+      return;
+    }
+    if (newMrpVal > 999999) {
+      alert("Error: MRP exceeds maximum sensible ERP limit (₹9,99,999).");
+      return;
+    }
+
+    // Pricing Chain validation
+    const product = products.find(p => p.code === newMrp.productCode);
+    if (product) {
+      const ptr = parseFloat(product.ptr) || 0;
+      const pts = parseFloat(product.pts) || 0;
+      const purchasePrice = parseFloat(product.purchasePrice) || 0;
+      if (newMrpVal < ptr || newMrpVal < pts || newMrpVal < purchasePrice) {
+        alert(`Error: MRP cannot be lower than the product's selling chain rates (PTR: ₹${ptr}, PTS: ₹${pts}, Purchase Price: ₹${purchasePrice}).`);
+        return;
+      }
+    }
+
+    // Effective Date cannot be prior to latest existing effective date
+    const sameProductMrps = data.filter(item => item.productCode === newMrp.productCode && item.id !== newMrp.id);
+    if (sameProductMrps.length > 0) {
+      const latestEffectiveDate = sameProductMrps.reduce((latest, item) => 
+        item.effectiveDate > latest ? item.effectiveDate : latest, sameProductMrps[0].effectiveDate);
+      
+      if (newMrp.effectiveDate < latestEffectiveDate) {
+        alert(`Error: The effective date (${newMrp.effectiveDate}) cannot be earlier than the latest existing effective date (${latestEffectiveDate}) for this product.`);
+        return;
+      }
+    }
+
+    // Duplicate combinations check
+    const isDuplicate = data.some(
+      (item) => item.productCode === newMrp.productCode && item.effectiveDate === newMrp.effectiveDate && item.id !== newMrp.id
+    );
+    if (isDuplicate) {
+      alert(`Error: An MRP record for product "${newMrp.productName}" on effective date "${newMrp.effectiveDate}" already exists.`);
+      return;
+    }
+
+    const resolvedStatus = resolveStatus(newMrp.effectiveDate, newMrp.status as any);
+    
+    // Deactivate older active revisions
+    let resolvedList = data;
+    if (resolvedStatus === 'Active') {
+      resolvedList = data.map(item => 
+        (item.productCode === newMrp.productCode && item.status === 'Active' && item.id !== newMrp.id)
+          ? { ...item, status: 'Expired' as const }
+          : item
+      );
+    }
     
     if (isEditingModal && newMrp.id) {
       const updatedRecord: MRPItem = {
@@ -358,34 +462,29 @@ export default function MRPManagement() {
         productName: newMrp.productName,
         category: newMrp.category || 'N/A',
         productType: newMrp.productType,
-        mrp: Number(newMrp.newMrp),
+        mrp: newMrpVal,
         previousMrp: Number(newMrp.currentMrp) || undefined,
         effectiveDate: newMrp.effectiveDate,
         revisionReason: newMrp.revisionReason,
         remarks: newMrp.remarks,
         revisedBy: newMrp.revisedBy,
-        status: newMrp.status as any
+        status: resolvedStatus
       };
       
-      setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+      setData(resolvedList.map(item => item.id === updatedRecord.id ? updatedRecord : item));
 
-      const products = productService.getProducts();
-
-      const updatedProducts = products.map((product) =>
-        product.code === updatedRecord.productCode
-          ? {
-              ...product,
-              mrp: Number(newMrp.newMrp).toFixed(2),
-            }
-          : product,
-      );
-
-      productService.saveProducts(updatedProducts);
+      // Sync active MRP back to product master immediately
+      if (resolvedStatus === 'Active') {
+        const updatedProducts = products.map((p) =>
+          p.code === updatedRecord.productCode ? { ...p, mrp: newMrpVal.toFixed(2) } : p
+        );
+        productService.saveProducts(updatedProducts);
+      }
 
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,
-        action: "MRP Updated",
+        action: `MRP Updated - Product: ${newMrp.productName}, New Price: ₹${newMrpVal} (${resolvedStatus})`,
         module: "MRP Management",
       });
       if (selectedItem && selectedItem.id === updatedRecord.id) {
@@ -398,32 +497,28 @@ export default function MRPManagement() {
         productName: newMrp.productName,
         category: newMrp.category || 'N/A',
         productType: newMrp.productType,
-        mrp: Number(newMrp.newMrp),
+        mrp: newMrpVal,
         previousMrp: Number(newMrp.currentMrp) || undefined,
         effectiveDate: newMrp.effectiveDate,
         revisionReason: newMrp.revisionReason,
         remarks: newMrp.remarks,
         revisedBy: newMrp.revisedBy,
-        status: newMrp.status as any
+        status: resolvedStatus
       };
-      setData([record, ...data]);
-      const products = productService.getProducts();
+      setData([record, ...resolvedList]);
 
-      const updatedProducts = products.map((product) =>
-        product.code === record.productCode
-          ? {
-              ...product,
-              mrp: Number(newMrp.newMrp).toFixed(2),
-            }
-          : product,
-      );
-
-      productService.saveProducts(updatedProducts);
+      // Sync active MRP back to product master immediately
+      if (resolvedStatus === 'Active') {
+        const updatedProducts = products.map((p) =>
+          p.code === record.productCode ? { ...p, mrp: newMrpVal.toFixed(2) } : p
+        );
+        productService.saveProducts(updatedProducts);
+      }
 
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,
-        action: "MRP Created",
+        action: `MRP Created - Product: ${newMrp.productName}, Price: ₹${newMrpVal} (${resolvedStatus})`,
         module: "MRP Management",
       });
     }
@@ -433,28 +528,42 @@ export default function MRPManagement() {
 
   const handleDelete = () => {
     if (itemToDelete) {
-      setData(data.filter(item => item.id !== itemToDelete.id));
-      activityLogService.addLog({
-        userId: currentUser?.id,
-        userName: currentUser?.fullName,
-        action: "MRP Deleted",
-        module: "MRP Management",
-      });
+      const inUse = checkMrpInUse(itemToDelete);
+      if (inUse) {
+        const updated = data.map(item =>
+          item.id === itemToDelete.id ? { ...item, status: 'Cancelled' as const } : item
+        );
+        setData(updated);
+        activityLogService.addLog({
+          userId: currentUser?.id,
+          userName: currentUser?.fullName,
+          action: `MRP Deleted (Blocked - Marked Cancelled instead due to Invoice usage) for ${itemToDelete.productName}`,
+          module: "MRP Management",
+        });
+        alert("Warning: This MRP is used in invoices. To preserve financial history, it was marked as Cancelled instead of deleted.");
+      } else {
+        setData(data.filter(item => item.id !== itemToDelete.id));
+        activityLogService.addLog({
+          userId: currentUser?.id,
+          userName: currentUser?.fullName,
+          action: `MRP Deleted - Product: ${itemToDelete.productName}, Price: ₹${itemToDelete.mrp}`,
+          module: "MRP Management",
+        });
+      }
       setItemToDelete(null);
     }
   };
 
-  // if (!canView) {
-  //   return (
-  //     <div className="p-10 text-center">
-  //       <h2 className="text-xl font-semibold">Access Denied</h2>
-
-  //       <p className="text-slate-500 mt-2">
-  //         You do not have permission to view Product Management.
-  //       </p>
-  //     </div>
-  //   );
-  // }
+  if (!canView) {
+    return (
+      <div className="p-10 text-center">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+        <p className="text-slate-500 mt-2">
+          You do not have permission to view Product Management.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -538,7 +647,19 @@ export default function MRPManagement() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Pricing Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Previous MRP" value={selectedItem.previousMrp ? `₹${selectedItem.previousMrp}` : 'N/A'} />
-                <DrawerField label="Current MRP" value={`₹${selectedItem.mrp}`} />
+                <DrawerField 
+                  label="Current MRP" 
+                  value={
+                    <span className="flex items-center gap-2">
+                      ₹{selectedItem.mrp}
+                      {selectedItem.previousMrp !== undefined && (
+                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${selectedItem.mrp >= selectedItem.previousMrp ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
+                          {calculatePriceChangePercentage(selectedItem.previousMrp, selectedItem.mrp)}
+                        </span>
+                      )}
+                    </span>
+                  } 
+                />
                 <DrawerField label="Effective Date" value={selectedItem.effectiveDate || 'N/A'} />
               </div>
             </div>
@@ -567,7 +688,7 @@ export default function MRPManagement() {
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-              {canEdit && (
+              {canEdit && selectedItem.status !== 'Cancelled' && selectedItem.status !== 'Expired' && (
               <ActionButton onClick={openEditModal}>Edit MRP</ActionButton>
               )}
               <ActionButton variant="secondary" onClick={() => setSelectedItem(null)}>Close</ActionButton>
@@ -658,6 +779,11 @@ export default function MRPManagement() {
                   <span className="absolute left-3 top-2 text-slate-500">₹</span>
                   <input type="number" value={newMrp.newMrp} onChange={(e) => setNewMrp({ ...newMrp, newMrp: e.target.value })} className="w-full border border-slate-200 rounded-lg pl-7 pr-3 py-2" />
                 </div>
+                {newMrp.currentMrp && newMrp.newMrp && (
+                  <p className="text-xs mt-1 font-medium text-slate-500">
+                    Change: {calculatePriceChangePercentage(Number(newMrp.currentMrp), Number(newMrp.newMrp))}
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Effective Date *</label>

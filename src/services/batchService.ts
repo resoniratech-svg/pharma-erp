@@ -5,6 +5,10 @@ export interface BatchRecord {
   productId: string;
   productCode: string;
   productName: string;
+  hsnCode?: string;
+  barcode?: string;
+  unit?: string;
+  manufacturer?: string;
 
   // Batch Information
   batchNo: string;
@@ -14,6 +18,10 @@ export interface BatchRecord {
   // Pricing
   ptr: number;
   mrp: number;
+
+  // Stock
+  availableQty: number;
+  receivedQty?: number;
 
   // Batch Status
   status: string;
