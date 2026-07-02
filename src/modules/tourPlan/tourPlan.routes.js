@@ -12,6 +12,11 @@ router.get("/mr/:mrId", controller.getTourPlansByMr);
 
 router.get("/date/:date", controller.getTourPlansByDate);
 
+router.get(
+  "/mr/:mrId/today",
+  controller.getTodaySchedule
+);
+
 router.get("/:id", controller.getTourPlanById);
 
 router.put("/:id", controller.updateTourPlan);

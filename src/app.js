@@ -413,7 +413,7 @@ app.use(
   analyticsRoutes
 );
 app.use(
-  "/api/routes",
+  "/api/route-history",
   routeHistoryRoutes
 );
 app.use(

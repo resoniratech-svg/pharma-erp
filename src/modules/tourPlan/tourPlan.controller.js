@@ -169,6 +169,43 @@ const completeTourPlan = async (
   }
 };
 
+const getTodaySchedule = async (
+  req,
+  res
+) => {
+
+  try {
+
+    const data =
+      await service.getTodayScheduleService(
+        req.params.mrId
+      );
+
+    if (!data) {
+
+      return res.status(404).json({
+        success: false,
+        message: "No Tour Plan Found"
+      });
+
+    }
+
+    return res.status(200).json({
+      success: true,
+      data
+    });
+
+  } catch (error) {
+
+    return res.status(500).json({
+      success: false,
+      message: error.message
+    });
+
+  }
+
+};
+
 module.exports = {
   createTourPlan,
   getAllTourPlans,
@@ -179,4 +216,5 @@ module.exports = {
   getTourPlansByDate,
   approveTourPlan,
   completeTourPlan,
+  getTodaySchedule,
 };

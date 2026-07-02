@@ -9,6 +9,10 @@ const checkFeature = (featureName) => {
       const companyId =
         req.user.companyId;
 
+        if (!companyId) {
+  return next();
+}
+
       const permission =
         await prisma.companyFeaturePermission.findFirst({
           where: {

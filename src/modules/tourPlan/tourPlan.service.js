@@ -62,6 +62,16 @@ const completeTourPlanService = async (
   );
 };
 
+const getTodayScheduleService = async (
+  mrId
+) => {
+
+  return repository.getTodayScheduleRepo(
+    mrId
+  );
+
+};
+
 module.exports = {
   createTourPlanService,
   getAllTourPlansService,
@@ -72,4 +82,5 @@ module.exports = {
   getTourPlansByDateService,
   approveTourPlanService,
   completeTourPlanService,
+  getTodayScheduleService,
 };
