@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, Plus, ChevronDown, Filter } from 'lucide-react';
+import { Download, ChevronDown, Filter } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
@@ -116,7 +116,7 @@ export default function MultiLocationStock() {
   const [statusFilter, setStatusFilter] = useState('');
   const [inventory, setInventory] = useState(inventoryService.getAll());
 
-  const [warehouses, setWarehouses] = useState(warehouseService.getAll());
+  const [warehouses] = useState(warehouseService.getAll());
 
   const [products] = useState(productService.getProducts());
   useEffect(() => {

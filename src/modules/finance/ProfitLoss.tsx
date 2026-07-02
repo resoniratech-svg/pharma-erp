@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Download, ChevronDown, Printer, FileText, TrendingUp, DollarSign, Percent, BarChart3, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generateProfitLossPdf } from '../../documents/generators/pdfGenerator';
@@ -7,14 +7,12 @@ import { generateProfitLossPrint } from '../../documents/generators/printGenerat
 import {
   PageHeader,
   FilterBar,
-  SearchInput,
   SelectFilter,
   ActionButton,
   SummaryCard,
   Drawer,
   DataTable,
-  Badge
-} from './components/shared';
+  } from './components/shared';
 import { type Column } from './components/shared';
 
 // --- Types ---

@@ -116,7 +116,7 @@
 
 //   const activeRole = localStorage.getItem("activeRole") || "";
 
-//   const canView = hasModulePermission(activeRole, "Products & Master", "View");
+//   
 //   const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
 //   const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
 //   const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
@@ -960,7 +960,7 @@ export default function BatchManagement() {
   const [isEditingModal, setIsEditingModal] = useState(false);
 
   const activeRole = localStorage.getItem("activeRole") || "";
-  const canView = hasModulePermission(activeRole, "Products & Master", "View");
+  
   const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
   const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");

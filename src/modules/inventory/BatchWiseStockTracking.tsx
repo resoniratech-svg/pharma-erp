@@ -47,9 +47,7 @@ const getTodayDateStr = () => {
 };
 
 // Use an actual date parsing mapping so we can calculate dynamically
-const parseDate = (dateStr: string) => {
-  return new Date(dateStr);
-};
+
 
 // const mockData: BatchItem[] = [
 //   { id: '1', batchNo: 'B-2024-001', productName: 'Amoxicillin 500mg', sku: 'PRD-001', category: 'Tablet', mfgDate: '2024-01-10', expiryDate: '2026-01-10', availableQty: 5000, warehouse: 'Main Hub', status: 'Active', mrp: 150, ptr: 100, pts: 120, barcode: '8901234567890', createdBy: 'Admin User', createdDate: '2024-01-12', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-10-01' },

@@ -511,7 +511,7 @@ import {
 import { type Column, type BadgeVariant } from './components/shared';
 import { generateEInvoicePdf } from '../../documents/generators/pdfGenerator';
 // Service Integration
-import { billingService } from '../../services/billingService';
+
 import { eInvoiceService } from '../../services/eInvoiceService';
 import { NotificationService } from '../../services/notificationService';
 import activityLogService from '../../services/activityLogService';

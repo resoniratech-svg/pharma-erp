@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { UserPlus, Settings2, X, MoreVertical, Edit2, ShieldAlert } from 'lucide-react';
+import { UserPlus, X, MoreVertical, Edit2, ShieldAlert } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import {
   PageHeader,

@@ -1,14 +1,12 @@
 import { useState, useRef, useEffect } from 'react';
-import { Activity, UserCheck, ShieldAlert, AlertTriangle, Eye, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
+import { Activity, UserCheck, ShieldAlert, AlertTriangle, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
-  FilterBar,
   SearchInput,
   SelectFilter,
   TableCard,
   DataTable,
-  Badge,
   SummaryCard,
   ActionButton
 } from './components/shared';

@@ -66,7 +66,7 @@ interface Outward {
 
 
 const MOCK_CLIENTS = ['Apollo Hospitals', 'Care Pharmacy', 'City Clinic'];
-const MOCK_LOCATIONS = ['Hyderabad Warehouse', 'Mumbai Warehouse', 'Bangalore Warehouse', 'Delhi Warehouse'];
+
 
 // Mock Batch Database for cross-referencing Available Qty & Rate
 

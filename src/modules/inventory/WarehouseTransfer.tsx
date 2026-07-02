@@ -34,22 +34,7 @@ interface TransferLineItem {
   transferQty: number;
 }
 
-interface Transfer {
-  id: string;
-  transferNo: string;
-  date: string;
-  fromLocation: string;
-  toLocation: string;
-  remarks?: string;
-  itemsCount: number;
-  totalQuantity: number;
-  status: 'Draft' | 'In Transit' | 'Completed' | 'Cancelled';
-  products: TransferLineItem[];
-  createdBy: string;
-  createdDate: string;
-  lastUpdatedBy: string;
-  lastUpdatedDate: string;
-}
+
 
 // const mockData: Transfer[] = [
 //   { 

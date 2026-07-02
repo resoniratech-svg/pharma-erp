@@ -3,7 +3,6 @@ import { IndianRupee, AlertCircle, Clock, Percent, Eye, Download, ChevronDown, F
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
-  FilterBar,
   SearchInput,
   SelectFilter,
   TableCard,

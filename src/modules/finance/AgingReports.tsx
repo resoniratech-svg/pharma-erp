@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { Download, ChevronDown, Printer, Eye, BookOpen, IndianRupee } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { jsPDF } from 'jspdf';

@@ -3,7 +3,6 @@ import { BellRing, AlertTriangle, AlertCircle, Info, Eye, Check, Download, Chevr
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
-  FilterBar,
   SearchInput,
   SelectFilter,
   TableCard,

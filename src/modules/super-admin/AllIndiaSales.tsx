@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { IndianRupee, TrendingUp, ShoppingCart, Users, AlertCircle, MapPin, Eye, CheckCircle2, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
+import { IndianRupee, TrendingUp, ShoppingCart, Users, AlertCircle, MapPin, Eye, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
-  FilterBar,
   SearchInput,
   SelectFilter,
   TableCard,

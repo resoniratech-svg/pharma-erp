@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
-import { Package, Percent, TrendingUp, TrendingDown, IndianRupee, Eye, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
+import { Percent, TrendingUp, TrendingDown, IndianRupee, Eye, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
-  FilterBar,
   SearchInput,
   SelectFilter,
   TableCard,

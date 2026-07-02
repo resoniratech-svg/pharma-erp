@@ -1,5 +1,5 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Download, ChevronDown, Filter, Printer } from 'lucide-react';
+import { useState, useMemo, useRef, useEffect } from 'react';
+import { Download, ChevronDown, Printer } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
 import * as XLSX from 'xlsx';

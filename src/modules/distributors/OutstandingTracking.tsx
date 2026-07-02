@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Download, Eye, DollarSign, Filter, ChevronDown, FileText } from 'lucide-react';
+import { Download, Eye, DollarSign, Filter, ChevronDown, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -16,6 +16,7 @@ interface Invoice {
   date: string;
   amount: number;
   paidAmount?: number;
+  id?: string;
   dueDate: string;
   agingDays: number;
   status: 'Paid' | 'Partially Paid' | 'Unpaid' | 'Overdue';

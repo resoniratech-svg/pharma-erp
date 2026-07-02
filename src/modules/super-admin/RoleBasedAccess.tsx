@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Users, Shield, Lock, Plus } from 'lucide-react';
+import { Users, Shield, Lock, } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,

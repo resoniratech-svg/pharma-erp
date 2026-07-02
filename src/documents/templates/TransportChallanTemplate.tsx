@@ -5,8 +5,8 @@ import { applyDocumentFooter } from '../shared/DocumentFooter';
 import { applySignatureBlock } from '../shared/SignatureBlock';
 
 export const applyTransportChallanTemplate = (doc: jsPDF, challan: any) => {
-  const pageWidth = doc.internal.pageSize.width;
-  const pageHeight = doc.internal.pageSize.height;
+  
+  
 
 const startY = applyDocumentHeader(doc, 'TRANSPORT CHALLAN');
 

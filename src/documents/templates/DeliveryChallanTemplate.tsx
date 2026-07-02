@@ -1,9 +1,9 @@
-import { jsPDF } from 'jspdf';
+
 import { applyDocumentHeader } from '../shared/DocumentHeader';
 import { applyDocumentFooter } from '../shared/DocumentFooter';
 import { applySignatureBlock } from '../shared/SignatureBlock';
 
-export const applyDeliveryChallanTemplate = (doc: jsPDF, data: any) => {
+export const applyDeliveryChallanTemplate = (doc: any) => {
   const startY = applyDocumentHeader(doc, 'DELIVERY CHALLAN');
   
   // Placeholder body content

@@ -857,11 +857,13 @@ export default function SchemeManagement() {
   const [categories, setCategories] = useState<string[]>([]);
   const [brands, setBrands] = useState<string[]>([]);
 
+  
+  const todayStr = new Date().toISOString().split('T')[0];
   const resolveSchemeStatus = (validFromStr: string, validToStr: string, currentStatus: Scheme['status']): Scheme['status'] => {
     if (['Cancelled', 'Draft'].includes(currentStatus)) {
       return currentStatus;
     }
-    const todayStr = new Date().toISOString().split('T')[0];
+    
     if (todayStr < validFromStr) {
       return 'Upcoming';
     } else if (todayStr > validToStr) {
@@ -886,7 +888,7 @@ export default function SchemeManagement() {
     
     // Auto-resolve dates on page load
     let changed = false;
-    const todayStr = new Date().toISOString().split('T')[0];
+    
     const updatedData = loadedData.map((item: Scheme) => {
       const resolved = resolveSchemeStatus(item.validFrom, item.validTo, item.status);
       if (resolved !== item.status) {

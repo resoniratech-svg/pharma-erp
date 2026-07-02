@@ -265,8 +265,8 @@ export default function Invoices() {
     setShowCreateModal(false);
     
     // Reset inputs
-    NewInvoice({ invoiceNo: '', orderNo: '', retailer: '', retailerCode: '', billingAddress: '', gstNumber: '', dueDate: '' });
-    SetFormItems([{ id: '1', productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }]);
+    setNewInvoice({ invoiceNo: '', orderNo: '', retailer: '', retailerCode: '', billingAddress: '', gstNumber: '', dueDate: '' });
+    setFormItems([{ id: '1', productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }]);
   };
 
   // --- Form Edit Request Executions ---

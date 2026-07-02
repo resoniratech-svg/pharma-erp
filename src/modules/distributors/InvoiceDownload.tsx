@@ -122,9 +122,7 @@ export default function InvoiceDownload() {
         title="Invoice Download"
         subtitle="Manage billing, tax invoices, and payment statuses for all distributors."
         actions={<></>}
-        showCreate={false}
-        hasCreate={false}
-      />
+        />
 
       <FilterBar>
         <SearchInput value={search} onChange={setSearch} placeholder="Search invoice or distributor..." />

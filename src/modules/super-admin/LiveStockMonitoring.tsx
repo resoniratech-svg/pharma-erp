@@ -3,7 +3,6 @@ import { IndianRupee, AlertTriangle, PackageSearch, ArchiveX, Eye, Download, Che
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
-  FilterBar,
   SearchInput,
   SelectFilter,
   TableCard,

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Shield, Save, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
+import { Save, CheckCircle2, AlertCircle, Loader2 } from 'lucide-react';
 import { PageHeader, ActionButton } from './components/shared';
 import { ROLES } from '../../constants/roles';
 import { motion, AnimatePresence } from 'framer-motion';

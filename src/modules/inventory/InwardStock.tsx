@@ -72,7 +72,7 @@ export default function InwardStock() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<Inward | null>(null);
-  const [products, setProducts] = useState(productService.getProducts());
+  const [products] = useState(productService.getProducts());
   const [batches] = useState(batchService.getAll());
 
   const currentUser = authService.getCurrentUser();

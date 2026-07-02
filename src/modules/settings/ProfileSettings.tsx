@@ -13,7 +13,7 @@ export default function ProfileSettings() {
   const activeRoleData = ROLES.find(r => r.id === activeRole) || ROLES[0];
   const authUserString = localStorage.getItem('authUser');
   const authUser = authUserString ? JSON.parse(authUserString) : null;
-  const [user, setUser] = useState(authUser);
+  const [, setUser] = useState(authUser);
 
   const initialName = authUser ? authUser.fullName : activeRoleData.userName;
   const initialEmail = authUser ? authUser.email : activeRoleData.userEmail;
@@ -21,7 +21,7 @@ export default function ProfileSettings() {
   const initialImage = authUser?.profileImage || null;
 
   const [name, setName] = useState(initialName);
-  const [email, setEmail] = useState(initialEmail);
+  const [email] = useState(initialEmail);
   const [mobile, setMobile] = useState(initialMobile);
   const [profileImage, setProfileImage] = useState<string | null>(initialImage);
   

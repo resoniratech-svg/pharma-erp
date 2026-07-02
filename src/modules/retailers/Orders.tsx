@@ -230,16 +230,15 @@ export default function Orders() {
 
   // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const adminColumns: Column<Order>[] = [
-    { key: 'orderNo', header: 'Order No', accessor: 'orderNo', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
-    { key: 'retailer', header: 'Retailer', accessor: 'retailer', render: (row) => <span className="text-slate-900">{row.retailer}</span> },
-    { key: 'date', header: 'Order Date', accessor: 'date', render: (row) => <span className="text-slate-600">{row.date}</span> },
-    { key: 'amount', header: 'Order Value', accessor: 'netAmount', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.netAmount)}</span> },
-    { key: 'paymentStatus', header: 'Payment Status', accessor: 'paymentStatus', render: (row) => <span className={`font-medium ${row.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{row.paymentStatus}</span> },
-    { key: 'status', header: 'Order Status', accessor: 'status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+    { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
+    { key: 'retailer', label: 'Retailer', render: (row) => <span className="text-slate-900">{row.retailer}</span> },
+    { key: 'date', label: 'Order Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
+    { key: 'amount', label: 'Order Value', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.netAmount)}</span> },
+    { key: 'paymentStatus', label: 'Payment Status', render: (row) => <span className={`font-medium ${row.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{row.paymentStatus}</span> },
+    { key: 'status', label: 'Order Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
     {
       key: 'actions',
-      header: 'Actions',
-      accessor: 'id',
+      label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Order">
@@ -252,16 +251,15 @@ export default function Orders() {
 
   // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const retailerColumns: Column<Order>[] = [
-    { key: 'orderNo', header: 'Order No', accessor: 'orderNo', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
-    { key: 'date', header: 'Order Date', accessor: 'date', render: (row) => <span className="text-slate-600">{row.date}</span> },
-    { key: 'amount', header: 'Order Value', accessor: 'netAmount', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.netAmount)}</span> },
-    { key: 'paymentStatus', header: 'Payment Status', accessor: 'paymentStatus', render: (row) => <span className={`font-medium ${row.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{row.paymentStatus}</span> },
-    { key: 'status', header: 'Order Status', accessor: 'status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
-    { key: 'expectedDeliveryDate', header: 'Expected Delivery Date', accessor: 'expectedDeliveryDate', render: (row) => <span className="text-slate-600">{row.expectedDeliveryDate || 'TBD'}</span> },
+    { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
+    { key: 'date', label: 'Order Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
+    { key: 'amount', label: 'Order Value', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.netAmount)}</span> },
+    { key: 'paymentStatus', label: 'Payment Status', render: (row) => <span className={`font-medium ${row.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{row.paymentStatus}</span> },
+    { key: 'status', label: 'Order Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+    { key: 'expectedDeliveryDate', label: 'Expected Delivery Date', render: (row) => <span className="text-slate-600">{row.expectedDeliveryDate || 'TBD'}</span> },
     {
       key: 'actions',
-      header: 'Actions',
-      accessor: 'id',
+      label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Order">
@@ -345,22 +343,22 @@ export default function Orders() {
 
   // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const viewOrderColumns: Column<OrderItem>[] = [
-    { key: 'productName', header: 'Product Name', accessor: 'productName', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
-    { key: 'productCode', header: 'Product Code', accessor: 'productCode', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
-    { key: 'quantity', header: 'Quantity', accessor: 'quantity', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
-    { key: 'unitPrice', header: 'Unit Price', accessor: 'unitPrice', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
-    { key: 'schemeBenefit', header: 'Scheme Benefit', accessor: 'schemeBenefit', render: (row) => <span className="text-emerald-600 text-sm">{row.schemeBenefit || '-'}</span> },
-    { key: 'amount', header: 'Line Total', accessor: 'lineTotal', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
+    { key: 'productName', label: 'Product Name', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
+    { key: 'productCode', label: 'Product Code', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
+    { key: 'quantity', label: 'Quantity', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
+    { key: 'unitPrice', label: 'Unit Price', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
+    { key: 'schemeBenefit', label: 'Scheme Benefit', render: (row) => <span className="text-emerald-600 text-sm">{row.schemeBenefit || '-'}</span> },
+    { key: 'amount', label: 'Line Total', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
   ];
 
   // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const cartColumns: Column<OrderItem>[] = [
-    { key: 'productName', header: 'Product Name', accessor: 'productName', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
-    { key: 'productCode', header: 'Product Code', accessor: 'productCode', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
-    { key: 'quantity', header: 'Quantity', accessor: 'quantity', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
-    { key: 'unitPrice', header: 'Unit Price', accessor: 'unitPrice', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
-    { key: 'schemeBenefit', header: 'Scheme Benefit', accessor: 'schemeBenefit', render: (row) => <span className="text-emerald-600 text-sm">{row.schemeBenefit || '-'}</span> },
-    { key: 'lineTotal', header: 'Line Total', accessor: 'lineTotal', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
+    { key: 'productName', label: 'Product Name', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
+    { key: 'productCode', label: 'Product Code', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
+    { key: 'quantity', label: 'Quantity', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
+    { key: 'unitPrice', label: 'Unit Price', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
+    { key: 'schemeBenefit', label: 'Scheme Benefit', render: (row) => <span className="text-emerald-600 text-sm">{row.schemeBenefit || '-'}</span> },
+    { key: 'lineTotal', label: 'Line Total', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
   ];
 
   return (

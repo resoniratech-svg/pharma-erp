@@ -3,7 +3,6 @@ import { IndianRupee, MapPin, Users, ShoppingCart, Target, AlertCircle, Eye, Dow
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
-  FilterBar,
   SearchInput,
   SelectFilter,
   TableCard,

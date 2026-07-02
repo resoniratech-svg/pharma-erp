@@ -3,7 +3,6 @@ import { Globe, Plane, CheckCircle, AlertTriangle, Eye, Download, ChevronDown, F
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
-  FilterBar,
   SearchInput,
   SelectFilter,
   TableCard,

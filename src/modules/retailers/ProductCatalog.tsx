@@ -80,7 +80,7 @@ export default function ProductCatalog() {
         
         let schemes: any[] = [];
         try {
-          schemes = await schemeService.getSchemes();
+          schemes = await schemeService.getAll();
         } catch (schemeErr) {
           console.warn("Scheme engine lookup bypassed:", schemeErr);
         }
@@ -156,18 +156,17 @@ export default function ProductCatalog() {
   };
 
   const columns: Column<Product>[] = [
-    { key: 'code', accessor: 'code', header: 'Product Code', render: (row) => <span className="font-semibold text-slate-700">{row.code}</span> },
-    { key: 'name', accessor: 'name', header: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
-    { key: 'category', accessor: 'category', header: 'Category', render: (row) => <span className="text-slate-600">{row.category}</span> },
-    { key: 'packSize', accessor: 'packSize', header: 'Pack Size', render: (row) => <span className="text-slate-600">{row.packSize}</span> },
-    { key: 'ptr', accessor: 'ptr', header: 'PTR', render: (row) => <span className="font-bold text-violet-700">{row.ptr}</span> },
-    { key: 'scheme', accessor: 'scheme', header: 'Active Scheme', render: (row) => row.scheme ? <span className="text-emerald-600 font-medium">{row.scheme}</span> : <Badge variant="neutral">No Active Scheme</Badge> },
-    { key: 'stock', accessor: 'stock', header: 'Available Stock', render: (row) => <span className="font-medium text-slate-800">{row.stock}</span> },
-    { key: 'status', accessor: 'status', header: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+    { key: 'code', label: 'code', render: (row) => <span className="font-semibold text-slate-700">{row.code}</span> },
+    { key: 'name', label: 'name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
+    { key: 'category', label: 'category', render: (row) => <span className="text-slate-600">{row.category}</span> },
+    { key: 'packSize', label: 'packSize', render: (row) => <span className="text-slate-600">{row.packSize}</span> },
+    { key: 'ptr', label: 'ptr', render: (row) => <span className="font-bold text-violet-700">{row.ptr}</span> },
+    { key: 'scheme', label: 'scheme', render: (row) => row.scheme ? <span className="text-emerald-600 font-medium">{row.scheme}</span> : <Badge variant="neutral">No Active Scheme</Badge> },
+    { key: 'stock', label: 'stock', render: (row) => <span className="font-medium text-slate-800">{row.stock}</span> },
+    { key: 'status', label: 'status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
     {
       key: 'actions',
-      accessor: 'id',
-      header: 'Actions',
+      label: 'id',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           <button onClick={() => setSelectedProduct(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">

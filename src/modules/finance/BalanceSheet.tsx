@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import { Download, ChevronDown, Printer, FileText, Wallet, BarChart3, TrendingUp, PieChart, Info, CreditCard } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Download, ChevronDown, Printer, FileText, Wallet, BarChart3, TrendingUp, Info, CreditCard } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generateBalanceSheetPdf } from '../../documents/generators/pdfGenerator';
 import { generateBalanceSheetPrint } from '../../documents/generators/printGenerator';

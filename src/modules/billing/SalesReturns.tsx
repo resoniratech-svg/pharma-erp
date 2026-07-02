@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Download, Filter, PackageMinus, Eye, Edit, Trash2, CheckCircle, FileText, Settings2, ChevronDown } from 'lucide-react';
+import { Download, Filter, PackageMinus, Eye, Trash2, FileText, Settings2, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';

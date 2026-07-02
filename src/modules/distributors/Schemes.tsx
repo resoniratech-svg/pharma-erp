@@ -145,22 +145,10 @@ export default function Schemes() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Handle publishing a new scheme from this module directly into the service
   const handlePublishScheme = () => {
     if (!newScheme.schemeName || !newScheme.validFrom || !newScheme.validTo) {
       alert("Please fill out the mandatory fields.");
       return;
-    }
-
-    let dynamicBenefit = 'Promotional Offer';
-    if (newScheme.schemeType === 'Quantity Scheme') {
-      dynamicBenefit = `Buy ${newScheme.buyQuantity || 10} Get ${newScheme.freeQuantity || 1} Free`;
-    } else if (newScheme.schemeType === 'Cash Discount Scheme') {
-      dynamicBenefit = `Additional ${newScheme.discountPercentage || 0}% CD`;
-    } else if (newScheme.schemeType === 'Bonus Scheme') {
-      dynamicBenefit = `${newScheme.bonusQuantity || 1}x ${newScheme.bonusProduct || 'Bonus'}`;
-    } else if (newScheme.schemeType === 'Target Scheme') {
-      dynamicBenefit = `Target Bonus Setup`;
     }
 
     const createdRecord: any = {

@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Download, ReceiptText, Plus, Pencil } from 'lucide-react'; // Added Pencil icon
 import { jsPDF } from 'jspdf';
 import {

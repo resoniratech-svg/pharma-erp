@@ -58,7 +58,21 @@ export function SelectFilter({ value, onChange, options, placeholder = 'All' }: 
   );
 }
 
-export function ActionButton({ onClick, variant = 'primary', children, icon, className = '' }: { onClick?: () => void; variant?: 'primary' | 'secondary' | 'ghost'; children: ReactNode; icon?: ReactNode; className?: string; }) {
+export function ActionButton({
+  onClick,
+  variant = 'primary',
+  children,
+  icon,
+  className,
+  disabled = false,
+}: {
+  onClick?: () => void;
+  variant?: 'primary' | 'secondary' | 'ghost';
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+  className?: string;
+  disabled?: boolean;
+}) {
   const styles = {
     primary: 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm shadow-violet-200',
     secondary: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200',
@@ -68,7 +82,14 @@ export function ActionButton({ onClick, variant = 'primary', children, icon, cla
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 ${styles[variant]} ${className}`}
+      disabled={disabled}
+      className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 ${
+        styles[variant]
+      } ${
+        disabled
+          ? 'opacity-50 cursor-not-allowed pointer-events-none'
+          : ''
+      } ${className ?? ''}`}
     >
       {icon}
       {children}
@@ -76,7 +97,7 @@ export function ActionButton({ onClick, variant = 'primary', children, icon, cla
   );
 }
 
-export function DataTable<T extends { id: string | number }>({ columns, data, onRowClick, emptyMessage = 'No records found.' }: { columns: Column<T>[]; data: T[]; onRowClick?: (row: T) => void; emptyMessage?: string; }) {
+export function DataTable<T extends { id?: string | number }>({ columns, data, onRowClick, emptyMessage = 'No records found.' }: { columns: Column<T>[]; data: T[]; onRowClick?: (row: T) => void; emptyMessage?: string; }) {
   if (data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
@@ -89,22 +110,22 @@ export function DataTable<T extends { id: string | number }>({ columns, data, on
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-xl border border-slate-200/60 bg-white shadow-sm">
       <table className="w-full text-left border-collapse">
         <thead>
-          <tr className="bg-slate-50/80 border-b border-slate-200">
-            {columns.map((col) => (
-              <th key={String(col.key)} className="py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap" style={{ width: col.width }}>
+          <tr className="bg-slate-50/80 border-b border-slate-200/80">
+            {columns.map((col, i) => (
+              <th key={col.key ? String(col.key) : i} className="py-3.5 px-4 font-semibold text-sm text-slate-600 whitespace-nowrap">
                 {col.label}
               </th>
             ))}
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-100">
-          {data.map((row) => (
-            <tr key={row.id} onClick={() => onRowClick?.(row)} className={`transition-colors hover:bg-violet-50/40 ${onRowClick ? 'cursor-pointer' : ''}`}>
-              {columns.map((col) => (
-                <td key={String(col.key)} className="py-3.5 px-4 text-sm text-slate-700 whitespace-nowrap">
+          {data.map((row, i) => (
+            <tr key={row.id ? String(row.id) : i} onClick={() => onRowClick?.(row)} className={`transition-colors hover:bg-violet-50/40 ${onRowClick ? 'cursor-pointer' : ''}`}>
+              {columns.map((col, j) => (
+                <td key={col.key ? String(col.key) : j} className="py-3.5 px-4 text-sm text-slate-700 whitespace-nowrap">
                   {col.render ? col.render(row) : String((row as Record<string, unknown>)[String(col.key)] ?? '—')}
                 </td>
               ))}

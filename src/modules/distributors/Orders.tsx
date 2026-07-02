@@ -456,7 +456,7 @@ export default function Orders() {
             onClick={() => row.status === 'Draft' ? handleEditOrder(row) : null}
             className={`p-1 transition-colors ${row.status === 'Draft' ? 'text-slate-400 hover:text-blue-600' : 'text-slate-200 cursor-not-allowed'}`} 
             title="Edit"
-            disabled={row.status !== 'Draft'}
+            
           >
             <Edit className="w-4 h-4" />
           </button>
@@ -465,7 +465,7 @@ export default function Orders() {
             onClick={() => row.status === 'Draft' ? setDeleteOrder(row) : null} 
             className={`p-1 transition-colors ${row.status === 'Draft' ? 'text-slate-400 hover:text-red-600' : 'text-slate-200 cursor-not-allowed'}`} 
             title="Delete"
-            disabled={row.status !== 'Draft'}
+            
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -820,10 +820,10 @@ export default function Orders() {
               <ActionButton variant="secondary" onClick={() => { setIsCreateOpen(false); setEditingOrderId(null); }}>
                 Cancel
               </ActionButton>
-              <ActionButton variant="secondary" onClick={() => handleSaveOrder('Draft')} disabled={newOrderItems.length === 0 || !deliveryLocation}>
+              <ActionButton variant="secondary" onClick={() => handleSaveOrder('Draft')} >
                 Save Draft
               </ActionButton>
-              <ActionButton onClick={() => handleSaveOrder('Submitted')} disabled={newOrderItems.length === 0 || !deliveryLocation}>
+              <ActionButton onClick={() => handleSaveOrder('Submitted')} >
                 Submit Order
               </ActionButton>
             </div>

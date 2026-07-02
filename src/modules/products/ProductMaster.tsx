@@ -206,7 +206,7 @@ export default function ProductMaster() {
 
   const activeRole = localStorage.getItem('activeRole') || '';
 
-  const canView = hasModulePermission(activeRole, "Products & Master", "View");
+  
   const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
   const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");

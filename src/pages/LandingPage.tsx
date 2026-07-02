@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import mjLogo from '../assets/logo/mj-healthcare-logo1.svg';
 import {
   ArrowRight, CheckCircle2, Package, Warehouse, Receipt, Users, 
-  Navigation, Zap, Globe2, Activity, Star, ShieldCheck,
+  Navigation, Zap, Globe2, Activity, ShieldCheck,
   Calculator, Building2, Server, Database, LineChart,
   ClipboardList, Truck, Factory, User, ShoppingCart, FileCheck
 } from 'lucide-react';

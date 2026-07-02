@@ -1,17 +1,9 @@
 import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 export const applyEWayBillTemplate = (doc: jsPDF, invoice: any) => {
   const pageWidth = doc.internal.pageSize.width;
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount || 0);
-  };
-
+  
   // Header Background
   doc.setFillColor(124, 58, 237); // violet-600
   doc.rect(0, 0, pageWidth, 40, 'F');

@@ -1,6 +1,5 @@
 import { useState, useMemo } from 'react';
 import { 
-  BellRing, 
   CheckCircle2, 
   Eye, 
   Mail, 
@@ -11,14 +10,12 @@ import {
   X,
   MoreVertical,
   Send,
-  IndianRupee
-} from 'lucide-react';
+  } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
   SearchInput,
   SelectFilter,
-  ActionButton,
   TableCard,
   DataTable,
   Badge,

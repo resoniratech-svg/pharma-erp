@@ -3,7 +3,6 @@ import { Truck, CheckCircle2, Clock, AlertTriangle, Eye, Download, ChevronDown, 
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
-  FilterBar,
   SearchInput,
   SelectFilter,
   TableCard,

@@ -247,7 +247,7 @@ export default function EWayBill() {
       case 'Active': case 'Delivered': return 'success';
       case 'Pending': case 'Not Dispatched': return 'warning';
       case 'Expired': case 'Cancelled': case 'Failed': return 'danger';
-      case 'In Transit': case 'Dispatched': return 'primary';
+      case 'In Transit': case 'Dispatched': return 'info';
       default: return 'neutral';
     }
   };

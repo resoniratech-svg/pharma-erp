@@ -2,7 +2,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Plus, Download, Filter, ChevronDown, Eye, FileDown, Printer } from 'lucide-react';
 import { generatePdf } from '../../documents/generators/pdfGenerator';
-import { generatePrint } from '../../documents/generators/printGenerator';
+
 import jsPDF from 'jspdf';
 import { applyTransportChallanTemplate } from '../../documents/templates/TransportChallanTemplate';
 import logoPng from '../../assets/logo/mj-healthcare-logo1.svg';
