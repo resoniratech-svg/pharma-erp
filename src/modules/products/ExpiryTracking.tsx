@@ -181,10 +181,10 @@ export default function ExpiryTracking() {
       key: "expDate",
       label: "Expiry Date",
     },
-    {
-      key: "qty",
-      label: "Quantity",
-    },
+    // {
+    //   key: "qty",
+    //   label: "Quantity",
+    // },
     {
       key: "daysLeft",
       label: "Days Left",
@@ -377,7 +377,7 @@ export default function ExpiryTracking() {
               </div>
             </div>
 
-            <div>
+            {/* <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
                 Stock Information
               </h3>
@@ -387,7 +387,7 @@ export default function ExpiryTracking() {
                   value={selectedItem.qty?.toString() || "0"}
                 />
               </div>
-            </div>
+            </div> */}
 
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">

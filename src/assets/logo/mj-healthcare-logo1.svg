@@ -1,0 +1,11 @@
+<svg width="300" height="90" viewBox="0 0 300 90" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M 50 15 A 35 35 0 1 0 60 85" stroke="#1c2d5a" stroke-width="3" stroke-linecap="round" fill="none" />
+  <path d="M 25 80 A 35 35 0 0 0 80 80" stroke="#7284b3" stroke-width="2" stroke-linecap="round" fill="none" />
+  <text x="18" y="58" font-family="Arial, sans-serif" font-size="40" font-weight="900" fill="#4862a3">+</text>
+  <text x="45" y="58" font-family="Arial, sans-serif" font-size="46" font-weight="900" fill="#1c2d5a">M</text>
+  <text x="82" y="58" font-family="Arial, sans-serif" font-size="46" font-weight="900" fill="#1c2d5a">J</text>
+  <path d="M 75 25 C 85 15, 95 25, 90 35 C 80 35, 75 25, 75 25" fill="#788b9c" />
+  <text x="110" y="42" font-family="Arial, sans-serif" font-size="38" font-weight="900" fill="#1c2d5a">MJ</text>
+  <text x="110" y="65" font-family="Arial, sans-serif" font-size="20" font-weight="bold" fill="#5a6ca0" letter-spacing="1.5">HEALTHCARE</text>
+  <text x="110" y="82" font-family="Arial, sans-serif" font-size="13" font-weight="normal" fill="#475569">Care. Innovate. Cure.</text>
+</svg>

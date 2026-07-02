@@ -1,6 +1,6 @@
 import { Link } from 'react-router';
 import { motion } from 'framer-motion';
-import mjLogo from '../assets/logo/mj-healthcare-logo.svg';
+import mjLogo from '../assets/logo/mj-healthcare-logo1.svg';
 import {
   ArrowRight, CheckCircle2, Package, Warehouse, Receipt, Users, 
   Navigation, Zap, Globe2, Activity, Star, ShieldCheck,
@@ -24,7 +24,7 @@ const Navbar = () => (
     <div className="max-w-7xl mx-auto px-6 h-[80px] flex items-center justify-between">
       {/* Logo */}
       <Link to="/" className="flex items-center gap-3">
-        <img src={mjLogo} alt="MJ Healthcare" className="h-14 object-contain" />
+        <img src={mjLogo} alt="MJ Healthcare" className="h-20 object-contain" />
       </Link>
 
       {/* Nav links */}

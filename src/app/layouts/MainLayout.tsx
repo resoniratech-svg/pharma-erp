@@ -32,7 +32,7 @@ import NotificationDropdown from '../../components/NotificationDropdown';
 import authService from '../../services/authService';
 import activityLogService from '../../services/activityLogService';
 import { ROLE_SUPER_ADMIN, ROLE_WAREHOUSE_MANAGER, ROLE_ACCOUNTANT, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_MEDICAL_REPRESENTATIVE, ROLE_TRANSPORT_STAFF, ROLES } from '../../constants/roles';
-import mjLogo from '../../assets/logo/mj-healthcare-logo.svg';
+import mjLogo from '../../assets/logo/mj-healthcare-logo1.svg';
 
 /* ── Constants ───────────────────────────────────────────────────── */
 const PRIMARY_HEX = '#7c3aed';
@@ -327,6 +327,22 @@ export function MainLayout() {
     setSidebarOpen(false);
   }, [location.pathname]);
 
+  // Auto-expand the parent menu that contains the currently active sub-route.
+  // This runs on mount and whenever the path changes, but does NOT collapse
+  // other already-open menus – preserving independent multi-expand behavior.
+  useEffect(() => {
+    const activeParent = NAV_ITEMS.find(
+      (item) =>
+        item.subItems &&
+        item.subItems.some((sub) => location.pathname.startsWith(sub.path))
+    );
+    if (activeParent) {
+      setExpandedMenus((prev) =>
+        prev.includes(activeParent.label) ? prev : [...prev, activeParent.label]
+      );
+    }
+  }, [location.pathname]);
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ backgroundColor: BG_HEX }}>
       {/* ── Mobile Sidebar Overlay ── */}
@@ -349,7 +365,7 @@ export function MainLayout() {
             to="/workspace/dashboard"
             className="flex items-center outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded py-1"
           >
-            <img src={mjLogo} alt="MJ Healthcare" className="h-9 w-auto object-contain" />
+            <img src={mjLogo} alt="MJ Healthcare" className="h-14 w-auto object-contain" />
           </Link>
           <button
             onClick={() => setSidebarOpen(false)}
@@ -395,7 +411,10 @@ export function MainLayout() {
               const isPathActive = (path: string) => location.pathname.startsWith(path);
               const isAnySubActive = hasSubItems && managedItem.subItems!.some((sub) => isPathActive(sub.path));
               const isActive = !hasSubItems && managedItem.path ? isPathActive(managedItem.path) : isAnySubActive;
-              const isExpanded = expandedMenus.includes(managedItem.label) || isAnySubActive;
+              // isExpanded is driven solely by state so that clicking the chevron
+              // to collapse a menu always works, regardless of whether a child
+              // route is currently active.
+              const isExpanded = expandedMenus.includes(managedItem.label);
 
               const toggleMenu = () => {
                 if (expandedMenus.includes(managedItem.label)) {

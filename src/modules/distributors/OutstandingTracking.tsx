@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Search, Download, Eye, DollarSign, Filter, ChevronDown, CheckCircle2 } from 'lucide-react';
+import { Search, Download, Eye, DollarSign, Filter, ChevronDown, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -10,21 +10,15 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 
-// -- Mock Roles & Auth --
-import { 
-  ROLE_SUPER_ADMIN, 
-  ROLE_DISTRIBUTOR, 
-  ROLE_WAREHOUSE_MANAGER 
-} from '../../constants/roles';
-
 // --- Types ---
 interface Invoice {
   invoiceNo: string;
   date: string;
   amount: number;
+  paidAmount?: number;
   dueDate: string;
   agingDays: number;
-  status: 'Paid' | 'Unpaid';
+  status: 'Paid' | 'Partially Paid' | 'Unpaid' | 'Overdue';
 }
 
 interface OutstandingRecord {
@@ -54,54 +48,18 @@ const initialOutstandingRecords: OutstandingRecord[] = [
     mobile: '+91 98765 43210',
     gstin: '27AAAAA1111A1Z1',
     creditLimit: 500000,
-    usedCredit: 10192,
-    availableCredit: 489808,
-    totalOutstanding: 10192,
-    overdueAmount: 0,
-    maxAging: 9,
+    usedCredit: 33192,
+    availableCredit: 466808,
+    totalOutstanding: 33192,
+    overdueAmount: 8000,
+    maxAging: 37,
     status: 'Clear',
     lastPaymentDate: '12-Oct-2026',
     invoices: [
-      { invoiceNo: 'INV-2026-1001', date: '15-Oct-2026', amount: 10192, dueDate: '18-Oct-2026', agingDays: 9, status: 'Unpaid' },
-      { invoiceNo: 'INV-2026-1002', date: '16-Oct-2026', amount: 5040, dueDate: '19-Oct-2026', agingDays: 8, status: 'Paid' }
-    ]
-  },
-  {
-    id: '2',
-    distributorName: 'Global Health Supply',
-    distributorCode: 'DIST-002',
-    contactPerson: 'Anjali Desai',
-    mobile: '+91 91234 56789',
-    gstin: '07BBBBB2222B2Z2',
-    creditLimit: 800000,
-    usedCredit: 16800,
-    availableCredit: 783200,
-    totalOutstanding: 16800,
-    overdueAmount: 16800,
-    maxAging: 35,
-    status: 'Overdue',
-    lastPaymentDate: '05-Oct-2026',
-    invoices: [
-      { invoiceNo: 'INV-2026-1003', date: '10-Oct-2026', amount: 16800, dueDate: '14-Oct-2026', agingDays: 35, status: 'Unpaid' }
-    ]
-  },
-  {
-    id: '3',
-    distributorName: 'Carewell Agencies',
-    distributorCode: 'DIST-003',
-    contactPerson: 'Vikram Malhotra',
-    mobile: '+91 98111 22233',
-    gstin: '29CCCCC3333C3Z3',
-    creditLimit: 400000,
-    usedCredit: 0,
-    availableCredit: 400000,
-    totalOutstanding: 0,
-    overdueAmount: 0,
-    maxAging: 0,
-    status: 'Clear',
-    lastPaymentDate: '20-Sep-2026',
-    invoices: [
-      { invoiceNo: 'INV-2026-1004', date: '05-Oct-2026', amount: 12320, dueDate: '08-Oct-2026', agingDays: 20, status: 'Paid' }
+      { invoiceNo: 'INV-2026-1001', date: '15-Oct-2026', amount: 10192, paidAmount: 0, dueDate: '18-Oct-2026', agingDays: 9, status: 'Unpaid' },
+      { invoiceNo: 'INV-2026-1002', date: '16-Oct-2026', amount: 5040, paidAmount: 5040, dueDate: '19-Oct-2026', agingDays: 8, status: 'Paid' },
+      { invoiceNo: 'INV-2026-1003', date: '01-Oct-2026', amount: 20000, paidAmount: 5000, dueDate: '05-Oct-2026', agingDays: 22, status: 'Partially Paid' },
+      { invoiceNo: 'INV-2026-1004', date: '15-Sep-2026', amount: 8000, paidAmount: 0, dueDate: '20-Sep-2026', agingDays: 37, status: 'Overdue' }
     ]
   }
 ];
@@ -109,10 +67,8 @@ const initialOutstandingRecords: OutstandingRecord[] = [
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function OutstandingTracking() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
   const loggedInDistributorCode = 'DIST-001';
 
-  // State managed via pipeline synced from orders loop
   const [records, setRecords] = useState<OutstandingRecord[]>(() => {
     const trackingData = localStorage.getItem('pharma_erp_outstanding_records');
     return trackingData ? JSON.parse(trackingData) : initialOutstandingRecords;
@@ -123,11 +79,9 @@ export default function OutstandingTracking() {
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  // Drawers
-  const [selectedRecord, setSelectedRecord] = useState<OutstandingRecord | null>(null);
-  const [paymentModal, setPaymentModal] = useState<{ open: boolean; recordId: string; invoiceNo: string; amount: number } | null>(null);
+  // Drawer
+  const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
 
-  // Load latest pipeline mutations on mount or refresh loops
   useEffect(() => {
     const trackingData = localStorage.getItem('pharma_erp_outstanding_records');
     if (trackingData) {
@@ -137,7 +91,6 @@ export default function OutstandingTracking() {
     }
   }, []);
 
-  // Handle outside click context layers for Export Dropdown menu
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -148,127 +101,92 @@ export default function OutstandingTracking() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // --- Filtering Framework Pipelines ---
-  const visibleRecords = useMemo(() => {
-    let base = records;
-    if (activeRole === ROLE_DISTRIBUTOR) {
-      base = records.filter(r => r.distributorCode === loggedInDistributorCode);
-    }
-    return base.filter(item => {
-      const matchSearch = item.distributorName.toLowerCase().includes(search.toLowerCase()) || 
-                          item.distributorCode.toLowerCase().includes(search.toLowerCase());
-      const matchStatus = statusFilter ? item.status === statusFilter : true;
+  // --- Identify My Record ---
+  const myRecord = useMemo(() => {
+    return records.find(r => r.distributorCode === loggedInDistributorCode) || {
+      creditLimit: 0,
+      availableCredit: 0,
+      totalOutstanding: 0,
+      overdueAmount: 0,
+      invoices: []
+    } as unknown as OutstandingRecord;
+  }, [records]);
+
+  // --- Filtering ---
+  const visibleInvoices = useMemo(() => {
+    return myRecord.invoices.filter(inv => {
+      const matchSearch = inv.invoiceNo.toLowerCase().includes(search.toLowerCase());
+      const matchStatus = statusFilter ? inv.status === statusFilter : true;
       return matchSearch && matchStatus;
     });
-  }, [records, activeRole, search, statusFilter]);
-
-  // --- Aggregated Corporate KPI Stats Metrics ---
-  const metrics = useMemo(() => {
-    const totalOut = visibleRecords.reduce((sum, r) => sum + r.totalOutstanding, 0);
-    const totalOver = visibleRecords.reduce((sum, r) => sum + r.overdueAmount, 0);
-    const maximumAging = visibleRecords.length > 0 ? Math.max(...visibleRecords.map(r => r.maxAging)) : 0;
-    return { totalOut, totalOver, maximumAging };
-  }, [visibleRecords]);
-
-  // --- Action Scripts to process collections / updates ---
-  const handleClearInvoicePayment = (recordId: string, invoiceNo: string) => {
-    const updatedRecords = records.map(rec => {
-      if (rec.id !== recordId) return rec;
-
-      const updatedInvoices = rec.invoices.map(inv => 
-        inv.invoiceNo === invoiceNo ? { ...inv, status: 'Paid' as const } : inv
-      );
-
-      const activeUnpaids = updatedInvoices.filter(i => i.status === 'Unpaid');
-      const updatedOutstanding = activeUnpaids.reduce((sum, i) => sum + i.amount, 0);
-
-      return {
-        ...rec,
-        totalOutstanding: updatedOutstanding,
-        usedCredit: updatedOutstanding,
-        availableCredit: Math.max(0, rec.creditLimit - updatedOutstanding),
-        overdueAmount: Math.round(updatedOutstanding * 0.10),
-        maxAging: activeUnpaids.length > 0 ? Math.max(...activeUnpaids.map(i => i.agingDays)) : 0,
-        status: updatedOutstanding > rec.creditLimit ? ('Overdue' as const) : ('Clear' as const),
-        lastPaymentDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
-        invoices: updatedInvoices
-      };
-    });
-
-    setRecords(updatedRecords);
-    localStorage.setItem('pharma_erp_outstanding_records', JSON.stringify(updatedRecords));
-    
-    // Auto-update orders file states mirror matrix
-    const savedOrdersRaw = localStorage.getItem('pharma_erp_orders');
-    if (savedOrdersRaw) {
-      try {
-        const parsedOrders = JSON.parse(savedOrdersRaw);
-        const matchOrderNo = invoiceNo.replace('INV-', 'ORD-');
-        const updatedOrders = parsedOrders.map((o: any) => 
-          o.orderNo === matchOrderNo ? { ...o, status: 'Fulfilled' } : o
-        );
-        localStorage.setItem('pharma_erp_orders', JSON.stringify(updatedOrders));
-      } catch (e) {
-        console.error("Order fulfillment loop mapping bypass", e);
-      }
-    }
-
-    setPaymentModal(null);
-    setSelectedRecord(null);
-  };
+  }, [myRecord, search, statusFilter]);
 
   // --- Export Protocols Engine ---
   const handleExportExcel = () => {
-    const data = visibleRecords.map(r => ({
-      'Code': r.distributorCode,
-      'Distributor Name': r.distributorName,
-      'Credit Limit': r.creditLimit,
-      'Outstanding': r.totalOutstanding,
-      'Overdue Value': r.overdueAmount,
-      'Max Aging Days': r.maxAging,
-      'Status': r.status
+    const data = visibleInvoices.map(inv => ({
+      'Invoice No': inv.invoiceNo,
+      'Invoice Date': inv.date,
+      'Due Date': inv.dueDate,
+      'Amount': inv.amount,
+      'Aging Days': inv.status === 'Paid' ? 0 : inv.agingDays,
+      'Status': inv.status
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Ledger Summary');
-    XLSX.writeFile(wb, `Outstanding_Report_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
+    XLSX.writeFile(wb, `My_Invoices_${new Date().toISOString().slice(0,10)}.xlsx`);
     setShowExportMenu(false);
   };
 
   const handleExportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(16);
-    doc.text('Outstanding Balances & Credit Ledger Report', 14, 15);
+    doc.text('Outstanding Balances & Invoices', 14, 15);
     doc.setFontSize(10);
     doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 21);
 
     autoTable(doc, {
       startY: 28,
-      head: [['Code', 'Distributor Profile Name', 'Credit Limit', 'Total Outstanding', 'Overdue Amount', 'Max Aging']],
-      body: visibleRecords.map(r => [
-        r.distributorCode, r.distributorName, formatCurrency(r.creditLimit),
-        formatCurrency(r.totalOutstanding), formatCurrency(r.overdueAmount), `${r.maxAging} Days`
+      head: [['Invoice No', 'Date', 'Due Date', 'Amount', 'Aging Days', 'Status']],
+      body: visibleInvoices.map(inv => [
+        inv.invoiceNo, inv.date, inv.dueDate, formatCurrency(inv.amount),
+        inv.status === 'Paid' ? '-' : inv.agingDays, inv.status
       ]),
       theme: 'grid',
       headStyles: { fillColor: [124, 58, 237] }
     });
-    doc.save(`Outstanding_Statement.pdf`);
+    doc.save(`My_Invoices.pdf`);
     setShowExportMenu(false);
   };
 
+  const getOutstandingAmount = (inv: Invoice) => {
+    if (inv.status === 'Paid') return 0;
+    if (inv.paidAmount !== undefined) return inv.amount - inv.paidAmount;
+    return inv.amount; // Assume fully unpaid if no paidAmount specified and status is not Paid
+  };
+
+  const getPaidAmount = (inv: Invoice) => {
+    if (inv.status === 'Paid') return inv.amount;
+    if (inv.paidAmount !== undefined) return inv.paidAmount;
+    return 0; // Assume 0 paid if not specified
+  };
+
   // --- Grid Column Models ---
-  const columns: Column<OutstandingRecord>[] = [
-    { key: 'distributorCode', label: 'Distributor Code', render: (row) => <span className="font-mono text-xs font-semibold text-slate-700">{row.distributorCode}</span> },
-    { key: 'distributorName', label: 'Distributor Name', render: (row) => <span className="font-semibold text-slate-900">{row.distributorName}</span> },
-    { key: 'creditLimit', label: 'Credit Limit', render: (row) => <span>{formatCurrency(row.creditLimit)}</span> },
-    { key: 'totalOutstanding', label: 'Outstanding Balance', render: (row) => <span className="font-bold text-slate-900">{formatCurrency(row.totalOutstanding)}</span> },
-    { key: 'overdueAmount', label: 'Overdue Amount', render: (row) => <span className={`font-medium ${row.overdueAmount > 0 ? 'text-rose-600 font-bold' : 'text-slate-500'}`}>{formatCurrency(row.overdueAmount)}</span> },
-    { key: 'maxAging', label: 'Max Aging', render: (row) => <span className={`font-mono ${row.maxAging > 30 ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{row.maxAging} Days</span> },
+  const columns: Column<Invoice>[] = [
+    { key: 'invoiceNo', label: 'Invoice No', render: (row) => <span className="font-semibold text-slate-900">{row.invoiceNo}</span> },
+    { key: 'date', label: 'Invoice Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
+    { key: 'dueDate', label: 'Due Date', render: (row) => <span className="text-slate-600">{row.dueDate}</span> },
+    { key: 'amount', label: 'Outstanding Amount', render: (row) => <span className="font-bold text-slate-900">{formatCurrency(getOutstandingAmount(row))}</span> },
+    { key: 'agingDays', label: 'Aging (Days)', render: (row) => <span className={`font-mono ${(row.status === 'Unpaid' || row.status === 'Overdue') && row.agingDays > 30 ? 'text-amber-600 font-bold' : 'text-slate-600'}`}>{row.status === 'Paid' ? '-' : row.agingDays}</span> },
     {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        const variant: BadgeVariant = row.status === 'Overdue' ? 'danger' : 'success';
+        let variant: BadgeVariant = 'neutral';
+        if (row.status === 'Paid') variant = 'success';
+        else if (row.status === 'Partially Paid') variant = 'info';
+        else if (row.status === 'Unpaid') variant = 'warning';
+        else if (row.status === 'Overdue') variant = 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
       }
     },
@@ -277,8 +195,11 @@ export default function OutstandingTracking() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setSelectedRecord(row)} className="text-slate-400 hover:text-violet-600 p-1 transition-colors" title="View Statement Ledger">
+          <button onClick={() => setSelectedInvoice(row)} className="text-slate-400 hover:text-violet-600 p-1 transition-colors" title="View Invoice">
             <Eye className="w-4 h-4" />
+          </button>
+          <button className="text-slate-400 hover:text-slate-900 transition-colors p-1" title="Download Invoice">
+            <FileText className="w-4 h-4" />
           </button>
         </div>
       )
@@ -288,8 +209,8 @@ export default function OutstandingTracking() {
   return (
     <div className="animate-in fade-in duration-500">
       <PageHeader
-        title="Outstanding & Credit Tracking"
-        subtitle="Monitor distributor accounts, outstanding credit limits, collection schedules, and aging invoices."
+        title="Outstanding Tracking"
+        subtitle="Track and manage your outstanding invoices and account balance."
         actions={
           <div className="relative inline-block text-left" ref={exportMenuRef}>
             <ActionButton 
@@ -313,47 +234,41 @@ export default function OutstandingTracking() {
       />
 
       {/* --- Executive Dashboard KPI Metrics Panel Header Layout --- */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Total Outstanding Pipeline</span>
-            <span className="text-2xl font-black text-slate-900">{formatCurrency(metrics.totalOut)}</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Total Outstanding</span>
+            <span className="text-2xl font-black text-slate-900">{formatCurrency(myRecord.totalOutstanding || 0)}</span>
           </div>
           <div className="p-3 bg-violet-50 text-violet-600 rounded-xl"><DollarSign className="w-6 h-6" /></div>
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
           <div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Total Overdue Bracket</span>
-            <span className={`text-2xl font-black ${metrics.totalOver > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{formatCurrency(metrics.totalOver)}</span>
+            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Overdue Amount</span>
+            <span className={`text-2xl font-black ${(myRecord.overdueAmount || 0) > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{formatCurrency(myRecord.overdueAmount || 0)}</span>
           </div>
           <div className="p-3 bg-rose-50 text-rose-600 rounded-xl"><DollarSign className="w-6 h-6" /></div>
-        </div>
-
-        <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
-          <div>
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Highest Account Peak Aging</span>
-            <span className="text-2xl font-black text-slate-900 font-mono">{metrics.maximumAging} Days</span>
-          </div>
-          <div className="p-3 bg-amber-50 text-amber-600 rounded-xl"><Filter className="w-6 h-6" /></div>
         </div>
       </div>
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by distributor name or registration code..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by invoice number..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
-          <span className="text-sm font-medium text-slate-600">Quick Filter:</span>
+          <span className="text-sm font-medium text-slate-600">Status:</span>
         </div>
         <SelectFilter
           value={statusFilter}
           onChange={setStatusFilter}
           options={[
-            { label: 'Clear Accounts', value: 'Clear' },
-            { label: 'Overdue Breached', value: 'Overdue' }
+            { label: 'Paid', value: 'Paid' },
+            { label: 'Partially Paid', value: 'Partially Paid' },
+            { label: 'Unpaid', value: 'Unpaid' },
+            { label: 'Overdue', value: 'Overdue' }
           ]}
-          placeholder="All Standings"
+          placeholder="All Invoices"
         />
       </FilterBar>
 
@@ -361,135 +276,75 @@ export default function OutstandingTracking() {
         <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
           <DataTable
             columns={columns}
-            data={visibleRecords}
-            emptyMessage="No outstanding account tracking parameters located."
+            data={visibleInvoices}
+            emptyMessage="No invoices found."
           />
         </div>
       </TableCard>
 
-      {/* --- Detail Statements Account Invoice History Side Drawer --- */}
-      <Drawer open={!!selectedRecord} onClose={() => setSelectedRecord(null)} title="Account Statement Ledger">
-        {selectedRecord && (
+      {/* --- Detail Invoice Drawer --- */}
+      <Drawer open={!!selectedInvoice} onClose={() => setSelectedInvoice(null)} title="Invoice Details">
+        {selectedInvoice && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Distributor Profile Meta</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Invoice Information</h3>
               <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
-                <DrawerField label="Corporate Name" value={<span className="font-bold text-slate-900">{selectedRecord.distributorName}</span>} />
-                <DrawerField label="Account ID" value={<span className="font-mono text-xs">{selectedRecord.distributorCode}</span>} />
-                <DrawerField label="Contact Person" value={selectedRecord.contactPerson} />
-                <DrawerField label="Mobile Context" value={selectedRecord.mobile} />
-                <DrawerField label="Tax Matrix GSTIN" value={selectedRecord.gstin} />
+                <DrawerField label="Invoice No" value={<span className="font-bold text-slate-900">{selectedInvoice.invoiceNo}</span>} />
+                <DrawerField label="Invoice Date" value={selectedInvoice.date} />
+                <DrawerField label="Due Date" value={selectedInvoice.dueDate} />
+                <DrawerField label="Status" value={
+                  <Badge variant={selectedInvoice.status === 'Paid' ? 'success' : selectedInvoice.status === 'Partially Paid' ? 'info' : selectedInvoice.status === 'Unpaid' ? 'warning' : 'danger'}>
+                    {selectedInvoice.status}
+                  </Badge>
+                } />
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Credit Metrics Limits Mapping</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Amount Details</h3>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm col-span-2">
+                  <span className="text-xs text-slate-400 block">Invoice Amount</span>
+                  <span className="text-base font-bold text-slate-900">{formatCurrency(selectedInvoice.amount)}</span>
+                </div>
+                <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm">
+                  <span className="text-xs text-slate-400 block">Paid Amount</span>
+                  <span className="text-base font-bold text-emerald-600">{formatCurrency(getPaidAmount(selectedInvoice))}</span>
+                </div>
+                <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm">
+                  <span className="text-xs text-slate-400 block">Outstanding Amount</span>
+                  <span className={`text-base font-bold ${getOutstandingAmount(selectedInvoice) > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{formatCurrency(getOutstandingAmount(selectedInvoice))}</span>
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Credit Information</h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm">
-                  <span className="text-xs text-slate-400 block">Assigned Credit Limit</span>
-                  <span className="text-base font-bold text-slate-900">{formatCurrency(selectedRecord.creditLimit)}</span>
+                  <span className="text-xs text-slate-400 block">Credit Limit</span>
+                  <span className="text-base font-bold text-slate-900">{formatCurrency(myRecord.creditLimit)}</span>
                 </div>
                 <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm">
-                  <span className="text-xs text-slate-400 block">Available Headroom</span>
-                  <span className="text-base font-bold text-emerald-600">{formatCurrency(selectedRecord.availableCredit)}</span>
-                </div>
-                <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm">
-                  <span className="text-xs text-slate-400 block">Utilized Exposure</span>
-                  <span className="text-base font-bold text-slate-900">{formatCurrency(selectedRecord.usedCredit)}</span>
-                </div>
-                <div className="border border-slate-100 bg-white p-3 rounded-lg shadow-sm">
-                  <span className="text-xs text-slate-400 block">Last Allocation Collection</span>
-                  <span className="text-sm font-semibold text-slate-600 mt-1 block">{selectedRecord.lastPaymentDate}</span>
+                  <span className="text-xs text-slate-400 block">Available Credit</span>
+                  <span className="text-base font-bold text-emerald-600">{formatCurrency(myRecord.availableCredit)}</span>
                 </div>
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Invoiced Ledgers Log</h3>
-              <div className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
-                <div className="overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50 border-b border-slate-200 font-semibold text-slate-500 uppercase">
-                      <tr>
-                        <th className="px-3 py-2.5">Invoice Ref</th>
-                        <th className="px-3 py-2.5">Net Bill Value</th>
-                        <th className="px-3 py-2.5">Aging Track</th>
-                        <th className="px-3 py-2.5">Standing</th>
-                        {activeRole !== ROLE_DISTRIBUTOR && <th className="px-3 py-2.5 text-center">Action</th>}
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100 text-slate-700">
-                      {selectedRecord.invoices.map((inv, index) => (
-                        <tr key={index} className="hover:bg-slate-50/50">
-                          <td className="px-3 py-3 font-mono font-medium">
-                            {inv.invoiceNo}
-                            <div className="text-[10px] text-slate-400 font-normal">{inv.date}</div>
-                          </td>
-                          <td className="px-3 py-3 font-bold text-slate-900">{formatCurrency(inv.amount)}</td>
-                          <td className="px-3 py-3 font-mono text-slate-500">{inv.status === 'Paid' ? '-' : `${inv.agingDays} Days`}</td>
-                          <td className="px-3 py-3">
-                            <Badge variant={inv.status === 'Paid' ? 'success' : 'warning'}>{inv.status}</Badge>
-                          </td>
-                          {activeRole !== ROLE_DISTRIBUTOR && (
-                            <td className="px-3 py-3 text-center">
-                              {inv.status === 'Unpaid' ? (
-                                <button
-                                  onClick={() => setPaymentModal({ open: true, recordId: selectedRecord.id, invoiceNo: inv.invoiceNo, amount: inv.amount })}
-                                  className="text-emerald-600 hover:text-emerald-800 p-1 font-semibold flex items-center gap-0.5 mx-auto transition-colors"
-                                  title="Log Payment Collection Receive"
-                                >
-                                  <CheckCircle2 className="w-3.5 h-3.5" />
-                                  Pay
-                                </button>
-                              ) : (
-                                <span className="text-slate-400 text-[10px] italic">Settled</span>
-                              )}
-                            </td>
-                          )}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Payment Information</h3>
+              <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <DrawerField label="Aging Days" value={selectedInvoice.status === 'Paid' ? '-' : `${selectedInvoice.agingDays} Days`} />
               </div>
             </div>
 
-            <div className="pt-4 border-t flex justify-end">
-              <ActionButton variant="secondary" onClick={() => setSelectedRecord(null)}>Close Statement</ActionButton>
+            <div className="pt-4 border-t flex justify-end gap-3">
+              <ActionButton variant="secondary" onClick={() => setSelectedInvoice(null)}>Close</ActionButton>
             </div>
           </div>
         )}
       </Drawer>
-
-      {/* --- Collection Entry Prompt Window Modal --- */}
-      {paymentModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-xl p-5 max-w-sm w-full shadow-2xl border border-slate-100 animate-in fade-in zoom-in-95 duration-200">
-            <h4 className="text-base font-bold text-slate-900 mb-1">Record Inward Collection Settlement</h4>
-            <p className="text-xs text-slate-500 mb-4">You are confirming full receipt parameters against balance invoice sheet item <span className="font-mono font-bold text-slate-800">{paymentModal.invoiceNo}</span>.</p>
-            
-            <div className="bg-slate-50 p-3 rounded-lg border border-slate-100 mb-5 flex justify-between items-center">
-              <span className="text-xs text-slate-500 font-medium">Receipt Net Value:</span>
-              <span className="text-base font-black text-slate-900">{formatCurrency(paymentModal.amount)}</span>
-            </div>
-
-            <div className="flex justify-end gap-3 text-xs">
-              <button 
-                onClick={() => setPaymentModal(null)} 
-                className="px-3.5 py-2 border border-slate-200 text-slate-600 rounded-lg font-medium hover:bg-slate-50 transition-colors"
-              >
-                Cancel
-              </button>
-              <button 
-                onClick={() => handleClearInvoicePayment(paymentModal.recordId, paymentModal.invoiceNo)} 
-                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold shadow-sm transition-colors"
-              >
-                Approve Payment Receipt
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
