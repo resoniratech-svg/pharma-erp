@@ -17,13 +17,18 @@ import {
   Building,
   FileClock,
   AlertCircle,
-  MapPin,
-  Stethoscope,
-  Pill,
-  Target,
-  Calendar,
-  Bell,
-  Map
+MapPin,
+Stethoscope,
+Pill,
+Target,
+Calendar,
+Bell,
+Map,
+Search,
+ShoppingBag,
+Download,
+Truck,
+
 } from 'lucide-react';
 import {
   ROLE_SUPER_ADMIN,
@@ -200,6 +205,38 @@ const criticalAlertsData = [
   { id: 'ALT-002', type: 'Stock Depletion', reference: 'SKU-PARA-500', priority: 'High', date: 'Oct 12, 2026', status: 'Pending' },
   { id: 'ALT-003', type: 'License Expiry', reference: 'DL-MH-2024', priority: 'Critical', date: 'Oct 11, 2026', status: 'In Progress' },
   { id: 'ALT-004', type: 'Bank Sync Failed', reference: 'HDFC-ACC-109', priority: 'High', date: 'Oct 10, 2026', status: 'Resolved' },
+];
+
+/* ── Distributor Dashboard Data (DIST-001 Metro Pharma Distributors) ── */
+const distributorOrders = [
+  { id: 'ORD-2026-1001', client: 'Retail Pharmacy Hub', status: 'Submitted', amount: '₹9,100', date: '15 Oct 2026' },
+  { id: 'ORD-2026-1002', client: 'City Medical Store', status: 'Draft', amount: '₹4,500', date: '16 Oct 2026' },
+  { id: 'ORD-2026-1005', client: 'Sunrise Health Care', status: 'Fulfilled', amount: '₹12,350', date: '14 Oct 2026' },
+  { id: 'ORD-2026-1006', client: 'Apollo Sub-Depot', status: 'Submitted', amount: '₹7,200', date: '13 Oct 2026' },
+];
+
+const distributorNotifications = [
+  { id: 'N1', icon: CheckCircle2, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50', message: 'Your order ORD-2026-1001 has been dispatched.', time: '2 hours ago' },
+  { id: 'N2', icon: IndianRupee, iconColor: 'text-violet-600', iconBg: 'bg-violet-50', message: 'Payment of ₹9,100 received for INV-2026-089.', time: '5 hours ago' },
+  { id: 'N3', icon: FileText, iconColor: 'text-blue-600', iconBg: 'bg-blue-50', message: 'Invoice INV-2026-095 has been generated for your account.', time: '1 day ago' },
+  { id: 'N4', icon: Bell, iconColor: 'text-amber-600', iconBg: 'bg-amber-50', message: 'New scheme available for your account: Monsoon Offer 2026.', time: '2 days ago' },
+  { id: 'N5', icon: AlertTriangle, iconColor: 'text-rose-600', iconBg: 'bg-rose-50', message: 'Low stock alert: Amoxicillin 500mg (PRD-001) is running low.', time: '3 days ago' },
+];
+
+/* ── Retailer Dashboard Data (RET-001 City Medical Store) ── */
+const retailerOrders = [
+  { id: 'ORD-2026-9081', status: 'Shipped', amount: '₹14,200', date: '15 Oct 2026' },
+  { id: 'ORD-2026-9082', status: 'Pending', amount: '₹8,500', date: '16 Oct 2026' },
+  { id: 'ORD-2026-9085', status: 'Delivered', amount: '₹22,150', date: '14 Oct 2026' },
+  { id: 'ORD-2026-9086', status: 'Shipped', amount: '₹11,400', date: '13 Oct 2026' },
+];
+
+const retailerNotifications = [
+  { id: 'R1', icon: Truck, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50', message: 'Your order ORD-2026-9081 has been dispatched.', time: '1 hour ago' },
+  { id: 'R2', icon: FileText, iconColor: 'text-blue-600', iconBg: 'bg-blue-50', message: 'Invoice INV-2026-550 has been generated.', time: '4 hours ago' },
+  { id: 'R3', icon: IndianRupee, iconColor: 'text-violet-600', iconBg: 'bg-violet-50', message: 'Payment of ₹14,200 received successfully.', time: '1 day ago' },
+  { id: 'R4', icon: Bell, iconColor: 'text-amber-600', iconBg: 'bg-amber-50', message: 'New promotional scheme available: Winter Wellness.', time: '2 days ago' },
+  { id: 'R5', icon: CheckCircle2, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50', message: 'Order ORD-2026-9085 delivered successfully.', time: '3 days ago' },
 ];
 
 /* ── Animation Helpers ───────────────────────────────────────────── */
@@ -647,11 +684,131 @@ export default function Dashboard() {
   let displayPrimaryKpis = primaryKpiData;
   let displaySecondaryKpis = secondaryKpiData;
 
+  // Distributor KPIs — scoped to logged-in distributor (DIST-001)
+  const distributorKpis = useMemo(() => {
+    if (activeRole !== ROLE_DISTRIBUTOR) return [];
+    const myOrders = distributorOrders;
+    const activeOrdersCount = myOrders.filter(o => o.status === 'Submitted' || o.status === 'Fulfilled').length;
+    const pendingOrdersCount = myOrders.filter(o => o.status === 'Draft').length;
+    return [
+      {
+        title: 'Active Orders',
+        value: activeOrdersCount.toString(),
+        trend: 'In progress',
+        isPositive: true,
+        icon: ShoppingCart,
+        iconColor: 'text-cyan-600',
+        iconBg: 'bg-cyan-50',
+        glowColor: 'rgba(6, 182, 212, 0.55)',
+        glowColorIdle: 'rgba(6, 182, 212, 0.22)',
+        borderGradient: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 50%, #a5f3fc 100%)',
+      },
+      {
+        title: 'Pending Orders',
+        value: pendingOrdersCount.toString(),
+        trend: 'Awaiting submission',
+        isPositive: pendingOrdersCount === 0,
+        icon: Clock,
+        iconColor: 'text-amber-600',
+        iconBg: 'bg-amber-50',
+        glowColor: 'rgba(245, 158, 11, 0.55)',
+        glowColorIdle: 'rgba(245, 158, 11, 0.22)',
+        borderGradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #fde68a 100%)',
+      },
+      {
+        title: 'Outstanding Amount',
+        value: '₹3,24,500',
+        trend: 'Due this month',
+        isPositive: false,
+        icon: IndianRupee,
+        iconColor: 'text-rose-600',
+        iconBg: 'bg-rose-50',
+        glowColor: 'rgba(244, 63, 94, 0.50)',
+        glowColorIdle: 'rgba(244, 63, 94, 0.20)',
+        borderGradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fecdd3 100%)',
+      },
+      {
+        title: 'Pending Invoices',
+        value: '4',
+        trend: 'Needs review',
+        isPositive: false,
+        icon: FileText,
+        iconColor: 'text-violet-600',
+        iconBg: 'bg-violet-50',
+        glowColor: 'rgba(99, 102, 241, 0.55)',
+        glowColorIdle: 'rgba(99, 102, 241, 0.22)',
+        borderGradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c7d2fe 100%)',
+      },
+    ];
+  }, [activeRole]);
+
+  // Retailer KPIs — scoped to logged-in retailer (RET-001)
+  const retailerKpis = useMemo(() => {
+    if (activeRole !== ROLE_RETAILER) return [];
+    const myOrders = retailerOrders;
+    const activeOrdersCount = myOrders.filter(o => o.status === 'Shipped' || o.status === 'Delivered').length;
+    const pendingDeliveriesCount = myOrders.filter(o => o.status === 'Pending').length;
+    return [
+      {
+        title: 'Active Orders',
+        value: activeOrdersCount.toString(),
+        trend: 'In transit',
+        isPositive: true,
+        icon: ShoppingBag,
+        iconColor: 'text-cyan-600',
+        iconBg: 'bg-cyan-50',
+        glowColor: 'rgba(6, 182, 212, 0.55)',
+        glowColorIdle: 'rgba(6, 182, 212, 0.22)',
+        borderGradient: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 50%, #a5f3fc 100%)',
+      },
+      {
+        title: 'Pending Deliveries',
+        value: pendingDeliveriesCount.toString(),
+        trend: 'Awaiting dispatch',
+        isPositive: pendingDeliveriesCount === 0,
+        icon: Truck,
+        iconColor: 'text-amber-600',
+        iconBg: 'bg-amber-50',
+        glowColor: 'rgba(245, 158, 11, 0.55)',
+        glowColorIdle: 'rgba(245, 158, 11, 0.22)',
+        borderGradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #fde68a 100%)',
+      },
+      {
+        title: 'Outstanding Balance',
+        value: '₹14,500',
+        trend: 'Due this month',
+        isPositive: false,
+        icon: IndianRupee,
+        iconColor: 'text-rose-600',
+        iconBg: 'bg-rose-50',
+        glowColor: 'rgba(244, 63, 94, 0.50)',
+        glowColorIdle: 'rgba(244, 63, 94, 0.20)',
+        borderGradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fecdd3 100%)',
+      },
+      {
+        title: 'Pending Invoices',
+        value: '2',
+        trend: 'Needs review',
+        isPositive: false,
+        icon: FileText,
+        iconColor: 'text-violet-600',
+        iconBg: 'bg-violet-50',
+        glowColor: 'rgba(99, 102, 241, 0.55)',
+        glowColorIdle: 'rgba(99, 102, 241, 0.22)',
+        borderGradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c7d2fe 100%)',
+      },
+    ];
+  }, [activeRole]);
+
   if (activeRole === ROLE_WAREHOUSE_MANAGER) {
     displayPrimaryKpis = wmKpis;
   } else if (activeRole === ROLE_ACCOUNTANT) {
     displayPrimaryKpis = primaryKpiData.filter(k => ['Total Revenue', 'Outstanding Receivables'].includes(k.title));
-  } else if (activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER || activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
+  } else if (activeRole === ROLE_DISTRIBUTOR) {
+    displayPrimaryKpis = distributorKpis;
+  } else if (activeRole === ROLE_RETAILER) {
+    displayPrimaryKpis = retailerKpis;
+  } else if (activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
     displayPrimaryKpis = primaryKpiData.filter(k => ['Active Orders'].includes(k.title));
   } else if (activeRole === ROLE_TRANSPORT_STAFF) {
     displayPrimaryKpis = primaryKpiData.filter(k => ['Active Orders', 'Critical Alerts'].includes(k.title));
@@ -810,8 +967,7 @@ export default function Dashboard() {
                     </div>
                   ))}
                 </div>
-                
-                {/* ── Critical Alerts for Warehouse Manager ── */}
+                {/* ── Action Center for Warehouse Manager ── */}
                 {isWarehouseManager && wmAlertCounts && (
                   <div className="mt-4 pt-4 border-t border-slate-100">
                     <h3 className="text-sm font-bold text-slate-800 mb-3 flex items-center gap-1">
@@ -838,6 +994,39 @@ export default function Dashboard() {
           </div>
         )}
 
+        {/* ── Quick Access for Retailer ── */}
+        {activeRole === ROLE_RETAILER && (
+          <motion.div variants={itemVariants} className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm flex flex-col mb-6">
+            <h2 className="text-lg font-bold text-slate-800 mb-6">Quick Access</h2>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
+              <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 hover:bg-violet-50 rounded-2xl transition-colors group">
+                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Search className="w-6 h-6 text-violet-600" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700">Browse Products</span>
+              </button>
+              <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 hover:bg-emerald-50 rounded-2xl transition-colors group">
+                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <ShoppingBag className="w-6 h-6 text-emerald-600" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700">Place Order</span>
+              </button>
+              <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 hover:bg-blue-50 rounded-2xl transition-colors group">
+                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Clock className="w-6 h-6 text-blue-600" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700">Order History</span>
+              </button>
+              <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 hover:bg-amber-50 rounded-2xl transition-colors group">
+                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
+                  <Download className="w-6 h-6 text-amber-600" />
+                </div>
+                <span className="text-xs font-semibold text-slate-700">Download Invoices</span>
+              </button>
+            </div>
+          </motion.div>
+        )}
+
         {/* ── Quick Actions (Super Admin Only - Fully Hidden from Distributors) ── */}
         {isSuperAdmin && (
           <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-6">
@@ -862,32 +1051,72 @@ export default function Dashboard() {
         {showRecentOrders && (
           <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-slate-800">{isWarehouseManager ? 'Recent Inventory Activities' : 'Recent Orders'}</h2>
-              <button 
-                onClick={() => {
-                  if (isWarehouseManager) {
-                    navigate('/workspace/inventory/multi-location');
-                  } else {
-                    alert("TODO: Navigate to Recent Orders History");
-                  }
-                }}
-                className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors"
-              >
-                View All <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  {isWarehouseManager ? (
+<h2 className="text-lg font-bold text-slate-800">
+  {isWarehouseManager ? 'Recent Inventory Activities' : 'Recent Orders'}
+</h2>
+
+<button
+  onClick={() => {
+    if (isWarehouseManager) {
+      navigate('/workspace/inventory/multi-location');
+    } else if (activeRole === ROLE_DISTRIBUTOR) {
+      navigate('/workspace/distributors/orders');
+    } else if (activeRole === ROLE_RETAILER) {
+      navigate('/workspace/retailers/orders');
+    } else {
+      navigate('/workspace/distributors/orders');
+    }
+  }}
+  className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors"
+>
+  View All <ArrowRight className="w-4 h-4" />
+</button>
+              </div>
+<div className="overflow-x-auto">
+  <table className="w-full text-left border-collapse">
+    <thead>
+      {isWarehouseManager ? (
                     <tr className="bg-slate-50/50">
                       <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Date</th>
                       <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Activity</th>
                       <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Product</th>
                       <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Batch</th>
                       <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Warehouse</th>
-                    </tr>
-                  ) : (
+</tr>
+) : activeRole === ROLE_DISTRIBUTOR ? (
+  <tr className="bg-slate-50/50">
+    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      Order ID
+    </th>
+    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      Customer / Retailer
+    </th>
+    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      Status
+    </th>
+    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      Amount
+    </th>
+    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      Order Date
+    </th>
+  </tr>
+) : activeRole === ROLE_RETAILER ? (
+  <tr className="bg-slate-50/50">
+    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      Order ID
+    </th>
+    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      Order Date
+    </th>
+    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      Status
+    </th>
+    <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      Amount
+    </th>
+  </tr>
+) : (
                     <tr className="bg-slate-50/50">
                       <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Order ID</th>
                       <th className="py-4 px-6 text-xs font-semibold text-slate-500 uppercase tracking-wider">Client</th>
@@ -904,7 +1133,6 @@ export default function Dashboard() {
                       let StatusIcon = act.activity === 'Inward Stock' ? ArrowRight : (act.activity === 'Outward Stock' ? TrendingUp : Package);
                       let statusColor = act.activity === 'Inward Stock' ? 'text-emerald-600' : (act.activity === 'Outward Stock' ? 'text-violet-600' : 'text-blue-600');
                       let statusBg = act.activity === 'Inward Stock' ? 'bg-emerald-50' : (act.activity === 'Outward Stock' ? 'bg-violet-50' : 'bg-blue-50');
-
                       return (
                         <tr key={act.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-4 px-6 text-sm font-medium text-slate-500">{new Date(act.date).toLocaleDateString()}</td>
@@ -935,12 +1163,66 @@ export default function Dashboard() {
                         <td colSpan={5} className="py-8 text-center text-slate-500 font-medium">No recent activities found</td>
                       </tr>
                     )
+                  ) : activeRole === ROLE_DISTRIBUTOR ? (
+                    /* ── Distributor read-only order rows (no Actions column) ── */
+                    distributorOrders.map((order) => {
+                      let StatusIcon = Clock;
+                      let statusColor = 'text-amber-600';
+                      let statusBg = 'bg-amber-50';
+                      if (order.status === 'Submitted' || order.status === 'Fulfilled') {
+                        StatusIcon = CheckCircle2;
+                        statusColor = 'text-emerald-600';
+                        statusBg = 'bg-emerald-50';
+                      } else if (order.status === 'Cancelled') {
+                        StatusIcon = XCircle;
+                        statusColor = 'text-rose-600';
+                        statusBg = 'bg-rose-50';
+                      }
+                      return (
+                        <tr key={order.id} className="hover:bg-slate-50/80 transition-colors cursor-default">
+                          <td className="py-4 px-6 text-sm font-bold text-slate-800">{order.id}</td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-600">{order.client}</td>
+                          <td className="py-4 px-6">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusBg} ${statusColor}`}>
+                              <StatusIcon className="w-3.5 h-3.5" />
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-sm font-bold text-slate-700">{order.amount}</td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-500">{order.date}</td>
+                        </tr>
+                      );
+                    })
+                  ) : activeRole === ROLE_RETAILER ? (
+                    /* ── Retailer read-only order rows (no Actions column) ── */
+                    retailerOrders.map((order) => {
+                      let StatusIcon = Clock;
+                      let statusColor = 'text-amber-600';
+                      let statusBg = 'bg-amber-50';
+                      if (order.status === 'Shipped' || order.status === 'Delivered') {
+                        StatusIcon = CheckCircle2;
+                        statusColor = 'text-emerald-600';
+                        statusBg = 'bg-emerald-50';
+                      }
+                      return (
+                        <tr key={order.id} className="hover:bg-slate-50/80 transition-colors cursor-default">
+                          <td className="py-4 px-6 text-sm font-bold text-slate-800">{order.id}</td>
+                          <td className="py-4 px-6 text-sm font-medium text-slate-500">{order.date}</td>
+                          <td className="py-4 px-6">
+                            <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-bold ${statusBg} ${statusColor}`}>
+                              <StatusIcon className="w-3.5 h-3.5" />
+                              {order.status}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 text-sm font-bold text-slate-700">{order.amount}</td>
+                        </tr>
+                      );
+                    })
                   ) : (
                     recentOrders.map((order) => {
                       let StatusIcon = Clock;
                       let statusColor = 'text-amber-600';
                       let statusBg = 'bg-amber-50';
-
                       if (order.status === 'Shipped') {
                         StatusIcon = CheckCircle2;
                         statusColor = 'text-emerald-600';
@@ -950,7 +1232,6 @@ export default function Dashboard() {
                         statusColor = 'text-rose-600';
                         statusBg = 'bg-rose-50';
                       }
-
                       return (
                         <tr key={order.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-4 px-6 text-sm font-bold text-slate-800">{order.id}</td>
@@ -975,6 +1256,31 @@ export default function Dashboard() {
                 </tbody>
               </table>
             </div>
+          </motion.div>
+        )}
+
+        {/* ── Distributor & Retailer: Recent Notifications ── */}
+        {(activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER) && (
+          <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
+                <Bell className="w-5 h-5 text-violet-500" />
+                Recent Notifications
+              </h2>
+            </div>
+            <ul className="divide-y divide-slate-100">
+              {(activeRole === ROLE_DISTRIBUTOR ? distributorNotifications : retailerNotifications).map((n) => (
+                <li key={n.id} className="flex items-start gap-4 px-6 py-4 hover:bg-slate-50/60 transition-colors">
+                  <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${n.iconBg}`}>
+                    <n.icon className={`w-4 h-4 ${n.iconColor}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-700 leading-snug">{n.message}</p>
+                    <p className="text-xs text-slate-400 mt-1">{n.time}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </motion.div>
         )}
 

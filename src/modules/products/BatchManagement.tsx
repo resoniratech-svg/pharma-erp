@@ -1342,9 +1342,10 @@ export default function BatchManagement() {
   //     </div>
   //   );
   // }
-
-  // Only allow active products to receive new batches
-  const activeProducts = products.filter(p => !p.status || p.status === 'Active');
+// Only allow active products to receive new batches
+const activeProducts = products.filter(
+  p => !p.status || p.status === 'Active'
+);
 
   return (
     <div className="animate-in fade-in duration-500">

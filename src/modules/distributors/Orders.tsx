@@ -11,13 +11,6 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 
-// -- Mock Roles & Auth --
-import { 
-  ROLE_SUPER_ADMIN, 
-  ROLE_DISTRIBUTOR, 
-  ROLE_WAREHOUSE_MANAGER 
-} from '../../constants/roles';
-
 // --- Types ---
 type OrderStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'Processing' | 'Partially Fulfilled' | 'Fulfilled' | 'Cancelled';
 
@@ -94,7 +87,6 @@ const initialOrders: Order[] = [
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function Orders() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
   const loggedInDistributor = { name: 'Metro Pharma Distributors', code: 'DIST-001' };
 
   // Sync state initialization with localStorage to keep data after refresh
@@ -118,7 +110,6 @@ export default function Orders() {
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [newOrderItems, setNewOrderItems] = useState<OrderItem[]>([]);
   const [deliveryLocation, setDeliveryLocation] = useState('');
-  const [warehouse, setWarehouse] = useState('West Zone Hub');
   const [expectedDate, setExpectedDate] = useState('');
   const [remarks, setRemarks] = useState('');
   
@@ -169,7 +160,6 @@ export default function Orders() {
         const dCode = dist.code || dist.distributorCode || dist.id;
         const dName = dist.name || dist.distributorName;
 
-        // Collect all non-draft orders that match this particular distributor profile
         const distributorOrders = allOrders.filter(o => o.distributorCode === dCode && o.status !== 'Draft');
 
         let totalTrackedBalance = 0;
@@ -225,8 +215,6 @@ export default function Orders() {
     const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
     setOrders(updated);
     localStorage.setItem("pharma_erp_orders", JSON.stringify(updated));
-    
-    // Sync down into the outstanding submodules immediately on administrative edits
     syncWithOutstandingLedger(updated);
     setViewOrder(null);
   };
@@ -243,19 +231,13 @@ export default function Orders() {
 
   // --- Visibility & Filtering ---
   const visibleOrders = useMemo(() => {
-    let base = orders;
-    if (activeRole === ROLE_DISTRIBUTOR) {
-      base = orders.filter(o => o.distributorCode === loggedInDistributor.code);
-    } else if (activeRole === ROLE_WAREHOUSE_MANAGER) {
-      base = orders.filter(o => o.status === 'Approved');
-    }
+    const base = orders.filter(o => o.distributorCode === loggedInDistributor.code);
     return base.filter(item => {
-      const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase()) || 
-                          item.distributorName.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter ? item.status === statusFilter : true;
       return matchSearch && matchStatus;
     });
-  }, [orders, activeRole, search, statusFilter]);
+  }, [orders, search, statusFilter, loggedInDistributor.code]);
 
   // --- Export Logic ---
   const getFormattedDate = () => {
@@ -335,7 +317,6 @@ export default function Orders() {
     setEditingOrderId(order.id);
     setNewOrderItems(order.items);
     setDeliveryLocation(order.deliveryLocation);
-    setWarehouse(order.warehouse);
     setExpectedDate(order.expectedDeliveryDate);
     setRemarks(order.remarks);
     setIsCreateOpen(true);
@@ -385,7 +366,7 @@ export default function Orders() {
         status,
         expectedDeliveryDate: expectedDate || o.expectedDeliveryDate,
         deliveryLocation,
-        warehouse,
+        warehouse: o.warehouse || '',
         remarks,
         items: newOrderItems
       } : o);
@@ -399,7 +380,7 @@ export default function Orders() {
         expectedDeliveryDate: expectedDate || 'Pending',
         status: status,
         deliveryLocation,
-        warehouse,
+        warehouse: '',
         remarks,
         items: newOrderItems
       };
@@ -408,8 +389,6 @@ export default function Orders() {
     
     setOrders(updatedOrders);
     localStorage.setItem("pharma_erp_orders", JSON.stringify(updatedOrders));
-    
-    // Fire the calculation tracking update script
     syncWithOutstandingLedger(updatedOrders);
     
     setStatusFilter('');
@@ -445,13 +424,13 @@ export default function Orders() {
   const columns: Column<Order>[] = [
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-slate-900">{row.orderNo}</span> },
     { key: 'date', label: 'Order Date' },
+    { key: 'expectedDeliveryDate', label: 'Expected Delivery', render: (row) => <span className="text-slate-600">{row.expectedDeliveryDate}</span> },
     { key: 'items', label: 'Total Items', render: (row) => <span className="text-slate-600">{row.items.length} Items</span> },
     { 
       key: 'amount', 
-      label: 'Order Value', 
+      label: 'Total Amount', 
       render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.items.reduce((sum, i) => sum + i.amount, 0))}</span> 
     },
-    { key: 'expectedDeliveryDate', label: 'Expected Delivery Date', render: (row) => <span className="text-slate-600">{row.expectedDeliveryDate}</span> },
     {
       key: 'status',
       label: 'Status',
@@ -473,29 +452,27 @@ export default function Orders() {
             <Eye className="w-4 h-4" />
           </button>
           
-          {activeRole === ROLE_DISTRIBUTOR && (
-            <button 
-              onClick={() => row.status === 'Draft' ? handleEditOrder(row) : null}
-              className={`p-1 transition-colors ${row.status === 'Draft' ? 'text-slate-400 hover:text-blue-600' : 'text-slate-200 cursor-not-allowed'}`} 
-              title="Edit"
-              disabled={row.status !== 'Draft'}
-            >
-              <Edit className="w-4 h-4" />
-            </button>
-          )}
-
-          <button onClick={() => handleDownloadPO(row)} className="text-slate-400 hover:text-slate-900 transition-colors p-1" title="Download Purchase Order">
-            <FileText className="w-4 h-4" />
+          <button 
+            onClick={() => row.status === 'Draft' ? handleEditOrder(row) : null}
+            className={`p-1 transition-colors ${row.status === 'Draft' ? 'text-slate-400 hover:text-blue-600' : 'text-slate-200 cursor-not-allowed'}`} 
+            title="Edit"
+            disabled={row.status !== 'Draft'}
+          >
+            <Edit className="w-4 h-4" />
           </button>
 
-          {activeRole === ROLE_DISTRIBUTOR && (
-            <button 
-              onClick={() => row.status === 'Draft' ? setDeleteOrder(row) : null} 
-              className={`p-1 transition-colors ${row.status === 'Draft' ? 'text-slate-400 hover:text-red-600' : 'text-slate-200 cursor-not-allowed'}`} 
-              title="Delete"
-              disabled={row.status !== 'Draft'}
-            >
-              <Trash2 className="w-4 h-4" />
+          <button 
+            onClick={() => row.status === 'Draft' ? setDeleteOrder(row) : null} 
+            className={`p-1 transition-colors ${row.status === 'Draft' ? 'text-slate-400 hover:text-red-600' : 'text-slate-200 cursor-not-allowed'}`} 
+            title="Delete"
+            disabled={row.status !== 'Draft'}
+          >
+            <Trash2 className="w-4 h-4" />
+          </button>
+
+          {row.status === 'Fulfilled' && (
+            <button onClick={() => handleDownloadPO(row)} className="text-slate-400 hover:text-slate-900 transition-colors p-1" title="Download PDF">
+              <FileText className="w-4 h-4" />
             </button>
           )}
         </div>
@@ -507,7 +484,7 @@ export default function Orders() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Order Placement"
-        subtitle={activeRole === ROLE_DISTRIBUTOR ? "Place, manage, and track your purchase orders." : "Manage and approve incoming purchase orders from distributors."}
+        subtitle="Place, manage, and track your purchase orders."
         actions={
           <div className="flex items-center gap-3">
             <div className="relative inline-block text-left" ref={exportMenuRef}>
@@ -530,24 +507,22 @@ export default function Orders() {
               )}
             </div>
 
-            {activeRole === ROLE_DISTRIBUTOR && (
-              <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => {
-                setEditingOrderId(null);
-                setNewOrderItems([]);
-                setDeliveryLocation('');
-                setExpectedDate('');
-                setRemarks('');
-                setIsCreateOpen(true);
-              }}>
-                Create Order manually
-              </ActionButton>
-            )}
+            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => {
+              setEditingOrderId(null);
+              setNewOrderItems([]);
+              setDeliveryLocation('');
+              setExpectedDate('');
+              setRemarks('');
+              setIsCreateOpen(true);
+            }}>
+              Create Order manually
+            </ActionButton>
           </div>
         }
       />
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search order no or distributor..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search order no..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
@@ -588,30 +563,12 @@ export default function Orders() {
               <div className="space-y-2">
                 <DrawerField label="Order No" value={<span className="font-semibold text-slate-900">{viewOrder.orderNo}</span>} />
                 <DrawerField label="Order Date" value={viewOrder.date} />
+                <DrawerField label="Expected Delivery" value={viewOrder.expectedDeliveryDate} />
                 <DrawerField label="Status" value={
                   <Badge variant={['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled'].includes(viewOrder.status) ? 'success' : viewOrder.status === 'Submitted' ? 'info' : viewOrder.status === 'Draft' ? 'warning' : 'danger'}>
                     {viewOrder.status}
                   </Badge>
                 } />
-              </div>
-            </div>
-
-            {activeRole !== ROLE_DISTRIBUTOR && (
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Distributor Information</h3>
-                <div className="space-y-2">
-                  <DrawerField label="Distributor Name" value={viewOrder.distributorName} />
-                  <DrawerField label="Distributor Code" value={viewOrder.distributorCode} />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Delivery Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Delivery Location" value={viewOrder.deliveryLocation} />
-                <DrawerField label="Warehouse" value={viewOrder.warehouse} />
-                <DrawerField label="Expected Delivery Date" value={viewOrder.expectedDeliveryDate} />
                 {viewOrder.remarks && <DrawerField label="Remarks" value={viewOrder.remarks} />}
               </div>
             </div>
@@ -623,8 +580,8 @@ export default function Orders() {
                   <thead className="bg-slate-100/50 border-b border-slate-200 text-slate-500 uppercase">
                     <tr>
                       <th className="px-4 py-3 font-semibold">Product</th>
-                      <th className="px-4 py-3 font-semibold">PTR</th>
                       <th className="px-4 py-3 font-semibold">Qty</th>
+                      <th className="px-4 py-3 font-semibold">PTR</th>
                       <th className="px-4 py-3 font-semibold">Scheme</th>
                       <th className="px-4 py-3 font-semibold text-right">Amount</th>
                     </tr>
@@ -636,8 +593,8 @@ export default function Orders() {
                           {item.productCode}
                           <div className="text-xs text-slate-500 font-normal">{item.productName}</div>
                         </td>
-                        <td className="px-4 py-3">{formatCurrency(item.ptr)}</td>
                         <td className="px-4 py-3 font-mono">{item.quantity}</td>
+                        <td className="px-4 py-3">{formatCurrency(item.ptr)}</td>
                         <td className="px-4 py-3 text-emerald-600 text-xs">{item.scheme}</td>
                         <td className="px-4 py-3 text-right font-medium text-slate-900">{formatCurrency(item.amount)}</td>
                       </tr>
@@ -663,31 +620,21 @@ export default function Orders() {
                   <span>+ {formatCurrency(viewSummary?.gst || 0)}</span>
                 </div>
                 <div className="flex justify-between text-base font-bold text-slate-900 pt-1">
-                  <span>Net Amount</span>
+                  <span>Grand Total</span>
                   <span>{formatCurrency(viewSummary?.netAmount || 0)}</span>
                 </div>
               </div>
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-              {activeRole === ROLE_SUPER_ADMIN || activeRole === ROLE_WAREHOUSE_MANAGER ? (
-                viewOrder.status === 'Submitted' ? (
-                  <>
-                    <ActionButton variant="secondary" onClick={() => updateOrderStatus(viewOrder.id, 'Rejected')}>Reject Order</ActionButton>
-                    <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Approved')}>Approve Order</ActionButton>
-                  </>
-                ) : (
-                  <ActionButton variant="secondary" onClick={() => setViewOrder(null)}>Close</ActionButton>
-                )
-              ) : activeRole === ROLE_DISTRIBUTOR ? (
-                viewOrder.status === 'Draft' ? (
-                  <>
-                    <ActionButton variant="secondary" onClick={() => setViewOrder(null)}>Edit Order</ActionButton>
-                    <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Submitted')}>Submit Order</ActionButton>
-                  </>
-                ) : (
-                  <ActionButton variant="secondary" onClick={() => setViewOrder(null)}>Close</ActionButton>
-                )
+              {viewOrder.status === 'Draft' ? (
+                <>
+                  <ActionButton variant="secondary" onClick={() => {
+                    setViewOrder(null);
+                    handleEditOrder(viewOrder);
+                  }}>Edit Order</ActionButton>
+                  <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Submitted')}>Submit Order</ActionButton>
+                </>
               ) : (
                 <ActionButton variant="secondary" onClick={() => setViewOrder(null)}>Close</ActionButton>
               )}
@@ -726,26 +673,14 @@ export default function Orders() {
                 <input type="text" value={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Distributor</label>
-                <input type="text" value={`${loggedInDistributor.name} (${loggedInDistributor.code})`} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Delivery Information</h3>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Delivery Location *</label>
-                <input type="text" value={deliveryLocation} onChange={e => setDeliveryLocation(e.target.value)} placeholder="Enter delivery address or branch" className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Warehouse</label>
-                <input type="text" value={warehouse} onChange={e => setWarehouse(e.target.value)} placeholder="Enter supplying warehouse" className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400" />
-              </div>
-              <div>
                 <label className="block text-sm font-medium mb-1">Expected Delivery Date *</label>
                 <input type="date" value={expectedDate} onChange={e => setExpectedDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400" />
               </div>
               <div>
+                <label className="block text-sm font-medium mb-1">Delivery Address *</label>
+                <input type="text" value={deliveryLocation} onChange={e => setDeliveryLocation(e.target.value)} placeholder="Enter delivery address" className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400" />
+              </div>
+              <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Remarks</label>
                 <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Optional delivery instructions" className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400" />
               </div>
@@ -839,7 +774,7 @@ export default function Orders() {
                     <tr>
                       <th className="px-4 py-2">Product</th>
                       <th className="px-4 py-2">Qty</th>
-                      <th className="px-4 py-2 text-right">Line Value</th>
+                      <th className="px-4 py-2 text-right">Amount</th>
                       <th className="px-4 py-2 text-center">Action</th>
                     </tr>
                   </thead>
@@ -864,11 +799,11 @@ export default function Orders() {
             {/* Summary calculations footer section */}
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col gap-2 mb-6">
               <div className="flex justify-between text-sm text-slate-600">
-                <span>Gross Value</span>
+                <span>Subtotal ({createSummary.totalItems} items)</span>
                 <span>{formatCurrency(createSummary.grossAmount)}</span>
               </div>
               <div className="flex justify-between text-sm text-emerald-600">
-                <span>Scheme Adjustments</span>
+                <span>Scheme Discount</span>
                 <span>- {formatCurrency(createSummary.schemeDiscount)}</span>
               </div>
               <div className="flex justify-between text-sm text-slate-600 pb-2 border-b">
@@ -876,7 +811,7 @@ export default function Orders() {
                 <span>+ {formatCurrency(createSummary.gst)}</span>
               </div>
               <div className="flex justify-between font-bold text-base text-slate-900">
-                <span>Total Net Value</span>
+                <span>Grand Total</span>
                 <span>{formatCurrency(createSummary.netAmount)}</span>
               </div>
             </div>
@@ -889,7 +824,7 @@ export default function Orders() {
                 Save Draft
               </ActionButton>
               <ActionButton onClick={() => handleSaveOrder('Submitted')} disabled={newOrderItems.length === 0 || !deliveryLocation}>
-                Submit Purchase Order
+                Submit Order
               </ActionButton>
             </div>
 

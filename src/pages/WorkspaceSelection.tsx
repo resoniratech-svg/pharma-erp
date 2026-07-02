@@ -2,7 +2,7 @@ import { Link, useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
 import { ArrowRight, Lock, ChevronLeft } from 'lucide-react';
 import { ROLES, type Role } from '../constants/roles';
-import mjLogo from '../assets/logo/mj-healthcare-logo.svg';
+import mjLogo from '../assets/logo/mj-healthcare-logo1.svg';
 
 /* ── Role Card ──────────────────────────────────────────────────── */
 const RoleCard = ({ role, index }: { role: Role; index: number }) => {
@@ -78,7 +78,7 @@ export default function WorkspaceSelection() {
       {/* Header */}
       <header className="w-full px-8 py-5 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5">
-          <img src={mjLogo} alt="MJ Healthcare" className="h-14 object-contain" />
+          <img src={mjLogo} alt="MJ Healthcare" className="h-20 object-contain" />
         </Link>
 
         <Link
