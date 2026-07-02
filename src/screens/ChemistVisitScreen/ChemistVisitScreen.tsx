@@ -3,7 +3,7 @@ import {
   findChemistByMobile, 
   createChemist 
 } from '../../services/chemistService'; 
-import { createFollowUp } from '../../services/followUpService'; // ⬅️ Imported followUpService
+import { createFollowUp } from '../../services/followUpService'; 
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -16,7 +16,6 @@ import {
   Platform,
   KeyboardAvoidingView,
   ActivityIndicator,
-  Modal,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -28,7 +27,6 @@ const safeJsonParse = (data: string | null, fallback: any) => {
   catch (err) { console.log('safeJsonParse error:', err); return fallback; }
 };
 
-// ✅ Unified interface — matches React Web ChemistVisits.tsx exactly
 interface ChemistVisit {
   id: string;
   chemistName: string;
@@ -49,7 +47,6 @@ interface ChemistVisit {
   status: 'Scheduled' | 'Completed' | 'Missed';
 }
 
-// Helper: format Date object → YYYY-MM-DD string
 const formatDate = (date: Date): string => {
   const yyyy = date.getFullYear();
   const mm = String(date.getMonth() + 1).padStart(2, '0');
@@ -57,7 +54,6 @@ const formatDate = (date: Date): string => {
   return `${yyyy}-${mm}-${dd}`;
 };
 
-// Helper: format Date object → HH:MM string
 const formatTime = (date: Date): string => {
   const hh = String(date.getHours()).padStart(2, '0');
   const min = String(date.getMinutes()).padStart(2, '0');
@@ -233,9 +229,7 @@ const ChemistVisitScreen = () => {
   const [remarks, setRemarks] = useState('');
   const [status, setStatus] = useState<ChemistVisit['status']>('Scheduled');
 
-  // ⬅️ Modification Step: Replaced 'const mrId = 1;' with clean state configuration
   const [mrId, setMrId] = useState<number | null>(null);
-
   const [visits, setVisits] = useState<ChemistVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -247,7 +241,6 @@ const ChemistVisitScreen = () => {
     else { Alert.alert(title, message); }
   };
 
-  // ⬅️ Modification Step: Fetching authenticated profile token metadata dynamically
   useEffect(() => {
     const loadMrId = async () => {
       const storedMrId = await AsyncStorage.getItem('@mrId');
@@ -284,40 +277,51 @@ const ChemistVisitScreen = () => {
       customAlert('Error', 'Mobile number must be exactly 10 digits.'); return;
     }
 
+    // ─── REPLACED GPS BLOCK ───
     setIsSubmitting(true);
+
     let currentLat: number | undefined = undefined;
     let currentLon: number | undefined = undefined;
     let distVerified = 'Pending Verification';
 
-    // try {
-    //   if (Platform.OS !== 'web') {
-    //     let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
-    //     if (locationStatus === 'granted') {
-    //       let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-    //       currentLat = loc.coords.latitude;
-    //       currentLon = loc.coords.longitude;
-    //       distVerified = 'Verified (within 50m)';
-    //     }
-    //   }
-    // } catch (e) {
-    //   console.log('Location error:', e);
-    // }
-        try {
-      let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
-      if (locationStatus === 'granted') {
-        let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-        currentLat = loc.coords.latitude;
-        currentLon = loc.coords.longitude;
-        distVerified = 'Verified (within 50m)';
-      }
-      else{
-         distVerified = 'Location Permission Denied';
-      }
-      
-    } catch (e) {
-      console.log('Location error:', e);
-    }
+try {
+  if (Platform.OS === 'web') {
+    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0,
+      });
+    });
 
+    currentLat = position.coords.latitude;
+    currentLon = position.coords.longitude;
+  } else {
+    let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+
+    if (locationStatus === 'granted') {
+      let loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      currentLat = loc.coords.latitude;
+      currentLon = loc.coords.longitude;
+    } else {
+      distVerified = 'Location Permission Denied';
+    }
+  }
+
+  console.log('CHEMIST GPS:', currentLat, currentLon);
+
+  if (currentLat && currentLon) {
+    distVerified = 'Verified (within 50m)';
+  }
+
+} catch (e) {
+  console.log('Location error:', e);
+  distVerified = 'Location Error';
+}
+   
     const newVisit: ChemistVisit = {
       id: String(Date.now()),
       chemistName, shopName, mobile, location,
@@ -326,13 +330,12 @@ const ChemistVisitScreen = () => {
       longitude: currentLon,
       distanceVerified: distVerified,
       pobAmount: Number(pobAmount) || 0,
-      medicine, quantity, nextFollowUp, remarks, status,
+      medicine, quantity, nextFollowUp, remarks, status,followUpDate: nextFollowUp,
     };
 
     // ─── API SERVER CONDITIONAL RESOLUTION & SUBMISSION ───
     try {
       let chemistId: number;
-
       const existingChemist = await findChemistByMobile(mobile);
 
       if (existingChemist) {
@@ -355,7 +358,6 @@ const ChemistVisitScreen = () => {
       console.log('Chemist Visit Saved:', result);
 
       if (nextFollowUp) {
-        // ⬅️ Modification Step: Replaced hardcoded values with dynamically resolved context state
         await createFollowUp({
           mrId: Number(mrId),
           chemistId: Number(chemistId),
@@ -363,7 +365,6 @@ const ChemistVisitScreen = () => {
           remarks: remarks || 'Chemist follow-up scheduled',
           followUpDate: new Date(nextFollowUp).toISOString(),
         });
-
         console.log('Chemist Follow-up created successfully');
       }
 
@@ -400,7 +401,6 @@ const ChemistVisitScreen = () => {
       customAlert('Error', 'Failed to save visit data locally.');
     }
 
-    // Reset form — keep date/time pre-filled
     setChemistName(''); setShopName(''); setMobile(''); setLocation('');
     setStockCheck('Pending'); setPobAmount(''); setMedicine('');
     setQuantity(''); setNextFollowUp(''); setRemarks(''); setStatus('Scheduled');
@@ -589,9 +589,7 @@ const ChemistVisitScreen = () => {
                 ]}>
                   <Text style={[
                     { fontSize: 11, fontWeight: 'bold' },
-                    visit.status === 'Completed' ? { color: '#059669' }
-                    : visit.status === 'Scheduled' ? { color: '#2563EB' }
-                    : { color: '#DC2626' },
+                    { color: visit.status === 'Completed' ? '#059669' : visit.status === 'Scheduled' ? '#2563EB' : '#DC2626' }
                   ]}>
                     {visit.status}
                   </Text>

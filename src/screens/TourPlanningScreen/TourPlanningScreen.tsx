@@ -351,11 +351,15 @@ const TourPlanningScreen = () => {
           selectedChemistIds
         );
         console.log('Tour Plan Saved Successfully');
-      } catch (error) {
-        console.log('Tour Plan API Error:', error);
-        customAlert('Error', 'Failed to save Tour Plan');
-        return;
-      }
+      } catch (error: any) {
+  console.log('TOUR PLAN ERROR:', error);
+  console.log('TOUR PLAN ERROR RESPONSE:', error?.response?.data);
+
+  Alert.alert(
+    'Error',
+    JSON.stringify(error?.response?.data || error.message)
+  );
+}
 
       const newPlan = {
         id: Date.now(),

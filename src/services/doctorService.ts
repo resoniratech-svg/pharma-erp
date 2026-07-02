@@ -14,10 +14,16 @@ export const createDoctorVisit = async (
   const mrId = await AsyncStorage.getItem('@mrId');
 
   console.log('MR ID:', mrId);
-console.log('Doctor ID:', doctorId);
-console.log('Remarks:', remarks);
-console.log('Products:', productsDiscussed);
-console.log('Samples:', samplesGiven);
+  console.log('Doctor ID:', doctorId);
+  console.log('Remarks:', remarks);
+  console.log('Products:', productsDiscussed);
+  console.log('Samples:', samplesGiven);
+
+  // ─── ADDED LOGS IMMEDIATELY BEFORE THE API CALL ───
+  console.log('MR ID:', mrId);
+  console.log('Doctor ID:', doctorId);
+  console.log('Latitude:', latitude);
+  console.log('Longitude:', longitude);
 
   const response = await api.post(
     '/doctor-visits',
@@ -36,7 +42,6 @@ console.log('Samples:', samplesGiven);
       },
     }
   );
-  
 
   return response.data;
 };

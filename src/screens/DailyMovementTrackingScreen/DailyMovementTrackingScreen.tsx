@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
+  getDailyMovement
+} from '../../services/dailyMovementService';
+import {
   View,
   Text,
   StyleSheet,
@@ -120,6 +123,7 @@ const DailyMovementTrackingScreen = () => {
   const [lastSynced, setLastSynced] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [routeCoverage, setRouteCoverage] = useState('N/A');
+  const [movementSummary, setMovementSummary] = useState<any>(null);
 
   const trackingTimerRef = useRef<any>(null);
   const simTimerRef = useRef<any>(null);
@@ -214,6 +218,43 @@ const DailyMovementTrackingScreen = () => {
     }
   };
 
+ const loadMovementSummary = async () => {
+
+  try {
+
+    const [day, month, year] =
+      selectedDate.split('-');
+
+    const apiDate =
+      `${year}-${month}-${day}`;
+
+    console.log(
+      'API DATE:',
+      apiDate
+    );
+
+    const summary =
+      await getDailyMovement(
+        apiDate
+      );
+
+      setMovementSummary(summary);
+
+    console.log(
+      'DAILY MOVEMENT:',
+      summary
+    );
+
+  } catch (error) {
+
+    console.log(
+      'Daily Movement Error:',
+      error
+    );
+
+  }
+};
+
   // Load logs
   const loadMovementLogs = async (showLoadingSpinner = true) => {
     if (showLoadingSpinner) {
@@ -241,16 +282,37 @@ const DailyMovementTrackingScreen = () => {
     }
   };
 
-  useFocusEffect(
-    useCallback(() => {
-      loadMovementLogs(true);
-      return () => {
-        // Cleanup timers on focus blur
-        if (trackingTimerRef.current) clearInterval(trackingTimerRef.current);
-        if (simTimerRef.current) clearInterval(simTimerRef.current);
-      };
-    }, [selectedDate])
-  );
+ useFocusEffect(
+  useCallback(() => {
+
+    const loadData = async () => {
+
+      await loadMovementSummary();
+
+      console.log('SELECTED DATE:', selectedDate);
+console.log('TYPE:', typeof selectedDate);
+
+      await loadMovementLogs(true);
+
+    };
+
+    loadData();
+
+    return () => {
+
+      // Cleanup timers on focus blur
+      if (trackingTimerRef.current) {
+        clearInterval(trackingTimerRef.current);
+      }
+
+      if (simTimerRef.current) {
+        clearInterval(simTimerRef.current);
+      }
+
+    };
+
+  }, [selectedDate])
+);
 
   const onRefresh = async () => {
     setRefreshing(true);
@@ -617,6 +679,74 @@ const DailyMovementTrackingScreen = () => {
               <Text style={styles.statLabel}>GPS Precision</Text>
             </View>
           </View>
+
+          <View style={{ marginTop: 20 }}>
+
+  <Text style={{
+    fontSize: 16,
+    fontWeight: 'bold',
+    marginBottom: 12
+  }}>
+    Backend Daily Summary
+  </Text>
+
+  <View style={{
+    backgroundColor: '#fff',
+    padding: 15,
+    borderRadius: 12
+  }}>
+
+    <Text>
+      👨‍⚕️ Doctor Visits:
+      {' '}
+      {movementSummary?.doctorVisits || 0}
+    </Text>
+
+    <Text>
+      💊 Chemist Visits:
+      {' '}
+      {movementSummary?.chemistVisits || 0}
+    </Text>
+
+    <Text>
+      📍 Total Stops:
+      {' '}
+      {movementSummary?.totalStops || 0}
+    </Text>
+
+    <Text>
+      ⏱ Working Hours:
+      {' '}
+      {movementSummary?.workingHours || 0}
+    </Text>
+
+    <Text>
+      🟢 Check In:
+      {' '}
+      {
+        movementSummary?.checkInTime
+          ? new Date(
+              movementSummary.checkInTime
+            ).toLocaleTimeString()
+          : 'N/A'
+      }
+    </Text>
+
+    <Text>
+      🔴 Check Out:
+      {' '}
+      {
+        movementSummary?.checkOutTime
+          ? new Date(
+              movementSummary.checkOutTime
+            ).toLocaleTimeString()
+          : 'N/A'
+      }
+    </Text>
+
+  </View>
+
+</View>
 
           {/* 🗺️ Route Trace Canvas */}
           <Text style={styles.sectionTitle}>🗺️ Visual GPS Path Trace</Text>

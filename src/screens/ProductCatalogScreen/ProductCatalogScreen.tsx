@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -8,9 +8,11 @@ import {
   ScrollView,
   Alert,
   Platform,
+  ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { getProducts } from '../../services/productService';
 
 interface Product {
   id: number;
@@ -155,9 +157,53 @@ const ProductCatalogScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'All' | 'Antibiotics' | 'Analgesics' | 'Cardiology' | 'Gastroenterology' | 'Vitamins'>('All');
   const [expandedCards, setExpandedCards] = useState<{ [key: number]: boolean }>({});
+  const [products, setProducts] = useState<any[]>([]);
+  const [loading, setLoading] = useState(false);
+
+  console.log(
+  'PRODUCTS STATE',
+  JSON.stringify(products, null, 2)
+);
   
   // Sample Quantities state
   const [sampleQty, setSampleQty] = useState<{ [key: number]: number }>({});
+
+  const loadProducts = async () => {
+    try {
+      setLoading(true);
+      const data = await getProducts();
+console.log('FIRST PRODUCT', data[0]);
+
+const mappedProducts = data.map((p: any) => ({
+  id: p.id,
+  name: p.name,
+  genericName: p.code || '',
+  category: p.category?.name || '',
+  packaging: p.hsnCode || '',
+  price: p.mrp || 0,
+  indications: '',
+  dosage: '',
+  stock: p.minStock || 0,
+  composition: [],
+  formType: 'tablet',
+}));
+
+console.log(
+  'MAPPED PRODUCTS',
+  JSON.stringify(mappedProducts, null, 2)
+);
+
+setProducts(mappedProducts);
+    } catch (error) {
+      console.log('Failed to load products:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadProducts();
+  }, []);
 
   const customAlert = (title: string, message: string) => {
     if (Platform.OS === 'web') {
@@ -212,11 +258,11 @@ const ProductCatalogScreen = () => {
     );
   };
 
-  const filteredProducts = MASTER_PRODUCTS.filter((product) => {
+  const filteredProducts = products.filter((product) => {
     const matchesSearch =
-      product.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.genericName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      product.indications.toLowerCase().includes(searchQuery.toLowerCase());
+      (product.name?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (product.genericName?.toLowerCase() || '').includes(searchQuery.toLowerCase()) ||
+      (product.indications?.toLowerCase() || '').includes(searchQuery.toLowerCase());
 
     const matchesTab = activeTab === 'All' || product.category === activeTab;
 
@@ -281,12 +327,14 @@ const ProductCatalogScreen = () => {
 
       {/* Products List */}
       <ScrollView contentContainerStyle={styles.listContainer}>
-        {filteredProducts.length > 0 ? (
+        {loading ? (
+          <ActivityIndicator size="large" color="#4F46E5" style={{ marginTop: 40 }} />
+        ) : filteredProducts.length > 0 ? (
           filteredProducts.map((product) => {
             const isExpanded = !!expandedCards[product.id];
             const qty = sampleQty[product.id] || 1;
             const avatar = getProductAvatar(product.formType);
-            const isOutOfStock = product.stock === 0;
+            const isOutOfStock = product.minStock === 0;
 
             return (
               <View key={product.id} style={styles.card}>
@@ -302,9 +350,11 @@ const ProductCatalogScreen = () => {
 
                   <View style={{ flex: 1, paddingRight: 10 }}>
                     <Text style={styles.productName}>{product.name}</Text>
-                    <Text style={styles.genericText} numberOfLines={1}>{product.genericName}</Text>
+                    <Text style={styles.genericText}>
+  {product.code || ''}
+</Text>
                     <View style={styles.metaRow}>
-                      <Text style={styles.categoryBadge}>{product.category}</Text>
+                      <Text>{product.category?.name || product.category}</Text>
                       {/* Stock Badge */}
                       <Text style={[
                         styles.stockBadge,
@@ -316,7 +366,9 @@ const ProductCatalogScreen = () => {
                   </View>
 
                   <View style={{ alignItems: 'flex-end' }}>
-                    <Text style={styles.priceText}>₹{product.price.toFixed(2)}</Text>
+                    <Text style={styles.priceText}>
+  PRICE = {JSON.stringify(product.price)}
+</Text>
                     <Text style={styles.packagingText}>{product.packaging}</Text>
                   </View>
                 </TouchableOpacity>
@@ -328,9 +380,13 @@ const ProductCatalogScreen = () => {
                     {/* Composition list */}
                     <Text style={styles.sectionLabel}>🧪 Product Composition:</Text>
                     <View style={styles.compositionGrid}>
-                      {product.composition.map((comp, index) => (
-                        <Text key={index} style={styles.compositionItem}>• {comp}</Text>
-                      ))}
+                      {product.composition && Array.isArray(product.composition) ? (
+                        product.composition.map((comp: string, index: number) => (
+                          <Text key={index} style={styles.compositionItem}>• {comp}</Text>
+                        ))
+                      ) : (
+                        <Text style={styles.compositionItem}>• Composition info unavailable</Text>
+                      )}
                     </View>
 
                     <Text style={[styles.sectionLabel, { marginTop: 8 }]}>🩺 Indication & Usage:</Text>

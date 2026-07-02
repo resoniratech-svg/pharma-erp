@@ -39,6 +39,7 @@ export const findChemistByMobile = async (
 
   const token =
     await AsyncStorage.getItem('@token');
+    
 
   const response =
     await api.get(
@@ -74,6 +75,11 @@ export const createChemistVisit = async (
 
   const token = await AsyncStorage.getItem('@token');
   const mrId = await AsyncStorage.getItem('@mrId');
+
+  console.log('MR ID:', mrId);
+console.log('CHEMIST ID:', chemistId);
+console.log('LATITUDE:', latitude);
+console.log('LONGITUDE:', longitude);
 
   const response = await api.post(
     '/chemist-visits',

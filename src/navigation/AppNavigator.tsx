@@ -160,6 +160,7 @@ import ExpiryAlertsScreen from '../screens/ExpiryAlertsScreen/ExpiryAlertsScreen
 import FollowUpRemindersScreen from '../screens/FollowUpRemindersScreen/FollowUpRemindersScreen';
 import MeetingRemindersScreen from '@/screens/MeetingRemindersScreen/MeetingRemindersScreen';
 import ActivityNotificationsScreen from '@/screens/ActivityNotificationsScreen/ActivityNotificationsScreen';
+import MeetingSchedulingScreen from '../screens/MeetingSchedulingScreen/MeetingSchedulingScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -185,6 +186,11 @@ const AppNavigator = () => {
         name="DoctorVisit"
         component={DoctorVisitScreen}
       />
+
+      <Stack.Screen
+  name="MeetingScheduling"
+  component={MeetingSchedulingScreen}
+/>
 
       <Stack.Screen
         name="ChemistVisit"

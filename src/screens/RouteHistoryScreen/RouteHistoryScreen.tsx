@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
+import { getRouteHistory } from '../../services/routeHistoryService';
 import {
   Platform,
   RefreshControl,  
@@ -43,9 +44,14 @@ const RouteHistoryScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [backendRoute,
+  setBackendRoute] =
+  useState<any[]>([]);
 
   // States for aggregated data
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
+  const [backendRouteHistory, setBackendRouteHistory] =
+  useState<any[]>([]);
   const [summary, setSummary] = useState({
     doctors: 0,
     chemists: 0,
@@ -166,19 +172,103 @@ const RouteHistoryScreen = () => {
     }
   };
 
-  useEffect(() => {
-    compileRouteHistory();
-  }, [selectedDate]);
+ useEffect(() => {
 
-  const compileRouteHistory = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      // 1. Fetch all datasets from AsyncStorage
-      const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
-      const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
-      const tourPlansData = await AsyncStorage.getItem('@tour_plans');
-      const attendanceLogsData = await AsyncStorage.getItem('@attendance_logs');
+  const loadAll = async () => {
+
+    await loadBackendRouteHistory();
+
+    await compileRouteHistory();
+
+  };
+
+  loadAll();
+
+}, [selectedDate]);
+
+const loadBackendRouteHistory = async () => {
+  try {
+
+    console.log(
+      'ROUTE SELECTED DATE:',
+      selectedDate
+    );
+
+    const [day, month, year] =
+      selectedDate.split('-');
+
+    const apiDate =
+      `${year}-${month}-${day}`;
+
+    console.log(
+      'API DATE:',
+      apiDate
+    );
+
+   const routeData =
+  await getRouteHistory(apiDate);
+
+console.log(
+  'ROUTE HISTORY FULL:',
+  JSON.stringify(routeData, null, 2)
+);
+
+    setBackendRouteHistory(
+      routeData
+    );
+
+  } catch (error) {
+
+    console.log(
+      'Route History Error:',
+      error
+    );
+
+  }
+};
+
+useEffect(() => {
+
+  const loadAll = async () => {
+
+    await loadBackendRouteHistory();
+
+    await compileRouteHistory();
+
+  };
+
+  loadAll();
+
+}, [selectedDate]);
+
+const compileRouteHistory = async () => {
+  setLoading(true);
+  setError(null);
+
+  try {
+
+    // 1. Fetch all datasets from AsyncStorage
+    const docVisitsData =
+      await AsyncStorage.getItem(
+        '@doctor_visits'
+      );
+
+    const chemistVisitsData =
+      await AsyncStorage.getItem(
+        '@chemist_visits'
+      );
+
+    const tourPlansData =
+      await AsyncStorage.getItem(
+        '@tour_plans'
+      );
+
+    const attendanceLogsData =
+      await AsyncStorage.getItem(
+        '@attendance_logs'
+      );
+
+    // your remaining compileRouteHistory code continues here...
 
       const allDocVisits = safeJsonParse(docVisitsData, []);
       const allChemistVisits = safeJsonParse(chemistVisitsData, []);
@@ -307,16 +397,97 @@ const RouteHistoryScreen = () => {
         });
       });
 
-      // Sort timeline events chronologically by converting to minutes (checkin & plan always go first)
-      eventsList.sort((a, b) => {
-        if (a.type === 'plan') return -1;
-        if (b.type === 'plan') return 1;
-        if (a.type === 'checkin') return -1;
-        if (b.type === 'checkin') return 1;
-        if (a.type === 'checkout') return 1;
-        if (b.type === 'checkout') return -1;
-        return timeToMinutes(a.time) - timeToMinutes(b.time);
-      });
+      // F. Backend Route History Events
+backendRouteHistory.forEach((item: any) => {
+
+  if (item.type === 'CHECK_IN') {
+
+    eventsList.push({
+      time: item.checkInTime || '09:00 AM',
+      title: '🟢 Attendance Check-In',
+      subtitle: item.location || 'Attendance Check-In',
+      type: 'checkin',
+      details: 'Attendance marked successfully',
+    });
+
+  }
+
+  if (item.type === 'CHECK_OUT') {
+
+    eventsList.push({
+      time: item.checkOutTime || '06:00 PM',
+      title: '👋 Attendance Check-Out',
+      subtitle: item.location || 'Attendance Check-Out',
+      type: 'checkout',
+      details: 'Attendance closed successfully',
+    });
+
+  }
+
+  if (item.type === 'DOCTOR_VISIT') {
+
+    const hasGps =
+      item.latitude !== null &&
+      item.latitude !== undefined &&
+      item.longitude !== null &&
+      item.longitude !== undefined;
+
+    console.log(
+      'DOCTOR GPS:',
+      item.latitude,
+      item.longitude,
+      hasGps
+    );
+
+    eventsList.push({
+      time: item.visitTime || '10:00 AM',
+      title: `🩺 Doctor Visited: ${item.location}`,
+      subtitle: item.location,
+      type: 'doctor',
+      details: 'Doctor visit recorded from backend',
+
+      gpsVerified: hasGps,
+
+      coords: hasGps
+        ? `${Number(item.latitude).toFixed(4)}° N, ${Number(item.longitude).toFixed(4)}° E`
+        : undefined,
+    });
+
+  }
+
+  if (item.type === 'CHEMIST_VISIT') {
+
+    const hasGps =
+      item.latitude !== null &&
+      item.latitude !== undefined &&
+      item.longitude !== null &&
+      item.longitude !== undefined;
+
+    console.log(
+      'CHEMIST GPS:',
+      item.latitude,
+      item.longitude,
+      hasGps
+    );
+
+    eventsList.push({
+      time: item.visitTime || '02:00 PM',
+      title: `💊 Chemist Visited: ${item.location}`,
+      subtitle: item.location,
+      type: 'chemist',
+      details: 'Chemist visit recorded from backend',
+
+      gpsVerified: hasGps,
+
+      coords: hasGps
+        ? `${Number(item.latitude).toFixed(4)}° N, ${Number(item.longitude).toFixed(4)}° E`
+        : undefined,
+    });
+
+  }
+
+});
+
 
       // E. Real Attendance Check-Out Integration
       if (checkOutTime) {
@@ -328,6 +499,28 @@ const RouteHistoryScreen = () => {
           details: `Daily duty duration: ${durationStr || 'N/A'}. Route logs successfully compiled.`,
         });
       }
+
+      // Sort timeline events chronologically by converting to minutes (checkin & plan always go first)
+      eventsList.sort((a, b) => {
+        if (a.type === 'plan') return -1;
+        if (b.type === 'plan') return 1;
+        if (a.type === 'checkin') return -1;
+        if (b.type === 'checkin') return 1;
+        if (a.type === 'checkout') return 1;
+        if (b.type === 'checkout') return -1;
+        return timeToMinutes(a.time) - timeToMinutes(b.time);
+      });
+
+      // // E. Real Attendance Check-Out Integration
+      // if (checkOutTime) {
+      //   eventsList.push({
+      //     time: checkOutTime,
+      //     title: '👋 Beat Checked-Out',
+      //     subtitle: checkOutAddress ? `Checked out at: ${checkOutAddress}` : 'Route exits geofence matched.',
+      //     type: 'checkout',
+      //     details: `Daily duty duration: ${durationStr || 'N/A'}. Route logs successfully compiled.`,
+      //   });
+      // }
 
       setTimelineEvents(eventsList);
     } catch (e) {

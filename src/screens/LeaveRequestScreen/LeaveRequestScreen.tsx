@@ -19,15 +19,15 @@ import RNDateTimePicker from '@react-native-community/datetimepicker';
 
 interface LeaveRequest {
   id: number;
-  leaveType: 'Casual Leave' | 'Sick Leave' | 'Earned Leave';
-  startDate: string;
-  endDate: string;
-  isHalfDay: boolean;
+  leaveType: string;
+  fromDate: string;
+  toDate: string;
+  isHalfDay?: boolean;
   reason: string;
-  status: 'Pending' | 'Approved' | 'Rejected';
+  status: string;
   managerComment?: string;
-  appliedOn: string;
-  totalDays: number;
+  appliedAt: string;
+  totalDays?: number;
 }
 
 const safeJsonParse = (data: string | null, fallback: any) => {
@@ -75,29 +75,38 @@ const LeaveRequestScreen = () => {
   }, []);
 
   const loadLeaveData = async () => {
-    try {
-      // Load leave request history
-      const history =
-  await getLeavesByMr();
+  try {
+    const history = await getLeavesByMr();
 
-setHistory(history);
+    console.log('LEAVES FROM API =>', history);
 
-      // Load leave balances
-      const storedBalances = await AsyncStorage.getItem('@leave_balances');
-      setBalances(safeJsonParse(storedBalances, { casual: 8, sick: 5, earned: 12 }));
-    } catch (e) {
-      console.log('Failed to load leave data:', e);
-    }
-  };
+    setHistory(history);
+
+    const storedBalances = await AsyncStorage.getItem('@leave_balances');
+    setBalances(
+      safeJsonParse(storedBalances, {
+        casual: 8,
+        sick: 5,
+        earned: 12,
+      })
+    );
+  } catch (e) {
+    console.log('Failed to load leave data:', e);
+  }
+};
 
   // Helper: Format date string from YYYY-MM-DD to DD-MM-YYYY for display
-  const formatDateDisplay = (dateStr: string): string => {
-    const parts = dateStr.split('-');
-    if (parts.length === 3) {
-      return `${parts[2]}-${parts[1]}-${parts[0]}`;
-    }
-    return dateStr;
-  };
+  const formatDateDisplay = (dateStr?: string): string => {
+  if (!dateStr) return 'N/A';
+
+  const date = new Date(dateStr);
+
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+
+  return `${day}-${month}-${year}`;
+};
 
   const calculateDays = (start: string, end: string): number => {
     if (isHalfDay) return 0.5;
@@ -155,13 +164,13 @@ setHistory(history);
     const newRequest: LeaveRequest = {
       id: Date.now(),
       leaveType,
-      startDate: currentStartDate,
-      endDate: currentEndDate,
+      fromDate: currentStartDate,
+      toDate: currentEndDate,
       isHalfDay,
       reason,
       status: 'Pending',
       managerComment: 'Awaiting review from Area Manager',
-      appliedOn: new Date().toLocaleDateString(),
+      appliedAt: new Date().toLocaleDateString(),
       totalDays,
     };
 
@@ -393,7 +402,7 @@ const getStatusStyle = (status: string) => {
                         <Text style={styles.historyLeaveType}>
                           {req.leaveType} {req.isHalfDay ? '(Half Day)' : ''}
                         </Text>
-                        <Text style={styles.historyDays}>Total Days: {req.totalDays} Day(s)</Text>
+                        <Text style={styles.historyDays}>Total Days: {calculateDays(req.fromDate, req.toDate)} Day(s)</Text>
                       </View>
                       
                       {/* Changed to plain View — interactive toggle capability removed */}
@@ -409,8 +418,9 @@ const getStatusStyle = (status: string) => {
                     <View style={styles.divider} />
                     
                     <Text style={styles.historyInfo}>
-                      📅 Duration: {formatDateDisplay(req.startDate)} {req.isHalfDay ? '' : `to ${formatDateDisplay(req.endDate)}`}
-                    </Text>
+  📅 Duration: {formatDateDisplay(req.fromDate)}
+  {req.isHalfDay ? '' : ` to ${formatDateDisplay(req.toDate)}`}
+</Text>
                     <Text style={styles.historyInfo}>📝 Reason: {req.reason}</Text>
                     
                     {/* Manager Comment display */}
@@ -421,7 +431,9 @@ const getStatusStyle = (status: string) => {
                       </View>
                     ) : null}
                     
-                    <Text style={styles.historyApplied}>Applied on: {req.appliedOn}</Text>
+                   <Text style={styles.appliedDate}>
+  Applied on: {req.appliedAt ? formatDateDisplay(req.appliedAt) : 'N/A'}
+</Text>
                   </View>
                 );
               })}
@@ -471,6 +483,12 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     textAlign: 'center',
   },
+  appliedDate: {
+  fontSize: 12,
+  color: '#64748B',
+  textAlign: 'right',
+  marginTop: 8,
+},
   headerSubtitle: {
     fontSize: 12,
     color: '#E0E7FF',

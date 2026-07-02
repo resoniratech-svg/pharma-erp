@@ -13,13 +13,13 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker'; // ⬅️ Imported Picker
+import { Picker } from '@react-native-picker/picker'; 
 import * as Location from 'expo-location';
 import {
   createDoctorVisit,
   getDoctors
 } from '../../services/doctorService';
-import { createFollowUp } from '../../services/followUpService'; // ⬅️ Imported service method for scheduling follow-ups
+import { createFollowUp } from '../../services/followUpService'; 
 
 // ✅ Unified interface — matches React Web DoctorVisits.tsx exactly
 interface DoctorVisit {
@@ -205,7 +205,7 @@ const DoctorVisitScreen = () => {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [doctorId, setDoctorId] = useState<number | null>(null);
   
-  // ⬅️ Modification Step: Dynamic tracking state variables for MR ID
+  // Dynamic tracking state variables for MR ID
   const [mrId, setMrId] = useState<number | null>(null);
 
   // Form states matching unified interface
@@ -231,7 +231,7 @@ const DoctorVisitScreen = () => {
     else { Alert.alert(title, message); }
   };
 
-  // ⬅️ Modification Step: Auto fetch authenticated profile token metadata on mount
+  // Auto fetch authenticated profile token metadata on mount
   useEffect(() => {
     const loadMrId = async () => {
       const storedMrId = await AsyncStorage.getItem('@mrId');
@@ -244,7 +244,7 @@ const DoctorVisitScreen = () => {
 
   useEffect(() => {
     loadVisits();
-    loadDoctors(); // Fetching backend doctors
+    loadDoctors(); 
     setVisitDate(formatDate(new Date()));
     setVisitTime(formatTime(new Date()));
   }, []);
@@ -266,7 +266,7 @@ const DoctorVisitScreen = () => {
     try {
       const response = await getDoctors();
       console.log('Doctors:', response);
-      setDoctors(response.data || response); // fallback array structural safety
+      setDoctors(response.data || response); 
     } catch (error) {
       console.log('Load Doctors Error:', error);
     }
@@ -281,24 +281,61 @@ const DoctorVisitScreen = () => {
       return;
     }
 
+    // ─── REPLACED GPS BLOCK (WEB & MOBILE ACCURATE) ───
     setIsSubmitting(true);
+
     let currentLat: number | undefined = undefined;
     let currentLon: number | undefined = undefined;
     let distVerified = 'Pending Verification';
 
     try {
-      if (Platform.OS !== 'web') {
+      if (Platform.OS === 'web') {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(
+            resolve,
+            reject,
+            {
+              enableHighAccuracy: true,
+              timeout: 10000,
+              maximumAge: 0,
+            }
+          );
+        });
+
+        currentLat = position.coords.latitude;
+        currentLon = position.coords.longitude;
+      } else {
         let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+
         if (locationStatus === 'granted') {
-          let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          let loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+
           currentLat = loc.coords.latitude;
           currentLon = loc.coords.longitude;
-          distVerified = 'Verified (within 50m)';
         }
       }
+
+      console.log(
+        'DOCTOR GPS:',
+        currentLat,
+        currentLon
+      );
+
+      if (currentLat && currentLon) {
+        distVerified = 'Verified (within 50m)';
+      }
     } catch (e) {
-      console.log('Location error:', e);
+      console.log(
+        'Location error:',
+        e
+      );
     }
+    // ───────────────────────────────────────────────────
+
+    console.log('LATITUDE:', currentLat);
+    console.log('LONGITUDE:', currentLon);
 
     // Backend submission step
     try {
@@ -326,7 +363,6 @@ const DoctorVisitScreen = () => {
           followUpDate: new Date(nextFollowUp),
         });
 
-        // ⬅️ Modification Step: Configured dynamically resolved component properties
         await createFollowUp({
           mrId: Number(mrId),
           doctorId: Number(doctorId),
@@ -363,6 +399,7 @@ const DoctorVisitScreen = () => {
       distanceVerified: distVerified,
       remarks,
       status,
+      followUpDate: nextFollowUp,
     };
 
     const updatedVisits = [newVisit, ...visits];

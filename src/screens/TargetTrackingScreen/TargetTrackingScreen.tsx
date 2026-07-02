@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import {
+  getTargetsByMr
+} from '../../services/targetService';
+import {
   View,
   Text,
   StyleSheet,
@@ -45,8 +48,58 @@ const TargetTrackingScreen = () => {
   const [chemistsTarget, setChemistsTarget] = useState(20);
 
   useEffect(() => {
-    loadCurrentMonthPerformance();
-  }, []);
+
+  loadTargets();
+
+  loadCurrentMonthPerformance();
+
+}, []);
+
+  const loadTargets = async () => {
+
+  try {
+
+    const targets =
+      await getTargetsByMr();
+
+    console.log(
+      'TARGETS:',
+      targets
+    );
+
+    if (
+      targets &&
+      targets.length > 0
+    ) {
+
+      const currentTarget =
+        targets[0];
+
+      setDocsTarget(
+        currentTarget.doctorVisitTarget
+      );
+
+      setChemistsTarget(
+        currentTarget.chemistVisitTarget
+      );
+
+      setSalesTarget(
+        Number(
+          currentTarget.orderTarget
+        )
+      );
+
+    }
+
+  } catch (error) {
+
+    console.log(
+      'Target Load Error:',
+      error
+    );
+
+  }
+};
 
   const loadCurrentMonthPerformance = async () => {
     try {
@@ -64,11 +117,11 @@ const TargetTrackingScreen = () => {
       };
 
       // Load Dynamic Targets
-      const targetsData = await AsyncStorage.getItem('@monthly_targets');
-      const targets = safeJsonParse(targetsData, { sales: 50000, docs: 30, chemists: 20 });
-      setSalesTarget(targets.sales);
-      setDocsTarget(targets.docs);
-      setChemistsTarget(targets.chemists);
+      // const targetsData = await AsyncStorage.getItem('@monthly_targets');
+      // const targets = safeJsonParse(targetsData, { sales: 50000, docs: 30, chemists: 20 });
+      // setSalesTarget(targets.sales);
+      // setDocsTarget(targets.docs);
+      // setChemistsTarget(targets.chemists);
 
       // 1. Calculate Doctor Visits
       const docVisitsData = await AsyncStorage.getItem('@doctor_visits');

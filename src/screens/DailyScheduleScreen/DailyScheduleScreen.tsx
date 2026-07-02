@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { getTodaySchedule } from '../../services/dailyScheduleService';
 import {
   View,
   Text,
@@ -11,6 +12,9 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+
+// Note: Ensure getTodaySchedule is imported or defined.
+// import { getTodaySchedule } from '../api/yourApiFile'; 
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -46,6 +50,7 @@ const DailyScheduleScreen = () => {
   const [plannedVisits, setPlannedVisits] = useState<PlannedVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [scheduleInfo, setScheduleInfo] = useState<any>(null);
   
   // Progress States
   const [stats, setStats] = useState({
@@ -73,60 +78,30 @@ const DailyScheduleScreen = () => {
   const loadTodaySchedule = async () => {
     setLoading(true);
     setError(null);
+
     try {
-      const storageKey = `@daily_schedule_${scheduleDate}`;
-      const savedSchedule = await AsyncStorage.getItem(storageKey);
+      // Make sure getTodaySchedule is imported/available in this file scope
+      const data = await getTodaySchedule();
 
-      if (savedSchedule) {
-        const parsed = safeJsonParse(savedSchedule, []);
-        setPlannedVisits(parsed);
-        calculateStats(parsed);
-      } else {
-        // Look up active Tour Plan for today
-        const tourPlansData = await AsyncStorage.getItem('@tour_plans');
-        const tourPlans = safeJsonParse(tourPlansData, []);
-        const todayPlan = tourPlans.find((p: any) => p.date === scheduleDate);
+      console.log('TODAY SCHEDULE API:', data);
 
-        let initialVisits: PlannedVisit[] = [];
+      setScheduleInfo(data);
 
-        if (todayPlan) {
-          let visitId = 1;
-          const docs = (todayPlan.doctorsList || '').split(',').map((n: string) => n.trim()).filter((n: string) => n);
-          const chemists = (todayPlan.chemistsList || '').split(',').map((n: string) => n.trim()).filter((n: string) => n);
-          
-          docs.forEach((doc: string) => {
-            initialVisits.push({
-              id: String(visitId++),
-              name: doc,
-              type: 'Doctor',
-              timeSlot: todayPlan.startTime || '10:00 AM',
-              area: todayPlan.area || 'Unknown',
-              status: 'Pending'
-            });
-          });
-          
-          chemists.forEach((chemist: string) => {
-            initialVisits.push({
-              id: String(visitId++),
-              name: chemist,
-              type: 'Chemist',
-              timeSlot: todayPlan.startTime || '11:00 AM',
-              area: todayPlan.area || 'Unknown',
-              status: 'Pending'
-            });
-          });
-        } else {
-          // If no plan is explicitly created for today, leave it empty or show a placeholder message.
-          initialVisits = [];
-        }
+      setStats({
+        total: data.plannedDoctors + data.plannedChemists,
+        visited: data.completedDoctors + data.completedChemists,
+        pending: Math.max(
+          0,
+          (data.plannedDoctors + data.plannedChemists) -
+          (data.completedDoctors + data.completedChemists)
+        ),
+        missed: 0,
+        percent: data.completion,
+      });
 
-        setPlannedVisits(initialVisits);
-        calculateStats(initialVisits);
-        await AsyncStorage.setItem(storageKey, JSON.stringify(initialVisits));
-      }
     } catch (e) {
       console.log('Error loading schedule:', e);
-      setError('Failed to load today\'s schedule.');
+      setError("Failed to load today's schedule.");
     } finally {
       setLoading(false);
     }

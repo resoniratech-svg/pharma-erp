@@ -1,5 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import {
+  getMeetingsByMr
+} from '../../services/meetingService';
+import {
   View,
   Text,
   StyleSheet,
@@ -84,27 +87,68 @@ const MeetingRemindersScreen = () => {
     setLoading(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
-      const meetings = safeJsonParse(await AsyncStorage.getItem('@meetings'), []);
+      const meetings = await getMeetingsByMr();
+
+      console.log(
+  'FIRST MEETING',
+  JSON.stringify(meetings[0], null, 2)
+);
+
+      console.log('MEETINGS FROM API', meetings);
       
       const upcomingReminders: MeetingReminder[] = [];
 
       meetings.forEach((m: any) => {
-        // Hide cancelled/completed
-        if (m.status !== 'Completed' && m.status !== 'Cancelled' && m.date >= todayStr) {
-          upcomingReminders.push({
-            id: m.id.toString(),
-            topic: m.topic || 'General Meeting',
-            participants: m.participants || 'Client',
-            date: m.date,
-            time: m.time || '09:00 AM',
-            venue: m.venue || 'TBD',
-            status: m.status || 'Scheduled',
-            timestamp: createTimestamp(m.date, m.time || '09:00 AM'),
-            isToday: m.date === todayStr,
-            daysText: getDaysRemaining(m.date, todayStr)
-          });
-        }
-      });
+
+  const meetingDate =
+    new Date(m.meetingDate)
+      .toISOString()
+      .split('T')[0];
+
+  if (
+    m.status !== 'COMPLETED' &&
+    m.status !== 'CANCELLED'
+  ) {
+
+    upcomingReminders.push({
+      id: m.id.toString(),
+
+      topic: m.title || 'Meeting',
+
+      participants:
+        m.meetingDoctors?.length > 0
+          ? `${m.meetingDoctors.length} Doctor(s)`
+          : m.meetingChemists?.length > 0
+          ? `${m.meetingChemists.length} Chemist(s)`
+          : 'General Meeting',
+
+      date: meetingDate,
+
+      time:
+        new Date(m.meetingDate)
+          .toLocaleTimeString(),
+
+      venue:
+        m.location || 'N/A',
+
+      status:
+        m.status,
+
+      timestamp:
+        new Date(m.meetingDate).getTime(),
+
+      isToday:
+        meetingDate === todayStr,
+
+      daysText:
+        getDaysRemaining(
+          meetingDate,
+          todayStr
+        )
+    });
+
+  }
+});
 
       upcomingReminders.sort((a, b) => a.timestamp - b.timestamp);
       setReminders(upcomingReminders);
