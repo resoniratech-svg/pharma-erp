@@ -14,6 +14,7 @@ import {
 } from './components/shared';
 import { type Column } from './types';
 import { gstService } from '../../services/gstService';
+import { productService } from '../../services/productService';
 import activityLogService from "../../services/activityLogService";
 import authService from '../../services/authService';
 import { hasModulePermission } from '../../utils/permissionUtils';
@@ -26,6 +27,7 @@ interface GST {
   cgst: string;
   igst: string;
   totalGst: string;
+  effectiveDate?: string;
   createdBy?: string;
   lastUpdatedBy?: string;
   lastUpdatedDate?: string;
@@ -33,10 +35,10 @@ interface GST {
 }
 
 const initialMockData: GST[] = [
-  { id: '1', hsnCode: '30049099', description: 'Medicaments consisting of mixed or unmixed products', sgst: '6%', cgst: '6%', igst: '12%', totalGst: '12%', createdBy: 'Admin User', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2026-06-01', status: 'Active' },
-  { id: '2', hsnCode: '30041010', description: 'Penicillins or derivatives thereof', sgst: '6%', cgst: '6%', igst: '12%', totalGst: '12%', createdBy: 'Admin User', lastUpdatedBy: 'System', lastUpdatedDate: '2026-06-05', status: 'Active' },
-  { id: '3', hsnCode: '30022011', description: 'Vaccines for human medicine', sgst: '2.5%', cgst: '2.5%', igst: '5%', totalGst: '5%', createdBy: 'System', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2026-06-10', status: 'Active' },
-  { id: '4', hsnCode: '30061010', description: 'Sterile surgical catgut', sgst: '6%', cgst: '6%', igst: '12%', totalGst: '12%', createdBy: 'Admin User', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-12-01', status: 'Inactive' },
+  { id: '1', hsnCode: '30049099', description: 'Medicaments consisting of mixed or unmixed products', sgst: '6%', cgst: '6%', igst: '12%', totalGst: '12%', effectiveDate: '2026-06-01', createdBy: 'Admin User', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2026-06-01', status: 'Active' },
+  { id: '2', hsnCode: '30041010', description: 'Penicillins or derivatives thereof', sgst: '6%', cgst: '6%', igst: '12%', totalGst: '12%', effectiveDate: '2026-06-05', createdBy: 'Admin User', lastUpdatedBy: 'System', lastUpdatedDate: '2026-06-05', status: 'Active' },
+  { id: '3', hsnCode: '30022011', description: 'Vaccines for human medicine', sgst: '2.5%', cgst: '2.5%', igst: '5%', totalGst: '5%', effectiveDate: '2026-06-10', createdBy: 'System', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2026-06-10', status: 'Active' },
+  { id: '4', hsnCode: '30061010', description: 'Sterile surgical catgut', sgst: '6%', cgst: '6%', igst: '12%', totalGst: '12%', effectiveDate: '2025-12-01', createdBy: 'Admin User', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-12-01', status: 'Inactive' },
 ];
 
 export default function GSTManagement() {
@@ -48,6 +50,7 @@ export default function GSTManagement() {
       setData(savedData);
     } else {
       gstService.saveAll(initialMockData);
+      setData(initialMockData);
     }
   }, []);
 
@@ -81,16 +84,18 @@ export default function GSTManagement() {
     cgst: '',
     igst: '',
     totalGst: '',
+    effectiveDate: new Date().toISOString().split('T')[0],
     status: 'Active' as 'Active' | 'Inactive'
   });
 
-  // Auto-calculate Total GST based on SGST and CGST inputs
+  // Auto-calculate Total GST and IGST based on SGST and CGST inputs
   useEffect(() => {
     const s = parseFloat(newGst.sgst.replace(/[^0-9.]/g, '')) || 0;
     const c = parseFloat(newGst.cgst.replace(/[^0-9.]/g, '')) || 0;
     const total = s + c;
     setNewGst(prev => ({
       ...prev,
+      igst: total > 0 ? `${total}` : '',
       totalGst: total > 0 ? `${total}%` : ''
     }));
   }, [newGst.sgst, newGst.cgst]);
@@ -184,6 +189,7 @@ export default function GSTManagement() {
       cgst: '',
       igst: '',
       totalGst: '',
+      effectiveDate: new Date().toISOString().split('T')[0],
       status: 'Active'
     });
     setShowModal(true);
@@ -200,20 +206,53 @@ export default function GSTManagement() {
       cgst: selectedGST.cgst.replace(/[^0-9.]/g, ''),
       igst: selectedGST.igst.replace(/[^0-9.]/g, ''),
       totalGst: selectedGST.totalGst.replace(/[^0-9.]/g, ''),
+      effectiveDate: selectedGST.effectiveDate || new Date().toISOString().split('T')[0],
       status: selectedGST.status
     });
     setShowModal(true);
   };
 
   const handleSaveGst = () => {
-    if (!newGst.hsnCode || !newGst.description || !newGst.sgst || !newGst.cgst || !newGst.igst || !newGst.status) {
+    if (!newGst.hsnCode || !newGst.description || !newGst.sgst || !newGst.cgst || !newGst.status || !newGst.effectiveDate) {
       alert("Please fill all mandatory fields (*).");
+      return;
+    }
+
+    if (!/^\d{4,8}$/.test(newGst.hsnCode)) {
+      alert("Error: HSN Code must be numeric and between 4 to 8 digits long.");
+      return;
+    }
+
+    const s = parseFloat(newGst.sgst.replace(/[^0-9.]/g, '')) || 0;
+    const c = parseFloat(newGst.cgst.replace(/[^0-9.]/g, '')) || 0;
+    const totalGstVal = s + c;
+    const allowedSlabs = [0, 5, 12, 18, 28];
+    if (s < 0 || c < 0 || totalGstVal > 28) {
+      alert("Error: GST percentages must be positive and cannot exceed 28% in total.");
+      return;
+    }
+    if (!allowedSlabs.includes(totalGstVal)) {
+      alert("Error: Total GST must match one of the standard slabs: 0%, 5%, 12%, 18%, or 28%.");
+      return;
+    }
+
+    const isDuplicate = data.some(item => item.hsnCode === newGst.hsnCode && item.effectiveDate === newGst.effectiveDate && item.id !== newGst.id);
+    if (isDuplicate) {
+      alert(`Error: HSN Code "${newGst.hsnCode}" with Effective Date "${newGst.effectiveDate}" already exists.`);
       return;
     }
     
     const formatPct = (val: string) => val ? `${parseFloat(val)}%` : '';
     
     if (isEditingModal && newGst.id) {
+      const products = productService.getProducts();
+      const isUsed = products.some(p => p.hsnCode === newGst.hsnCode);
+      if (isUsed) {
+        if (!window.confirm("Warning: This HSN is currently assigned to one or more products. Modifying its details will affect future transactions for these products. Do you want to proceed?")) {
+          return;
+        }
+      }
+
       const updatedRecord: GST = {
         id: newGst.id,
         hsnCode: newGst.hsnCode,
@@ -222,17 +261,29 @@ export default function GSTManagement() {
         cgst: formatPct(newGst.cgst),
         igst: formatPct(newGst.igst),
         totalGst: newGst.totalGst,
-        createdBy: selectedGST?.createdBy || 'Admin User',
-        lastUpdatedBy: 'Admin User',
+        effectiveDate: newGst.effectiveDate,
+        createdBy: selectedGST?.createdBy || currentUser?.fullName || 'Admin User',
+        lastUpdatedBy: currentUser?.fullName || 'Admin User',
         lastUpdatedDate: new Date().toISOString().split('T')[0],
         status: newGst.status as any
       };
       
+      let detailedAction = `GST HSN Code ${newGst.hsnCode} Updated`;
+      if (selectedGST) {
+        const changes: string[] = [];
+        if (selectedGST.description !== newGst.description) changes.push(`Description changed`);
+        if (selectedGST.totalGst !== newGst.totalGst) changes.push(`GST: ${selectedGST.totalGst} → ${newGst.totalGst}`);
+        if (selectedGST.status !== newGst.status) changes.push(`Status: ${selectedGST.status} → ${newGst.status}`);
+        if (changes.length > 0) {
+          detailedAction += ` (${changes.join(", ")})`;
+        }
+      }
+
       setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
       activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: "GST Updated",
+        userId: currentUser?.id || 'admin',
+        userName: currentUser?.fullName || 'Admin User',
+        action: detailedAction,
         module: "GST Management",
       });
 
@@ -248,16 +299,17 @@ export default function GSTManagement() {
         cgst: formatPct(newGst.cgst),
         igst: formatPct(newGst.igst),
         totalGst: newGst.totalGst,
-        createdBy: 'Admin User',
-        lastUpdatedBy: 'Admin User',
+        effectiveDate: newGst.effectiveDate,
+        createdBy: currentUser?.fullName || 'Admin User',
+        lastUpdatedBy: currentUser?.fullName || 'Admin User',
         lastUpdatedDate: new Date().toISOString().split('T')[0],
         status: newGst.status as any
       };
       setData([record, ...data]);
       activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: "GST Created",
+        userId: currentUser?.id || 'admin',
+        userName: currentUser?.fullName || 'Admin User',
+        action: `GST HSN Code ${newGst.hsnCode} Created with rate ${newGst.totalGst}`,
         module: "GST Management",
       });
     }
@@ -267,11 +319,21 @@ export default function GSTManagement() {
 
   const handleDelete = () => {
     if (itemToDelete) {
+      // Fetch products to verify if HSN code is referenced
+      const products = productService.getProducts();
+      const isUsed = products.some(p => p.hsnCode === itemToDelete.hsnCode);
+      
+      if (isUsed) {
+        alert(`Error: HSN Code "${itemToDelete.hsnCode}" cannot be deleted because it is currently assigned to one or more products. Consider changing its status to Inactive instead.`);
+        setItemToDelete(null);
+        return;
+      }
+
       setData(data.filter(item => item.id !== itemToDelete.id));
       activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: "GST Deleted",
+        userId: currentUser?.id || 'admin',
+        userName: currentUser?.fullName || 'Admin User',
+        action: `GST Deleted - HSN Code: ${itemToDelete.hsnCode}`,
         module: "GST Management",
       });
       setItemToDelete(null);
@@ -352,6 +414,10 @@ export default function GSTManagement() {
                 <DrawerField
                   label="Description"
                   value={selectedGST.description}
+                />
+                <DrawerField
+                  label="Effective Date"
+                  value={selectedGST.effectiveDate || "N/A"}
                 />
               </div>
             </div>
@@ -484,11 +550,13 @@ export default function GSTManagement() {
                 </label>
                 <input
                   value={newGst.hsnCode}
-                  onChange={(e) =>
-                    setNewGst({ ...newGst, hsnCode: e.target.value })
-                  }
+                  onChange={(e) => {
+                    const cleanHsn = e.target.value.replace(/\D/g, "").slice(0, 8);
+                    setNewGst({ ...newGst, hsnCode: cleanHsn });
+                  }}
                   readOnly={isEditingModal}
-                  maxLength={50}
+                 // maxLength={50}
+                 maxLength={8}
                   className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${isEditingModal ? "bg-slate-50 opacity-70 cursor-not-allowed" : ""}`}
                   placeholder="e.g. 30049099"
                 />
@@ -506,6 +574,19 @@ export default function GSTManagement() {
                   maxLength={500}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                   placeholder="Enter detailed description"
+                />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">
+                  Effective Date *
+                </label>
+                <input
+                  type="date"
+                  value={newGst.effectiveDate}
+                  onChange={(e) =>
+                    setNewGst({ ...newGst, effectiveDate: e.target.value })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
 
@@ -564,11 +645,8 @@ export default function GSTManagement() {
                     type="number"
                     step="0.1"
                     value={newGst.igst}
-                    onChange={(e) =>
-                      setNewGst({ ...newGst, igst: e.target.value })
-                    }
-                    maxLength={10}
-                    className="w-full border border-slate-200 rounded-lg pr-7 pl-3 py-2"
+                    readOnly
+                    className="w-full border border-slate-200 rounded-lg pr-7 pl-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed font-medium"
                   />
                   <span className="absolute right-3 top-2 text-slate-500">
                     %
@@ -608,7 +686,7 @@ export default function GSTManagement() {
                   onChange={(e) =>
                     setNewGst({ ...newGst, status: e.target.value as any })
                   }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-900"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -629,7 +707,7 @@ export default function GSTManagement() {
                   value={
                     isEditingModal
                       ? selectedGST?.createdBy || "System"
-                      : "Admin User"
+                      : currentUser?.fullName || "Admin User"
                   }
                   readOnly
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500"

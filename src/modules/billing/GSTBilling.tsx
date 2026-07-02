@@ -1,114 +1,6 @@
-// import { useState } from 'react';
-// import { Plus, Download, Filter, ReceiptText } from 'lucide-react';
-// import {
-//   PageHeader,
-//   FilterBar,
-//   SearchInput,
-//   SelectFilter,
-//   ActionButton,
-//   TableCard,
-//   DataTable,
-//   Badge,
-// } from './components/shared';
-// import { type Column } from './components/shared';
-
-// interface GSTInvoice {
-//   id: string;
-//   invoiceNo: string;
-//   customerName: string;
-//   date: string;
-//   taxableAmount: string;
-//   gstAmount: string;
-//   totalAmount: string;
-//   status: 'Paid' | 'Unpaid' | 'Draft';
-// }
-
-// const mockData: GSTInvoice[] = [
-//   { id: '1', invoiceNo: 'INV/26/001', customerName: 'Apollo Pharmacy', date: '15-Oct-2026', taxableAmount: '₹ 45,000', gstAmount: '₹ 5,400', totalAmount: '₹ 50,400', status: 'Paid' },
-//   { id: '2', invoiceNo: 'INV/26/002', customerName: 'MedPlus Store', date: '16-Oct-2026', taxableAmount: '₹ 12,000', gstAmount: '₹ 1,440', totalAmount: '₹ 13,440', status: 'Unpaid' },
-//   { id: '3', invoiceNo: 'INV/26/003', customerName: 'Wellness Medicos', date: '17-Oct-2026', taxableAmount: '₹ 8,500', gstAmount: '₹ 1,020', totalAmount: '₹ 9,520', status: 'Draft' },
-// ];
-
-// export default function GSTBilling() {
-//   const [search, setSearch] = useState('');
-//   const [statusFilter, setStatusFilter] = useState('');
-
-//   const columns: Column<GSTInvoice>[] = [
-//     { key: 'invoiceNo', label: 'Invoice No', render: (row) => <span className="font-semibold text-slate-900">{row.invoiceNo}</span> },
-//     { key: 'customerName', label: 'Customer Name' },
-//     { key: 'date', label: 'Invoice Date' },
-//     { key: 'taxableAmount', label: 'Taxable Amount' },
-//     { key: 'gstAmount', label: 'GST Amount', render: (row) => <span className="text-slate-500">{row.gstAmount}</span> },
-//     { key: 'totalAmount', label: 'Total Value', render: (row) => <span className="font-bold text-violet-700">{row.totalAmount}</span> },
-//     {
-//       key: 'status',
-//       label: 'Status',
-//       render: (row) => {
-//         const variant = row.status === 'Paid' ? 'success' : row.status === 'Unpaid' ? 'warning' : 'neutral';
-//         return <Badge variant={variant}>{row.status}</Badge>;
-//       },
-//     },
-//     {
-//       key: 'action',
-//       label: '',
-//       render: () => <button className="text-violet-600 hover:text-violet-700 p-1"><ReceiptText className="w-4 h-4" /></button>
-//     }
-//   ];
-
-//   const filteredData = mockData.filter((item) => {
-//     const matchSearch = item.invoiceNo.toLowerCase().includes(search.toLowerCase()) || item.customerName.toLowerCase().includes(search.toLowerCase());
-//     const matchStatus = statusFilter ? item.status === statusFilter : true;
-//     return matchSearch && matchStatus;
-//   });
-
-//   return (
-//     <div className="animate-in fade-in duration-500">
-//       <PageHeader
-//         title="GST Billing & Invoicing"
-//         subtitle="Create, manage, and track GST-compliant sales invoices."
-//         actions={
-//           <>
-//             <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />}>Export Register</ActionButton>
-//             <ActionButton icon={<Plus className="w-4 h-4" />}>New Invoice</ActionButton>
-//           </>
-//         }
-//       />
-
-//       <FilterBar>
-//         <SearchInput value={search} onChange={setSearch} placeholder="Search invoice no or customer..." />
-//         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
-//         <div className="flex items-center gap-2">
-//           <Filter className="w-4 h-4 text-slate-400" />
-//           <span className="text-sm font-medium text-slate-600">Filters:</span>
-//         </div>
-//         <SelectFilter
-//           value={statusFilter}
-//           onChange={setStatusFilter}
-//           options={[
-//             { label: 'Paid', value: 'Paid' },
-//             { label: 'Unpaid', value: 'Unpaid' },
-//             { label: 'Draft', value: 'Draft' },
-//           ]}
-//           placeholder="All Status"
-//         />
-//       </FilterBar>
-
-//       <TableCard>
-//         <DataTable
-//           columns={columns}
-//           data={filteredData}
-//           emptyMessage="No invoices found."
-//         />
-//       </TableCard>
-//     </div>
-//   );
-// }
-
-
-////////////////////////////////////////////////////////////////////////////////////
-
+// Refactored GST Invoicing Module
 import { useState, useEffect } from 'react';
-import { Plus, Download, ReceiptText, Trash2 } from 'lucide-react';
+import { Plus, Download, ReceiptText, Trash2, Ban } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -121,63 +13,45 @@ import {
   Drawer,
 } from './components/shared';
 import { type Column } from './components/shared';
+import { productService } from '../../services/productService';
+import { batchService } from '../../services/batchService';
+import { schemeService } from '../../services/schemeService';
+import { billingService, type GSTInvoice, type InvoiceItem } from '../../services/billingService';
+import activityLogService from '../../services/activityLogService';
+import authService from '../../services/authService';
+import { NotificationService } from '../../services/notificationService';
+import { hasModulePermission } from '../../utils/permissionUtils';
 
 // --- DYNAMIC CRM INTEGRATION ---
 const crmDistributors = JSON.parse(localStorage.getItem('crm_distributors') || '[]');
-const CUSTOMERS = crmDistributors.length > 0 
-  ? crmDistributors.map((d: any) => ({ id: d.id, name: d.name, type: d.tier || 'Distributor' }))
-  : [
-      { id: 'C001', name: 'Apollo Pharmacy', type: 'Retailer' },
-      { id: 'C002', name: 'MedPlus Store', type: 'Retailer' },
-      { id: 'C003', name: 'City Hospital', type: 'Hospital' },
-    ];
+const CUSTOMERS = crmDistributors.map((d: any) => ({ 
+  id: d.id, 
+  name: d.name, 
+  type: d.tier || 'Distributor',
+  state: d.state || (d.region === 'South' ? 'Karnataka' : 'Telangana'),
+  creditDays: d.creditDays || 30
+}));
 
-const PRODUCTS = [
-  { id: 'P001', name: 'Paracetamol 500mg', gst: 12 },
-  { id: 'P002', name: 'Azithromycin 250mg', gst: 12 },
-  { id: 'P003', name: 'Cough Syrup 100ml', gst: 5 },
-];
-
-const DEFAULT_INVENTORY: Record<string, { batchNo: string; expiry: string; stock: number; ptr: number }[]> = {
-  'P001': [{ batchNo: 'B-PARA-01', expiry: '12/2026', stock: 500, ptr: 15.50 }],
-  // B-AZI-99 is intentionally set to expire in the past to test validation!
-  'P002': [{ batchNo: 'B-AZI-99', expiry: '10/2023', stock: 200, ptr: 45.00 }, { batchNo: 'B-AZI-100', expiry: '10/2026', stock: 100, ptr: 46.00 }],
-  'P003': [{ batchNo: 'B-COUGH-22', expiry: '08/2027', stock: 150, ptr: 35.00 }],
-};
-// -----------------------------------------------------------------------------
-
-interface InvoiceItem {
+interface ProductRecord {
   id: string;
-  productId: string;
-  batchNo: string;
-  qty: number;
-  ptr: number;
-  gstPercent: number;
-  total: number;
-  stock: number;
-}
-
-interface GSTInvoice {
-  id: string;
-  invoiceNo: string;
-  customerId: string;
-  customerName: string;
-  date: string;
-  dueDate: string;
-  items: InvoiceItem[];
-  subTotal: number;
-  cgstTotal: number;
-  sgstTotal: number;
-  grandTotal: number;
-  paymentMode: string;
-  status: 'Paid' | 'Unpaid' | 'Draft';
+  code: string;
+  name: string;
+  gst: string;
+  hsnCode: string;
+  brand?: string;
+  manufacturer?: string;
+  mrp?: string;
+  ptr?: string;
+  barcode?: string;
+  category?: string;
 }
 
 export default function GSTBilling() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [invoices, setInvoices] = useState<GSTInvoice[]>([]);
-  const [inventory, setInventory] = useState(DEFAULT_INVENTORY);
+  const [inventory, setInventory] = useState<Record<string, { batchNo: string; expiry: string; stock: number; ptr: number; mrp?: number; status: string }[]>>({});
+  const [products, setProducts] = useState<ProductRecord[]>([]);
   
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [customerId, setCustomerId] = useState('');
@@ -186,12 +60,53 @@ export default function GSTBilling() {
   const [status, setStatus] = useState<'Paid' | 'Unpaid' | 'Draft'>('Unpaid');
   const [items, setItems] = useState<InvoiceItem[]>([]);
 
-  useEffect(() => {
-    const savedInvoices = localStorage.getItem('billing_gst_invoices');
-    if (savedInvoices) setInvoices(JSON.parse(savedInvoices));
+  // Organization Settings (Seller State)
+  const companySettings = JSON.parse(localStorage.getItem('company_settings') || '{}');
+  const sellerState = companySettings.state || 'Telangana';
+  const [buyerState, setBuyerState] = useState('Telangana'); 
 
-    const savedInventory = localStorage.getItem('billing_inventory');
-    if (savedInventory) setInventory(JSON.parse(savedInventory));
+  const currentUser = authService.getCurrentUser();
+  const activeRole = localStorage.getItem('activeRole') || '';
+  const canView = hasModulePermission(activeRole, "Wholesale Billing System", "View") || 
+                  hasModulePermission(activeRole, "Wholesale Billing", "View") ||
+                  hasModulePermission(activeRole, "Billing & Invoicing", "View");
+  const canCreate = hasModulePermission(activeRole, "Wholesale Billing System", "Create") || 
+                    hasModulePermission(activeRole, "Wholesale Billing", "Create") ||
+                    hasModulePermission(activeRole, "Billing & Invoicing", "Create");
+  const canOverrideGst = activeRole === 'Super Admin' || activeRole === 'Admin';
+
+  const loadDatabaseDetails = () => {
+    const savedInvoices = billingService.getInvoices();
+    setInvoices(savedInvoices);
+
+    const savedProducts = productService.getProducts() as ProductRecord[];
+    setProducts(savedProducts || []);
+
+    const savedBatches = batchService.getAll();
+    const groupInventory: Record<string, { batchNo: string; expiry: string; stock: number; ptr: number; mrp?: number; status: string }[]> = {};
+    
+    savedBatches.forEach(b => {
+      const matchProduct = savedProducts.find((p) => p.code === b.productCode);
+      const prodId = matchProduct ? matchProduct.id : b.productCode;
+      
+      if (!groupInventory[prodId]) {
+        groupInventory[prodId] = [];
+      }
+      groupInventory[prodId].push({
+        batchNo: b.batchNo,
+        expiry: b.expDate,
+        stock: b.availableQty,
+        ptr: Number(b.ptr) || 0,
+        mrp: Number(b.mrp) || 0,
+        status: b.status || 'Healthy'
+      });
+    });
+
+    setInventory(groupInventory);
+  };
+
+  useEffect(() => {
+    loadDatabaseDetails();
   }, []);
 
   const formatCurrency = (amount: number) => {
@@ -199,9 +114,15 @@ export default function GSTBilling() {
   };
 
   const isBatchExpired = (expiryStr: string) => {
-    const [month, year] = expiryStr.split('/');
-    const expDate = new Date(Number(year), Number(month), 0); // Last day of expiry month
-    return expDate < new Date();
+    if (!expiryStr) return false;
+    const parts = expiryStr.split('/');
+    if (parts.length === 2) {
+      const [month, year] = parts;
+      const expDate = new Date(Number(year), Number(month), 0);
+      return expDate < new Date();
+    }
+    const date = new Date(expiryStr);
+    return !isNaN(date.getTime()) && date < new Date();
   };
 
   const calculateDueDate = (dateStr: string, days: number) => {
@@ -219,8 +140,16 @@ export default function GSTBilling() {
     }
   };
 
+  const handleCustomerChange = (id: string) => {
+    setCustomerId(id);
+    const customer = CUSTOMERS.find((c: any) => c.id === id);
+    if (customer && customer.state) {
+      setBuyerState(customer.state);
+    }
+  };
+
   const addLineItem = () => {
-    setItems([...items, { id: Date.now().toString(), productId: '', batchNo: '', qty: 1, ptr: 0, gstPercent: 0, total: 0, stock: 0 }]);
+    setItems([...items, { id: Date.now().toString(), productId: '', productCode: '', productName: '', batchNo: '', qty: 1, freeQty: 0, ptr: 0, discountPercent: 0, gstPercent: 0, total: 0, stock: 0 }]);
   };
 
   const removeLineItem = (id: string) => {
@@ -229,33 +158,117 @@ export default function GSTBilling() {
     }
   };
 
+  const applyEligibleScheme = (productId: string, qty: number, ptr: number) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return { discountPercent: 0, freeQty: 0 };
+
+    const schemes = schemeService.getAll();
+    const todayStr = new Date().toISOString().split('T')[0];
+
+    // Filter active schemes
+    const activeSchemes = schemes.filter((s: any) => 
+      s.status === 'Active' && 
+      todayStr >= s.validFrom && 
+      todayStr <= s.validTo
+    );
+
+    // Find matches
+    const matchingSchemes = activeSchemes.filter((s: any) => {
+      if (s.applicableTo === 'All Products') return true;
+      if (s.applicableTo === 'Product' && s.applicableSelection === product.code) return true;
+      if (s.applicableTo === 'Category' && s.applicableSelection === product.category) return true;
+      if (s.applicableTo === 'Brand' && s.applicableSelection === (product.brand || product.manufacturer)) return true;
+      return false;
+    });
+
+    if (matchingSchemes.length === 0) return { discountPercent: 0, freeQty: 0 };
+
+    // Sort by priority (1 is highest priority)
+    matchingSchemes.sort((a: any, b: any) => (Number(a.priority) || 10) - (Number(b.priority) || 10));
+    const selectedScheme = matchingSchemes[0];
+
+    const minQty = parseInt(selectedScheme.minQuantity) || 0;
+    if (minQty > 0 && qty >= minQty) {
+      if (selectedScheme.benefitType === 'Percentage Discount') {
+        return { discountPercent: parseFloat(selectedScheme.benefitValue) || 0, freeQty: 0 };
+      }
+      if (selectedScheme.benefitType === 'Flat Discount') {
+        const flatVal = parseFloat(selectedScheme.benefitValue) || 0;
+        const pct = ptr > 0 ? (flatVal / ptr) * 100 : 0;
+        return { discountPercent: Math.min(100, pct), freeQty: 0 };
+      }
+      if (selectedScheme.benefitType === 'Free Quantity') {
+        const freeVal = parseInt(selectedScheme.freeQuantity) || 0;
+        const freeQty = Math.floor(qty / minQty) * freeVal;
+        return { discountPercent: 0, freeQty };
+      }
+    }
+
+    return { discountPercent: 0, freeQty: 0 };
+  };
+
   const updateLineItem = (id: string, field: keyof InvoiceItem, value: any) => {
     setItems(items.map(item => {
       if (item.id === id) {
         const updatedItem = { ...item, [field]: value };
         
         if (field === 'productId') {
-          const product = PRODUCTS.find(p => p.id === value);
-          const batch = inventory[value]?.filter(b => b.stock > 0 && !isBatchExpired(b.expiry))[0]; // Only pick valid batches
-          if (product && batch) {
-            updatedItem.gstPercent = product.gst;
-            updatedItem.batchNo = batch.batchNo;
-            updatedItem.ptr = batch.ptr;
-            updatedItem.stock = batch.stock;
+          const product = products.find(p => p.id === value);
+          const productInventory = inventory[value] || [];
+          
+          const parseExpiry = (expiryStr: string) => {
+            if (!expiryStr) return new Date(9999, 11, 31);
+            const parts = expiryStr.split('/');
+            if (parts.length === 2) {
+              return new Date(Number(parts[1]), Number(parts[0]) - 1, 1);
+            }
+            return new Date(expiryStr);
+          };
+
+          // Sort batches by expiry date (earliest first - FEFO) - Lock to healthy batches
+          const batch = productInventory
+            .filter(b => b.stock > 0 && !isBatchExpired(b.expiry) && b.status === 'Healthy')
+            .sort((a, b) => parseExpiry(a.expiry).getTime() - parseExpiry(b.expiry).getTime())[0];
+
+          if (product) {
+            updatedItem.productCode = product.code;
+            updatedItem.productName = product.name;
+            updatedItem.hsnCode = product.hsnCode;
+            updatedItem.barcode = product.barcode || '';
+            updatedItem.gstPercent = parseFloat(product.gst) || 12;
+            if (batch) {
+              updatedItem.batchNo = batch.batchNo;
+              updatedItem.ptr = batch.ptr;
+              updatedItem.stock = batch.stock;
+              updatedItem.mrp = batch.mrp || parseFloat(product.mrp || '0') || 0;
+            } else {
+              updatedItem.batchNo = '';
+              updatedItem.ptr = parseFloat(product.ptr || '0') || 0;
+              updatedItem.stock = 0;
+              updatedItem.mrp = parseFloat(product.mrp || '0') || 0;
+            }
           } else {
             updatedItem.batchNo = ''; updatedItem.ptr = 0; updatedItem.stock = 0;
+            updatedItem.productCode = ''; updatedItem.productName = ''; updatedItem.hsnCode = '';
+            updatedItem.barcode = ''; updatedItem.mrp = 0;
           }
         }
 
         if (field === 'batchNo') {
-          const batch = inventory[updatedItem.productId]?.find(b => b.batchNo === value);
+          const productInventory = inventory[updatedItem.productId] || [];
+          const batch = productInventory.find(b => b.batchNo === value);
           if (batch) {
+            if (batch.status !== 'Healthy') {
+              alert(`Warning: Batch ${batch.batchNo} is quarantined/damaged/blocked (${batch.status}). Lock active.`);
+              return item;
+            }
             if (isBatchExpired(batch.expiry)) {
-              alert(`Warning: Batch ${batch.batchNo} expired on ${batch.expiry}! Cannot be selected.`);
+              alert(`Warning: Batch ${batch.batchNo} expired on ${batch.expiry}! Lock active.`);
               return item;
             }
             updatedItem.ptr = batch.ptr;
             updatedItem.stock = batch.stock;
+            updatedItem.mrp = batch.mrp || updatedItem.mrp || 0;
           }
         }
 
@@ -266,7 +279,14 @@ export default function GSTBilling() {
           }
         }
 
-        const basePrice = updatedItem.qty * updatedItem.ptr;
+        // Apply dynamic promotions
+        if (field === 'qty' || field === 'productId') {
+          const promo = applyEligibleScheme(updatedItem.productId, updatedItem.qty, updatedItem.ptr);
+          updatedItem.discountPercent = promo.discountPercent;
+          updatedItem.freeQty = promo.freeQty;
+        }
+
+        const basePrice = updatedItem.qty * updatedItem.ptr * (1 - updatedItem.discountPercent / 100);
         const gstAmount = (basePrice * updatedItem.gstPercent) / 100;
         updatedItem.total = basePrice + gstAmount;
 
@@ -276,10 +296,14 @@ export default function GSTBilling() {
     }));
   };
 
-  const subTotal = items.reduce((sum, item) => sum + (item.qty * item.ptr), 0);
-  const totalGst = items.reduce((sum, item) => sum + ((item.qty * item.ptr * item.gstPercent) / 100), 0);
-  const cgstTotal = totalGst / 2; // Split equally for intra-state
-  const sgstTotal = totalGst / 2;
+  const subTotal = items.reduce((sum, item) => sum + (item.qty * item.ptr * (1 - item.discountPercent / 100)), 0);
+  const totalGst = items.reduce((sum, item) => sum + (((item.qty * item.ptr * (1 - item.discountPercent / 100)) * item.gstPercent) / 100), 0);
+  
+  // Dynamic Tax Determination Logic (same state vs different state)
+  const isSameState = sellerState === buyerState;
+  const cgstTotal = isSameState ? totalGst / 2 : 0;
+  const sgstTotal = isSameState ? totalGst / 2 : 0;
+  const igstTotal = isSameState ? 0 : totalGst;
   const grandTotal = subTotal + totalGst;
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -307,10 +331,9 @@ export default function GSTBilling() {
     }
 
     const customer = CUSTOMERS.find((c: any)=> c.id === customerId);
-    const invoiceCounter = parseInt(localStorage.getItem('billing_invoice_counter') || '1');
-    const invoiceNo = `INV-HYD-26-${String(invoiceCounter).padStart(4, '0')}`;
-    localStorage.setItem('billing_invoice_counter', (invoiceCounter + 1).toString());
-    const dueDate = paymentMode === 'Credit' ? calculateDueDate(invoiceDate, 30) : invoiceDate;
+    const invoiceNo = billingService.getNextInvoiceNo();
+    const creditDays = customer?.creditDays || 30;
+    const dueDate = paymentMode === 'Credit' ? calculateDueDate(invoiceDate, creditDays) : invoiceDate;
 
     const newInvoice: GSTInvoice = {
       id: Date.now().toString(),
@@ -323,21 +346,29 @@ export default function GSTBilling() {
       subTotal,
       cgstTotal,
       sgstTotal,
+      igstTotal,
       grandTotal,
       paymentMode,
       status,
     };
 
-    // --- ERP INTEGRATIONS ---
-    const newInventory = JSON.parse(JSON.stringify(inventory));
-    items.forEach(item => {
-      const productBatches = newInventory[item.productId];
-      const batchIndex = productBatches.findIndex((b: any) => b.batchNo === item.batchNo);
-      if (batchIndex >= 0) productBatches[batchIndex].stock -= item.qty;
+    // --- ERP STOCK INTEGRATION ---
+    // Deduct stock from the central Batch Master database (Deduct qty + freeQty)
+    const savedBatches = batchService.getAll();
+    const updatedBatches = savedBatches.map(b => {
+      const matchItem = items.find(item => item.batchNo === b.batchNo && item.productCode === b.productCode);
+      if (matchItem) {
+        return {
+          ...b,
+          availableQty: Math.max(0, b.availableQty - (matchItem.qty + (matchItem.freeQty || 0)))
+        };
+      }
+      return b;
     });
+    batchService.saveAll(updatedBatches);
 
-    const ledger = JSON.parse(localStorage.getItem('finance_ledger') || '[]');
-    ledger.push({
+    // Save ledger entry via service
+    billingService.saveLedger({
       id: `LED-${Date.now()}`,
       date: invoiceDate,
       partyName: customer?.name,
@@ -347,9 +378,9 @@ export default function GSTBilling() {
       balance: paymentMode === 'Credit' ? grandTotal : 0
     });
 
+    // Save credit outstandings
     if (paymentMode === 'Credit') {
-      const outstanding = JSON.parse(localStorage.getItem('finance_outstanding') || '[]');
-      outstanding.push({
+      billingService.saveOutstanding({
         id: `OUT-${Date.now()}`,
         invoiceNo,
         customerName: customer?.name,
@@ -358,23 +389,51 @@ export default function GSTBilling() {
         amount: grandTotal,
         status: 'Pending'
       });
-      localStorage.setItem('finance_outstanding', JSON.stringify(outstanding));
     }
 
-    const sales = JSON.parse(localStorage.getItem('sales_register') || '[]');
-    sales.push(newInvoice);
-    
-    const logs = JSON.parse(localStorage.getItem('activity_logs') || '[]');
-    logs.push({ text: `Generated GST Invoice ${invoiceNo} for ${customer?.name}`, time: new Date().toISOString() });
-    
-    localStorage.setItem('billing_gst_invoices', JSON.stringify([newInvoice, ...invoices]));
-    localStorage.setItem('billing_inventory', JSON.stringify(newInventory));
-    localStorage.setItem('finance_ledger', JSON.stringify(ledger));
-    localStorage.setItem('sales_register', JSON.stringify(sales));
-    localStorage.setItem('activity_logs', JSON.stringify(logs));
+    // Save sales register details & increment invoice counter
+    billingService.saveSalesRegister(newInvoice);
+    billingService.saveInvoice(newInvoice);
+    billingService.incrementCounter();
+
+    activityLogService.addLog({
+      userId: currentUser?.id,
+      userName: currentUser?.fullName,
+      action: `Generated GST Invoice ${invoiceNo} for ${customer?.name} - Value: ${formatCurrency(grandTotal)}`,
+      module: "Wholesale Billing",
+    });
+
+    // Write to Notification Center via NotificationService
+    NotificationService.addNotification({
+      title: 'Sales Invoice Created',
+      message: `Invoice ${invoiceNo} generated for ${customer?.name} (₹${grandTotal}). Stock levels and ledgers synchronized.`,
+      type: 'system',
+      priority: 'info',
+      module: 'Wholesale Billing'
+    });
 
     setInvoices([newInvoice, ...invoices]);
-    setInventory(newInventory);
+
+    // Re-group local inventory stocks view
+    const savedProducts = productService.getProducts();
+    const groupInventory: Record<string, { batchNo: string; expiry: string; stock: number; ptr: number; mrp?: number; status: string }[]> = {};
+    updatedBatches.forEach(b => {
+      const matchProduct = savedProducts.find((p: any) => p.code === b.productCode);
+      const prodId = matchProduct ? matchProduct.id : b.productCode;
+      
+      if (!groupInventory[prodId]) {
+        groupInventory[prodId] = [];
+      }
+      groupInventory[prodId].push({
+        batchNo: b.batchNo,
+        expiry: b.expDate,
+        stock: b.availableQty,
+        ptr: Number(b.ptr) || 0,
+        mrp: Number(b.mrp) || 0,
+        status: b.status || 'Healthy'
+      });
+    });
+    setInventory(groupInventory);
 
     setIsDrawerOpen(false);
     setCustomerId('');
@@ -383,6 +442,111 @@ export default function GSTBilling() {
     setPaymentMode('Credit');
     setStatus('Unpaid');
     alert('✅ GST Invoice Generated & Modules Synchronized Successfully!');
+  };
+
+  // --- REVERSAL & INVOICE CANCELLATION WORKFLOW ---
+  const handleCancelInvoice = (invoiceNo: string) => {
+    if (!window.confirm(`⚠️ WARNING: Are you sure you want to CANCEL Invoice ${invoiceNo}? This action is irreversible, will restore stock levels, and reverse all accounting ledgers.`)) {
+      return;
+    }
+
+    const targetInvoice = invoices.find(inv => inv.invoiceNo === invoiceNo);
+    if (!targetInvoice) return;
+
+    // 1. Restore Stock Levels
+    const savedBatches = batchService.getAll();
+    const updatedBatches = savedBatches.map(b => {
+      const matchItem = targetInvoice.items.find(item => item.batchNo === b.batchNo && item.productCode === b.productCode);
+      if (matchItem) {
+        return {
+          ...b,
+          availableQty: b.availableQty + (matchItem.qty + (matchItem.freeQty || 0))
+        };
+      }
+      return b;
+    });
+    batchService.saveAll(updatedBatches);
+
+    // 2. Reverse Ledger Entries
+    billingService.saveLedger({
+      id: `LED-REV-${Date.now()}`,
+      date: new Date().toISOString().split('T')[0],
+      partyName: targetInvoice.customerName,
+      particulars: `REVERSAL - Sales Invoice Cancelled - ${invoiceNo}`,
+      debit: 0,
+      credit: targetInvoice.grandTotal,
+      balance: 0
+    });
+
+    // 3. Reverse Outstanding Records
+    const outstandings = JSON.parse(localStorage.getItem('finance_outstanding') || '[]');
+    const updatedOutstandings = outstandings.map((out: any) => {
+      if (out.invoiceNo === invoiceNo) {
+        return { ...out, status: 'Cancelled', amount: 0 };
+      }
+      return out;
+    });
+    localStorage.setItem('finance_outstanding', JSON.stringify(updatedOutstandings));
+
+    // 4. Update Invoices Database
+    billingService.cancelInvoice(invoiceNo);
+
+    // 5. Add Audit Log
+    activityLogService.addLog({
+      userId: currentUser?.id,
+      userName: currentUser?.fullName,
+      action: `Cancelled GST Invoice ${invoiceNo} - Reverted ${formatCurrency(targetInvoice.grandTotal)}`,
+      module: "Wholesale Billing",
+    });
+
+    // 6. Notify Compliance
+    NotificationService.addNotification({
+      title: 'Invoice Cancelled',
+      message: `Invoice ${invoiceNo} has been cancelled. Stock levels restored and ledger reversed.`,
+      type: 'system',
+      priority: 'high',
+      module: 'Wholesale Billing'
+    });
+
+    loadDatabaseDetails();
+    alert(`✅ Invoice ${invoiceNo} successfully Cancelled & Ledgers Reversed.`);
+  };
+
+  const handleExport = () => {
+    const headers = ['Invoice No', 'Customer Name', 'Invoice Date', 'Due Date', 'Taxable Value', 'CGST', 'SGST', 'IGST', 'Grand Total', 'Payment Mode', 'Status'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredData.map(row => [
+        row.invoiceNo,
+        `="${row.customerName}"`,
+        row.date,
+        row.dueDate,
+        row.subTotal,
+        row.cgstTotal,
+        row.sgstTotal,
+        row.igstTotal,
+        row.grandTotal,
+        row.paymentMode,
+        row.status
+      ].join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'gst_billing_export.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    activityLogService.addLog({
+      userId: currentUser?.id,
+      userName: currentUser?.fullName,
+      action: "GST Billing Register Exported",
+      module: "Wholesale Billing",
+    });
   };
 
   const columns: Column<GSTInvoice>[] = [
@@ -397,14 +561,44 @@ export default function GSTBilling() {
       key: 'status',
       label: 'Status',
       render: (row: GSTInvoice) => {
-        const variant = row.status === 'Paid' ? 'success' : row.status === 'Unpaid' ? 'warning' : 'neutral';
+        let variant: any = 'neutral';
+        if (row.status === 'Paid') variant = 'success';
+        else if (row.status === 'Unpaid') variant = 'warning';
+        else if (row.status === 'Cancelled') variant = 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
     {
       key: 'action',
-      label: '',
-      render: () => <button className="text-violet-600 hover:text-violet-700 p-1"><ReceiptText className="w-4 h-4" /></button>
+      label: 'Actions',
+      render: (row: GSTInvoice) => (
+        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          <button 
+            onClick={() => {
+              activityLogService.addLog({
+                userId: currentUser?.id,
+                userName: currentUser?.fullName,
+                action: `Printed invoice details for ${row.invoiceNo}`,
+                module: "Wholesale Billing"
+              });
+              alert("Invoice preview printed successfully.");
+            }}
+            className="text-violet-600 hover:text-violet-750 p-1"
+            title="Print Preview Invoice"
+          >
+            <ReceiptText className="w-4 h-4" />
+          </button>
+          {row.status !== 'Cancelled' && (
+            <button 
+              onClick={() => handleCancelInvoice(row.invoiceNo)} 
+              className="text-rose-600 hover:text-rose-750 p-1"
+              title="Cancel & Reverse Invoice"
+            >
+              <Ban className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )
     }
   ];
 
@@ -414,17 +608,32 @@ export default function GSTBilling() {
     return matchSearch && matchStatus;
   });
 
+  const selectedCustomer = CUSTOMERS.find((c: any) => c.id === customerId);
+
+  if (!canView) {
+    return (
+      <div className="p-10 text-center">
+        <h2 className="text-xl font-semibold">Access Denied</h2>
+        <p className="text-slate-500 mt-2">
+          You do not have permission to view GST Invoicing.
+        </p>
+      </div>
+    );
+  }
+
   return (
-    <div className="animate-in fade-in duration-500">
+    <div className="animate-in fade-in duration-500 bg-white">
       <PageHeader
         title="GST Billing & Invoicing"
         subtitle="Create, manage, and track GST-compliant sales invoices with auto-calculation."
         actions={
           <>
-            <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />}>Export Register</ActionButton>
-            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => { setIsDrawerOpen(true); setItems([]); }}>
-              New Invoice
-            </ActionButton>
+            <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />} onClick={handleExport}>Export Register</ActionButton>
+            {canCreate && (
+              <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => { setIsDrawerOpen(true); setItems([]); }}>
+                New Invoice
+              </ActionButton>
+            )}
           </>
         }
       />
@@ -432,7 +641,7 @@ export default function GSTBilling() {
       <FilterBar>
         <SearchInput value={search} onChange={setSearch} placeholder="Search invoice no or customer..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
-        <SelectFilter value={statusFilter} onChange={setStatusFilter} options={[{ label: 'Paid', value: 'Paid' }, { label: 'Unpaid', value: 'Unpaid' }, { label: 'Draft', value: 'Draft' }]} placeholder="All Status" />
+        <SelectFilter value={statusFilter} onChange={setStatusFilter} options={[{ label: 'Paid', value: 'Paid' }, { label: 'Unpaid', value: 'Unpaid' }, { label: 'Cancelled', value: 'Cancelled' }]} placeholder="All Status" />
       </FilterBar>
 
       <TableCard>
@@ -445,15 +654,49 @@ export default function GSTBilling() {
           <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Customer Selection *</label>
-              <select required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-600 text-sm" value={customerId} onChange={(e) => setCustomerId(e.target.value)}>
+              <select required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-600 text-sm bg-white text-slate-900" value={customerId} onChange={(e) => handleCustomerChange(e.target.value)}>
                 <option value="">-- Select Customer --</option>
                 {CUSTOMERS.map((c:any) => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Invoice Date *</label>
-              <input type="date" required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-600 text-sm" value={invoiceDate} onChange={(e) => setInvoiceDate(e.target.value)} />
+              <input 
+                type="date" 
+                required 
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-600 text-sm bg-white text-slate-900" 
+                value={invoiceDate} 
+                onChange={(e) => setInvoiceDate(e.target.value)} 
+                max={new Date().toISOString().split("T")[0]}
+              />
             </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Seller State *</label>
+              <input type="text" readOnly className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-100 text-slate-500 text-sm cursor-not-allowed" value={sellerState} />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Buyer State *</label>
+              <select 
+                disabled={!(activeRole === 'Super Admin' || activeRole === 'Admin')}
+                className={`w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-600 text-sm text-slate-900 ${
+                  !(activeRole === 'Super Admin' || activeRole === 'Admin') ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white'
+                }`}
+                value={buyerState} 
+                onChange={(e) => setBuyerState(e.target.value)}
+              >
+                <option value="Telangana">Telangana</option>
+                <option value="Andhra Pradesh">Andhra Pradesh</option>
+                <option value="Karnataka">Karnataka</option>
+                <option value="Maharashtra">Maharashtra</option>
+                <option value="Tamil Nadu">Tamil Nadu</option>
+                <option value="Delhi">Delhi</option>
+              </select>
+            </div>
+            {selectedCustomer && (
+              <div className="col-span-2 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 p-2 rounded-lg">
+                Customer Location: {selectedCustomer.state} | Credit Terms: {selectedCustomer.creditDays} Days
+              </div>
+            )}
           </div>
 
           <div>
@@ -473,29 +716,71 @@ export default function GSTBilling() {
                   </div>
                   <div className="grid grid-cols-12 gap-2">
                     <div className="col-span-4">
-                      <select required className="w-full px-2 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs" value={item.productId} onChange={(e) => updateLineItem(item.id, 'productId', e.target.value)}>
+                      <select required className="w-full px-2 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900" value={item.productId} onChange={(e) => updateLineItem(item.id, 'productId', e.target.value)}>
                         <option value="">Select Medicine</option>
-                        {PRODUCTS.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                        {products.map(p => <option key={p.id} value={p.id}>{p.code} - {p.name}</option>)}
                       </select>
                     </div>
                     <div className="col-span-5">
-                      <select required className="w-full px-2 py-1.5 border border-slate-300 rounded bg-slate-50 text-xs" value={item.batchNo} onChange={(e) => updateLineItem(item.id, 'batchNo', e.target.value)}>
+                      <select required className="w-full px-2 py-1.5 border border-slate-300 rounded bg-white text-xs text-slate-900" value={item.batchNo} onChange={(e) => updateLineItem(item.id, 'batchNo', e.target.value)}>
                         <option value="">Select Batch</option>
-                        {item.productId && inventory[item.productId]?.filter(b => !isBatchExpired(b.expiry)).map(b => (
+                        {item.productId && (inventory[item.productId] || []).filter(b => !isBatchExpired(b.expiry) && b.status === 'Healthy').map(b => (
                           <option key={b.batchNo} value={b.batchNo}>
-                            Batch: {b.batchNo} | Exp: {b.expiry} | Stock: {b.stock} | PTR: {formatCurrency(b.ptr)}
+                            Batch: {b.batchNo} | Exp: {b.expiry} | Stock: {b.stock} | PTR: {formatCurrency(b.ptr)} | MRP: {formatCurrency(b.mrp || b.ptr * 1.2)}
                           </option>
                         ))}
                       </select>
                     </div>
                     <div className="col-span-3">
                       <div className="flex items-center gap-2">
-                        <input type="number" required min="1" max={item.stock || 1000} className="w-full px-2 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs" value={item.qty} onChange={(e) => updateLineItem(item.id, 'qty', parseInt(e.target.value) || 0)} placeholder="Qty" />
+                        <input type="number" required min="1" max={item.stock || 1000} className="w-full px-2 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900" value={item.qty} onChange={(e) => updateLineItem(item.id, 'qty', parseInt(e.target.value) || 0)} placeholder="Qty" />
                       </div>
                     </div>
                   </div>
+
                   {item.productId && (
-                    <div className="flex justify-between text-xs text-slate-600 bg-slate-50 p-2 rounded mt-1 border border-slate-100">
+                    <div className="grid grid-cols-3 gap-2 mt-1">
+                      <div className="col-span-1">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Item Discount %</label>
+                        <input 
+                          type="number" 
+                          min="0"
+                          max="100"
+                          className="w-full px-2 py-1 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900 font-mono" 
+                          value={item.discountPercent} 
+                          onChange={(e) => updateLineItem(item.id, 'discountPercent', parseFloat(e.target.value) || 0)} 
+                          placeholder="Disc %" 
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">GST Rate %</label>
+                        <input 
+                          type="number" 
+                          min="0"
+                          max="100"
+                          disabled={!canOverrideGst}
+                          className={`w-full px-2 py-1 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs text-slate-900 font-mono ${
+                            !canOverrideGst ? 'bg-slate-50 opacity-70 cursor-not-allowed' : 'bg-white'
+                          }`}
+                          value={item.gstPercent} 
+                          onChange={(e) => updateLineItem(item.id, 'gstPercent', parseFloat(e.target.value) || 0)} 
+                          placeholder="GST %" 
+                        />
+                      </div>
+                      <div className="col-span-1">
+                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Free Qty (Auto)</label>
+                        <input 
+                          type="text"
+                          readOnly
+                          className="w-full px-2 py-1 border border-slate-300 rounded bg-slate-50 text-slate-500 text-xs cursor-not-allowed font-mono" 
+                          value={item.freeQty ? `+${item.freeQty}` : "0"} 
+                        />
+                      </div>
+                    </div>
+                  )}
+
+                  {item.productId && (
+                    <div className="flex justify-between text-xs text-slate-600 bg-slate-50 p-2 rounded mt-1 border border-slate-100 font-medium">
                       <span>Rate: {formatCurrency(item.ptr)}</span>
                       <span>GST: {item.gstPercent}%</span>
                       <span className="font-bold text-violet-700">Total: {formatCurrency(item.total)}</span>
@@ -516,14 +801,23 @@ export default function GSTBilling() {
               <span>Taxable Value:</span>
               <span>{formatCurrency(subTotal)}</span>
             </div>
-            <div className="flex justify-between text-sm text-slate-400">
-              <span>CGST:</span>
-              <span>{formatCurrency(cgstTotal)}</span>
-            </div>
-            <div className="flex justify-between text-sm text-slate-400 border-b border-slate-700 pb-3">
-              <span>SGST:</span>
-              <span>{formatCurrency(sgstTotal)}</span>
-            </div>
+            {isSameState ? (
+              <>
+                <div className="flex justify-between text-sm text-slate-400">
+                  <span>CGST:</span>
+                  <span>{formatCurrency(cgstTotal)}</span>
+                </div>
+                <div className="flex justify-between text-sm text-slate-400 border-b border-slate-700 pb-3">
+                  <span>SGST:</span>
+                  <span>{formatCurrency(sgstTotal)}</span>
+                </div>
+              </>
+            ) : (
+              <div className="flex justify-between text-sm text-slate-400 border-b border-slate-700 pb-3">
+                <span>IGST:</span>
+                <span>{formatCurrency(igstTotal)}</span>
+              </div>
+            )}
             <div className="flex justify-between text-lg font-bold text-emerald-400">
               <span>Grand Total:</span>
               <span>{formatCurrency(grandTotal)}</span>

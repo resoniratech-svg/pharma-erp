@@ -13,7 +13,6 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './types';
-import { div } from 'framer-motion/m';
 import { productService } from "../../services/productService";
 import { packingTypeService } from "../../services/packingTypeService";
 import { compositionService } from "../../services/compositionService";
@@ -26,52 +25,40 @@ import {
   MANUFACTURERS,
 } from "./productMasters";
 
-
 interface Product {
   id: string;
-
   code: string;
   name: string;
-
   genericName: string;
   brandName: string;
-
   category: string;
   type: string;
   manufacturer: string;
-
   composition?: string;
   scheme?: string;
   barcode?: string;
-
   packingType: string;
   unitsPerPack: string;
   packsInBox?: string;
   totalUnits?: string;
-
   mrp: string;
   ptr: string;
   pts: string;
-
   purchasePrice?: string;
   sellingPrice?: string;
-
   gst: string;
   hsnCode: string;
-
   minimumStock?: string;
   reorderLevel?: string;
-
   batchTracking?: boolean;
   expiryTracking?: boolean;
-
   status: "Active" | "Inactive" | "Discontinued";
 }
 
 const initialProducts: Product[] = [
   {
     id: "1",
-    code: "PRD-001",
+    code: "PRD-000001",
     name: "Amoxicillin 500mg",
     genericName: "Amoxicillin",
     brandName: "AmoxiCare",
@@ -100,7 +87,7 @@ const initialProducts: Product[] = [
   },
   {
     id: "2",
-    code: "PRD-002",
+    code: "PRD-000002",
     name: "Paracetamol 650mg",
     genericName: "Paracetamol",
     brandName: "ParaFast",
@@ -128,7 +115,7 @@ const initialProducts: Product[] = [
   },
   {
     id: "3",
-    code: "PRD-003",
+    code: "PRD-000003",
     name: "Cough Syrup 100ml",
     genericName: "Dextromethorphan",
     brandName: "CoughEase",
@@ -156,7 +143,7 @@ const initialProducts: Product[] = [
   },
   {
     id: "4",
-    code: "PRD-004",
+    code: "PRD-000004",
     name: "Vitamin C 1000mg",
     genericName: "Ascorbic Acid",
     brandName: "VitaBoost",
@@ -184,7 +171,7 @@ const initialProducts: Product[] = [
   },
   {
     id: "5",
-    code: "PRD-005",
+    code: "PRD-000005",
     name: "Ibuprofen 400mg",
     genericName: "Ibuprofen",
     brandName: "PainAway",
@@ -230,13 +217,8 @@ export default function ProductMaster() {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  const [categories, setCategories] = useState([
-    "Antibiotics", "Analgesics", "Antipyretics", "Anti-inflammatory", 
-    "Antifungals", "Antivirals", "Cardiac", "Diabetic", 
-    "Respiratory", "Gastroenterology", "Neurology", "Dermatology", 
-    "Orthopedics", "Pediatrics", "Vitamins & Supplements", 
-    "Medical Devices", "Surgical Items"
-  ]);
+  // Persistent Custom Categories Load
+  const [categories, setCategories] = useState<string[]>([]);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
   const [showCompositionDropdown, setShowCompositionDropdown] = useState(false);
   const [showSchemeDropdown, setShowSchemeDropdown] = useState(false);
@@ -282,14 +264,21 @@ export default function ProductMaster() {
 
   // Reusable helper to clean input to Alphanumeric and hard-limit to 20 characters
   const handleAlphanumericChange = (fieldName: string, rawValue: string) => {
-    // Allows letters, numbers, and intentional single spaces, strips out special symbols/punctuation
     const sanitizedValue = rawValue.replace(/[^a-zA-Z0-9 ]/g, "");
-    // Strictly caps string slicing at 20 characters
     const cappedValue = sanitizedValue.slice(0, 20);
     
     setNewProduct((prev) => ({
       ...prev,
       [fieldName]: cappedValue,
+    }));
+  };
+
+  // Reusable helper to restrict manual barcode entries to digits only
+  const handleNumericOnlyChange = (fieldName: string, rawValue: string) => {
+    const cleanNumeric = rawValue.replace(/\D/g, "").slice(0, 13);
+    setNewProduct((prev) => ({
+      ...prev,
+      [fieldName]: cleanNumeric,
     }));
   };
 
@@ -303,13 +292,12 @@ export default function ProductMaster() {
     }
   }, [newProduct.unitsPerPack, newProduct.packsInBox]);
 
-  // Initial Load Lookups
+  // Initial Lookups load
   useEffect(() => {
     const savedProducts = productService.getProducts();
 
     if (savedProducts.length > 0) {
       setProducts(savedProducts);
-      // Synchronize shared order key on mount if not present
       if (!localStorage.getItem("pharma_erp_products")) {
         localStorage.setItem("pharma_erp_products", JSON.stringify(savedProducts));
       }
@@ -318,6 +306,17 @@ export default function ProductMaster() {
       productService.saveProducts(initialProducts);
       localStorage.setItem("pharma_erp_products", JSON.stringify(initialProducts));
     }
+
+    // Categories persistence loading
+    const defaultCategories = [
+      "Antibiotics", "Analgesics", "Antipyretics", "Anti-inflammatory", 
+      "Antifungals", "Antivirals", "Cardiac", "Diabetic", 
+      "Respiratory", "Gastroenterology", "Neurology", "Dermatology", 
+      "Orthopedics", "Pediatrics", "Vitamins & Supplements", 
+      "Medical Devices", "Surgical Items"
+    ];
+    const savedCategories = JSON.parse(localStorage.getItem("product_categories") || "null");
+    setCategories(savedCategories || defaultCategories);
 
     const savedPackingTypes = packingTypeService.getAll();
     setPackingTypes(
@@ -358,33 +357,101 @@ export default function ProductMaster() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showNewProductModal]);
 
-  // if (!canView) {
-  //   return (
-  //     <div className="p-10 text-center">
-  //       <h2 className="text-xl font-semibold">Access Denied</h2>
-  //       <p className="text-slate-500 mt-2">
-  //         You do not have permission to view Product Management.
-  //       </p>
-  //     </div>
-  //   );
-  // }
+const parseEffectiveDate = (dateStr: string) => {
+  if (!dateStr) return new Date(0);
+  const date = new Date(dateStr);
+  return isNaN(date.getTime()) ? new Date(0) : date;
+};
+
+const checkProductInUse = (id: string) => {
+  const invoices = JSON.parse(localStorage.getItem("billing_gst_invoices") || "[]");
+  const isUsedInInvoices = invoices.some((inv: any) =>
+    inv.items.some((item: any) => item.productId === id)
+  );
+
+  const inventory = JSON.parse(localStorage.getItem("billing_inventory") || "{}");
+  const productInventory = inventory[id] || [];
+  const hasStock = productInventory.some((b: any) => b.stock > 0);
+
+  return isUsedInInvoices || hasStock;
+};
+
+const autoGenerateProductCode = () => {
+  const maxCodeNumber = products.reduce((max, p) => {
+    const match = p.code.match(/PRD-(\d+)/);
+    if (match) {
+      const num = parseInt(match[1], 10);
+      return num > max ? num : max;
+    }
+    return max;
+  }, 0);
+
+  return `PRD-${String(maxCodeNumber + 1).padStart(6, "0")}`;
+};
+
+// if (!canView) {
+//   return (
+//     <div className="p-10 text-center">
+//       <h2 className="text-xl font-semibold">Access Denied</h2>
+//       <p className="text-slate-500 mt-2">
+//         You do not have permission to view Product Management.
+//       </p>
+//     </div>
+//   );
+// }
 
   const handleExport = () => {
     const headers = [
       "Code",
       "Product Name",
+      "Generic Name",
+      "Brand Name",
       "Category",
       "Type",
       "Manufacturer",
+      "Composition",
+      "Scheme",
+      "Barcode",
+      "Packing Type",
+      "Units Per Pack",
+      "Packs In Box",
+      "Total Units",
+      "MRP",
+      "PTR",
+      "PTS",
+      "Purchase Price",
+      "Selling Price",
+      "GST %",
+      "HSN Code",
+      "Minimum Stock",
+      "Reorder Level",
       "Status",
     ];
 
     const rows = filteredData.map((item) => [
       item.code,
       item.name,
+      item.genericName || "",
+      item.brandName || "",
       item.category,
       item.type,
       item.manufacturer,
+      item.composition || "",
+      item.scheme || "No Scheme",
+      item.barcode || "",
+      item.packingType,
+      item.unitsPerPack,
+      item.packsInBox || "",
+      item.totalUnits || "",
+      item.mrp,
+      item.ptr,
+      item.pts,
+      item.purchasePrice || "",
+      item.sellingPrice || "",
+      item.gst,
+      item.hsnCode,
+      item.minimumStock || "",
+      item.reorderLevel || "",
       item.status,
     ]);
 
@@ -399,14 +466,157 @@ export default function ProductMaster() {
 
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "products.csv";
+    link.download = "products_master_export.csv";
     link.click();
   };
 
   const handleSaveProduct = () => {
-    if (!newProduct.code || !newProduct.name) {
-      alert("Please fill all required fields");
+    if (!newProduct.code || !newProduct.name || !newProduct.type || !newProduct.manufacturer || !newProduct.hsnCode || !newProduct.packingType || !newProduct.mrp) {
+      alert("Please fill all mandatory fields (*). Product Code, Name, Type, Manufacturer, Packing Type, MRP and HSN are required.");
       return;
+    }
+
+    // 1. Prevent Duplicate Product Codes
+    const isCodeDuplicate = products.some(
+      (p) => p.code.trim().toLowerCase() === newProduct.code.trim().toLowerCase() && p.id !== editingProductId
+    );
+    if (isCodeDuplicate) {
+      alert(`Error: Product Code "${newProduct.code}" is already assigned to another product.`);
+      return;
+    }
+
+    // 2. Prevent Duplicate Product Names
+    const isNameDuplicate = products.some(
+      (p) => p.name.trim().toLowerCase() === newProduct.name.trim().toLowerCase() && p.id !== editingProductId
+    );
+    if (isNameDuplicate) {
+      alert(`Error: Product Name "${newProduct.name}" already exists.`);
+      return;
+    }
+
+    // 3. Pricing Rule Validations
+    const mrpVal = parseFloat(newProduct.mrp) || 0;
+    const ptrVal = parseFloat(newProduct.ptr) || 0;
+    const ptsVal = parseFloat(newProduct.pts) || 0;
+    const purchaseVal = parseFloat(newProduct.purchasePrice) || 0;
+    const sellingVal = parseFloat(newProduct.sellingPrice) || 0;
+
+    if (mrpVal < 0 || ptrVal < 0 || ptsVal < 0 || purchaseVal < 0 || sellingVal < 0) {
+      alert("Error: Prices and rates cannot be negative.");
+      return;
+    }
+    if (mrpVal > 999999 || ptrVal > 999999 || ptsVal > 999999 || purchaseVal > 999999 || sellingVal > 999999) {
+      alert("Error: Prices and rates exceed maximum sensible ERP limit (₹9,99,999).");
+      return;
+    }
+    if (mrpVal < ptrVal) {
+      alert("Error: MRP must be greater than or equal to PTR.");
+      return;
+    }
+    if (ptrVal < ptsVal) {
+      alert("Error: PTR must be greater than or equal to PTS.");
+      return;
+    }
+    if (purchaseVal > sellingVal) {
+      alert("Error: Purchase Price cannot exceed Selling Price.");
+      return;
+    }
+
+    // 4. Safety Stock Validation
+    const minStockVal = parseFloat(newProduct.minimumStock) || 0;
+    const reorderVal = parseFloat(newProduct.reorderLevel) || 0;
+    if (minStockVal < 0 || reorderVal < 0) {
+      alert("Error: Stock levels cannot be negative.");
+      return;
+    }
+    if (reorderVal > minStockVal) {
+      alert("Error: Reorder Level must be less than or equal to Minimum Stock Level.");
+      return;
+    }
+
+    // 5. HSN Master existence & format checks
+    if (!/^\d{4,8}$/.test(newProduct.hsnCode)) {
+      alert("Error: HSN Code must be numeric and between 4 to 8 digits long.");
+      return;
+    }
+    const hsnExists = gstRecords.some((g) => g.hsnCode === newProduct.hsnCode);
+    if (!hsnExists) {
+      alert(`Error: HSN Code "${newProduct.hsnCode}" does not exist in the HSN Master.`);
+      return;
+    }
+
+    // 6. Barcode uniqueness and fallback auto-generation check
+    let barcodeToSave = newProduct.barcode;
+    let isBarcodeAutoGenerated = false;
+
+    if (!barcodeToSave) {
+      let uniqueGenerated = false;
+      let attempts = 0;
+      while (!uniqueGenerated && attempts < 10) {
+        const potential = `890${Math.floor(1000000000 + Math.random() * 9000000000)}`;
+        if (!products.some(p => p.barcode === potential)) {
+          barcodeToSave = potential;
+          uniqueGenerated = true;
+          isBarcodeAutoGenerated = true;
+        }
+        attempts++;
+      }
+      if (!barcodeToSave) {
+        alert("Error: Unable to auto-generate a unique EAN-13 barcode. Please try again.");
+        return;
+      }
+    } else {
+      // Validate uniqueness if entered manually
+      const isBarcodeDuplicate = products.some(p => p.barcode === barcodeToSave && p.id !== editingProductId);
+      if (isBarcodeDuplicate) {
+        alert(`Error: Barcode "${barcodeToSave}" is already assigned to another product.`);
+        return;
+      }
+      if (barcodeToSave.length !== 13) {
+        if (!window.confirm(`Warning: Barcode "${barcodeToSave}" is not 13 digits (EAN-13 standard). Proceed?`)) {
+          return;
+        }
+      }
+    }
+
+    // 7. Audit Log Generation (Edit Audit Trail & Generation Type Logging)
+    let logAction = "";
+
+    if (editMode && editingProductId) {
+      const originalProduct = products.find(p => p.id === editingProductId);
+      if (originalProduct) {
+        const changes: string[] = [];
+        if (originalProduct.name !== newProduct.name) changes.push(`Name: "${originalProduct.name}" → "${newProduct.name}"`);
+        if (originalProduct.mrp !== newProduct.mrp) changes.push(`MRP: ₹${originalProduct.mrp} → ₹${newProduct.mrp}`);
+        if (originalProduct.gst !== newProduct.gst) changes.push(`GST: ${originalProduct.gst}% → ${newProduct.gst}%`);
+        if (originalProduct.ptr !== newProduct.ptr) changes.push(`PTR: ₹${originalProduct.ptr} → ₹${newProduct.ptr}`);
+        if (originalProduct.pts !== newProduct.pts) changes.push(`PTS: ₹${originalProduct.pts} → ₹${newProduct.pts}`);
+        if (originalProduct.manufacturer !== newProduct.manufacturer) changes.push(`Manufacturer: "${originalProduct.manufacturer}" → "${newProduct.manufacturer}"`);
+        if (originalProduct.hsnCode !== newProduct.hsnCode) changes.push(`HSN: "${originalProduct.hsnCode}" → "${newProduct.hsnCode}"`);
+        
+        if (changes.length > 0) {
+          logAction = `Product Updated (${newProduct.code}) - ${changes.join(", ")}`;
+        } else {
+          logAction = `Product Updated (${newProduct.code}) - No critical fields changed`;
+        }
+      } else {
+        logAction = `Product Updated (${newProduct.code})`;
+      }
+    } else {
+      // Creation Audit Log
+      const defaultGSTObj = gstRecords
+        .filter((g) => g.hsnCode === newProduct.hsnCode)
+        .sort((a, b) => parseEffectiveDate(b.effectiveDate).getTime() - parseEffectiveDate(a.effectiveDate).getTime())[0];
+      const defaultGST = defaultGSTObj?.totalGst?.replace("%", "") || "";
+      const isGSTOverridden = defaultGST !== "" && newProduct.gst !== defaultGST;
+      
+      const barcodeLogged = isBarcodeAutoGenerated ? " [Barcode Auto-Generated]" : "";
+      
+      if (isGSTOverridden) {
+        logAction = `Product Created (${newProduct.code}) - "${newProduct.name}" - GST Overridden from ${defaultGST}% to ${newProduct.gst}%${barcodeLogged}`;
+      } else {
+        logAction = `Product Created (${newProduct.code}) - "${newProduct.name}"${barcodeLogged}`;
+      }
     }
 
     // Explicitly derive total units for safe data persistence
@@ -422,6 +632,7 @@ export default function ProductMaster() {
           ? {
               ...product,
               ...newProduct,
+              barcode: barcodeToSave,
               totalUnits: calculatedTotalUnits
             }
           : product
@@ -431,7 +642,7 @@ export default function ProductMaster() {
       activityLogService.addLog({
         userId: currentUser.id,
         userName: currentUser.fullName,
-        action: "Product Updated",
+        action: logAction,
         module: "Product Master",
       });
     } else {
@@ -446,7 +657,7 @@ export default function ProductMaster() {
         manufacturer: newProduct.manufacturer,
         composition: newProduct.composition,
         scheme: newProduct.scheme || "No Scheme",
-        barcode: newProduct.barcode,
+        barcode: barcodeToSave,
         packingType: newProduct.packingType,
         unitsPerPack: newProduct.unitsPerPack,
         packsInBox: newProduct.packsInBox,
@@ -471,12 +682,11 @@ export default function ProductMaster() {
       activityLogService.addLog({
         userId: currentUser.id,
         userName: currentUser.fullName,
-        action: "Product Created",
+        action: logAction,
         module: "Product Master",
       });
     }
 
-    // Explicit immediate storage update for the Order module pipeline
     localStorage.setItem("pharma_erp_products", JSON.stringify(updatedList));
 
     setShowNewProductModal(false);
@@ -599,21 +809,22 @@ export default function ProductMaster() {
         subtitle="Manage primary product catalog and essential details."
         actions={
           <>
-            <button
+            <ActionButton
               variant="secondary"
               icon={<Download className="w-4 h-4" />}
               onClick={handleExport}
             >
               Export
-            </button>
+            </ActionButton>
             {canCreate && (
               <ActionButton
                 icon={<Plus className="w-4 h-4" />}
                 onClick={() => {
                   setEditMode(false);
                   setEditingProductId(null);
+                  const generatedCode = autoGenerateProductCode();
                   setNewProduct({
-                    code: "",
+                    code: generatedCode,
                     name: "",
                     genericName: "",
                     brandName: "",
@@ -853,6 +1064,14 @@ export default function ProductMaster() {
                 className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-200"
                 onClick={() => {
                   if (!canDelete) return;
+                  
+                  // Delete safety check validation
+                  if (checkProductInUse(productToDelete.id)) {
+                    alert("Error: Cannot delete this product. It is already used in transactions (Invoices or existing Inventory Stock). Consider changing its status to Inactive or Discontinued instead.");
+                    setProductToDelete(null);
+                    return;
+                  }
+
                   const updated = products.filter((p) => p.id !== productToDelete.id);
                   setProducts(updated);
                   localStorage.setItem("pharma_erp_products", JSON.stringify(updated));
@@ -860,7 +1079,7 @@ export default function ProductMaster() {
                   activityLogService.addLog({
                     userId: currentUser.id,
                     userName: currentUser.fullName,
-                    action: "Product Deleted",
+                    action: `Product Deleted - Code: ${productToDelete.code}, Name: ${productToDelete.name}`,
                     module: "Product Master",
                   });
 
@@ -904,9 +1123,10 @@ export default function ProductMaster() {
                 <label className="block text-sm font-medium mb-1">Product Code *</label>
                 <input
                   value={newProduct.code}
-                  onChange={(e) => handleAlphanumericChange("code", e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  readOnly
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
                 />
+                <p className="text-xs text-slate-400 mt-1">Product Code is system-generated and cannot be edited.</p>
               </div>
 
               <div>
@@ -960,8 +1180,8 @@ export default function ProductMaster() {
                             key={cat}
                             className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded"
                             onClick={() => {
-                              setNewProduct({ ...newProduct, category: cat });
-                              setShowCategoryDropdown(false);
+                                setNewProduct({ ...newProduct, category: cat });
+                                setShowCategoryDropdown(false);
                             }}
                           >
                             {cat}
@@ -969,12 +1189,14 @@ export default function ProductMaster() {
                         ))}
 
                       {(newProduct.category || "").trim() !== "" &&
-                        !categories.some((c) => c.toLowerCase() === (newProduct.category || "").trim().toLowerCase()) && (
+                        !categories.some((c) => c.trim().toLowerCase() === (newProduct.category || "").trim().toLowerCase()) && (
                           <div
                             className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
                             onClick={() => {
                               const newCat = (newProduct.category || "").trim();
-                              setCategories([...categories, newCat]);
+                              const updatedCategories = [...categories, newCat];
+                              setCategories(updatedCategories);
+                              localStorage.setItem("product_categories", JSON.stringify(updatedCategories));
                               setNewProduct({ ...newProduct, category: newCat });
                               setShowCategoryDropdown(false);
                             }}
@@ -988,7 +1210,7 @@ export default function ProductMaster() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Product Type</label>
+                <label className="block text-sm font-medium mb-1">Product Type *</label>
                 <select
                   value={newProduct.type}
                   onChange={(e) => setNewProduct({ ...newProduct, type: e.target.value })}
@@ -1092,12 +1314,17 @@ export default function ProductMaster() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Manufacturer</label>
-                <input
+                <label className="block text-sm font-medium mb-1">Manufacturer *</label>
+                <select
                   value={newProduct.manufacturer}
-                  onChange={(e) => handleAlphanumericChange("manufacturer", e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
+                  onChange={(e) => setNewProduct({ ...newProduct, manufacturer: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-900"
+                >
+                  <option value="">Select Manufacturer</option>
+                  {MANUFACTURERS.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
               </div>
 
               <div className="md:col-span-2 mt-4">
@@ -1107,7 +1334,7 @@ export default function ProductMaster() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">Packing Type</label>
+                <label className="block text-sm font-medium mb-1">Packing Type *</label>
                 <select
                   value={newProduct.packingType}
                   onChange={(e) => setNewProduct({ ...newProduct, packingType: e.target.value })}
@@ -1161,7 +1388,7 @@ export default function ProductMaster() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">MRP</label>
+                <label className="block text-sm font-medium mb-1">MRP *</label>
                 <input
                   type="number"
                   value={newProduct.mrp}
@@ -1212,22 +1439,38 @@ export default function ProductMaster() {
 
               <div>
                 <label className="block text-sm font-medium mb-1">GST %</label>
-                <input value={newProduct.gst} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
+                <input
+                  type="number"
+                  value={newProduct.gst}
+                  readOnly={!(activeRole === 'Super Admin' || activeRole === 'Admin')}
+                  onChange={(e) => setNewProduct({ ...newProduct, gst: e.target.value })}
+                  className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${!(activeRole === 'Super Admin' || activeRole === 'Admin') ? "bg-slate-50 cursor-not-allowed" : ""}`}
+                />
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">HSN Code</label>
+                <label className="block text-sm font-medium mb-1">HSN Code *</label>
                 <input
                   list="hsn-codes"
                   value={newProduct.hsnCode}
                   placeholder="Search or Select HSN Code"
                   onChange={(e) => {
-                    const selectedGST = gstRecords.find((gst) => gst.hsnCode === e.target.value);
-                    setNewProduct({
-                      ...newProduct,
-                      hsnCode: e.target.value,
-                      gst: selectedGST?.totalGst?.replace("%", "") || "",
-                    });
+                    const cleanHsn = e.target.value.replace(/\D/g, "").slice(0, 8); // HSN Numeric limits filter
+                    const matches = gstRecords.filter((gst) => gst.hsnCode === cleanHsn);
+                    if (matches.length > 0) {
+                      matches.sort((a, b) => parseEffectiveDate(b.effectiveDate).getTime() - parseEffectiveDate(a.effectiveDate).getTime());
+                      const latestGst = matches[0];
+                      setNewProduct({
+                        ...newProduct,
+                        hsnCode: cleanHsn,
+                        gst: latestGst?.totalGst?.replace("%", "") || "",
+                      });
+                    } else {
+                      setNewProduct({
+                        ...newProduct,
+                        hsnCode: cleanHsn,
+                      });
+                    }
                   }}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
@@ -1292,8 +1535,8 @@ export default function ProductMaster() {
                 <label className="block text-sm font-medium mb-1">Barcode</label>
                 <input
                   value={newProduct.barcode}
-                  maxLength={20}
-                  onChange={(e) => handleAlphanumericChange("barcode", e.target.value)}
+                  placeholder="Digits only (EAN-13)"
+                  onChange={(e) => handleNumericOnlyChange("barcode", e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
                 />
               </div>
@@ -1303,10 +1546,11 @@ export default function ProductMaster() {
                 <select
                   value={newProduct.status}
                   onChange={(e) => setNewProduct({ ...newProduct, status: e.target.value as Product["status"] })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-900"
                 >
-                  <option>Active</option>
-                  <option>Inactive</option>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Discontinued">Discontinued</option>
                 </select>
               </div>
             </div>
