@@ -7,7 +7,6 @@ import {
   ShoppingCart,
   Receipt,
   Users,
-  BarChart3,
   Bell,
   Settings,
   Search,
