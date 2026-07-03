@@ -64,10 +64,12 @@ const handleLogin = async () => {
       response.data.token
     );
 
-    await AsyncStorage.setItem(
-      '@mrId',
-      response.data.mr.id.toString()
-    );
+    if (response.data.mr) {
+      await AsyncStorage.setItem(
+        '@mrId',
+        response.data.mr.id.toString()
+      );
+    }
 
     await AsyncStorage.setItem(
       '@user',
