@@ -208,8 +208,6 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Bank Reconciliation', path: '/workspace/finance/bank-reco' },
     ],
   },
-  { label: 'Orders', path: '/orders', icon: ShoppingCart },
-  { label: 'Reports', path: '/reports', icon: BarChart3 },
   {
     label: 'Alerts & Notifications',
     icon: Bell,
@@ -228,11 +226,8 @@ const NAV_ITEMS: NavItem[] = [
     icon: Settings,
     subItems: [
       { label: 'Profile Settings', path: '/workspace/settings/profile' },
-      { label: 'Company Settings', path: '/workspace/settings/company' },
-      { label: 'Branch Settings', path: '/workspace/settings/branch' },
       { label: 'User Management', path: '/workspace/settings/users' },
       { label: 'Roles & Permissions', path: '/workspace/settings/roles' },
-      { label: 'System Settings', path: '/workspace/settings/system' },
     ],
   },
 ];
