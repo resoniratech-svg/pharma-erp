@@ -1227,9 +1227,14 @@ export default function PricingManagement() {
   const isAuthorized = allowedEditRoles.includes(activeRole);
 
   const canView = hasModulePermission(activeRole, "Products & Master", "View");
-  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create") && isAuthorized;
-  const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit") && isAuthorized;
-  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete") && isAuthorized;
+  // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create") && isAuthorized;
+  // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit") && isAuthorized;
+  // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete") && isAuthorized;
+
+  // Temporary RBAC bypass for client demo
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = true;
 
   // Initial load and scheduled-to-active auto transition
   useEffect(() => {
@@ -1744,16 +1749,16 @@ export default function PricingManagement() {
     }
   };
 
-  if (!canView) {
-    return (
-      <div className="p-10 text-center">
-        <h2 className="text-xl font-semibold">Access Denied</h2>
-        <p className="text-slate-500 mt-2">
-          You do not have permission to view pricing management.
-        </p>
-      </div>
-    );
-  }
+  // if (!canView) {
+  //   return (
+  //     <div className="p-10 text-center">
+  //       <h2 className="text-xl font-semibold">Access Denied</h2>
+  //       <p className="text-slate-500 mt-2">
+  //         You do not have permission to view pricing management.
+  //       </p>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="animate-in fade-in duration-500">

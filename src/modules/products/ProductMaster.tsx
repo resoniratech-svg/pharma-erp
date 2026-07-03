@@ -207,9 +207,13 @@ export default function ProductMaster() {
   const activeRole = localStorage.getItem('activeRole') || '';
 
   
-  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
-  const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
+  // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
+  // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
+  // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
+  // Temporary RBAC bypass for client demo
+const canCreate = true;
+const canEdit = true;
+const canDelete = true;
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");

@@ -639,9 +639,14 @@ export default function BarcodeManagement() {
 
   const activeRole = localStorage.getItem("activeRole") || "";
   const canView = hasModulePermission(activeRole, "Products & Master", "View");
-  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
-  const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
+  // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
+  // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
+  // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
+
+  // Temporary RBAC bypass for client demo
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = true;
 
   const [newBarcode, setNewBarcode] = useState({
     id: '',
@@ -958,16 +963,16 @@ export default function BarcodeManagement() {
     }
   };
 
-  if (!canView) {
-    return (
-      <div className="p-10 text-center">
-        <h2 className="text-xl font-semibold">Access Denied</h2>
-        <p className="text-slate-500 mt-2">
-          You do not have permission to view Barcode Management.
-        </p>
-      </div>
-    );
-  }
+  // if (!canView) {
+  //   return (
+  //     <div className="p-10 text-center">
+  //       <h2 className="text-xl font-semibold">Access Denied</h2>
+  //       <p className="text-slate-500 mt-2">
+  //         You do not have permission to view Barcode Management.
+  //       </p>
+  //     </div>
+  //   );
+  // }
 
   // Only allow active products to be mapped to barcodes
   const activeProducts = products.filter(p => !p.status || p.status === 'Active');

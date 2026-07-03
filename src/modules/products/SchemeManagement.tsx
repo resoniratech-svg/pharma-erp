@@ -921,9 +921,13 @@ export default function SchemeManagement() {
   const activeRole = localStorage.getItem("activeRole") || "";
 
   const canView = hasModulePermission(activeRole, "Products & Master", "View");
-  const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
-  const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-  const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
+  // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
+  // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
+  // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
+  // Temporary RBAC bypass for client demo
+const canCreate = true;
+const canEdit = true;
+const canDelete = true;
 
   const [newScheme, setNewScheme] = useState({
     id: '',
@@ -1291,16 +1295,16 @@ export default function SchemeManagement() {
     }
   };
 
-  if (!canView) {
-    return (
-      <div className="p-10 text-center">
-        <h2 className="text-xl font-semibold">Access Denied</h2>
-        <p className="text-slate-500 mt-2">
-          You do not have permission to view Scheme Management.
-        </p>
-      </div>
-    );
-  }
+  // if (!canView) {
+  //   return (
+  //     <div className="p-10 text-center">
+  //       <h2 className="text-xl font-semibold">Access Denied</h2>
+  //       <p className="text-slate-500 mt-2">
+  //         You do not have permission to view Scheme Management.
+  //       </p>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="animate-in fade-in duration-500">

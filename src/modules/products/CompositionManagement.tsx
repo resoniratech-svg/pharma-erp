@@ -75,9 +75,14 @@ export default function CompositionManagement() {
     localStorage.getItem("permissions_SUPER_ADMIN") || "{}",
   );
 
-  const canCreate = permissions["Products & Master"]?.Create ?? true;
-  const canEdit = permissions["Products & Master"]?.Edit ?? true;
-  const canDelete = permissions["Products & Master"]?.Delete ?? true;
+  // const canCreate = permissions["Products & Master"]?.Create ?? true;
+  // const canEdit = permissions["Products & Master"]?.Edit ?? true;
+  // const canDelete = permissions["Products & Master"]?.Delete ?? true;
+
+  // Temporary RBAC bypass for client demo
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = true;
 
   const columns: Column<Composition>[] = [
     { key: 'genericName', label: 'Generic Name', render: (row) => <span className="font-semibold text-slate-900">{row.genericName}</span> },

@@ -496,7 +496,7 @@ export default function ExpiryTracking() {
 
   const currentUser = authService.getCurrentUser();
   const activeRole = localStorage.getItem('activeRole') || '';
-  const canView = hasModulePermission(activeRole, "Products & Master", "View");
+  // const canView = hasModulePermission(activeRole, "Products & Master", "View");
 
   const loadExpiryData = () => {
     const batches = batchService.getAll() as unknown as Batch[];
@@ -700,16 +700,16 @@ export default function ExpiryTracking() {
   }).length;
   const expiredCount = data.filter(item => getStatusLabelAndVariant(item.daysLeft, item.status).label === "Expired").length;
 
-  if (!canView) {
-    return (
-      <div className="p-10 text-center">
-        <h2 className="text-xl font-semibold">Access Denied</h2>
-        <p className="text-slate-500 mt-2">
-          You do not have permission to view Expiry Tracking.
-        </p>
-      </div>
-    );
-  }
+  // if (!canView) {
+  //   return (
+  //     <div className="p-10 text-center">
+  //       <h2 className="text-xl font-semibold">Access Denied</h2>
+  //       <p className="text-slate-500 mt-2">
+  //         You do not have permission to view Expiry Tracking.
+  //       </p>
+  //     </div>
+  //   );
+  // }
 
   return (
     <div className="animate-in fade-in duration-500">
