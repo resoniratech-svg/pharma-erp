@@ -1222,8 +1222,6 @@ export default function PricingManagement() {
   const [isEditingModal, setIsEditingModal] = useState(false);
   const currentUser = authService.getCurrentUser();
 
-  const activeRole = localStorage.getItem("activeRole") || "";
-  const allowedEditRoles = ["Super Admin", "Admin", "Accounts Manager"];
   
   // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create") && isAuthorized;
   // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit") && isAuthorized;

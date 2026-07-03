@@ -821,7 +821,6 @@ import { schemeService } from "../../services/schemeService";
 import { productService } from "../../services/productService";
 import activityLogService from "../../services/activityLogService";
 import authService from "../../services/authService";
-import { hasModulePermission } from "../../utils/permissionUtils";
 
 interface Product {
   id: string;
@@ -918,9 +917,7 @@ export default function SchemeManagement() {
   const [showModal, setShowModal] = useState(false);
   const [isEditingModal, setIsEditingModal] = useState(false);
   const currentUser = authService.getCurrentUser();
-  const activeRole = localStorage.getItem("activeRole") || "";
 
-  const canView = hasModulePermission(activeRole, "Products & Master", "View");
   // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
   // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
