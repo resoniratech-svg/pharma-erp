@@ -11,6 +11,7 @@
       "icon": "./assets/expo.icon"
     },
     "android": {
+      "package": "com.resoniratech.pharmaerpexpo",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/images/android-icon-foreground.png",
@@ -24,7 +25,6 @@
       "favicon": "./assets/images/favicon.png"
     },
     "plugins": [
-   
       [
         "expo-splash-screen",
         {
@@ -37,9 +37,13 @@
       ]
     ],
     "experiments": {
-
       "reactCompiler": false
-
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "249f96f5-a21f-409f-b848-3ffa9a096a66"
+      }
+    },
+    "owner": "resonira_technologies"
   }
 }
