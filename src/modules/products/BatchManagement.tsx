@@ -888,7 +888,7 @@ import { type Column } from './types';
 import { batchService, type BatchRecord } from "../../services/batchService";
 import activityLogService from "../../services/activityLogService";
 import authService from "../../services/authService";
-import { hasModulePermission } from '../../utils/permissionUtils';
+
 import { productService } from "../../services/productService";
 import { getExpiryStatus } from "../../utils/expiryUtils";
 
@@ -959,7 +959,7 @@ export default function BatchManagement() {
   const [showBatchModal, setShowBatchModal] = useState(false);
   const [isEditingModal, setIsEditingModal] = useState(false);
 
-  const activeRole = localStorage.getItem("activeRole") || "";
+  // const activeRole = localStorage.getItem("activeRole") || "";
   
   // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");

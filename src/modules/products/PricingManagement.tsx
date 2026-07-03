@@ -1123,7 +1123,7 @@ import { pricingService } from "../../services/pricingService";
 import { productService } from "../../services/productService";
 import activityLogService from "../../services/activityLogService";
 import authService from "../../services/authService";
-import { hasModulePermission } from "../../utils/permissionUtils";
+
 
 interface Pricing {
   id: string;
@@ -1224,9 +1224,7 @@ export default function PricingManagement() {
 
   const activeRole = localStorage.getItem("activeRole") || "";
   const allowedEditRoles = ["Super Admin", "Admin", "Accounts Manager"];
-  const isAuthorized = allowedEditRoles.includes(activeRole);
-
-  const canView = hasModulePermission(activeRole, "Products & Master", "View");
+  
   // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create") && isAuthorized;
   // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit") && isAuthorized;
   // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete") && isAuthorized;

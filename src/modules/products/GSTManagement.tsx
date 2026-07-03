@@ -17,7 +17,7 @@ import { gstService } from '../../services/gstService';
 import { productService } from '../../services/productService';
 import activityLogService from "../../services/activityLogService";
 import authService from '../../services/authService';
-import { hasModulePermission } from '../../utils/permissionUtils';
+
 
 interface GST {
   id: string;
@@ -60,7 +60,7 @@ export default function GSTManagement() {
     }
   }, [data]);
 
-  const activeRole = localStorage.getItem("activeRole") || "";
+  
   
   // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");

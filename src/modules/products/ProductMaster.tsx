@@ -18,7 +18,8 @@ import { packingTypeService } from "../../services/packingTypeService";
 import { compositionService } from "../../services/compositionService";
 import { gstService } from "../../services/gstService";
 import activityLogService from "../../services/activityLogService";
-import { hasModulePermission } from '../../utils/permissionUtils';
+
+
 import { schemeService } from "../../services/schemeService";
 import {
   PRODUCT_TYPES,

@@ -438,7 +438,7 @@ import { type Column } from './types';
 
 import { batchService } from "../../services/batchService";
 import { getExpiryStatus, getDaysToExpiry } from "../../utils/expiryUtils";
-import { hasModulePermission } from '../../utils/permissionUtils';
+
 import activityLogService from "../../services/activityLogService";
 import authService from "../../services/authService";
 
@@ -495,7 +495,7 @@ export default function ExpiryTracking() {
   const [data, setData] = useState<ExpiryItem[]>([]);
 
   const currentUser = authService.getCurrentUser();
-  const activeRole = localStorage.getItem('activeRole') || '';
+  
   // const canView = hasModulePermission(activeRole, "Products & Master", "View");
 
   const loadExpiryData = () => {

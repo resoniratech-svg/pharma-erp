@@ -23,7 +23,6 @@ import { type Column } from './types';
 import { mrpService } from '../../services/mrpService';
 import { productService } from '../../services/productService';
 import activityLogService  from '../../services/activityLogService';
-import { hasModulePermission } from '../../utils/permissionUtils';
 
 interface MRPItem {
   id: string;
@@ -102,7 +101,6 @@ const initialMockData: MRPItem[] = [
 export default function MRPManagement() {
   const [data, setData] = useState<MRPItem[]>([]);
   const currentUser = JSON.parse(localStorage.getItem("authUser") || "{}");
-  const activeRole = localStorage.getItem("activeRole") || "";
   const [products, setProducts] = useState<any[]>([]);
 
   useEffect(() => {
@@ -154,7 +152,6 @@ export default function MRPManagement() {
     }
   }, [data]);
 
-  const canView = hasModulePermission(activeRole, "Products & Master", "View");
   // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
   // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
   // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");

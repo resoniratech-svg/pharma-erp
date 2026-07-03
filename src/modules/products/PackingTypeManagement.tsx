@@ -15,7 +15,7 @@ import {
 import { type Column } from './types';
 import { packingTypeService } from "../../services/packingTypeService";
 import activityLogService from "../../services/activityLogService";
-import { hasModulePermission } from '../../utils/permissionUtils';
+
 
 interface PackingType {
   id: string;
@@ -43,7 +43,7 @@ export default function PackingTypeManagement() {
   const [showModal, setShowModal] = useState(false);
   const [isEditingModal, setIsEditingModal] = useState(false);
 
-  const activeRole = localStorage.getItem("activeRole") || "";
+  
   
   
   // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");

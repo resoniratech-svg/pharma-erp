@@ -71,9 +71,7 @@ export default function CompositionManagement() {
     status: 'Active' as 'Active' | 'Inactive',
   });
 
-  const permissions = JSON.parse(
-    localStorage.getItem("permissions_SUPER_ADMIN") || "{}",
-  );
+  
 
   // const canCreate = permissions["Products & Master"]?.Create ?? true;
   // const canEdit = permissions["Products & Master"]?.Edit ?? true;
