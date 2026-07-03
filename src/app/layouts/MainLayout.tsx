@@ -29,7 +29,7 @@ import {
 import { hasPermission } from '../../constants/permissions';
 import NotificationDropdown from '../../components/NotificationDropdown';
 import { ROLE_SUPER_ADMIN, ROLE_WAREHOUSE_MANAGER, ROLE_ACCOUNTANT, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_MEDICAL_REPRESENTATIVE, ROLE_TRANSPORT_STAFF, ROLES } from '../../constants/roles';
-import mjLogo from '../../assets/logo/mj-healthcare-logo1.svg';
+import mjLogo from '../../assets/logo/pharmaLOGO.png';
 
 /* ── Constants ───────────────────────────────────────────────────── */
 const PRIMARY_HEX = '#7c3aed';
@@ -349,7 +349,7 @@ export function MainLayout() {
       <img
         src={mjLogo}
         alt="MJ Healthcare"
-        className="h-20 w-auto object-contain"
+        className="h-50 w-auto object-contain"
       />
     </Link>
 
