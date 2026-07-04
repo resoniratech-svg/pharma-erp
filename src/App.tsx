@@ -1027,7 +1027,7 @@ export default function Dashboard() {
         )}
 
         {/* ── Quick Actions (Super Admin Only - Fully Hidden from Distributors) ── */}
-        {isSuperAdmin && (
+       {/* {isSuperAdmin && (
           <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm p-6">
             <h2 className="text-lg font-bold text-slate-800 mb-6">Quick Actions</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
@@ -1044,7 +1044,7 @@ export default function Dashboard() {
               ))}
             </div>
           </motion.div>
-        )}
+        )} */}
 
         {/* ── Recent Orders Table ── */}
         {showRecentOrders && (
