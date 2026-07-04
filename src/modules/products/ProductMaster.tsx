@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Plus, Filter, Download, Trash2 } from 'lucide-react';
+import { useEffect, useState, useRef } from 'react';
+import { Plus, Filter, Download, Trash2, ChevronDown } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -16,15 +16,9 @@ import { type Column } from './types';
 import { productService } from "../../services/productService";
 import { packingTypeService } from "../../services/packingTypeService";
 import { compositionService } from "../../services/compositionService";
-import { gstService } from "../../services/gstService";
 import activityLogService from "../../services/activityLogService";
-
-
-import { schemeService } from "../../services/schemeService";
-import {
-  PRODUCT_TYPES,
-  MANUFACTURERS,
-} from "./productMasters";
+import { hsnService, type HSNCode } from '../../services/hsnService';
+import { GetCurrentGSTByHSN } from './GSTManagement';
 
 interface Product {
   id: string;
@@ -37,7 +31,6 @@ interface Product {
   manufacturer: string;
   composition?: string;
   scheme?: string;
-  barcode?: string;
   packingType: string;
   unitsPerPack: string;
   packsInBox?: string;
@@ -45,6 +38,7 @@ interface Product {
   mrp: string;
   ptr: string;
   pts: string;
+  ptd?: string;
   purchasePrice?: string;
   sellingPrice?: string;
   gst: string;
@@ -68,7 +62,6 @@ const initialProducts: Product[] = [
     manufacturer: "PharmaCorp",
     composition: "Amoxicillin 500mg",
     scheme: "Buy 1 get 10",
-    barcode: "890100000001",
     packingType: "Blister Pack",
     unitsPerPack: "10",
     packsInBox: "20",
@@ -76,6 +69,7 @@ const initialProducts: Product[] = [
     mrp: "120",
     ptr: "105",
     pts: "95",
+    ptd: "90",
     purchasePrice: "90",
     sellingPrice: "120",
     gst: "12",
@@ -96,7 +90,6 @@ const initialProducts: Product[] = [
     type: "Tablet",
     manufacturer: "HealthPlus",
     composition: "Paracetamol 650mg",
-    barcode: "890100000002",
     packingType: "Strip",
     unitsPerPack: "15",
     packsInBox: "10",
@@ -104,6 +97,7 @@ const initialProducts: Product[] = [
     mrp: "45",
     ptr: "38",
     pts: "35",
+    ptd: "30",
     purchasePrice: "30",
     sellingPrice: "45",
     gst: "12",
@@ -113,91 +107,7 @@ const initialProducts: Product[] = [
     batchTracking: true,
     expiryTracking: true,
     status: "Active",
-  },
-  {
-    id: "3",
-    code: "PRD-000003",
-    name: "Cough Syrup 100ml",
-    genericName: "Dextromethorphan",
-    brandName: "CoughEase",
-    category: "Respiratory",
-    type: "Syrup",
-    manufacturer: "MediCare",
-    composition: "Dextromethorphan Hydrobromide",
-    barcode: "890100000003",
-    packingType: "Bottle",
-    unitsPerPack: "1",
-    packsInBox: "24",
-    totalUnits: "24",
-    mrp: "95",
-    ptr: "80",
-    pts: "75",
-    purchasePrice: "70",
-    sellingPrice: "95",
-    gst: "12",
-    hsnCode: "30049099",
-    minimumStock: "50",
-    reorderLevel: "20",
-    batchTracking: true,
-    expiryTracking: true,
-    status: "Inactive",
-  },
-  {
-    id: "4",
-    code: "PRD-000004",
-    name: "Vitamin C 1000mg",
-    genericName: "Ascorbic Acid",
-    brandName: "VitaBoost",
-    category: "Vitamins",
-    type: "Tablet",
-    manufacturer: "VitaLife",
-    composition: "Vitamin C 1000mg",
-    barcode: "890100000004",
-    packingType: "Bottle",
-    unitsPerPack: "30",
-    packsInBox: "12",
-    totalUnits: "360",
-    mrp: "250",
-    ptr: "220",
-    pts: "200",
-    purchasePrice: "180",
-    sellingPrice: "250",
-    gst: "12",
-    hsnCode: "21069099",
-    minimumStock: "80",
-    reorderLevel: "30",
-    batchTracking: true,
-    expiryTracking: true,
-    status: "Active",
-  },
-  {
-    id: "5",
-    code: "PRD-000005",
-    name: "Ibuprofen 400mg",
-    genericName: "Ibuprofen",
-    brandName: "PainAway",
-    category: "NSAIDs",
-    type: "Tablet",
-    manufacturer: "PainRelief Inc.",
-    composition: "Ibuprofen 400mg",
-    barcode: "890100000005",
-    packingType: "Strip",
-    unitsPerPack: "10",
-    packsInBox: "15",
-    totalUnits: "150",
-    mrp: "70",
-    ptr: "60",
-    pts: "55",
-    purchasePrice: "45",
-    sellingPrice: "70",
-    gst: "12",
-    hsnCode: "30049069",
-    minimumStock: "100",
-    reorderLevel: "40",
-    batchTracking: true,
-    expiryTracking: true,
-    status: "Discontinued",
-  },
+  }
 ];
 
 export default function ProductMaster() {
@@ -207,14 +117,9 @@ export default function ProductMaster() {
 
   const activeRole = localStorage.getItem('activeRole') || '';
 
-  
-  // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
-  // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-  // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
-  // Temporary RBAC bypass for client demo
-const canCreate = true;
-const canEdit = true;
-const canDelete = true;
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = true;
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
@@ -222,18 +127,30 @@ const canDelete = true;
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
 
-  // Persistent Custom Categories Load
   const [categories, setCategories] = useState<string[]>([]);
   const [showCategoryDropdown, setShowCategoryDropdown] = useState(false);
-  const [showCompositionDropdown, setShowCompositionDropdown] = useState(false);
-  const [showSchemeDropdown, setShowSchemeDropdown] = useState(false);
   
-  const [products, setProducts] = useState<Product[]>([]);
-  const [packingTypes, setPackingTypes] = useState<any[]>([]);
-  const [compositions, setCompositions] = useState<any[]>([]);
-  const [gstRecords, setGstRecords] = useState<any[]>([]);
-  const [schemes, setSchemes] = useState<any[]>([]);
+  const [productTypes, setProductTypes] = useState<string[]>([]);
+  const [showTypeDropdown, setShowTypeDropdown] = useState(false);
+  
+  const [manufacturers, setManufacturers] = useState<string[]>([]);
+  const [showManufacturerDropdown, setShowManufacturerDropdown] = useState(false);
 
+  const [products, setProducts] = useState<Product[]>([]);
+  
+  const [packingTypes, setPackingTypes] = useState<any[]>([]);
+  const [showPackingTypeDropdown, setShowPackingTypeDropdown] = useState(false);
+
+  const [compositions, setCompositions] = useState<any[]>([]);
+  const [showCompositionDropdown, setShowCompositionDropdown] = useState(false);
+
+  const [schemes, setSchemes] = useState<any[]>([]);
+  const [showSchemeDropdown, setShowSchemeDropdown] = useState(false);
+
+  const [activeHSNs, setActiveHSNs] = useState<HSNCode[]>([]);
+  const [showHsnDropdown, setShowHsnDropdown] = useState(false);
+  const [hsnSearch, setHsnSearch] = useState("");
+  
   const [showNewProductModal, setShowNewProductModal] = useState(false);
   const [editMode, setEditMode] = useState(false);
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
@@ -243,61 +160,87 @@ const canDelete = true;
     name: "",
     genericName: "",
     brandName: "",
-    composition: "",
-    scheme: "",
-    barcode: "",
     category: "",
     type: "",
     manufacturer: "",
+    composition: "",
+    scheme: "",
     packingType: "",
     unitsPerPack: "",
     packsInBox: "",
     totalUnits: "",
-    mrp: "",
-    ptr: "",
-    pts: "",
-    purchasePrice: "",
-    sellingPrice: "",
-    gst: "",
     hsnCode: "",
     minimumStock: "",
     reorderLevel: "",
-    batchTracking: false,
-    expiryTracking: false,
+    batchTracking: true,
+    expiryTracking: true,
     status: "Active" as Product["status"],
+    mrp: "",
+    ptr: "",
+    pts: "",
+    ptd: "",
+    purchasePrice: "",
+    sellingPrice: "",
+    gst: "",
   });
 
-  // Reusable helper to clean input to Alphanumeric and hard-limit to 20 characters
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
   const handleAlphanumericChange = (fieldName: string, rawValue: string) => {
     const sanitizedValue = rawValue.replace(/[^a-zA-Z0-9 ]/g, "");
-    const cappedValue = sanitizedValue.slice(0, 20);
-    
+    const cappedValue = sanitizedValue.slice(0, 50);
     setNewProduct((prev) => ({
       ...prev,
       [fieldName]: cappedValue,
     }));
   };
 
-  // Reusable helper to restrict manual barcode entries to digits only
-  const handleNumericOnlyChange = (fieldName: string, rawValue: string) => {
-    const cleanNumeric = rawValue.replace(/\D/g, "").slice(0, 13);
+  const handleNumericChange = (fieldName: string, rawValue: string, maxLength: number) => {
+    const sanitizedValue = rawValue.replace(/[^0-9]/g, "");
+    const cappedValue = sanitizedValue.slice(0, maxLength);
     setNewProduct((prev) => ({
       ...prev,
-      [fieldName]: cleanNumeric,
+      [fieldName]: cappedValue,
     }));
   };
 
-  // Calculate total units dynamically when inputs change
+  const handlePriceChange = (fieldName: string, rawValue: string) => {
+    const sanitizedValue = rawValue.replace(/[^0-9.]/g, "");
+    const parts = sanitizedValue.split('.');
+    let finalValue = sanitizedValue;
+    if (parts.length > 2) {
+      finalValue = parts[0] + '.' + parts.slice(1).join('');
+    }
+    setNewProduct((prev) => ({
+      ...prev,
+      [fieldName]: finalValue,
+    }));
+  };
+
+  const handleHsnSelection = (code: string) => {
+    setNewProduct(prev => ({ ...prev, hsnCode: code }));
+    setHsnSearch(code);
+    const gstMapping = GetCurrentGSTByHSN(code);
+    if (gstMapping && gstMapping.gstPercent) {
+      setNewProduct(prev => ({ ...prev, gst: String(gstMapping.gstPercent).replace('%', '') }));
+    } else {
+      setNewProduct(prev => ({ ...prev, gst: '' }));
+    }
+  };
+
   useEffect(() => {
     if (newProduct.unitsPerPack && newProduct.packsInBox) {
       const calcTotal = (Number(newProduct.unitsPerPack) * Number(newProduct.packsInBox)).toString();
       if (newProduct.totalUnits !== calcTotal) {
         setNewProduct(prev => ({ ...prev, totalUnits: calcTotal }));
       }
+    } else {
+      if (newProduct.totalUnits !== "") {
+        setNewProduct(prev => ({ ...prev, totalUnits: "" }));
+      }
     }
   }, [newProduct.unitsPerPack, newProduct.packsInBox]);
 
-  // Initial Lookups load
   useEffect(() => {
     const savedProducts = productService.getProducts();
 
@@ -312,45 +255,54 @@ const canDelete = true;
       localStorage.setItem("pharma_erp_products", JSON.stringify(initialProducts));
     }
 
-    // Categories persistence loading
     const defaultCategories = [
-      "Antibiotics", "Analgesics", "Antipyretics", "Anti-inflammatory", 
-      "Antifungals", "Antivirals", "Cardiac", "Diabetic", 
-      "Respiratory", "Gastroenterology", "Neurology", "Dermatology", 
-      "Orthopedics", "Pediatrics", "Vitamins & Supplements", 
-      "Medical Devices", "Surgical Items"
+      "Antibiotics",
+      "Analgesics",
+      "Antipyretics",
+      "Anti-inflammatory",
+      "Antifungals",
+      "Antivirals",
+      "Cardiac",
+      "Diabetic",
+      "Respiratory",
+      "Gastroenterology",
+      "Neurology",
+      "Dermatology",
+      "Orthopedics",
+      "Pediatrics",
+      "Vitamins & Supplements",
+      "Medical Devices",
+      "Surgical Items",
     ];
     const savedCategories = JSON.parse(localStorage.getItem("product_categories") || "null");
     setCategories(savedCategories || defaultCategories);
 
+    const defaultTypes = ["Tablet", "Capsule", "Syrup", "Injection", "Ointment", "Cream", "Drops", "Inhaler", "Suppository", "Powder"];
+    const savedTypes = JSON.parse(localStorage.getItem("product_types") || "null");
+    setProductTypes(savedTypes || defaultTypes);
+
+    const defaultManufacturers = ["PharmaCorp", "HealthPlus", "MediCare", "VitaLife"];
+    const savedManufacturers = JSON.parse(localStorage.getItem("product_manufacturers") || "null");
+    setManufacturers(savedManufacturers || defaultManufacturers);
+
     const savedPackingTypes = packingTypeService.getAll();
-    setPackingTypes(
-      savedPackingTypes.filter((item: any) => item.status === "Active"),
-    );
+    setPackingTypes(savedPackingTypes.filter((item: any) => item.status === "Active"));
 
     const savedCompositions = compositionService.getAll();
-    setCompositions(
-      savedCompositions.filter((item: any) => item.status === "Active"),
-    );
+    setCompositions(savedCompositions.filter((item: any) => item.status === "Active"));
 
-    const savedSchemes = schemeService.getAll();
-    if (savedSchemes.length > 0) {
-      setSchemes(savedSchemes);
-    }
+    const savedSchemes = JSON.parse(localStorage.getItem("pharma_erp_schemes") || "[]");
+    setSchemes(savedSchemes.filter((item: any) => item.status === "Active"));
+
+    setActiveHSNs(hsnService.getActive());
   }, []);
 
-  // Save changes to service layers and core local storage state key automatically
   useEffect(() => {
     if (products.length > 0) {
       productService.saveProducts(products);
       localStorage.setItem("pharma_erp_products", JSON.stringify(products));
     }
   }, [products]);
-
-  useEffect(() => {
-    const gstData = gstService.getAll();
-    setGstRecords(gstData);
-  }, []);
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -362,113 +314,32 @@ const canDelete = true;
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showNewProductModal]);
 
-const parseEffectiveDate = (dateStr: string) => {
-  if (!dateStr) return new Date(0);
-  const date = new Date(dateStr);
-  return isNaN(date.getTime()) ? new Date(0) : date;
-};
+  const checkProductInUse = (id: string) => {
+    const invoices = JSON.parse(localStorage.getItem("billing_gst_invoices") || "[]");
+    const isUsedInInvoices = invoices.some((inv: any) => inv.items.some((item: any) => item.productId === id));
+    const inventory = JSON.parse(localStorage.getItem("billing_inventory") || "{}");
+    const productInventory = inventory[id] || [];
+    const hasStock = productInventory.some((b: any) => b.stock > 0);
+    return isUsedInInvoices || hasStock;
+  };
 
-const checkProductInUse = (id: string) => {
-  const invoices = JSON.parse(localStorage.getItem("billing_gst_invoices") || "[]");
-  const isUsedInInvoices = invoices.some((inv: any) =>
-    inv.items.some((item: any) => item.productId === id)
-  );
-
-  const inventory = JSON.parse(localStorage.getItem("billing_inventory") || "{}");
-  const productInventory = inventory[id] || [];
-  const hasStock = productInventory.some((b: any) => b.stock > 0);
-
-  return isUsedInInvoices || hasStock;
-};
-
-const autoGenerateProductCode = () => {
-  const maxCodeNumber = products.reduce((max, p) => {
-    const match = p.code.match(/PRD-(\d+)/);
-    if (match) {
-      const num = parseInt(match[1], 10);
-      return num > max ? num : max;
-    }
-    return max;
-  }, 0);
-
-  return `PRD-${String(maxCodeNumber + 1).padStart(6, "0")}`;
-};
-
-// if (!canView) {
-//   return (
-//     <div className="p-10 text-center">
-//       <h2 className="text-xl font-semibold">Access Denied</h2>
-//       <p className="text-slate-500 mt-2">
-//         You do not have permission to view Product Management.
-//       </p>
-//     </div>
-//   );
-// }
+  const autoGenerateProductCode = () => {
+    const maxCodeNumber = products.reduce((max, p) => {
+      const match = p.code.match(/PRD-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        return num > max ? num : max;
+      }
+      return max;
+    }, 0);
+    return `PRD-${String(maxCodeNumber + 1).padStart(6, "0")}`;
+  };
 
   const handleExport = () => {
-    const headers = [
-      "Code",
-      "Product Name",
-      "Generic Name",
-      "Brand Name",
-      "Category",
-      "Type",
-      "Manufacturer",
-      "Composition",
-      "Scheme",
-      "Barcode",
-      "Packing Type",
-      "Units Per Pack",
-      "Packs In Box",
-      "Total Units",
-      "MRP",
-      "PTR",
-      "PTS",
-      "Purchase Price",
-      "Selling Price",
-      "GST %",
-      "HSN Code",
-      "Minimum Stock",
-      "Reorder Level",
-      "Status",
-    ];
-
-    const rows = filteredData.map((item) => [
-      item.code,
-      item.name,
-      item.genericName || "",
-      item.brandName || "",
-      item.category,
-      item.type,
-      item.manufacturer,
-      item.composition || "",
-      item.scheme || "No Scheme",
-      item.barcode || "",
-      item.packingType,
-      item.unitsPerPack,
-      item.packsInBox || "",
-      item.totalUnits || "",
-      item.mrp,
-      item.ptr,
-      item.pts,
-      item.purchasePrice || "",
-      item.sellingPrice || "",
-      item.gst,
-      item.hsnCode,
-      item.minimumStock || "",
-      item.reorderLevel || "",
-      item.status,
-    ]);
-
-    const csvContent = [
-      headers.join(","),
-      ...rows.map((row) => row.join(",")),
-    ].join("\n");
-
-    const blob = new Blob([csvContent], {
-      type: "text/csv;charset=utf-8;",
-    });
-
+    const headers = ["Code", "Product Name", "Category", "Manufacturer", "MRP", "PTR", "PTS", "GST %", "Status"];
+    const rows = filteredData.map((item) => [item.code, item.name, item.category, item.manufacturer, item.mrp, item.ptr, item.pts, item.gst, item.status]);
+    const csvContent = [headers.join(","), ...rows.map((row) => row.join(","))].join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
     link.download = "products_master_export.csv";
@@ -476,180 +347,37 @@ const autoGenerateProductCode = () => {
   };
 
   const handleSaveProduct = () => {
-    if (!newProduct.code || !newProduct.name || !newProduct.type || !newProduct.manufacturer || !newProduct.hsnCode || !newProduct.packingType || !newProduct.mrp) {
-      alert("Please fill all mandatory fields (*). Product Code, Name, Type, Manufacturer, Packing Type, MRP and HSN are required.");
+    if (!newProduct.code || !newProduct.name || !newProduct.type || !newProduct.manufacturer || !newProduct.hsnCode || !newProduct.packingType) {
+      alert("Please fill all mandatory fields (*). Product Code, Name, Type, Manufacturer, Packing Type, and HSN are required.");
       return;
     }
 
-    // 1. Prevent Duplicate Product Codes
-    const isCodeDuplicate = products.some(
-      (p) => p.code.trim().toLowerCase() === newProduct.code.trim().toLowerCase() && p.id !== editingProductId
-    );
+    const isCodeDuplicate = products.some((p) => p.code.trim().toLowerCase() === newProduct.code.trim().toLowerCase() && p.id !== editingProductId);
     if (isCodeDuplicate) {
       alert(`Error: Product Code "${newProduct.code}" is already assigned to another product.`);
       return;
     }
 
-    // 2. Prevent Duplicate Product Names
-    const isNameDuplicate = products.some(
-      (p) => p.name.trim().toLowerCase() === newProduct.name.trim().toLowerCase() && p.id !== editingProductId
-    );
+    const isNameDuplicate = products.some((p) => p.name.trim().toLowerCase() === newProduct.name.trim().toLowerCase() && p.id !== editingProductId);
     if (isNameDuplicate) {
       alert(`Error: Product Name "${newProduct.name}" already exists.`);
       return;
     }
 
-    // 3. Pricing Rule Validations
-    const mrpVal = parseFloat(newProduct.mrp) || 0;
-    const ptrVal = parseFloat(newProduct.ptr) || 0;
-    const ptsVal = parseFloat(newProduct.pts) || 0;
-    const purchaseVal = parseFloat(newProduct.purchasePrice) || 0;
-    const sellingVal = parseFloat(newProduct.sellingPrice) || 0;
-
-    if (mrpVal < 0 || ptrVal < 0 || ptsVal < 0 || purchaseVal < 0 || sellingVal < 0) {
-      alert("Error: Prices and rates cannot be negative.");
-      return;
-    }
-    if (mrpVal > 999999 || ptrVal > 999999 || ptsVal > 999999 || purchaseVal > 999999 || sellingVal > 999999) {
-      alert("Error: Prices and rates exceed maximum sensible ERP limit (₹9,99,999).");
-      return;
-    }
-    if (mrpVal < ptrVal) {
-      alert("Error: MRP must be greater than or equal to PTR.");
-      return;
-    }
-    if (ptrVal < ptsVal) {
-      alert("Error: PTR must be greater than or equal to PTS.");
-      return;
-    }
-    if (purchaseVal > sellingVal) {
-      alert("Error: Purchase Price cannot exceed Selling Price.");
-      return;
-    }
-
-    // 4. Safety Stock Validation
-    const minStockVal = parseFloat(newProduct.minimumStock) || 0;
-    const reorderVal = parseFloat(newProduct.reorderLevel) || 0;
-    if (minStockVal < 0 || reorderVal < 0) {
-      alert("Error: Stock levels cannot be negative.");
-      return;
-    }
-    if (reorderVal > minStockVal) {
-      alert("Error: Reorder Level must be less than or equal to Minimum Stock Level.");
-      return;
-    }
-
-    // 5. HSN Master existence & format checks
-    if (!/^\d{4,8}$/.test(newProduct.hsnCode)) {
-      alert("Error: HSN Code must be numeric and between 4 to 8 digits long.");
-      return;
-    }
-    const hsnExists = gstRecords.some((g) => g.hsnCode === newProduct.hsnCode);
-    if (!hsnExists) {
-      alert(`Error: HSN Code "${newProduct.hsnCode}" does not exist in the HSN Master.`);
-      return;
-    }
-
-    // 6. Barcode uniqueness and fallback auto-generation check
-    let barcodeToSave = newProduct.barcode;
-    let isBarcodeAutoGenerated = false;
-
-    if (!barcodeToSave) {
-      let uniqueGenerated = false;
-      let attempts = 0;
-      while (!uniqueGenerated && attempts < 10) {
-        const potential = `890${Math.floor(1000000000 + Math.random() * 9000000000)}`;
-        if (!products.some(p => p.barcode === potential)) {
-          barcodeToSave = potential;
-          uniqueGenerated = true;
-          isBarcodeAutoGenerated = true;
-        }
-        attempts++;
-      }
-      if (!barcodeToSave) {
-        alert("Error: Unable to auto-generate a unique EAN-13 barcode. Please try again.");
-        return;
-      }
-    } else {
-      // Validate uniqueness if entered manually
-      const isBarcodeDuplicate = products.some(p => p.barcode === barcodeToSave && p.id !== editingProductId);
-      if (isBarcodeDuplicate) {
-        alert(`Error: Barcode "${barcodeToSave}" is already assigned to another product.`);
-        return;
-      }
-      if (barcodeToSave.length !== 13) {
-        if (!window.confirm(`Warning: Barcode "${barcodeToSave}" is not 13 digits (EAN-13 standard). Proceed?`)) {
-          return;
-        }
-      }
-    }
-
-    // 7. Audit Log Generation (Edit Audit Trail & Generation Type Logging)
-    let logAction = "";
-
-    if (editMode && editingProductId) {
-      const originalProduct = products.find(p => p.id === editingProductId);
-      if (originalProduct) {
-        const changes: string[] = [];
-        if (originalProduct.name !== newProduct.name) changes.push(`Name: "${originalProduct.name}" → "${newProduct.name}"`);
-        if (originalProduct.mrp !== newProduct.mrp) changes.push(`MRP: ₹${originalProduct.mrp} → ₹${newProduct.mrp}`);
-        if (originalProduct.gst !== newProduct.gst) changes.push(`GST: ${originalProduct.gst}% → ${newProduct.gst}%`);
-        if (originalProduct.ptr !== newProduct.ptr) changes.push(`PTR: ₹${originalProduct.ptr} → ₹${newProduct.ptr}`);
-        if (originalProduct.pts !== newProduct.pts) changes.push(`PTS: ₹${originalProduct.pts} → ₹${newProduct.pts}`);
-        if (originalProduct.manufacturer !== newProduct.manufacturer) changes.push(`Manufacturer: "${originalProduct.manufacturer}" → "${newProduct.manufacturer}"`);
-        if (originalProduct.hsnCode !== newProduct.hsnCode) changes.push(`HSN: "${originalProduct.hsnCode}" → "${newProduct.hsnCode}"`);
-        
-        if (changes.length > 0) {
-          logAction = `Product Updated (${newProduct.code}) - ${changes.join(", ")}`;
-        } else {
-          logAction = `Product Updated (${newProduct.code}) - No critical fields changed`;
-        }
-      } else {
-        logAction = `Product Updated (${newProduct.code})`;
-      }
-    } else {
-      // Creation Audit Log
-      const defaultGSTObj = gstRecords
-        .filter((g) => g.hsnCode === newProduct.hsnCode)
-        .sort((a, b) => parseEffectiveDate(b.effectiveDate).getTime() - parseEffectiveDate(a.effectiveDate).getTime())[0];
-      const defaultGST = defaultGSTObj?.totalGst?.replace("%", "") || "";
-      const isGSTOverridden = defaultGST !== "" && newProduct.gst !== defaultGST;
-      
-      const barcodeLogged = isBarcodeAutoGenerated ? " [Barcode Auto-Generated]" : "";
-      
-      if (isGSTOverridden) {
-        logAction = `Product Created (${newProduct.code}) - "${newProduct.name}" - GST Overridden from ${defaultGST}% to ${newProduct.gst}%${barcodeLogged}`;
-      } else {
-        logAction = `Product Created (${newProduct.code}) - "${newProduct.name}"${barcodeLogged}`;
-      }
-    }
-
-    // Explicitly derive total units for safe data persistence
-    const calculatedTotalUnits = newProduct.unitsPerPack && newProduct.packsInBox
-      ? (Number(newProduct.unitsPerPack) * Number(newProduct.packsInBox)).toString()
-      : (newProduct.totalUnits || "0");
-
+    let logAction = editMode ? `Product Updated (${newProduct.code})` : `Product Created (${newProduct.code})`;
     let updatedList: Product[] = [];
+
+    const calculatedTotalUnits = newProduct.unitsPerPack && newProduct.packsInBox ? (Number(newProduct.unitsPerPack) * Number(newProduct.packsInBox)).toString() : (newProduct.totalUnits || "0");
 
     if (editMode && editingProductId) {
       updatedList = products.map((product) =>
-        product.id === editingProductId
-          ? {
-              ...product,
-              ...newProduct,
-              barcode: barcodeToSave,
-              totalUnits: calculatedTotalUnits
-            }
-          : product
+        product.id === editingProductId ? { 
+          ...product, 
+          ...newProduct, 
+          totalUnits: calculatedTotalUnits 
+        } : product
       );
-      
       setProducts(updatedList);
-      activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: logAction,
-        module: "Product Master",
-      });
     } else {
       const product: Product = {
         id: Date.now().toString(),
@@ -661,147 +389,66 @@ const autoGenerateProductCode = () => {
         type: newProduct.type,
         manufacturer: newProduct.manufacturer,
         composition: newProduct.composition,
-        scheme: newProduct.scheme || "No Scheme",
-        barcode: barcodeToSave,
+        scheme: newProduct.scheme,
         packingType: newProduct.packingType,
         unitsPerPack: newProduct.unitsPerPack,
         packsInBox: newProduct.packsInBox,
         totalUnits: calculatedTotalUnits,
-        mrp: newProduct.mrp,
-        ptr: newProduct.ptr,
-        pts: newProduct.pts,
-        purchasePrice: newProduct.purchasePrice,
-        sellingPrice: newProduct.sellingPrice,
-        gst: newProduct.gst,
         hsnCode: newProduct.hsnCode,
         minimumStock: newProduct.minimumStock,
         reorderLevel: newProduct.reorderLevel,
         batchTracking: newProduct.batchTracking,
         expiryTracking: newProduct.expiryTracking,
         status: newProduct.status,
+        mrp: newProduct.mrp, 
+        ptr: newProduct.ptr, 
+        pts: newProduct.pts, 
+        ptd: newProduct.ptd, 
+        purchasePrice: newProduct.purchasePrice,
+        sellingPrice: newProduct.sellingPrice,
+        gst: newProduct.gst
       };
-
       updatedList = [product, ...products];
       setProducts(updatedList);
-
-      activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: logAction,
-        module: "Product Master",
-      });
     }
+
+    activityLogService.addLog({
+      userId: currentUser.id,
+      userName: currentUser.fullName,
+      action: logAction,
+      module: "Product Master",
+    });
 
     localStorage.setItem("pharma_erp_products", JSON.stringify(updatedList));
 
     setShowNewProductModal(false);
     setEditMode(false);
     setEditingProductId(null);
-    setNewProduct({
-      code: "",
-      name: "",
-      genericName: "",
-      brandName: "",
-      composition: "",
-      scheme: "",
-      barcode: "",
-      category: "",
-      type: "",
-      manufacturer: "",
-      packingType: "",
-      unitsPerPack: "",
-      packsInBox: "",
-      totalUnits: "",
-      mrp: "",
-      ptr: "",
-      pts: "",
-      purchasePrice: "",
-      sellingPrice: "",
-      gst: "",
-      hsnCode: "",
-      minimumStock: "",
-      reorderLevel: "",
-      batchTracking: false,
-      expiryTracking: false,
-      status: "Active",
-    });
   };
 
   const columns: Column<Product>[] = [
     { key: "code", label: "Code", width: "10%" },
-    {
-      key: "name",
-      label: "Product Name",
-      width: "25%",
-      render: (row) => (
-        <span className="font-semibold text-slate-900">{row.name}</span>
-      ),
-    },
+    { key: "name", label: "Product Name", width: "25%", render: (row) => (<span className="font-semibold text-slate-900">{row.name}</span>) },
     { key: "category", label: "Category", width: "12%" },
-    { key: "type", label: "Product Type", width: "10%" },
     { key: "manufacturer", label: "Manufacturer", width: "15%" },
-    {
-      key: "mrp",
-      label: "MRP",
-      width: "8%",
-      render: (row) => `₹ ${row.mrp}`,
-    },
-    {
-      key: "gst",
-      label: "GST %",
-      width: "8%",
-      render: (row) => `${row.gst}%`,
-    },
-    {
-      key: "status",
-      label: "Status",
-      width: "10%",
-      render: (row) => {
-        const variant =
-          row.status === "Active"
-            ? "success"
-            : row.status === "Inactive"
-              ? "warning"
-              : "danger";
-        return <Badge variant={variant}>{row.status}</Badge>;
-      },
-    },
-    {
-      key: "actions",
-      label: "Actions",
-      width: "120px",
-      render: (row) => (
+    { key: "mrp", label: "MRP", width: "8%", render: (row) => row.mrp ? `₹ ${row.mrp}` : "-" },
+    { key: "ptr", label: "PTR", width: "8%", render: (row) => row.ptr ? `₹ ${row.ptr}` : "-" },
+    { key: "pts", label: "PTS", width: "8%", render: (row) => row.pts ? `₹ ${row.pts}` : "-" },
+    { key: "ptd", label: "PTD", width: "8%", render: (row) => row.ptd ? `₹ ${row.ptd}` : "-" },
+    { key: "gst", label: "GST %", width: "8%", render: (row) => row.gst ? `${row.gst}%` : "-" },
+    { key: "scheme", label: "Scheme", width: "10%", render: (row) => row.scheme || "-" },
+    { key: "status", label: "Status", width: "10%", render: (row) => { const variant = row.status === "Active" ? "success" : row.status === "Inactive" ? "warning" : "danger"; return <Badge variant={variant}>{row.status}</Badge>; } },
+    { key: "actions", label: "Actions", width: "120px", render: (row) => (
         <div className="flex gap-3">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedProduct(row);
-            }}
-            className="text-violet-600 font-medium hover:text-violet-800"
-          >
-            View
-          </button>
-          {canDelete && (
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                setProductToDelete(row);
-              }}
-              className="text-rose-600 font-medium hover:text-rose-800"
-              title="Delete"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          )}
+          <button onClick={(e) => { e.stopPropagation(); setSelectedProduct(row); }} className="text-violet-600 font-medium hover:text-violet-800">View</button>
+          {canDelete && (<button onClick={(e) => { e.stopPropagation(); setProductToDelete(row); }} className="text-rose-600 font-medium hover:text-rose-800"><Trash2 className="w-4 h-4" /></button>)}
         </div>
-      ),
+      )
     },
   ];
 
   const filteredData = products.filter((item) => {
-    const matchSearch =
-      item.name.toLowerCase().includes(search.toLowerCase()) ||
-      item.code.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = item.name.toLowerCase().includes(search.toLowerCase()) || item.code.toLowerCase().includes(search.toLowerCase());
     const matchCat = categoryFilter ? item.category === categoryFilter : true;
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchCat && matchStatus;
@@ -809,771 +456,393 @@ const autoGenerateProductCode = () => {
 
   return (
     <div className="animate-in fade-in duration-500">
-      <PageHeader
-        title="Product Master Management"
-        subtitle="Manage primary product catalog and essential details."
-        actions={
-          <>
-            <ActionButton
-              variant="secondary"
-              icon={<Download className="w-4 h-4" />}
-              onClick={handleExport}
-            >
-              Export
-            </ActionButton>
-            {canCreate && (
-              <ActionButton
-                icon={<Plus className="w-4 h-4" />}
-                onClick={() => {
-                  setEditMode(false);
-                  setEditingProductId(null);
-                  const generatedCode = autoGenerateProductCode();
-                  setNewProduct({
-                    code: generatedCode,
-                    name: "",
-                    genericName: "",
-                    brandName: "",
-                    composition: "",
-                    scheme: "",
-                    barcode: "",
-                    category: "",
-                    type: "",
-                    manufacturer: "",
-                    packingType: "",
-                    unitsPerPack: "",
-                    packsInBox: "",
-                    totalUnits: "",
-                    mrp: "",
-                    ptr: "",
-                    pts: "",
-                    purchasePrice: "",
-                    sellingPrice: "",
-                    gst: "",
-                    hsnCode: "",
-                    minimumStock: "",
-                    reorderLevel: "",
-                    batchTracking: false,
-                    expiryTracking: false,
-                    status: "Active",
-                  });
-                  setShowNewProductModal(true);
-                }}
-              >
-                New Product
-              </ActionButton>
-            )}
-          </>
-        }
-      />
+      <PageHeader title="Product Master Management" subtitle="Manage primary product catalog and essential details." actions={<>
+            <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />} onClick={handleExport}>Export</ActionButton>
+            {canCreate && (<ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditMode(false); setEditingProductId(null); setNewProduct({ code: autoGenerateProductCode(), name: "", genericName: "", brandName: "", category: "", type: "", manufacturer: "", composition: "", scheme: "", packingType: "", unitsPerPack: "", packsInBox: "", totalUnits: "", hsnCode: "", minimumStock: "", reorderLevel: "", batchTracking: true, expiryTracking: true, status: "Active", mrp: "", ptr: "", pts: "", ptd: "", purchasePrice: "", sellingPrice: "", gst: "" }); setHsnSearch(""); setShowNewProductModal(true); }}>New Product</ActionButton>)}
+          </>} />
 
       <FilterBar>
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Search by name or code..."
-        />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by name or code..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <span className="text-sm font-medium text-slate-600">Filters:</span>
-        </div>
-        <SelectFilter
-          value={categoryFilter}
-          onChange={setCategoryFilter}
-          options={categories.map((c) => ({ label: c, value: c }))}
-          placeholder="All Categories"
-        />
-        <SelectFilter
-          value={statusFilter}
-          onChange={setStatusFilter}
-          options={[
-            { label: "Active", value: "Active" },
-            { label: "Inactive", value: "Inactive" },
-            { label: "Discontinued", value: "Discontinued" },
-          ]}
-          placeholder="All Status"
-        />
+        <div className="flex items-center gap-2"><Filter className="w-4 h-4 text-slate-400" /><span className="text-sm font-medium text-slate-600">Filters:</span></div>
+        <SelectFilter value={categoryFilter} onChange={setCategoryFilter} options={categories.map((c) => ({ label: c, value: c }))} placeholder="All Categories" />
+        <SelectFilter value={statusFilter} onChange={setStatusFilter} options={[{ label: "Active", value: "Active" }, { label: "Inactive", value: "Inactive" }, { label: "Discontinued", value: "Discontinued" }]} placeholder="All Status" />
       </FilterBar>
 
       <TableCard>
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          onRowClick={(row) => setSelectedProduct(row)}
-          emptyMessage="No products found matching your criteria."
-        />
+        <DataTable columns={columns} data={filteredData} onRowClick={(row) => setSelectedProduct(row)} emptyMessage="No products found matching your criteria." />
       </TableCard>
 
-      <Drawer
-        open={!!selectedProduct}
-        onClose={() => setSelectedProduct(null)}
-        title="Product Details"
-      >
+      <Drawer open={!!selectedProduct} onClose={() => setSelectedProduct(null)} title="Product Details">
         {selectedProduct && (
           <div className="space-y-4">
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                Basic Information
-              </h3>
-              <DrawerField label="Product Code" value={selectedProduct.code || "N/A"} />
-              <DrawerField label="Product Name" value={selectedProduct.name || "N/A"} />
+              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Basic Information</h3>
+              <DrawerField label="Product Code" value={selectedProduct.code} />
+              <DrawerField label="Product Name" value={selectedProduct.name} />
               <DrawerField label="Brand Name" value={selectedProduct.brandName || "N/A"} />
-              <DrawerField label="Category" value={selectedProduct.category || "N/A"} />
-              <DrawerField label="Product Type" value={selectedProduct.type || "N/A"} />
+              <DrawerField label="Category" value={selectedProduct.category} />
+              <DrawerField label="Product Type" value={selectedProduct.type} />
               <DrawerField label="Composition" value={selectedProduct.composition || "N/A"} />
-              <DrawerField label="Manufacturer" value={selectedProduct.manufacturer || "N/A"} />
+              <DrawerField label="Scheme" value={selectedProduct.scheme || "N/A"} />
+              <DrawerField label="Manufacturer" value={selectedProduct.manufacturer} />
             </div>
-
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                Packaging Details
-              </h3>
-              <DrawerField label="Packing Type" value={selectedProduct.packingType || "N/A"} />
-              <DrawerField label="Units Per Pack" value={selectedProduct.unitsPerPack || "N/A"} />
+              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Packaging Details</h3>
+              <DrawerField label="Packing Type" value={selectedProduct.packingType} />
               <DrawerField label="Packs In Box" value={selectedProduct.packsInBox || "N/A"} />
-              <DrawerField
-                label="Total Units"
-                value={
-                  selectedProduct.unitsPerPack && selectedProduct.packsInBox
-                    ? (Number(selectedProduct.unitsPerPack) * Number(selectedProduct.packsInBox)).toString()
-                    : (selectedProduct.totalUnits || "N/A")
-                }
-              />
+              <DrawerField label="Units Per Pack" value={selectedProduct.unitsPerPack} />
+              <DrawerField label="Total Units" value={selectedProduct.totalUnits || "N/A"} />
             </div>
-
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                Pricing Details
-              </h3>
+              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Pricing & Tax</h3>
               <DrawerField label="MRP" value={selectedProduct.mrp ? `₹ ${selectedProduct.mrp}` : "N/A"} />
               <DrawerField label="PTR" value={selectedProduct.ptr ? `₹ ${selectedProduct.ptr}` : "N/A"} />
               <DrawerField label="PTS" value={selectedProduct.pts ? `₹ ${selectedProduct.pts}` : "N/A"} />
               <DrawerField label="Purchase Price" value={selectedProduct.purchasePrice ? `₹ ${selectedProduct.purchasePrice}` : "N/A"} />
               <DrawerField label="Selling Price" value={selectedProduct.sellingPrice ? `₹ ${selectedProduct.sellingPrice}` : "N/A"} />
+              <DrawerField label="HSN Code" value={selectedProduct.hsnCode} />
+              <DrawerField label="GST" value={selectedProduct.gst ? `${selectedProduct.gst}%` : "N/A"} />
             </div>
-
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                Tax Details
-              </h3>
-              <DrawerField label="GST %" value={selectedProduct.gst ? `${selectedProduct.gst}%` : "N/A"} />
-              <DrawerField label="HSN Code" value={selectedProduct.hsnCode || "N/A"} />
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                Inventory Controls
-              </h3>
+              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Inventory Controls</h3>
               <DrawerField label="Minimum Stock" value={selectedProduct.minimumStock || "N/A"} />
               <DrawerField label="Reorder Level" value={selectedProduct.reorderLevel || "N/A"} />
-              <DrawerField label="Batch Tracking" value={selectedProduct.batchTracking ? "Enabled" : "Disabled"} />
-              <DrawerField label="Expiry Tracking" value={selectedProduct.expiryTracking ? "Enabled" : "Disabled"} />
+              <DrawerField label="Batch Tracking" value={selectedProduct.batchTracking ? "Yes" : "No"} />
+              <DrawerField label="Expiry Tracking" value={selectedProduct.expiryTracking ? "Yes" : "No"} />
             </div>
-
             <div>
-              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                Additional Information
-              </h3>
-              <DrawerField label="Barcode" value={selectedProduct.barcode || "N/A"} />
+              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Additional Information</h3>
+              <DrawerField label="Status" value={selectedProduct.status} />
             </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                Product Status
-              </h3>
-              <DrawerField
-                label="Status"
-                value={
-                  <Badge
-                    variant={
-                      selectedProduct.status === "Active"
-                        ? "success"
-                        : selectedProduct.status === "Inactive"
-                          ? "warning"
-                          : "danger"
-                    }
-                  >
-                    {selectedProduct.status}
-                  </Badge>
-                }
-              />
-            </div>
-
             <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3">
-              {canEdit && (
-                <ActionButton
-                  className="min-w-[140px]"
-                  onClick={() => {
-                    if (!selectedProduct) return;
-
-                    setNewProduct({
-                      code: selectedProduct.code,
-                      name: selectedProduct.name,
-                      genericName: selectedProduct.genericName,
-                      brandName: selectedProduct.brandName,
-                      composition: selectedProduct.composition || "",
-                      scheme: selectedProduct.scheme || "",
-                      barcode: selectedProduct.barcode || "",
-                      category: selectedProduct.category,
-                      type: selectedProduct.type,
-                      manufacturer: selectedProduct.manufacturer,
-                      packingType: selectedProduct.packingType,
-                      unitsPerPack: selectedProduct.unitsPerPack,
-                      packsInBox: selectedProduct.packsInBox || "",
-                      totalUnits: selectedProduct.totalUnits || "",
-                      mrp: selectedProduct.mrp,
-                      ptr: selectedProduct.ptr,
-                      pts: selectedProduct.pts,
-                      purchasePrice: selectedProduct.purchasePrice || "",
-                      sellingPrice: selectedProduct.sellingPrice || "",
-                      gst: selectedProduct.gst,
-                      hsnCode: selectedProduct.hsnCode,
-                      minimumStock: selectedProduct.minimumStock || "",
-                      reorderLevel: selectedProduct.reorderLevel || "",
-                      batchTracking: selectedProduct.batchTracking || false,
-                      expiryTracking: selectedProduct.expiryTracking || false,
-                      status: selectedProduct.status,
-                    });
-
-                    setEditMode(true);
-                    setShowNewProductModal(true);
-                    setEditingProductId(selectedProduct.id);
-                    setSelectedProduct(null);
-                  }}
-                >
-                  Edit Product
-                </ActionButton>
-              )}
-
-              <ActionButton variant="secondary" onClick={() => setSelectedProduct(null)}>
-                Close
-              </ActionButton>
+              {canEdit && (<ActionButton className="min-w-[140px]" onClick={() => { setNewProduct({ code: selectedProduct.code, name: selectedProduct.name, genericName: selectedProduct.genericName, brandName: selectedProduct.brandName, category: selectedProduct.category, type: selectedProduct.type, manufacturer: selectedProduct.manufacturer, composition: selectedProduct.composition || "", scheme: selectedProduct.scheme || "", packingType: selectedProduct.packingType, unitsPerPack: selectedProduct.unitsPerPack, packsInBox: selectedProduct.packsInBox || "", totalUnits: selectedProduct.totalUnits || "", hsnCode: selectedProduct.hsnCode, minimumStock: selectedProduct.minimumStock || "", reorderLevel: selectedProduct.reorderLevel || "", batchTracking: selectedProduct.batchTracking ?? true, expiryTracking: selectedProduct.expiryTracking ?? true, status: selectedProduct.status, mrp: selectedProduct.mrp || "", ptr: selectedProduct.ptr || "", pts: selectedProduct.pts || "", ptd: selectedProduct.ptd || "", purchasePrice: selectedProduct.purchasePrice || "", sellingPrice: selectedProduct.sellingPrice || "", gst: selectedProduct.gst || "" }); setHsnSearch(selectedProduct.hsnCode); setEditMode(true); setShowNewProductModal(true); setEditingProductId(selectedProduct.id); setSelectedProduct(null); }}>Edit Product</ActionButton>)}
+              <ActionButton variant="secondary" onClick={() => setSelectedProduct(null)}>Close</ActionButton>
             </div>
           </div>
         )}
       </Drawer>
 
-      {/* Delete Confirmation Modal */}
       {productToDelete && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
             <h2 className="text-xl font-bold text-slate-900 mb-2">Delete Product</h2>
-            <p className="text-slate-600 mb-6 leading-relaxed">
-              Are you sure you want to delete this product?<br />This action cannot be undone.
-            </p>
+            <p className="text-slate-600 mb-6 leading-relaxed">Are you sure you want to delete this product?<br />This action cannot be undone.</p>
             <div className="flex justify-end gap-3 mt-4">
-              <ActionButton variant="secondary" onClick={() => setProductToDelete(null)}>
-                Cancel
-              </ActionButton>
-              <button
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-200"
-                onClick={() => {
-                  if (!canDelete) return;
-                  
-                  // Delete safety check validation
-                  if (checkProductInUse(productToDelete.id)) {
-                    alert("Error: Cannot delete this product. It is already used in transactions (Invoices or existing Inventory Stock). Consider changing its status to Inactive or Discontinued instead.");
-                    setProductToDelete(null);
-                    return;
-                  }
-
-                  const updated = products.filter((p) => p.id !== productToDelete.id);
-                  setProducts(updated);
-                  localStorage.setItem("pharma_erp_products", JSON.stringify(updated));
-                  
-                  activityLogService.addLog({
-                    userId: currentUser.id,
-                    userName: currentUser.fullName,
-                    action: `Product Deleted - Code: ${productToDelete.code}, Name: ${productToDelete.name}`,
-                    module: "Product Master",
-                  });
-
-                  setProductToDelete(null);
-                }}
-              >
-                Delete
-              </button>
+              <ActionButton variant="secondary" onClick={() => setProductToDelete(null)}>Cancel</ActionButton>
+              <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-200" onClick={() => { if (!canDelete) return; if (checkProductInUse(productToDelete.id)) { alert("Error: Cannot delete this product."); setProductToDelete(null); return; } const updated = products.filter((p) => p.id !== productToDelete.id); setProducts(updated); localStorage.setItem("pharma_erp_products", JSON.stringify(updated)); setProductToDelete(null); }}>Delete</button>
             </div>
           </div>
         </div>
       )}
 
       {showNewProductModal && (
-        <div 
-          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-          onClick={() => setShowNewProductModal(false)}
-        >
-          <div 
-            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden"
-            onClick={(e) => e.stopPropagation()}
-          >
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowNewProductModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between p-6 border-b border-slate-100 bg-white sticky top-0 z-10">
-              <h2 className="text-xl font-bold text-slate-900">
-                {editMode ? "Edit Product" : "Create New Product"}
-              </h2>
-              <button onClick={() => setShowNewProductModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors outline-none">
-                ✕
-              </button>
+              <h2 className="text-xl font-bold text-slate-900">{editMode ? "Edit Product" : "Create New Product"}</h2>
+              <button onClick={() => setShowNewProductModal(false)} className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-colors outline-none"><Trash2 className="w-5 h-5 hidden" />✕</button>
             </div>
-
+            
             <div className="p-6 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2 mt-2 first:mt-0">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  Basic Information
-                </h3>
-              </div>
+              
+              {/* BASIC INFORMATION */}
+              <div className="mb-8">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Basic Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Product Code *</label>
+                    <input value={newProduct.code} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Product Name *</label>
+                    <input value={newProduct.name} onChange={(e) => handleAlphanumericChange("name", e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Product Code *</label>
-                <input
-                  value={newProduct.code}
-                  readOnly
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
-                />
-                <p className="text-xs text-slate-400 mt-1">Product Code is system-generated and cannot be edited.</p>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Product Name *</label>
-                <input
-                  value={newProduct.name}
-                  onChange={(e) => handleAlphanumericChange("name", e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Brand Name</label>
-                <input
-                  value={newProduct.brandName}
-                  onChange={(e) => handleAlphanumericChange("brandName", e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div className="relative">
-                <label className="block text-sm font-medium mb-1">Category</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={newProduct.category}
-                    onChange={(e) => {
-                      handleAlphanumericChange("category", e.target.value);
-                      setShowCategoryDropdown(true);
-                    }}
-                    onFocus={() => setShowCategoryDropdown(true)}
-                    placeholder="Select or type Category"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
-                  />
-                  <span
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs cursor-pointer"
-                    onClick={() => setShowCategoryDropdown(!showCategoryDropdown)}
-                  >
-                    ▼
-                  </span>
-                </div>
-
-                {showCategoryDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowCategoryDropdown(false)} />
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                      {categories
-                        .filter((c) => c.toLowerCase().includes((newProduct.category || "").toLowerCase()))
-                        .map((cat) => (
-                          <div
-                            key={cat}
-                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded"
-                            onClick={() => {
-                                setNewProduct({ ...newProduct, category: cat });
-                                setShowCategoryDropdown(false);
-                            }}
-                          >
-                            {cat}
-                          </div>
-                        ))}
-
-                      {(newProduct.category || "").trim() !== "" &&
-                        !categories.some((c) => c.trim().toLowerCase() === (newProduct.category || "").trim().toLowerCase()) && (
-                          <div
-                            className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
-                            onClick={() => {
-                              const newCat = (newProduct.category || "").trim();
-                              const updatedCategories = [...categories, newCat];
-                              setCategories(updatedCategories);
-                              localStorage.setItem("product_categories", JSON.stringify(updatedCategories));
-                              setNewProduct({ ...newProduct, category: newCat });
-                              setShowCategoryDropdown(false);
-                            }}
-                          >
-                            Create "{newProduct.category.trim()}"
-                          </div>
-                        )}
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Brand Name</label>
+                    <input value={newProduct.brandName} onChange={(e) => handleAlphanumericChange("brandName", e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                  </div>
+                  <div className="relative">
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Category *</label>
+                    <div className="relative">
+                      <input type="text" value={newProduct.category} onChange={(e) => { handleAlphanumericChange("category", e.target.value); setShowCategoryDropdown(true); }} onFocus={() => setShowCategoryDropdown(true)} placeholder="Search Category..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowCategoryDropdown(!showCategoryDropdown)} />
                     </div>
-                  </>
-                )}
-              </div>
+                    {showCategoryDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowCategoryDropdown(false)} />
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                          {categories.filter((c) => c.toLowerCase().includes((newProduct.category || "").toLowerCase())).map((cat) => (
+                            <div key={cat} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, category: cat }); setShowCategoryDropdown(false); }}>{cat}</div>
+                          ))}
+                          {(newProduct.category || "").trim() !== "" && !categories.some((c) => c.trim().toLowerCase() === (newProduct.category || "").trim().toLowerCase()) && (
+                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newCat = (newProduct.category || "").trim(); const updatedCategories = [...categories, newCat]; setCategories(updatedCategories); localStorage.setItem("product_categories", JSON.stringify(updatedCategories)); setNewProduct({ ...newProduct, category: newCat }); setShowCategoryDropdown(false); }}>
+                              <Plus className="w-4 h-4" /> Add "{newProduct.category.trim()}"
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Product Type *</label>
-                <select
-                  value={newProduct.type}
-                  onChange={(e) => setNewProduct({ ...newProduct, type: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                >
-                  <option value="">Select Type</option>
-                  {PRODUCT_TYPES.map((type) => (
-                    <option key={type} value={type}>{type}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="relative">
-                <label className="block text-sm font-medium mb-1">Composition</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={newProduct.composition}
-                    onChange={(e) => {
-                      handleAlphanumericChange("composition", e.target.value);
-                      setShowCompositionDropdown(true);
-                    }}
-                    onFocus={() => setShowCompositionDropdown(true)}
-                    placeholder="Select or type Composition"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
-                  />
-                  <span
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs cursor-pointer"
-                    onClick={() => setShowCompositionDropdown(!showCompositionDropdown)}
-                  >
-                    ▼
-                  </span>
-                </div>
-
-                {showCompositionDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowCompositionDropdown(false)} />
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                      {compositions
-                        .filter((c) => c.genericName.toLowerCase().includes((newProduct.composition || "").toLowerCase()))
-                        .map((cat) => (
-                          <div
-                            key={cat.id}
-                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded"
-                            onClick={() => {
-                              setNewProduct({ ...newProduct, composition: cat.genericName });
-                              setShowCompositionDropdown(false);
-                            }}
-                          >
-                            {cat.genericName}
-                          </div>
-                        ))}
+                  <div className="relative">
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Product Type *</label>
+                    <div className="relative">
+                      <input type="text" value={newProduct.type} onChange={(e) => { handleAlphanumericChange("type", e.target.value); setShowTypeDropdown(true); }} onFocus={() => setShowTypeDropdown(true)} placeholder="Search or create Product Type..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowTypeDropdown(!showTypeDropdown)} />
                     </div>
-                  </>
-                )}
-              </div>
+                    {showTypeDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowTypeDropdown(false)} />
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                          {productTypes.filter((c) => c.toLowerCase().includes((newProduct.type || "").toLowerCase())).map((cat) => (
+                            <div key={cat} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, type: cat }); setShowTypeDropdown(false); }}>{cat}</div>
+                          ))}
+                          {(newProduct.type || "").trim() !== "" && !productTypes.some((c) => c.trim().toLowerCase() === (newProduct.type || "").trim().toLowerCase()) && (
+                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newType = (newProduct.type || "").trim(); const updatedTypes = [...productTypes, newType]; setProductTypes(updatedTypes); localStorage.setItem("product_types", JSON.stringify(updatedTypes)); setNewProduct({ ...newProduct, type: newType }); setShowTypeDropdown(false); }}>
+                              <Plus className="w-4 h-4" /> Add "{newProduct.type.trim()}"
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
 
-              <div className="relative">
-                <label className="block text-sm font-medium mb-1">Scheme</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={newProduct.scheme}
-                    onChange={(e) => {
-                      handleAlphanumericChange("scheme", e.target.value);
-                      setShowSchemeDropdown(true);
-                    }}
-                    onFocus={() => setShowSchemeDropdown(true)}
-                    placeholder="Select or type Scheme"
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
-                  />
-                  <span
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs cursor-pointer"
-                    onClick={() => setShowSchemeDropdown(!showSchemeDropdown)}
-                  >
-                    ▼
-                  </span>
-                </div>
-
-                {showSchemeDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowSchemeDropdown(false)} />
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                      {schemes
-                        .filter((s) => s.status === "Active" && s.name.toLowerCase().includes((newProduct.scheme || "").toLowerCase()))
-                        .map((sch) => (
-                          <div
-                            key={sch.id}
-                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded"
-                            onClick={() => {
-                              setNewProduct({ ...newProduct, scheme: sch.name });
-                              setShowSchemeDropdown(false);
-                            }}
-                          >
-                            {sch.name}
-                          </div>
-                        ))}
+                  <div className="relative">
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Composition</label>
+                    <div className="relative">
+                      <input type="text" value={newProduct.composition} onChange={(e) => { handleAlphanumericChange("composition", e.target.value); setShowCompositionDropdown(true); }} onFocus={() => setShowCompositionDropdown(true)} placeholder="Search Composition..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowCompositionDropdown(!showCompositionDropdown)} />
                     </div>
-                  </>
-                )}
+                    {showCompositionDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowCompositionDropdown(false)} />
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                          {compositions.filter((c: any) => c.genericName.toLowerCase().includes((newProduct.composition || "").toLowerCase())).map((comp: any) => (
+                            <div key={comp.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, composition: comp.genericName }); setShowCompositionDropdown(false); }}>{comp.genericName}</div>
+                          ))}
+                          {compositions.filter((c: any) => c.genericName.toLowerCase().includes((newProduct.composition || "").toLowerCase())).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-slate-500 italic">No matching composition found</div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Scheme</label>
+                    <div className="relative">
+                      <input type="text" value={newProduct.scheme} onChange={(e) => { handleAlphanumericChange("scheme", e.target.value); setShowSchemeDropdown(true); }} onFocus={() => setShowSchemeDropdown(true)} placeholder="Search Scheme..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowSchemeDropdown(!showSchemeDropdown)} />
+                    </div>
+                    {showSchemeDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowSchemeDropdown(false)} />
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                          {schemes.filter((c: any) => c.name.toLowerCase().includes((newProduct.scheme || "").toLowerCase())).map((sch: any) => (
+                            <div key={sch.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, scheme: sch.name }); setShowSchemeDropdown(false); }}>{sch.name}</div>
+                          ))}
+                          {schemes.filter((c: any) => c.name.toLowerCase().includes((newProduct.scheme || "").toLowerCase())).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-slate-500 italic">No matching scheme found</div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div className="relative">
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Manufacturer *</label>
+                    <div className="relative">
+                      <input type="text" value={newProduct.manufacturer} onChange={(e) => { handleAlphanumericChange("manufacturer", e.target.value); setShowManufacturerDropdown(true); }} onFocus={() => setShowManufacturerDropdown(true)} placeholder="Search or create Manufacturer..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowManufacturerDropdown(!showManufacturerDropdown)} />
+                    </div>
+                    {showManufacturerDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowManufacturerDropdown(false)} />
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                          {manufacturers.filter((c) => c.toLowerCase().includes((newProduct.manufacturer || "").toLowerCase())).map((cat) => (
+                            <div key={cat} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, manufacturer: cat }); setShowManufacturerDropdown(false); }}>{cat}</div>
+                          ))}
+                          {(newProduct.manufacturer || "").trim() !== "" && !manufacturers.some((c) => c.trim().toLowerCase() === (newProduct.manufacturer || "").trim().toLowerCase()) && (
+                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newManuf = (newProduct.manufacturer || "").trim(); const updatedManufs = [...manufacturers, newManuf]; setManufacturers(updatedManufs); localStorage.setItem("product_manufacturers", JSON.stringify(updatedManufs)); setNewProduct({ ...newProduct, manufacturer: newManuf }); setShowManufacturerDropdown(false); }}>
+                              <Plus className="w-4 h-4" /> Add "{newProduct.manufacturer.trim()}"
+                            </div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Manufacturer *</label>
-                <select
-                  value={newProduct.manufacturer}
-                  onChange={(e) => setNewProduct({ ...newProduct, manufacturer: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-900"
-                >
-                  <option value="">Select Manufacturer</option>
-                  {MANUFACTURERS.map((m) => (
-                    <option key={m} value={m}>{m}</option>
-                  ))}
-                </select>
+              {/* PACKAGING INFORMATION */}
+              <div className="mb-8">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Packaging Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <div className="relative">
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Packing Type *</label>
+                    <div className="relative">
+                      <input type="text" value={newProduct.packingType} onChange={(e) => { handleAlphanumericChange("packingType", e.target.value); setShowPackingTypeDropdown(true); }} onFocus={() => setShowPackingTypeDropdown(true)} placeholder="Search Packing Type..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowPackingTypeDropdown(!showPackingTypeDropdown)} />
+                    </div>
+                    {showPackingTypeDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowPackingTypeDropdown(false)} />
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                          {packingTypes.filter((c: any) => c.name.toLowerCase().includes((newProduct.packingType || "").toLowerCase())).map((pt: any) => (
+                            <div key={pt.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, packingType: pt.name }); setShowPackingTypeDropdown(false); }}>{pt.name}</div>
+                          ))}
+                          {packingTypes.filter((c: any) => c.name.toLowerCase().includes((newProduct.packingType || "").toLowerCase())).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-slate-500 italic">No matching packing type found</div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Packs In Box</label>
+                    <input type="text" value={newProduct.packsInBox} onChange={(e) => handleNumericChange("packsInBox", e.target.value, 6)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Units Per Pack</label>
+                    <input type="text" value={newProduct.unitsPerPack} onChange={(e) => handleNumericChange("unitsPerPack", e.target.value, 6)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Total Units</label>
+                    <input type="text" readOnly value={newProduct.totalUnits} placeholder="Auto-calculated" className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed font-medium" />
+                  </div>
+                </div>
               </div>
 
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  Packaging Information
-                </h3>
+              {/* PRICING & TAX */}
+              <div className="mb-8">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Pricing & Tax</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  {/* Row 1 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">MRP</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
+                      <input type="text" value={newProduct.mrp} onChange={(e) => handlePriceChange("mrp", e.target.value)} className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">PTR</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
+                      <input type="text" value={newProduct.ptr} onChange={(e) => handlePriceChange("ptr", e.target.value)} className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                    </div>
+                  </div>
+                  
+                  {/* Row 2 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">PTS</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
+                      <input type="text" value={newProduct.pts} onChange={(e) => handlePriceChange("pts", e.target.value)} className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                    </div>
+                  </div>
+                  <div>
+                    {/* Empty column */}
+                  </div>
+
+                  {/* Row 3 */}
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Purchase Price</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
+                      <input type="text" value={newProduct.purchasePrice} onChange={(e) => handlePriceChange("purchasePrice", e.target.value)} className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Selling Price</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
+                      <input type="text" value={newProduct.sellingPrice} onChange={(e) => handlePriceChange("sellingPrice", e.target.value)} className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                    </div>
+                  </div>
+
+                  {/* Row 4 */}
+                  <div className="relative">
+                    <label className="block text-sm font-medium mb-1 text-slate-700">HSN Code *</label>
+                    <div className="relative">
+                      <input type="text" value={hsnSearch} onChange={(e) => { setHsnSearch(e.target.value); setShowHsnDropdown(true); }} onFocus={() => setShowHsnDropdown(true)} placeholder="Search HSN Code..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowHsnDropdown(!showHsnDropdown)} />
+                    </div>
+                    {showHsnDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => {
+                          setShowHsnDropdown(false);
+                          if (newProduct.hsnCode !== hsnSearch) {
+                             setHsnSearch(newProduct.hsnCode);
+                          }
+                        }} />
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                          {activeHSNs.filter((h) => h.code.includes(hsnSearch) || h.description.toLowerCase().includes(hsnSearch.toLowerCase())).map((hsn) => (
+                            <div key={hsn.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { handleHsnSelection(hsn.code); setShowHsnDropdown(false); }}>{hsn.code} - {hsn.description}</div>
+                          ))}
+                          {activeHSNs.filter((h) => h.code.includes(hsnSearch) || h.description.toLowerCase().includes(hsnSearch.toLowerCase())).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-slate-500 italic">No active HSN codes found</div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">GST %</label>
+                    <div className="relative">
+                      <input type="text" value={newProduct.gst} onChange={(e) => handleNumericChange("gst", e.target.value, 2)} className="w-full border border-slate-200 rounded-lg pr-8 pl-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500">%</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Packing Type *</label>
-                <select
-                  value={newProduct.packingType}
-                  onChange={(e) => setNewProduct({ ...newProduct, packingType: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                >
-                  <option value="">Select Packing Type</option>
-                  {packingTypes.map((type) => (
-                    <option key={type.id} value={type.name}>{type.name}</option>
-                  ))}
-                </select>
+              {/* INVENTORY CONTROLS */}
+              <div className="mb-8">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Inventory Controls</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Minimum Stock</label>
+                    <input type="text" value={newProduct.minimumStock} onChange={(e) => handleNumericChange("minimumStock", e.target.value, 6)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Reorder Level</label>
+                    <input type="text" value={newProduct.reorderLevel} onChange={(e) => handleNumericChange("reorderLevel", e.target.value, 6)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <input type="checkbox" id="batchTracking" checked={newProduct.batchTracking} onChange={(e) => setNewProduct({ ...newProduct, batchTracking: e.target.checked })} className="w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500" />
+                    <label htmlFor="batchTracking" className="text-sm text-slate-700">Enable Batch Tracking</label>
+                  </div>
+                  <div className="flex items-center gap-2 mt-2">
+                    <input type="checkbox" id="expiryTracking" checked={newProduct.expiryTracking} onChange={(e) => setNewProduct({ ...newProduct, expiryTracking: e.target.checked })} className="w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500" />
+                    <label htmlFor="expiryTracking" className="text-sm text-slate-700">Enable Expiry Tracking</label>
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-1">Packs In Box</label>
-                <input
-                  type="number"
-                  value={newProduct.packsInBox}
-                  onChange={(e) => setNewProduct({ ...newProduct, packsInBox: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
+              {/* ADDITIONAL INFORMATION */}
+              <div className="mb-4">
+                <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Additional Information</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Status</label>
+                    <select value={newProduct.status} onChange={(e) => setNewProduct({ ...newProduct, status: e.target.value as any })} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-900 focus:outline-none focus:border-violet-400">
+                      <option value="Active">Active</option>
+                      <option value="Inactive">Inactive</option>
+                      <option value="Discontinued">Discontinued</option>
+                    </select>
+                  </div>
+                </div>
               </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Units Per Pack</label>
-                <input
-                  type="number"
-                  value={newProduct.unitsPerPack}
-                  onChange={(e) => setNewProduct({ ...newProduct, unitsPerPack: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Total Units</label>
-                <input
-                  type="text"
-                  readOnly
-                  value={
-                    newProduct.unitsPerPack && newProduct.packsInBox
-                      ? (Number(newProduct.unitsPerPack) * Number(newProduct.packsInBox)).toString()
-                      : ""
-                  }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
-                />
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  Pricing & Tax
-                </h3>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">MRP *</label>
-                <input
-                  type="number"
-                  value={newProduct.mrp}
-                  onChange={(e) => setNewProduct({ ...newProduct, mrp: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">PTR</label>
-                <input
-                  type="number"
-                  value={newProduct.ptr}
-                  onChange={(e) => setNewProduct({ ...newProduct, ptr: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Purchase Price</label>
-                <input
-                  type="number"
-                  value={newProduct.purchasePrice}
-                  onChange={(e) => setNewProduct({ ...newProduct, purchasePrice: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Selling Price</label>
-                <input
-                  type="number"
-                  value={newProduct.sellingPrice}
-                  onChange={(e) => setNewProduct({ ...newProduct, sellingPrice: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">PTS</label>
-                <input
-                  type="number"
-                  value={newProduct.pts}
-                  onChange={(e) => setNewProduct({ ...newProduct, pts: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">GST %</label>
-                <input
-                  type="number"
-                  value={newProduct.gst}
-                  readOnly={!(activeRole === 'Super Admin' || activeRole === 'Admin')}
-                  onChange={(e) => setNewProduct({ ...newProduct, gst: e.target.value })}
-                  className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${!(activeRole === 'Super Admin' || activeRole === 'Admin') ? "bg-slate-50 cursor-not-allowed" : ""}`}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">HSN Code *</label>
-                <input
-                  list="hsn-codes"
-                  value={newProduct.hsnCode}
-                  placeholder="Search or Select HSN Code"
-                  onChange={(e) => {
-                    const cleanHsn = e.target.value.replace(/\D/g, "").slice(0, 8); // HSN Numeric limits filter
-                    const matches = gstRecords.filter((gst) => gst.hsnCode === cleanHsn);
-                    if (matches.length > 0) {
-                      matches.sort((a, b) => parseEffectiveDate(b.effectiveDate).getTime() - parseEffectiveDate(a.effectiveDate).getTime());
-                      const latestGst = matches[0];
-                      setNewProduct({
-                        ...newProduct,
-                        hsnCode: cleanHsn,
-                        gst: latestGst?.totalGst?.replace("%", "") || "",
-                      });
-                    } else {
-                      setNewProduct({
-                        ...newProduct,
-                        hsnCode: cleanHsn,
-                      });
-                    }
-                  }}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-                <datalist id="hsn-codes">
-                  {gstRecords.map((gst) => (
-                    <option key={gst.id} value={gst.hsnCode}>{gst.hsnCode} - {gst.totalGst}</option>
-                  ))}
-                </datalist>
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  Inventory Controls
-                </h3>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Minimum Stock</label>
-                <input
-                  type="number"
-                  value={newProduct.minimumStock}
-                  onChange={(e) => setNewProduct({ ...newProduct, minimumStock: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Reorder Level</label>
-                <input
-                  type="number"
-                  value={newProduct.reorderLevel}
-                  onChange={(e) => setNewProduct({ ...newProduct, reorderLevel: e.target.value })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div className="flex items-center gap-2 mt-7">
-                <input
-                  type="checkbox"
-                  checked={newProduct.batchTracking}
-                  onChange={(e) => setNewProduct({ ...newProduct, batchTracking: e.target.checked })}
-                />
-                <label className="text-sm font-medium">Batch Tracking</label>
-              </div>
-
-              <div className="flex items-center gap-2 mt-7">
-                <input
-                  type="checkbox"
-                  checked={newProduct.expiryTracking}
-                  onChange={(e) => setNewProduct({ ...newProduct, expiryTracking: e.target.checked })}
-                />
-                <label className="text-sm font-medium">Expiry Tracking</label>
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  Additional Information
-                </h3>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Barcode</label>
-                <input
-                  value={newProduct.barcode}
-                  placeholder="Digits only (EAN-13)"
-                  onChange={(e) => handleNumericOnlyChange("barcode", e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Status</label>
-                <select
-                  value={newProduct.status}
-                  onChange={(e) => setNewProduct({ ...newProduct, status: e.target.value as Product["status"] })}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-900"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                  <option value="Discontinued">Discontinued</option>
-                </select>
-              </div>
-            </div>
 
             </div>
             
-            <div className="p-6 border-t border-slate-100 bg-white sticky bottom-0 z-10 flex justify-end gap-3 rounded-b-2xl">
-              <ActionButton variant="secondary" onClick={() => setShowNewProductModal(false)}>
-                Cancel
-              </ActionButton>
-              <ActionButton
-                onClick={() => {
-                  if ((editMode && !canEdit) || (!editMode && !canCreate)) return;
-                  handleSaveProduct();
-                }}
-              >
-                {editMode ? "Update Product" : "Save Product"}
-              </ActionButton>
+            {/* FOOTER ACTIONS */}
+            <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 rounded-b-2xl">
+              <ActionButton variant="secondary" onClick={() => setShowNewProductModal(false)}>Cancel</ActionButton>
+              <ActionButton onClick={handleSaveProduct}>{editMode ? "Save Changes" : "Create Product"}</ActionButton>
             </div>
           </div>
         </div>

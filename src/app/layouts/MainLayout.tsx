@@ -49,6 +49,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: Shield,
     subItems: [
       { label: 'Role Based Access', path: '/workspace/super-admin/role-based-access' },
+      { label: 'Admin Management', path: '/workspace/super-admin/admin-management' },
       { label: 'All India Sales Dashboard', path: '/workspace/super-admin/all-india-sales' },
       { label: 'State Performance Reports', path: '/workspace/super-admin/state-performance' },
       { label: 'Product Profitability Reports', path: '/workspace/super-admin/product-profitability' },
@@ -66,6 +67,7 @@ const NAV_ITEMS: NavItem[] = [
     icon: Package,
     subItems: [
       { label: 'Product Master Management', path: '/workspace/products/master' },
+      { label: 'HSN Master', path: '/workspace/products/hsn-master' },
       { label: 'Batch Management', path: '/workspace/products/batches' },
       { label: 'Expiry Tracking', path: '/workspace/products/expiry-tracking' },
       { label: 'MRP Management', path: '/workspace/products/mrp-management' },
@@ -239,6 +241,21 @@ const Breadcrumbs = () => {
   const location = useLocation();
   const pathnames = location.pathname.split('/').filter((x) => x);
 
+  let matchedLabel = '';
+  let matchedParentLabel = '';
+  
+  NAV_ITEMS.forEach(item => {
+    if (item.subItems) {
+      const match = item.subItems.find(sub => location.pathname === sub.path || location.pathname.startsWith(sub.path + '/'));
+      if (match) {
+        matchedLabel = match.label;
+        matchedParentLabel = item.label;
+      }
+    } else if (item.path && (location.pathname === item.path || location.pathname.startsWith(item.path + '/'))) {
+      matchedLabel = item.label;
+    }
+  });
+
   return (
     <nav className="flex items-center space-x-2 text-sm text-slate-500 mb-6">
       <Link
@@ -250,10 +267,32 @@ const Breadcrumbs = () => {
       >
         Home
       </Link>
-      {pathnames.slice(1).map((value, index) => {
+      {pathnames.slice(1).map((value, index, arr) => {
         const to = `/${pathnames.slice(0, index + 2).join('/')}`;
-        const isLast = index === pathnames.length - 2;
-        const formatted = value.charAt(0).toUpperCase() + value.slice(1);
+        const isLast = index === arr.length - 1;
+        let formatted = value.charAt(0).toUpperCase() + value.slice(1);
+
+        // Apply matched label for the known page routes
+        if (index === 1 && matchedLabel) {
+          formatted = matchedLabel;
+        } else if (index === 0 && arr.length === 1 && matchedLabel) {
+          formatted = matchedLabel;
+        }
+
+        // Apply to ALL modules: Make the intermediate group breadcrumb non-clickable
+        if (index === 0 && !isLast) {
+          if (matchedParentLabel) {
+            formatted = matchedParentLabel;
+          }
+          return (
+            <div key={to} className="flex items-center space-x-2">
+              <ChevronRight className="w-4 h-4 text-slate-400 flex-shrink-0" />
+              <span style={{ color: 'inherit' }}>
+                {formatted}
+              </span>
+            </div>
+          );
+        }
 
         return (
           <div key={to} className="flex items-center space-x-2">

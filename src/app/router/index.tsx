@@ -7,6 +7,7 @@ import LoginPage from '../../pages/LoginPage';
 
 // Products Module
 import ProductMaster from '../../modules/products/ProductMaster';
+import HSNMaster from '../../modules/products/HSNMaster';
 import BatchManagement from '../../modules/products/BatchManagement';
 import ExpiryTracking from '../../modules/products/ExpiryTracking';
 import MRPManagement from '../../modules/products/MRPManagement';
@@ -203,6 +204,7 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute moduleLabel="Product Management" />,
         children: [
           { path: 'master', element: <ProductMaster /> },
+          { path: 'hsn-master', element: <HSNMaster /> },
           { path: 'batches', element: <BatchManagement /> },
           { path: 'expiry-tracking', element: <ExpiryTracking /> },
           { path: 'mrp-management', element: <MRPManagement /> },

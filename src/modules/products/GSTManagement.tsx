@@ -17,32 +17,72 @@ import { gstService } from '../../services/gstService';
 import { productService } from '../../services/productService';
 import activityLogService from "../../services/activityLogService";
 import authService from '../../services/authService';
+import { hsnService, type HSNCode } from '../../services/hsnService';
 
-
-interface GST {
+export interface GST {
   id: string;
   hsnCode: string;
   description: string;
-  sgst: string;
-  cgst: string;
-  igst: string;
-  totalGst: string;
+  gstPercent: string;
   effectiveDate?: string;
   createdBy?: string;
   lastUpdatedBy?: string;
   lastUpdatedDate?: string;
   status: 'Active' | 'Inactive';
+  remarks?: string;
 }
 
 const initialMockData: GST[] = [
-  { id: '1', hsnCode: '30049099', description: 'Medicaments consisting of mixed or unmixed products', sgst: '6%', cgst: '6%', igst: '12%', totalGst: '12%', effectiveDate: '2026-06-01', createdBy: 'Admin User', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2026-06-01', status: 'Active' },
-  { id: '2', hsnCode: '30041010', description: 'Penicillins or derivatives thereof', sgst: '6%', cgst: '6%', igst: '12%', totalGst: '12%', effectiveDate: '2026-06-05', createdBy: 'Admin User', lastUpdatedBy: 'System', lastUpdatedDate: '2026-06-05', status: 'Active' },
-  { id: '3', hsnCode: '30022011', description: 'Vaccines for human medicine', sgst: '2.5%', cgst: '2.5%', igst: '5%', totalGst: '5%', effectiveDate: '2026-06-10', createdBy: 'System', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2026-06-10', status: 'Active' },
-  { id: '4', hsnCode: '30061010', description: 'Sterile surgical catgut', sgst: '6%', cgst: '6%', igst: '12%', totalGst: '12%', effectiveDate: '2025-12-01', createdBy: 'Admin User', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-12-01', status: 'Inactive' },
+  { id: '1', hsnCode: '30049099', description: 'Medicaments consisting of mixed or unmixed products', gstPercent: '12%', effectiveDate: '2026-06-01', createdBy: 'Admin User', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2026-06-01', status: 'Active' },
+  { id: '2', hsnCode: '30041010', description: 'Penicillins or derivatives thereof', gstPercent: '12%', effectiveDate: '2026-06-05', createdBy: 'Admin User', lastUpdatedBy: 'System', lastUpdatedDate: '2026-06-05', status: 'Active' },
+  { id: '3', hsnCode: '30022011', description: 'Vaccines for human medicine', gstPercent: '5%', effectiveDate: '2026-06-10', createdBy: 'System', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2026-06-10', status: 'Active' },
+  { id: '4', hsnCode: '30061010', description: 'Sterile surgical catgut', gstPercent: '12%', effectiveDate: '2025-12-01', createdBy: 'Admin User', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-12-01', status: 'Inactive' },
 ];
+
+const formatDate = (dateString?: string): string => {
+  if (!dateString) return 'N/A';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = months[date.getMonth()];
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
+/**
+ * Reusable service method to get the current applicable GST for a given HSN code.
+ * Business Rules:
+ * - Retrieves all ACTIVE GST mappings for the selected HSN.
+ * - Considers only mappings where Effective From is <= today's date.
+ * - Sorts by Effective From in descending order to return the latest valid mapping.
+ */
+export const GetCurrentGSTByHSN = (hsnCode: string, allGstData?: GST[]): GST | null => {
+  const data: GST[] = allGstData || gstService.getAll();
+  const today = new Date().toISOString().split('T')[0];
+  
+  const validMappings = data.filter(
+    (item) => 
+      item.hsnCode === hsnCode && 
+      item.status === 'Active' && 
+      item.effectiveDate && 
+      item.effectiveDate <= today
+  );
+
+  if (validMappings.length === 0) return null;
+
+  validMappings.sort((a, b) => {
+    const dateA = new Date(a.effectiveDate!).getTime();
+    const dateB = new Date(b.effectiveDate!).getTime();
+    return dateB - dateA;
+  });
+
+  return validMappings[0];
+};
 
 export default function GSTManagement() {
   const [data, setData] = useState<GST[]>([]);
+  const [activeHSNs, setActiveHSNs] = useState<HSNCode[]>([]);
 
   useEffect(() => {
     const savedData = gstService.getAll();
@@ -52,6 +92,7 @@ export default function GSTManagement() {
       gstService.saveAll(initialMockData);
       setData(initialMockData);
     }
+    setActiveHSNs(hsnService.getActive());
   }, []);
 
   useEffect(() => {
@@ -60,13 +101,6 @@ export default function GSTManagement() {
     }
   }, [data]);
 
-  
-  
-  // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
-  // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-  // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
-
-  // Temporary RBAC bypass for client demo
   const canCreate = true;
   const canEdit = true;
   const canDelete = true;
@@ -85,33 +119,17 @@ export default function GSTManagement() {
     id: '',
     hsnCode: '',
     description: '',
-    sgst: '',
-    cgst: '',
-    igst: '',
-    totalGst: '',
+    gstPercent: '',
     effectiveDate: new Date().toISOString().split('T')[0],
-    status: 'Active' as 'Active' | 'Inactive'
+    status: 'Active' as 'Active' | 'Inactive',
+    remarks: ''
   });
-
-  // Auto-calculate Total GST and IGST based on SGST and CGST inputs
-  useEffect(() => {
-    const s = parseFloat(newGst.sgst.replace(/[^0-9.]/g, '')) || 0;
-    const c = parseFloat(newGst.cgst.replace(/[^0-9.]/g, '')) || 0;
-    const total = s + c;
-    setNewGst(prev => ({
-      ...prev,
-      igst: total > 0 ? `${total}` : '',
-      totalGst: total > 0 ? `${total}%` : ''
-    }));
-  }, [newGst.sgst, newGst.cgst]);
 
   const columns: Column<GST>[] = [
     { key: 'hsnCode', label: 'HSN Code', render: (row) => <span className="font-semibold text-slate-900">{row.hsnCode}</span> },
     { key: 'description', label: 'Description', render: (row) => <span className="max-w-xs truncate block" title={row.description}>{row.description}</span> },
-    { key: 'sgst', label: 'SGST' },
-    { key: 'cgst', label: 'CGST' },
-    { key: 'igst', label: 'IGST' },
-    { key: 'totalGst', label: 'Total GST', render: (row) => <span className="font-bold text-slate-800">{row.totalGst}</span> },
+    { key: 'gstPercent', label: 'GST %', render: (row) => <span className="font-bold text-slate-800">{row.gstPercent}</span> },
+    { key: 'effectiveDate', label: 'Effective From', render: (row) => formatDate(row.effectiveDate) },
     {
       key: 'status',
       label: 'Status',
@@ -120,6 +138,7 @@ export default function GSTManagement() {
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
+    { key: 'lastUpdatedDate', label: 'Last Updated', render: (row) => formatDate(row.lastUpdatedDate) },
     {
       key: 'id',
       label: 'Actions',
@@ -152,23 +171,23 @@ export default function GSTManagement() {
   ];
 
   const filteredData = data.filter((item) => {
-    const matchSearch = item.hsnCode.includes(search) || item.description.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = item.hsnCode.includes(search) || 
+                        item.description.toLowerCase().includes(search.toLowerCase()) || 
+                        item.gstPercent.includes(search);
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   });
 
   const handleExport = () => {
-    const headers = ['HSN Code', 'Description', 'SGST %', 'CGST %', 'IGST %', 'Total GST %', 'Status'];
+    const headers = ['HSN Code', 'Description', 'GST %', 'Effective From', 'Status'];
     const csvContent = [
       headers.join(','),
       ...filteredData.map(row => 
         [
           row.hsnCode,
           `"${row.description.replace(/"/g, '""')}"`, 
-          row.sgst.replace(/[^0-9.]/g, ''), 
-          row.cgst.replace(/[^0-9.]/g, ''), 
-          row.igst.replace(/[^0-9.]/g, ''), 
-          row.totalGst.replace(/[^0-9.]/g, ''), 
+          row.gstPercent.replace(/[^0-9.]/g, ''), 
+          formatDate(row.effectiveDate),
           row.status
         ].join(',')
       )
@@ -190,12 +209,10 @@ export default function GSTManagement() {
       id: '',
       hsnCode: '',
       description: '',
-      sgst: '',
-      cgst: '',
-      igst: '',
-      totalGst: '',
+      gstPercent: '',
       effectiveDate: new Date().toISOString().split('T')[0],
-      status: 'Active'
+      status: 'Active',
+      remarks: ''
     });
     setShowModal(true);
   };
@@ -207,47 +224,32 @@ export default function GSTManagement() {
       id: selectedGST.id,
       hsnCode: selectedGST.hsnCode,
       description: selectedGST.description,
-      sgst: selectedGST.sgst.replace(/[^0-9.]/g, ''),
-      cgst: selectedGST.cgst.replace(/[^0-9.]/g, ''),
-      igst: selectedGST.igst.replace(/[^0-9.]/g, ''),
-      totalGst: selectedGST.totalGst.replace(/[^0-9.]/g, ''),
+      gstPercent: selectedGST.gstPercent,
       effectiveDate: selectedGST.effectiveDate || new Date().toISOString().split('T')[0],
-      status: selectedGST.status
+      status: selectedGST.status,
+      remarks: selectedGST.remarks || ''
     });
     setShowModal(true);
   };
 
   const handleSaveGst = () => {
-    if (!newGst.hsnCode || !newGst.description || !newGst.sgst || !newGst.cgst || !newGst.status || !newGst.effectiveDate) {
+    if (!newGst.hsnCode || !newGst.gstPercent || !newGst.status || !newGst.effectiveDate) {
       alert("Please fill all mandatory fields (*).");
       return;
     }
 
-    if (!/^\d{4,8}$/.test(newGst.hsnCode)) {
-      alert("Error: HSN Code must be numeric and between 4 to 8 digits long.");
-      return;
-    }
-
-    const s = parseFloat(newGst.sgst.replace(/[^0-9.]/g, '')) || 0;
-    const c = parseFloat(newGst.cgst.replace(/[^0-9.]/g, '')) || 0;
-    const totalGstVal = s + c;
-    const allowedSlabs = [0, 5, 12, 18, 28];
-    if (s < 0 || c < 0 || totalGstVal > 28) {
-      alert("Error: GST percentages must be positive and cannot exceed 28% in total.");
-      return;
-    }
-    if (!allowedSlabs.includes(totalGstVal)) {
-      alert("Error: Total GST must match one of the standard slabs: 0%, 5%, 12%, 18%, or 28%.");
-      return;
-    }
-
-    const isDuplicate = data.some(item => item.hsnCode === newGst.hsnCode && item.effectiveDate === newGst.effectiveDate && item.id !== newGst.id);
-    if (isDuplicate) {
-      alert(`Error: HSN Code "${newGst.hsnCode}" with Effective Date "${newGst.effectiveDate}" already exists.`);
-      return;
-    }
+    const isDuplicate = data.some(item => 
+      item.hsnCode === newGst.hsnCode && 
+      item.effectiveDate === newGst.effectiveDate && 
+      item.id !== newGst.id && 
+      item.status === 'Active' && 
+      newGst.status === 'Active'
+    );
     
-    const formatPct = (val: string) => val ? `${parseFloat(val)}%` : '';
+    if (isDuplicate) {
+      alert(`Error: An active GST mapping for HSN Code "${newGst.hsnCode}" with Effective Date "${newGst.effectiveDate}" already exists.`);
+      return;
+    }
     
     if (isEditingModal && newGst.id) {
       const products = productService.getProducts();
@@ -262,22 +264,19 @@ export default function GSTManagement() {
         id: newGst.id,
         hsnCode: newGst.hsnCode,
         description: newGst.description,
-        sgst: formatPct(newGst.sgst),
-        cgst: formatPct(newGst.cgst),
-        igst: formatPct(newGst.igst),
-        totalGst: newGst.totalGst,
+        gstPercent: newGst.gstPercent,
         effectiveDate: newGst.effectiveDate,
         createdBy: selectedGST?.createdBy || currentUser?.fullName || 'Admin User',
         lastUpdatedBy: currentUser?.fullName || 'Admin User',
         lastUpdatedDate: new Date().toISOString().split('T')[0],
-        status: newGst.status as any
+        status: newGst.status as any,
+        remarks: newGst.remarks
       };
       
       let detailedAction = `GST HSN Code ${newGst.hsnCode} Updated`;
       if (selectedGST) {
         const changes: string[] = [];
-        if (selectedGST.description !== newGst.description) changes.push(`Description changed`);
-        if (selectedGST.totalGst !== newGst.totalGst) changes.push(`GST: ${selectedGST.totalGst} → ${newGst.totalGst}`);
+        if (selectedGST.gstPercent !== newGst.gstPercent) changes.push(`GST: ${selectedGST.gstPercent} → ${newGst.gstPercent}`);
         if (selectedGST.status !== newGst.status) changes.push(`Status: ${selectedGST.status} → ${newGst.status}`);
         if (changes.length > 0) {
           detailedAction += ` (${changes.join(", ")})`;
@@ -300,21 +299,19 @@ export default function GSTManagement() {
         id: Date.now().toString(),
         hsnCode: newGst.hsnCode,
         description: newGst.description,
-        sgst: formatPct(newGst.sgst),
-        cgst: formatPct(newGst.cgst),
-        igst: formatPct(newGst.igst),
-        totalGst: newGst.totalGst,
+        gstPercent: newGst.gstPercent,
         effectiveDate: newGst.effectiveDate,
         createdBy: currentUser?.fullName || 'Admin User',
         lastUpdatedBy: currentUser?.fullName || 'Admin User',
         lastUpdatedDate: new Date().toISOString().split('T')[0],
-        status: newGst.status as any
+        status: newGst.status as any,
+        remarks: newGst.remarks
       };
       setData([record, ...data]);
       activityLogService.addLog({
         userId: currentUser?.id || 'admin',
         userName: currentUser?.fullName || 'Admin User',
-        action: `GST HSN Code ${newGst.hsnCode} Created with rate ${newGst.totalGst}`,
+        action: `GST HSN Code ${newGst.hsnCode} Created with rate ${newGst.gstPercent}`,
         module: "GST Management",
       });
     }
@@ -324,12 +321,11 @@ export default function GSTManagement() {
 
   const handleDelete = () => {
     if (itemToDelete) {
-      // Fetch products to verify if HSN code is referenced
       const products = productService.getProducts();
       const isUsed = products.some(p => p.hsnCode === itemToDelete.hsnCode);
       
       if (isUsed) {
-        alert(`Error: HSN Code "${itemToDelete.hsnCode}" cannot be deleted because it is currently assigned to one or more products. Consider changing its status to Inactive instead.`);
+        alert(`Error: This GST Mapping cannot be deleted because the HSN Code "${itemToDelete.hsnCode}" is currently assigned to one or more products and referenced by existing business records. Consider changing its status to Inactive instead.`);
         setItemToDelete(null);
         return;
       }
@@ -349,7 +345,7 @@ export default function GSTManagement() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="GST Management"
-        subtitle="Manage HSN codes and GST taxation rates."
+        subtitle="Manage GST mappings for HSN classifications."
         actions={
           <>
             <ActionButton
@@ -364,7 +360,7 @@ export default function GSTManagement() {
                 icon={<Plus className="w-4 h-4" />}
                 onClick={openNewModal}
               >
-                Add HSN Code
+                Add GST Mapping
               </ActionButton>
             )}
           </>
@@ -375,7 +371,7 @@ export default function GSTManagement() {
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search by HSN or description..."
+          placeholder="Search by HSN, description, or GST %..."
         />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
@@ -412,7 +408,7 @@ export default function GSTManagement() {
           <div className="space-y-6">
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
-                HSN Information
+                GST Mapping Information
               </h3>
               <div className="space-y-2">
                 <DrawerField label="HSN Code" value={selectedGST.hsnCode} />
@@ -420,41 +416,10 @@ export default function GSTManagement() {
                   label="Description"
                   value={selectedGST.description}
                 />
+                <DrawerField label="GST %" value={selectedGST.gstPercent} />
                 <DrawerField
-                  label="Effective Date"
-                  value={selectedGST.effectiveDate || "N/A"}
-                />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
-                GST Information
-              </h3>
-              <div className="space-y-2">
-                <DrawerField label="SGST %" value={selectedGST.sgst} />
-                <DrawerField label="CGST %" value={selectedGST.cgst} />
-                <DrawerField label="IGST %" value={selectedGST.igst} />
-                <DrawerField label="Total GST %" value={selectedGST.totalGst} />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
-                Audit Information
-              </h3>
-              <div className="space-y-2">
-                <DrawerField
-                  label="Created By"
-                  value={selectedGST.createdBy || "System"}
-                />
-                <DrawerField
-                  label="Last Updated By"
-                  value={selectedGST.lastUpdatedBy || "System"}
-                />
-                <DrawerField
-                  label="Last Updated Date"
-                  value={selectedGST.lastUpdatedDate || "N/A"}
+                  label="Effective From"
+                  value={formatDate(selectedGST.effectiveDate)}
                 />
               </div>
             </div>
@@ -476,12 +441,36 @@ export default function GSTManagement() {
                     </Badge>
                   }
                 />
+                <DrawerField
+                  label="Remarks"
+                  value={selectedGST.remarks || "N/A"}
+                />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
+                Audit Information
+              </h3>
+              <div className="space-y-2">
+                <DrawerField
+                  label="Created By"
+                  value={selectedGST.createdBy || "System"}
+                />
+                <DrawerField
+                  label="Last Updated By"
+                  value={selectedGST.lastUpdatedBy || "System"}
+                />
+                <DrawerField
+                  label="Last Updated Date"
+                  value={formatDate(selectedGST.lastUpdatedDate)}
+                />
               </div>
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
               {canEdit && (
-                <ActionButton onClick={openEditModal}>Edit HSN</ActionButton>
+                <ActionButton onClick={openEditModal}>Edit</ActionButton>
               )}
               <ActionButton
                 variant="secondary"
@@ -502,10 +491,10 @@ export default function GSTManagement() {
               <Trash2 className="w-6 h-6 text-rose-600" />
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">
-              Delete HSN Code
+              Delete GST Mapping
             </h3>
             <p className="text-sm text-slate-500 mb-6">
-              Are you sure you want to delete this HSN code? This action cannot
+              Are you sure you want to delete this GST mapping? This action cannot
               be undone.
             </p>
             <div className="flex justify-center gap-3">
@@ -526,13 +515,13 @@ export default function GSTManagement() {
         </div>
       )}
 
-      {/* Add/Edit HSN Modal Form */}
+      {/* Add/Edit GST Mapping Modal Form */}
       {showModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">
-                {isEditingModal ? "Edit HSN Rates" : "Add HSN Code"}
+                {isEditingModal ? "Edit GST Mapping" : "Add GST Mapping"}
               </h2>
               <button
                 onClick={() => setShowModal(false)}
@@ -543,47 +532,68 @@ export default function GSTManagement() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* HSN INFORMATION */}
+              {/* GST MAPPING INFORMATION */}
               <div className="md:col-span-2 mt-2 first:mt-0">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  HSN INFORMATION
+                  GST MAPPING INFORMATION
                 </h3>
               </div>
-              <div className="md:col-span-2">
+              
+              <div>
                 <label className="block text-sm font-medium mb-1">
                   HSN Code *
                 </label>
-                <input
+                <select
                   value={newGst.hsnCode}
                   onChange={(e) => {
-                    const cleanHsn = e.target.value.replace(/\D/g, "").slice(0, 8);
-                    setNewGst({ ...newGst, hsnCode: cleanHsn });
+                    const code = e.target.value;
+                    const selected = activeHSNs.find(h => h.code === code);
+                    setNewGst({ ...newGst, hsnCode: code, description: selected ? selected.description : '' });
                   }}
-                  readOnly={isEditingModal}
-                 // maxLength={50}
-                 maxLength={8}
-                  className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${isEditingModal ? "bg-slate-50 opacity-70 cursor-not-allowed" : ""}`}
-                  placeholder="e.g. 30049099"
-                />
+                  disabled={isEditingModal}
+                  className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${isEditingModal ? "bg-slate-50 opacity-70 cursor-not-allowed" : "bg-white text-slate-900"}`}
+                >
+                  <option value="">Select HSN Code</option>
+                  {activeHSNs.map(hsn => (
+                    <option key={hsn.id} value={hsn.code}>{hsn.code} - {hsn.description.substring(0, 30)}{hsn.description.length > 30 ? '...' : ''}</option>
+                  ))}
+                </select>
               </div>
-              <div className="md:col-span-2">
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  GST Slab *
+                </label>
+                <select
+                  value={newGst.gstPercent}
+                  onChange={(e) => setNewGst({ ...newGst, gstPercent: e.target.value })}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-900"
+                >
+                  <option value="">Select GST %</option>
+                  <option value="0%">0%</option>
+                  <option value="5%">5%</option>
+                  <option value="12%">12%</option>
+                  <option value="18%">18%</option>
+                  <option value="28%">28%</option>
+                </select>
+              </div>
+
+              <div>
                 <label className="block text-sm font-medium mb-1">
                   Description *
                 </label>
                 <textarea
                   rows={2}
                   value={newGst.description}
-                  onChange={(e) =>
-                    setNewGst({ ...newGst, description: e.target.value })
-                  }
-                  maxLength={500}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                  placeholder="Enter detailed description"
+                  readOnly
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 opacity-70 cursor-not-allowed"
+                  placeholder="Auto-populated from HSN Code"
                 />
               </div>
-              <div className="md:col-span-2">
+              
+              <div>
                 <label className="block text-sm font-medium mb-1">
-                  Effective Date *
+                  Effective From *
                 </label>
                 <input
                   type="date"
@@ -595,94 +605,14 @@ export default function GSTManagement() {
                 />
               </div>
 
-              {/* GST INFORMATION */}
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  GST INFORMATION
-                </h3>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  SGST % *
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={newGst.sgst}
-                    onChange={(e) =>
-                      setNewGst({ ...newGst, sgst: e.target.value })
-                    }
-                    maxLength={10}
-                    className="w-full border border-slate-200 rounded-lg pr-7 pl-3 py-2"
-                  />
-                  <span className="absolute right-3 top-2 text-slate-500">
-                    %
-                  </span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  CGST % *
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={newGst.cgst}
-                    onChange={(e) =>
-                      setNewGst({ ...newGst, cgst: e.target.value })
-                    }
-                    maxLength={10}
-                    className="w-full border border-slate-200 rounded-lg pr-7 pl-3 py-2"
-                  />
-                  <span className="absolute right-3 top-2 text-slate-500">
-                    %
-                  </span>
-                </div>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">
-                  IGST % *
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    step="0.1"
-                    value={newGst.igst}
-                    readOnly
-                    className="w-full border border-slate-200 rounded-lg pr-7 pl-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed font-medium"
-                  />
-                  <span className="absolute right-3 top-2 text-slate-500">
-                    %
-                  </span>
-                </div>
-              </div>
-
-              {/* AUTO CALCULATION */}
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  AUTO CALCULATION
-                </h3>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1 text-indigo-700">
-                  Total GST %
-                </label>
-                <input
-                  value={newGst.totalGst}
-                  readOnly
-                  className="w-full border border-indigo-200 rounded-lg px-3 py-2 bg-indigo-50 font-bold text-indigo-900"
-                />
-              </div>
-
               {/* STATUS INFORMATION */}
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
                   STATUS INFORMATION
                 </h3>
               </div>
-              <div className="md:col-span-2">
+              
+              <div>
                 <label className="block text-sm font-medium mb-1">
                   Status *
                 </label>
@@ -696,6 +626,21 @@ export default function GSTManagement() {
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
                 </select>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Remarks
+                </label>
+                <input
+                  type="text"
+                  value={newGst.remarks}
+                  onChange={(e) =>
+                    setNewGst({ ...newGst, remarks: e.target.value })
+                  }
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                  placeholder="Optional remarks"
+                />
               </div>
 
               {/* AUDIT INFORMATION */}
@@ -725,8 +670,8 @@ export default function GSTManagement() {
                 <input
                   value={
                     isEditingModal
-                      ? selectedGST?.lastUpdatedDate || "N/A"
-                      : new Date().toISOString().split("T")[0]
+                      ? formatDate(selectedGST?.lastUpdatedDate)
+                      : formatDate(new Date().toISOString().split("T")[0])
                   }
                   readOnly
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500"
@@ -742,7 +687,7 @@ export default function GSTManagement() {
                 Cancel
               </ActionButton>
               <ActionButton onClick={handleSaveGst}>
-                {isEditingModal ? "Save Changes" : "Save HSN"}
+                {isEditingModal ? "Save Changes" : "Save Mapping"}
               </ActionButton>
             </div>
           </div>
