@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import { Plus, Filter, Download, Trash2, ChevronDown } from 'lucide-react';
 import {
   PageHeader,
@@ -116,8 +116,6 @@ export default function ProductMaster() {
     localStorage.getItem("authUser") || "{}"
   );
 
-  const activeRole = localStorage.getItem('activeRole') || '';
-
   const canCreate = true;
   const canEdit = true;
   const canDelete = true;
@@ -188,8 +186,6 @@ export default function ProductMaster() {
     gst: "",
   });
 
-  const wrapperRef = useRef<HTMLDivElement>(null);
-
   const handleAlphanumericChange = (fieldName: string, rawValue: string) => {
     const sanitizedValue = rawValue.replace(/[^a-zA-Z0-9 ]/g, "");
     const cappedValue = sanitizedValue.slice(0, 50);
@@ -249,18 +245,20 @@ export default function ProductMaster() {
   }, [newProduct.unitsPerPack, newProduct.packsInBox]);
 
   useEffect(() => {
-    const savedProducts = productService.getProducts();
-
-    if (savedProducts.length > 0) {
-      setProducts(savedProducts);
-      if (!localStorage.getItem("pharma_erp_products")) {
-        localStorage.setItem("pharma_erp_products", JSON.stringify(savedProducts));
+    const fetchProducts = async () => {
+      try {
+        const savedProducts = await productService.loadProducts();
+        if (savedProducts.length > 0) {
+          setProducts(savedProducts);
+        } else {
+          setProducts(initialProducts);
+        }
+      } catch (err) {
+        console.error("Failed to load products:", err);
+        setProducts(initialProducts);
       }
-    } else {
-      setProducts(initialProducts);
-      productService.saveProducts(initialProducts);
-      localStorage.setItem("pharma_erp_products", JSON.stringify(initialProducts));
-    }
+    };
+    fetchProducts();
 
     const defaultCategories = [
       "Antibiotics",
@@ -304,12 +302,7 @@ export default function ProductMaster() {
     setActiveHSNs(hsnService.getActive());
   }, []);
 
-  useEffect(() => {
-    if (products.length > 0) {
-      productService.saveProducts(products);
-      localStorage.setItem("pharma_erp_products", JSON.stringify(products));
-    }
-  }, [products]);
+  // Synchronized via backend API endpoints directly during save/delete mutations
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -353,7 +346,7 @@ export default function ProductMaster() {
     link.click();
   };
 
-  const handleSaveProduct = () => {
+  const handleSaveProduct = async () => {
     if (!newProduct.code || !newProduct.name || !newProduct.type || !newProduct.manufacturer || !newProduct.packingType) {
       alert("Please fill all mandatory fields (*). Product Code, Name, Type, Manufacturer, and Packing Type are required.");
       return;
@@ -458,65 +451,39 @@ export default function ProductMaster() {
     }
 
     let logAction = editMode ? `Product Updated (${newProduct.code})` : `Product Created (${newProduct.code})`;
-    let updatedList: Product[] = [];
-
     const calculatedTotalUnits = newProduct.unitsPerPack && newProduct.packsInBox ? (Number(newProduct.unitsPerPack) * Number(newProduct.packsInBox)).toString() : (newProduct.totalUnits || "0");
 
-    if (editMode && editingProductId) {
-      updatedList = products.map((product) =>
-        product.id === editingProductId ? { 
-          ...product, 
-          ...newProduct, 
-          totalUnits: calculatedTotalUnits 
-        } : product
-      );
-      setProducts(updatedList);
-    } else {
-      const product: Product = {
-        id: Date.now().toString(),
-        code: newProduct.code,
-        name: newProduct.name,
-        genericName: newProduct.genericName,
-        brandName: newProduct.brandName,
-        category: newProduct.category,
-        type: newProduct.type,
-        manufacturer: newProduct.manufacturer,
-        composition: newProduct.composition,
-        scheme: newProduct.scheme,
-        packingType: newProduct.packingType,
-        unitsPerPack: newProduct.unitsPerPack,
-        packsInBox: newProduct.packsInBox,
-        totalUnits: calculatedTotalUnits,
-        hsnCode: newProduct.hsnCode,
-        minimumStock: newProduct.minimumStock,
-        reorderLevel: newProduct.reorderLevel,
-        batchTracking: newProduct.batchTracking,
-        expiryTracking: newProduct.expiryTracking,
-        status: newProduct.status,
-        mrp: newProduct.mrp, 
-        ptr: newProduct.ptr, 
-        pts: newProduct.pts, 
-        ptd: newProduct.ptd, 
-        purchasePrice: newProduct.purchasePrice,
-        sellingPrice: newProduct.sellingPrice,
-        gst: newProduct.gst
-      };
-      updatedList = [product, ...products];
-      setProducts(updatedList);
+    try {
+      if (editMode && editingProductId) {
+        const payload: Product = {
+          ...newProduct,
+          id: editingProductId,
+          totalUnits: calculatedTotalUnits
+        };
+        const updatedProduct = await productService.updateProduct(editingProductId, payload);
+        setProducts(prev => prev.map((p) => p.id === editingProductId ? updatedProduct : p));
+      } else {
+        const payload: Omit<Product, 'id'> = {
+          ...newProduct,
+          totalUnits: calculatedTotalUnits
+        };
+        const createdProduct = await productService.addProduct(payload);
+        setProducts(prev => [createdProduct, ...prev]);
+      }
+
+      activityLogService.addLog({
+        userId: currentUser.id,
+        userName: currentUser.fullName,
+        action: logAction,
+        module: "Product Master",
+      });
+
+      setShowNewProductModal(false);
+      setEditMode(false);
+      setEditingProductId(null);
+    } catch (err: any) {
+      alert(err.message || "Failed to save product.");
     }
-
-    activityLogService.addLog({
-      userId: currentUser.id,
-      userName: currentUser.fullName,
-      action: logAction,
-      module: "Product Master",
-    });
-
-    localStorage.setItem("pharma_erp_products", JSON.stringify(updatedList));
-
-    setShowNewProductModal(false);
-    setEditMode(false);
-    setEditingProductId(null);
   };
 
   const columns: Column<Product>[] = [
@@ -623,7 +590,7 @@ export default function ProductMaster() {
             <p className="text-slate-600 mb-6 leading-relaxed">Are you sure you want to delete this product?<br />This action cannot be undone.</p>
             <div className="flex justify-end gap-3 mt-4">
               <ActionButton variant="secondary" onClick={() => setProductToDelete(null)}>Cancel</ActionButton>
-              <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-200" onClick={() => { if (!canDelete) return; if (checkProductInUse(productToDelete.id)) { alert("Error: Cannot delete this product."); setProductToDelete(null); return; } const updated = products.filter((p) => p.id !== productToDelete.id); setProducts(updated); localStorage.setItem("pharma_erp_products", JSON.stringify(updated)); setProductToDelete(null); }}>Delete</button>
+              <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-200" onClick={async () => { if (!canDelete || !productToDelete) return; if (checkProductInUse(productToDelete.id)) { alert("Error: Cannot delete this product."); setProductToDelete(null); return; } try { const success = await productService.deleteProduct(productToDelete.id); if (success) { setProducts(prev => prev.filter((p) => p.id !== productToDelete.id)); } } catch (err: any) { alert(err.message || "Failed to delete product."); } setProductToDelete(null); }}>Delete</button>
             </div>
           </div>
         </div>
