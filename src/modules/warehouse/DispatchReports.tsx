@@ -33,10 +33,21 @@ export default function DispatchReports() {
   const [periodFilter, setPeriodFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [transporterFilter, setTransporterFilter] = useState('All');
+  const [dispatchTypeFilter, setDispatchTypeFilter] = useState('All');
   const [search, setSearch] = useState('');
   
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  const formatDate = (dateString: string) => {
+    if (!dateString || dateString === '—') return "—";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${dd}-${mm}-${yyyy}`;
+  };
 
   useEffect(() => {
     const challans = transportChallanService.getAllChallans();
@@ -53,6 +64,7 @@ export default function DispatchReports() {
       return {
         id: c.id,
         dispatchNo: c.dispatchNo || '—',
+        dispatchType: (c as any).dispatchType || 'N/A',
         dispatchDate: c.dispatchDate || '—',
         customer: c.customer || '—',
         transporter: c.transporter || '—',
@@ -90,6 +102,7 @@ export default function DispatchReports() {
       if (periodFilter !== 'All' && d.month !== periodFilter) return false;
       if (statusFilter !== 'All' && d.deliveryStatus !== statusFilter) return false;
       if (transporterFilter !== 'All' && d.transporter !== transporterFilter) return false;
+      if (dispatchTypeFilter !== 'All' && d.dispatchType !== dispatchTypeFilter) return false;
       
       if (search) {
         const s = search.toLowerCase();
@@ -191,14 +204,15 @@ export default function DispatchReports() {
 
   const exportDataArray = filteredRecords.map(row => ({
     'Dispatch No': row.dispatchNo,
-    'Dispatch Date': row.dispatchDate,
+    'Dispatch Type': row.dispatchType,
+    'Dispatch Date': formatDate(row.dispatchDate),
     'Customer': row.customer,
     'Transporter': row.transporter,
     'Challan No': row.challanNo,
     'LR Number': row.lrNumber,
     'Delivery Status': row.deliveryStatus,
-    'Expected Delivery': row.expectedDelivery,
-    'Actual Delivery': row.actualDelivery
+    'Expected Delivery': formatDate(row.expectedDelivery),
+    'Actual Delivery': formatDate(row.actualDelivery)
   }));
 
   const handleExportExcel = () => {
@@ -210,12 +224,12 @@ export default function DispatchReports() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Dispatch No', 'Dispatch Date', 'Customer', 'Transporter', 'Challan No', 'LR Number', 'Delivery Status', 'Expected Delivery', 'Actual Delivery'];
+    const headers = ['Dispatch No', 'Dispatch Type', 'Dispatch Date', 'Customer', 'Transporter', 'Challan No', 'LR Number', 'Delivery Status', 'Expected Delivery', 'Actual Delivery'];
     const csvContent = [
       headers.join(','),
       ...exportDataArray.map(row => 
         [
-          `"${row['Dispatch No']}"`, `"${row['Dispatch Date']}"`, `"${row['Customer']}"`,
+          `"${row['Dispatch No']}"`, `"${row['Dispatch Type']}"`, `"${row['Dispatch Date']}"`, `"${row['Customer']}"`,
           `"${row['Transporter']}"`, `"${row['Challan No']}"`, `"${row['LR Number']}"`,
           `"${row['Delivery Status']}"`, `"${row['Expected Delivery']}"`, `"${row['Actual Delivery']}"`
         ].join(',')
@@ -249,9 +263,10 @@ export default function DispatchReports() {
 
     autoTable(doc, {
       startY: 50,
-      head: [['Dispatch No', 'Date', 'Customer', 'Transporter', 'Challan No', 'LR Number', 'Status', 'Expected', 'Actual']],
+      head: [['Dispatch No', 'Type', 'Date', 'Customer', 'Transporter', 'Challan No', 'LR Number', 'Status', 'Expected', 'Actual']],
       body: exportDataArray.map(row => [
         row['Dispatch No'],
+        row['Dispatch Type'],
         row['Dispatch Date'],
         row['Customer'],
         row['Transporter'],
@@ -272,7 +287,8 @@ export default function DispatchReports() {
 
   const columns: Column<any>[] = [
     { key: 'dispatchNo', label: 'Dispatch No', render: (row) => <span className="font-semibold text-slate-900">{row.dispatchNo}</span> },
-    { key: 'dispatchDate', label: 'Dispatch Date' },
+    { key: 'dispatchType', label: 'Dispatch Type', render: (row) => <span className="text-slate-700">{row.dispatchType}</span> },
+    { key: 'dispatchDate', label: 'Dispatch Date', render: (row) => <span>{formatDate(row.dispatchDate)}</span> },
     { key: 'customer', label: 'Customer', render: (row) => <span className="font-medium text-slate-800">{row.customer}</span> },
     { key: 'transporter', label: 'Transporter' },
     { key: 'challanNo', label: 'Challan No', render: (row) => <span className="text-slate-600">{row.challanNo}</span> },
@@ -289,8 +305,8 @@ export default function DispatchReports() {
         return <Badge variant={variant}>{row.deliveryStatus}</Badge>;
       },
     },
-    { key: 'expectedDelivery', label: 'Expected Delivery' },
-    { key: 'actualDelivery', label: 'Actual Delivery', render: (row) => row.actualDelivery || '—' },
+    { key: 'expectedDelivery', label: 'Expected Delivery', render: (row) => <span>{formatDate(row.expectedDelivery)}</span> },
+    { key: 'actualDelivery', label: 'Actual Delivery', render: (row) => <span>{formatDate(row.actualDelivery)}</span> },
   ];
 
   return (
@@ -346,6 +362,16 @@ export default function DispatchReports() {
             { label: 'Returned', value: 'Returned' }
           ]}
           placeholder="Status"
+        />
+        <SelectFilter
+          value={dispatchTypeFilter}
+          onChange={setDispatchTypeFilter}
+          options={[
+            { label: 'All Types', value: 'All' },
+            { label: 'Warehouse Transfer', value: 'Warehouse Transfer' },
+            { label: 'Outward Stock', value: 'Outward Stock' }
+          ]}
+          placeholder="Dispatch Type"
         />
         <SelectFilter
           value={transporterFilter}

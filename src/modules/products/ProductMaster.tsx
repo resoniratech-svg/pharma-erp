@@ -734,8 +734,38 @@ export default function ProductMaster() {
                   <div className="relative">
                     <label className="block text-sm font-medium mb-1 text-slate-700">Scheme</label>
                     <div className="relative">
-                      <input type="text" value={schemeSearch} onChange={(e) => { setSchemeSearch(e.target.value); setShowSchemeDropdown(true); }} onFocus={() => setShowSchemeDropdown(true)} placeholder="Search Scheme..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowSchemeDropdown(!showSchemeDropdown)} />
+                      <input type="text" value={schemeSearch} onChange={(e) => { 
+                        setSchemeSearch(e.target.value); 
+                        const allSchemes = schemeService.getAll();
+                        console.log("[DEBUG] (onChange) Total schemes received from localstorage:", allSchemes.length);
+                        console.log("[DEBUG] (onChange) Raw scheme objects:", allSchemes);
+                        const activeSchemes = allSchemes.filter((s:any) => s.status === "Active");
+                        console.log("[DEBUG] (onChange) Schemes remaining after status='Active' filter:", activeSchemes.length);
+                        console.log("[DEBUG] (onChange) Dropped schemes:", allSchemes.filter((s:any) => s.status !== "Active"));
+                        setSchemes(activeSchemes);
+                        setShowSchemeDropdown(true); 
+                      }} onFocus={() => {
+                        const allSchemes = schemeService.getAll();
+                        console.log("[DEBUG] (onFocus) Total schemes received from localstorage:", allSchemes.length);
+                        console.log("[DEBUG] (onFocus) Raw scheme objects:", allSchemes);
+                        const activeSchemes = allSchemes.filter((s:any) => s.status === "Active");
+                        console.log("[DEBUG] (onFocus) Schemes remaining after status='Active' filter:", activeSchemes.length);
+                        console.log("[DEBUG] (onFocus) Dropped schemes:", allSchemes.filter((s:any) => s.status !== "Active"));
+                        setSchemes(activeSchemes);
+                        setShowSchemeDropdown(true);
+                      }} placeholder="Search Scheme..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => {
+                        if (!showSchemeDropdown) {
+                          const allSchemes = schemeService.getAll();
+                          console.log("[DEBUG] (onClick) Total schemes received from localstorage:", allSchemes.length);
+                          console.log("[DEBUG] (onClick) Raw scheme objects:", allSchemes);
+                          const activeSchemes = allSchemes.filter((s:any) => s.status === "Active");
+                          console.log("[DEBUG] (onClick) Schemes remaining after status='Active' filter:", activeSchemes.length);
+                          console.log("[DEBUG] (onClick) Dropped schemes:", allSchemes.filter((s:any) => s.status !== "Active"));
+                          setSchemes(activeSchemes);
+                        }
+                        setShowSchemeDropdown(!showSchemeDropdown);
+                      }} />
                     </div>
                     {showSchemeDropdown && (
                       <>
@@ -749,10 +779,10 @@ export default function ProductMaster() {
                           }
                         }} />
                         <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                          {schemes.filter((c: any) => c.name.toLowerCase().includes(schemeSearch.toLowerCase())).map((sch: any) => (
-                            <div key={sch.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, scheme: sch.name }); setSchemeSearch(sch.name); setShowSchemeDropdown(false); }}>{sch.name}</div>
+                          {schemes.filter((c: any) => (c.name || c.schemeName || "").toLowerCase().includes(schemeSearch.toLowerCase())).map((sch: any) => (
+                            <div key={sch.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, scheme: sch.name || sch.schemeName }); setSchemeSearch(sch.name || sch.schemeName); setShowSchemeDropdown(false); }}>{sch.name || sch.schemeName}</div>
                           ))}
-                          {schemes.filter((c: any) => c.name.toLowerCase().includes(schemeSearch.toLowerCase())).length === 0 && (
+                          {schemes.filter((c: any) => (c.name || c.schemeName || "").toLowerCase().includes(schemeSearch.toLowerCase())).length === 0 && (
                             <div className="px-3 py-2 text-sm text-slate-500 italic">No matching scheme found</div>
                           )}
                         </div>

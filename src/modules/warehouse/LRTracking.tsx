@@ -29,6 +29,16 @@ export default function LRTracking() {
   
   const [lrData, setLrData] = useState<LRRecord[]>([]);
 
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${dd}-${mm}-${yyyy}`;
+  };
+
   useEffect(() => {
     setLrData(transportChallanService.getAllLRRecords());
 
@@ -47,7 +57,9 @@ export default function LRTracking() {
       const matchSearch = 
         item.lrNumber.toLowerCase().includes(searchStr) || 
         item.customer.toLowerCase().includes(searchStr) || 
-        item.transporter.toLowerCase().includes(searchStr);
+        item.transporter.toLowerCase().includes(searchStr) ||
+        item.challanNo.toLowerCase().includes(searchStr) ||
+        item.dispatchId.toLowerCase().includes(searchStr);
       const matchStatus = statusFilter ? item.status === statusFilter : true;
       return matchSearch && matchStatus;
     });
@@ -64,9 +76,10 @@ export default function LRTracking() {
   const handleExportExcel = () => {
     const exportData = filteredData.map(row => ({
       'LR No': row.lrNumber,
+      'Dispatch Type': (row as any).dispatchType || 'N/A',
       'Customer': row.customer,
       'Transporter': row.transporter,
-      'Dispatch Date': row.dispatchDate,
+      'Dispatch Date': formatDate(row.dispatchDate),
       'Status': row.status
     }));
     const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -77,13 +90,13 @@ export default function LRTracking() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['LR No', 'Customer', 'Transporter', 'Dispatch Date', 'Status'];
+    const headers = ['LR No', 'Dispatch Type', 'Customer', 'Transporter', 'Dispatch Date', 'Status'];
     const csvContent = [
       headers.join(','),
       ...filteredData.map(row => 
         [
-          `"${row.lrNumber}"`, `"${row.customer}"`, `"${row.transporter}"`,
-          `"${row.dispatchDate}"`, `"${row.status}"`
+          `"${row.lrNumber}"`, `"${(row as any).dispatchType || 'N/A'}"`, `"${row.customer}"`, `"${row.transporter}"`,
+          `"${formatDate(row.dispatchDate)}"`, `"${row.status}"`
         ].join(',')
       )
     ].join('\n');
@@ -106,9 +119,10 @@ export default function LRTracking() {
 
   const columns: Column<LRRecord>[] = [
     { key: 'lrNumber', label: 'LR No', render: (row) => <span className="font-semibold text-slate-900">{row.lrNumber}</span> },
+    { key: 'dispatchType', label: 'Dispatch Type', render: (row) => <span className="text-slate-700">{(row as any).dispatchType || 'N/A'}</span> },
     { key: 'customer', label: 'Customer', render: (row) => <span className="font-medium text-slate-800">{row.customer}</span> },
     { key: 'transporter', label: 'Transporter' },
-    { key: 'dispatchDate', label: 'Dispatch Date', render: (row) => <span className="text-slate-600">{row.dispatchDate}</span> },
+    { key: 'dispatchDate', label: 'Dispatch Date', render: (row) => <span className="text-slate-600">{formatDate(row.dispatchDate)}</span> },
     {
       key: 'status',
       label: 'Status',
@@ -228,7 +242,7 @@ export default function LRTracking() {
                             )}
                           </div>
                           <div>
-                            <div className="text-xs font-medium text-slate-500 mb-0.5">{event.date} {event.time}</div>
+                            <div className="text-xs font-medium text-slate-500 mb-0.5">{formatDate(event.date)} {event.time}</div>
                             <div className={`text-sm ${isLast ? 'font-bold text-violet-700' : 'font-semibold text-slate-900'}`}>
                               {event.status}
                             </div>
@@ -247,9 +261,10 @@ export default function LRTracking() {
                   <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Shipment Information</h3>
                   <div className="space-y-2">
                     <DrawerField label="LR Number" value={<span className="font-semibold text-slate-900">{selectedLR.lrNumber}</span>} />
+                    <DrawerField label="Dispatch Type" value={(selectedLR as any).dispatchType || 'N/A'} />
                     <DrawerField label="Challan Number" value={selectedLR.challanNo} />
                     <DrawerField label="Dispatch Number" value={selectedLR.dispatchId} />
-                    <DrawerField label="Dispatch Date" value={selectedLR.dispatchDate} />
+                    <DrawerField label="Dispatch Date" value={formatDate(selectedLR.dispatchDate)} />
                   </div>
                 </div>
 
@@ -284,10 +299,26 @@ export default function LRTracking() {
                       </Badge>
                     } />
                     <DrawerField label="Current Location" value={selectedLR.currentLocation} />
-                    <DrawerField label="ETA" value={selectedLR.eta} />
+                    <DrawerField label="ETA" value={formatDate(selectedLR.eta)} />
                     <DrawerField label="Last Updated" value={selectedLR.lastUpdated} />
                   </div>
                 </div>
+
+                {((selectedLR as any).createdBy || (selectedLR as any).createdAt) && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Audit Information</h3>
+                    <div className="space-y-2">
+                      <DrawerField label="Created By" value={(selectedLR as any).createdBy || 'System'} />
+                      <DrawerField label="Created On" value={formatDate((selectedLR as any).createdAt)} />
+                      {(selectedLR as any).updatedBy && (
+                        <DrawerField label="Updated By" value={(selectedLR as any).updatedBy} />
+                      )}
+                      {(selectedLR as any).updatedAt && (
+                        <DrawerField label="Updated On" value={formatDate((selectedLR as any).updatedAt)} />
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 

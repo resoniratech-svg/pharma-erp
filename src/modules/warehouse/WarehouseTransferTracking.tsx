@@ -30,6 +30,16 @@ export default function WarehouseTransferTracking() {
 
   const [trackingData, setTrackingData] = useState<TrackingRecord[]>([]);
 
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${dd}-${mm}-${yyyy}`;
+  };
+
   useEffect(() => {
     setTrackingData(warehouseTransferService.getAllTrackingRecords());
 
@@ -47,7 +57,8 @@ export default function WarehouseTransferTracking() {
       const matchSearch = 
         item.transferNo.toLowerCase().includes(search.toLowerCase()) || 
         item.fromWarehouse.toLowerCase().includes(search.toLowerCase()) || 
-        item.toWarehouse.toLowerCase().includes(search.toLowerCase());
+        item.toWarehouse.toLowerCase().includes(search.toLowerCase()) ||
+        item.currentStatus.toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter ? item.currentStatus === statusFilter : true;
       return matchSearch && matchStatus;
     });
@@ -66,7 +77,7 @@ export default function WarehouseTransferTracking() {
       'Transfer No': row.transferNo,
       'From Warehouse': row.fromWarehouse,
       'To Warehouse': row.toWarehouse,
-      'Transfer Date': row.transferDate,
+      'Transfer Date': formatDate(row.transferDate),
       'Total Quantity': row.totalQuantity,
       'Status': row.currentStatus
     }));
@@ -84,7 +95,7 @@ export default function WarehouseTransferTracking() {
       ...filteredData.map(row => 
         [
           `"${row.transferNo}"`, `"${row.fromWarehouse}"`, `"${row.toWarehouse}"`,
-          `"${row.transferDate}"`, row.totalQuantity, `"${row.currentStatus}"`
+          `"${formatDate(row.transferDate)}"`, row.totalQuantity, `"${row.currentStatus}"`
         ].join(',')
       )
     ].join('\n');
@@ -107,7 +118,7 @@ export default function WarehouseTransferTracking() {
 
   const columns: Column<TrackingRecord>[] = [
     { key: 'transferNo', label: 'Transfer No', render: (row) => <span className="font-semibold text-slate-900">{row.transferNo}</span> },
-    { key: 'transferDate', label: 'Transfer Date' },
+    { key: 'transferDate', label: 'Transfer Date', render: (row) => <span className="text-slate-600">{formatDate(row.transferDate)}</span> },
     { key: 'fromWarehouse', label: 'From Warehouse', render: (row) => <span className="text-slate-700">{row.fromWarehouse}</span> },
     { key: 'toWarehouse', label: 'To Warehouse', render: (row) => <span className="text-slate-700">{row.toWarehouse}</span> },
     { key: 'totalQuantity', label: 'Total Quantity', render: (row) => <span className="font-medium text-slate-900">{row.totalQuantity}</span> },
@@ -282,7 +293,7 @@ export default function WarehouseTransferTracking() {
                           </div>
                           <div>
                             <div className="text-xs font-medium text-slate-500 mb-0.5">
-                              {event.date} {event.time && `• ${event.time}`}
+                              {formatDate(event.date)} {event.time && `• ${event.time}`}
                             </div>
                             <div className={`text-sm ${isLast ? 'font-bold text-violet-700' : 'font-semibold text-slate-900'}`}>{event.status}</div>
                           </div>
@@ -300,7 +311,7 @@ export default function WarehouseTransferTracking() {
                   <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Transfer Information</h3>
                   <div className="space-y-2">
                     <DrawerField label="Transfer No" value={<span className="font-semibold text-slate-900">{selectedTransfer.transferNo}</span>} />
-                    <DrawerField label="Transfer Date" value={selectedTransfer.transferDate} />
+                    <DrawerField label="Transfer Date" value={formatDate(selectedTransfer.transferDate)} />
                     <DrawerField label="Status" value={
                       <Badge variant={
                         ['Completed', 'Received'].includes(selectedTransfer.currentStatus) ? 'success' : 
@@ -337,6 +348,22 @@ export default function WarehouseTransferTracking() {
                     <DrawerField label="Total Quantity" value={selectedTransfer.totalQuantity.toString()} />
                   </div>
                 </div>
+
+                {((selectedTransfer as any).createdBy || (selectedTransfer as any).createdAt) && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Audit Information</h3>
+                    <div className="space-y-2">
+                      <DrawerField label="Created By" value={(selectedTransfer as any).createdBy || 'System'} />
+                      <DrawerField label="Created On" value={formatDate((selectedTransfer as any).createdAt)} />
+                      {(selectedTransfer as any).updatedBy && (
+                        <DrawerField label="Updated By" value={(selectedTransfer as any).updatedBy} />
+                      )}
+                      {(selectedTransfer as any).updatedAt && (
+                        <DrawerField label="Updated On" value={formatDate((selectedTransfer as any).updatedAt)} />
+                      )}
+                    </div>
+                  </div>
+                )}
               </>
             )}
 

@@ -47,7 +47,7 @@ import DistributorRetailerOrders from '../../modules/distributors/RetailerOrders
 import OrderHistory from '../../modules/distributors/OrderHistory';
 import OutstandingTracking from '../../modules/distributors/OutstandingTracking';
 import Ledgers from '../../modules/distributors/Ledgers';
-import Invoices from '../../modules/distributors/Invoices';
+import InvoiceDownload from '../../modules/distributors/InvoiceDownload';
 import DistributorSchemes from '../../modules/distributors/Schemes';
 import DispatchTracking from '../../modules/distributors/DispatchTracking';
 
@@ -271,7 +271,7 @@ export const router = createBrowserRouter([
           { path: 'order-history', element: <OrderHistory /> },
           { path: 'outstanding', element: <OutstandingTracking /> },
           { path: 'ledgers', element: <Ledgers /> },
-          { path: 'invoices', element: <Invoices /> },
+          { path: 'invoices', element: <InvoiceDownload /> },
           { path: 'schemes', element: <DistributorSchemes /> },
           { path: 'dispatch-tracking', element: <DispatchTracking /> },
         ],

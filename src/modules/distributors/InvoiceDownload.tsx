@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';             
 import { Download, ReceiptText } from 'lucide-react';
 import { jsPDF } from 'jspdf';
 import {
@@ -179,7 +179,7 @@ export default function InvoiceDownload() {
     { key: 'date', label: 'INVOICE DATE', render: (row) => <span className="text-slate-600">{row.date}</span> },
     { key: 'dueDate', label: 'DUE DATE', render: (row) => <span className={row.status === 'Overdue' ? 'text-rose-600 font-semibold' : 'text-slate-600'}>{row.dueDate}</span> },
     { key: 'amount', label: 'INVOICE AMOUNT', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.amount)}</span> },
-    { key: 'status', label: 'PAYMENT STATUS', render: (row) => <Badge variant={row.status === 'Paid' ? 'success' : row.status === 'Unpaid' ? 'warning' : row.status === 'Partially Paid' ? 'default' : 'danger'}>{row.status}</Badge> },
+    { key: 'status', label: 'PAYMENT STATUS', render: (row) => <Badge variant={row.status === 'Paid' ? 'success' : row.status === 'Partially Paid' ? 'info' : row.status === 'Unpaid' ? 'warning' : 'danger'}>{row.status}</Badge> },
     {
       key: 'actions',
       label: 'ACTIONS',
@@ -194,12 +194,12 @@ export default function InvoiceDownload() {
 
   const salesColumns: Column<Invoice>[] = [
     { key: 'invoiceNo', label: 'INVOICE NO', render: (row) => <span className="font-semibold text-slate-900">{row.invoiceNo}</span> },
-    { key: 'orderNo', label: 'ORDER NO', render: (row) => <span className="text-slate-600">{row.orderNo}</span> },
-    { key: 'retailer', label: 'RETAILER', render: (row) => <span className="text-slate-700">{row.retailer || 'N/A'}</span> },
+    { key: 'orderNo', label: 'ORDER NO', render: (row) => <span className="text-slate-600">{(row as any).orderNo}</span> },
+    { key: 'retailer', label: 'RETAILER', render: (row) => <span className="text-slate-700">{(row as any).retailer || 'N/A'}</span> },
     { key: 'date', label: 'INVOICE DATE', render: (row) => <span className="text-slate-600">{row.date}</span> },
     { key: 'dueDate', label: 'DUE DATE', render: (row) => <span className={row.status === 'Overdue' ? 'text-rose-600 font-semibold' : 'text-slate-600'}>{row.dueDate}</span> },
     { key: 'amount', label: 'INVOICE AMOUNT', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.amount)}</span> },
-    { key: 'status', label: 'PAYMENT STATUS', render: (row) => <Badge variant={row.status === 'Paid' ? 'success' : row.status === 'Unpaid' ? 'warning' : row.status === 'Partially Paid' ? 'default' : 'danger'}>{row.status}</Badge> },
+    { key: 'status', label: 'PAYMENT STATUS', render: (row) => <Badge variant={row.status === 'Paid' ? 'success' : row.status === 'Partially Paid' ? 'info' : row.status === 'Unpaid' ? 'warning' : 'danger'}>{row.status}</Badge> },
     {
       key: 'actions',
       label: 'ACTIONS',

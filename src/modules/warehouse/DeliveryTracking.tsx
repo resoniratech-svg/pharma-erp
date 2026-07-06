@@ -40,6 +40,16 @@ export default function DeliveryTracking() {
   const [podRemarks, setPodRemarks] = useState('');
   const [podFile, setPodFile] = useState<File | null>(null);
 
+  const formatDate = (dateString: string) => {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${dd}-${mm}-${yyyy}`;
+  };
+
   useEffect(() => {
     setData(transportChallanService.getAllDeliveryRecords());
 
@@ -49,8 +59,19 @@ export default function DeliveryTracking() {
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowUploadModal(false);
+    };
+    if (showUploadModal) {
+      window.addEventListener('keydown', handleEsc);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleEsc);
+    };
+  }, [showUploadModal]);
 
   const filteredData = useMemo(() => {
     return data.filter((item) => {
@@ -58,7 +79,10 @@ export default function DeliveryTracking() {
       const matchSearch = 
         item.deliveryNo.toLowerCase().includes(searchStr) || 
         item.customer.toLowerCase().includes(searchStr) || 
-        item.lrNumber.toLowerCase().includes(searchStr);
+        item.lrNumber.toLowerCase().includes(searchStr) ||
+        item.challanNo.toLowerCase().includes(searchStr) ||
+        item.deliveryAddress.toLowerCase().includes(searchStr) ||
+        item.transporter.toLowerCase().includes(searchStr);
       const matchStatus = statusFilter ? item.status === statusFilter : true;
       return matchSearch && matchStatus;
     });
@@ -77,7 +101,7 @@ export default function DeliveryTracking() {
       'Delivery No': row.deliveryNo,
       'Customer': row.customer,
       'LR Number': row.lrNumber,
-      'Expected Date': row.expectedDate,
+      'Expected Date': formatDate(row.expectedDate),
       'Delivery Status': row.status,
       'POD Status': row.podStatus
     }));
@@ -95,7 +119,7 @@ export default function DeliveryTracking() {
       ...filteredData.map(row => 
         [
           `"${row.deliveryNo}"`, `"${row.customer}"`, `"${row.lrNumber}"`,
-          `"${row.expectedDate}"`, `"${row.status}"`, `"${row.podStatus}"`
+          `"${formatDate(row.expectedDate)}"`, `"${row.status}"`, `"${row.podStatus}"`
         ].join(',')
       )
     ].join('\n');
@@ -125,7 +149,7 @@ export default function DeliveryTracking() {
         row.deliveryNo,
         row.customer,
         row.lrNumber,
-        row.expectedDate,
+        formatDate(row.expectedDate),
         row.status,
         row.podStatus
       ]),
@@ -156,6 +180,17 @@ export default function DeliveryTracking() {
       alert("Please select a file to upload.");
       return;
     }
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowedTypes.includes(podFile.type)) {
+      alert("Unsupported file type. Please upload a PDF, JPG, PNG, or WEBP file.");
+      return;
+    }
+    
+    const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
+    if (podFile.size > MAX_FILE_SIZE) {
+      alert("The selected file exceeds the maximum allowed size of 5 MB.");
+      return;
+    }
     
     const fileUrl = URL.createObjectURL(podFile);
     const now = new Date();
@@ -165,7 +200,7 @@ export default function DeliveryTracking() {
     transportChallanService.updateChallan(uploadRecord.id, {
       status: 'Delivered',
       podStatus: 'Uploaded',
-      actualDeliveryDate: dateOnly,
+      actualDeliveryDate: formatDate(new Date().toISOString()),
       podReceivedBy,
       podDesignation,
       podUploadedBy: 'System User',
@@ -195,7 +230,7 @@ export default function DeliveryTracking() {
     { key: 'deliveryNo', label: 'Delivery No', render: (row) => <span className="font-semibold text-slate-900">{row.deliveryNo}</span> },
     { key: 'customer', label: 'Customer', render: (row) => <span className="font-medium text-slate-800">{row.customer}</span> },
     { key: 'lrNumber', label: 'LR Number', render: (row) => <span className="text-slate-600">{row.lrNumber}</span> },
-    { key: 'expectedDate', label: 'Expected Delivery Date' },
+    { key: 'expectedDate', label: 'Expected Delivery Date', render: (row) => <span>{formatDate(row.expectedDate)}</span> },
     {
       key: 'status',
       label: 'Delivery Status',
@@ -336,7 +371,7 @@ export default function DeliveryTracking() {
                           </div>
                           <div>
                             <div className="text-xs font-medium text-slate-500 mb-0.5">
-                              {event.date} {event.time && `• ${event.time}`}
+                              {formatDate(event.date)} {event.time && `• ${event.time}`}
                             </div>
                             <div className={`text-sm ${isLast ? 'font-bold text-violet-700' : 'font-semibold text-slate-900'}`}>{event.status}</div>
                           </div>
@@ -382,8 +417,8 @@ export default function DeliveryTracking() {
                 <div>
                   <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Delivery Status</h3>
                   <div className="space-y-2">
-                    <DrawerField label="Expected Date" value={selectedRecord.expectedDate} />
-                    <DrawerField label="Actual Date" value={selectedRecord.actualDate} />
+                    <DrawerField label="Expected Date" value={formatDate(selectedRecord.expectedDate)} />
+                    <DrawerField label="Actual Date" value={formatDate(selectedRecord.actualDate || '')} />
                     <DrawerField label="Delivery Status" value={
                       <Badge variant={
                         selectedRecord.status === 'Delivered' ? 'success' : 
@@ -408,13 +443,29 @@ export default function DeliveryTracking() {
                     <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">POD Details</h3>
                     <div className="space-y-2">
                       <DrawerField label="Uploaded By" value={selectedRecord.podUploadedBy || '-'} />
-                      <DrawerField label="Uploaded Date" value={selectedRecord.podUploadedDate || '-'} />
+                      <DrawerField label="Uploaded Date" value={formatDate(selectedRecord.podUploadedDate || '')} />
                       <DrawerField label="Receiver Name" value={selectedRecord.podReceivedBy || '-'} />
                       <DrawerField label="Receiver Designation" value={selectedRecord.podDesignation || '-'} />
                       <div className="pt-3 flex gap-3">
                         <ActionButton variant="secondary" onClick={() => handleViewPOD(selectedRecord)} icon={<Eye className="w-4 h-4" />}>View POD</ActionButton>
                         <ActionButton variant="secondary" onClick={() => generatePODPdf(selectedRecord)} icon={<Download className="w-4 h-4" />}>Download POD</ActionButton>
                       </div>
+                    </div>
+                  </div>
+                )}
+
+                {((selectedRecord as any).createdBy || (selectedRecord as any).createdAt) && (
+                  <div>
+                    <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Audit Information</h3>
+                    <div className="space-y-2">
+                      <DrawerField label="Created By" value={(selectedRecord as any).createdBy || 'System'} />
+                      <DrawerField label="Created On" value={formatDate((selectedRecord as any).createdAt)} />
+                      {(selectedRecord as any).updatedBy && (
+                        <DrawerField label="Updated By" value={(selectedRecord as any).updatedBy} />
+                      )}
+                      {(selectedRecord as any).updatedAt && (
+                        <DrawerField label="Updated On" value={formatDate((selectedRecord as any).updatedAt)} />
+                      )}
                     </div>
                   </div>
                 )}

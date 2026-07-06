@@ -336,7 +336,7 @@ export default function SchemeManagement() {
       validFrom: new Date().toISOString().split('T')[0],
       validTo: '',
       remarks: '',
-      status: 'Draft'
+      status: 'Active'
     });
     setShowModal(true);
   };
@@ -877,81 +877,12 @@ export default function SchemeManagement() {
                     }}
                     className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400 bg-white"
                   >
-                    <option value="Product">Product</option>
                     <option value="Category">Category</option>
                     <option value="Brand">Brand</option>
                     <option value="All Products">All Products</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-1 text-slate-700">
-                    Selection Target *
-                  </label>
-                  {newScheme.applicableTo === "All Products" ? (
-                    <input
-                      type="text"
-                      disabled
-                      value="Not Applicable"
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-100 cursor-not-allowed text-slate-400"
-                    />
-                  ) : newScheme.applicableTo === "Product" ? (
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={productSearch}
-                        onChange={(e) => {
-                          setProductSearch(e.target.value);
-                          setShowProductDropdown(true);
-                          if (newScheme.applicableSelection) {
-                            setNewScheme({ ...newScheme, applicableSelection: "" });
-                          }
-                        }}
-                        onFocus={() => setShowProductDropdown(true)}
-                        placeholder="Search Product..."
-                        className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 text-slate-900 focus:outline-none focus:border-violet-400 bg-white"
-                      />
-                      <ChevronDown
-                        className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
-                        onClick={() => setShowProductDropdown(!showProductDropdown)}
-                      />
-                      {showProductDropdown && (
-                        <>
-                          <div className="fixed inset-0 z-10" onClick={() => setShowProductDropdown(false)} />
-                          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                            {products
-                              .filter((p) => p.status === "Active" || !p.status)
-                              .filter(
-                                (p) =>
-                                  p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                                  p.code.toLowerCase().includes(productSearch.toLowerCase())
-                              )
-                              .map((product) => (
-                                <div
-                                  key={product.code}
-                                  className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
-                                  onClick={() => {
-                                    setNewScheme({ ...newScheme, applicableSelection: product.code });
-                                    setProductSearch(`${product.code} - ${product.name}`);
-                                    setShowProductDropdown(false);
-                                  }}
-                                >
-                                  <span className="font-medium text-slate-900">{product.code}</span> - {product.name}
-                                </div>
-                              ))}
-                            {products
-                              .filter((p) => p.status === "Active" || !p.status)
-                              .filter(
-                                (p) =>
-                                  p.name.toLowerCase().includes(productSearch.toLowerCase()) ||
-                                  p.code.toLowerCase().includes(productSearch.toLowerCase())
-                              ).length === 0 && (
-                                <div className="px-3 py-2 text-sm text-slate-500 italic">No matching products found</div>
-                            )}
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  ) : newScheme.applicableTo === "Category" ? (
+                  {newScheme.applicableTo === "All Products" ? null : newScheme.applicableTo === "Category" ? (
                     <div className="relative">
                       <input
                         type="text"
@@ -1072,7 +1003,6 @@ export default function SchemeManagement() {
                       )}
                     </div>
                   )}
-                </div>
 
                 <div className="md:col-span-2 mt-4">
                   <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
@@ -1269,7 +1199,8 @@ export default function SchemeManagement() {
                   >
                     <option value="Draft">Draft (Manual)</option>
                     <option value="Cancelled">Cancelled (Manual)</option>
-                    {['Active', 'Upcoming', 'Expired'].includes(newScheme.status) && (
+                    <option value="Active">Active (System Auto)</option>
+                    {['Upcoming', 'Expired'].includes(newScheme.status) && (
                       <option value={newScheme.status} disabled>{newScheme.status} (System Auto)</option>
                     )}
                   </select>
