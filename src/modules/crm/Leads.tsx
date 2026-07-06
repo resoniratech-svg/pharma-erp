@@ -144,6 +144,7 @@ interface Lead {
   createdBy?: string;
   createdAt?: string;
   status: 'New' | 'Assigned' | 'Contacted' | 'Qualified' | 'Lost';
+  dealValue?: number;
 }
 
 export default function Leads() {
@@ -160,6 +161,7 @@ export default function Leads() {
     contact: '',
     territory: '',
     status: 'New',
+    dealValue: undefined,
   });
 
   useEffect(() => {
@@ -209,13 +211,14 @@ export default function Leads() {
       createdBy: creatorName,
       createdAt: todayStr,
       status: formData.status as Lead['status'] || 'New',
+      dealValue: formData.dealValue ? parseFloat(formData.dealValue.toString()) : 0,
     };
 
     const updatedLeads = [newLead, ...leads];
     setLeads(updatedLeads);
     localStorage.setItem('crm_leads', JSON.stringify(updatedLeads));
     
-    setFormData({ name: '', type: 'Doctor', source: 'Direct', contact: '', territory: '', status: 'New' });
+    setFormData({ name: '', type: 'Doctor', source: 'Direct', contact: '', territory: '', status: 'New', dealValue: undefined });
     setIsDrawerOpen(false);
   };
 
@@ -271,6 +274,15 @@ export default function Leads() {
     { key: 'type', label: 'Type' },
     { key: 'contact', label: 'Contact Info' },
     { key: 'territory', label: 'Territory', render: (row) => <span>{row.territory || 'Unassigned'}</span> }, 
+    { 
+      key: 'dealValue', 
+      label: 'Deal Value', 
+      render: (row) => (
+        <span className="font-semibold text-slate-700">
+          {row.dealValue ? `₹ ${parseFloat(row.dealValue.toString()).toLocaleString('en-IN')}` : '₹ 0'}
+        </span>
+      )
+    }, 
     {
       key: 'status',
       label: 'Status',
@@ -391,6 +403,18 @@ export default function Leads() {
                 value={formData.territory}
                 onChange={(e) => setFormData({...formData, territory: e.target.value})}
                 placeholder="e.g. Hyderabad South"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Estimated Deal Value (₹) *</label>
+              <input 
+                type="number" 
+                required 
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                value={formData.dealValue || ''}
+                onChange={(e) => setFormData({...formData, dealValue: e.target.value ? parseFloat(e.target.value) : undefined})}
+                placeholder="e.g. 150000"
               />
             </div>
 

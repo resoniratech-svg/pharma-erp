@@ -134,11 +134,19 @@ export default function TourPlanning() {
         ...p, planType, date, hq, route, beat, startTime, endTime, objective, docCount, chemistCount, doctorsList, chemistsList, remarks
       } : p));
     } else {
+        let authUser = null;
+      try {
+        const authUserString = localStorage.getItem('authUser');
+        authUser = authUserString ? JSON.parse(authUserString) : null;
+      } catch {
+        authUser = null;
+      }
+      const activeMRName = authUser?.fullName || authUser?.name || 'Medical Representative';
       const newPlan: TourPlan = {
         id: Date.now().toString(),
         planType,
         date,
-        repName: 'Rahul Verma', // Mock logged in user
+        repName: activeMRName, // ✅ Dynamic logged-in name
         hq,
         route,
         beat,

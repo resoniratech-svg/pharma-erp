@@ -122,7 +122,17 @@ export default function LoginPage() {
     /* Simulate API delay */
     await new Promise((res) => setTimeout(res, 1600));
 
-    const user = USERS.find(u => u.email === email && u.password === password);
+    //const user = USERS.find(u => u.email === email && u.password === password);
+        // Fetch from persistent localStorage database first, fall back to USERS array
+    let dbUsers = USERS;
+    const storedDb = localStorage.getItem('web_users_database');
+    if (storedDb) {
+      try { dbUsers = JSON.parse(storedDb); } catch {}
+    } else {
+      localStorage.setItem('web_users_database', JSON.stringify(USERS));
+    }
+
+    const user = dbUsers.find(u => u.email === email && u.password === password);
     
     if (!user) {
       setLoading(false);

@@ -73,7 +73,9 @@ export const dashboardService = {
   },
 
   getTodayDoctorVisits: () => {
-    const visits = safeJsonParse('web_doctor_visits');
+   // const visits = safeJsonParse('web_doctor_visits');
+        const visits = safeJsonParse('doctor_visits');
+
     const todayVisits = visits.filter((v: any) => isToday(v.visitDate || v.date));
     return {
       completed: todayVisits.length,
@@ -83,7 +85,8 @@ export const dashboardService = {
   },
 
   getTodayChemistVisits: () => {
-    const visits = safeJsonParse('web_chemist_visits');
+   // const visits = safeJsonParse('web_chemist_visits');
+   const visits = safeJsonParse('chemist_visits');
     const todayVisits = visits.filter((v: any) => isToday(v.visitDate || v.date));
     return {
       completed: todayVisits.length,
@@ -103,9 +106,12 @@ export const dashboardService = {
   },
 
   getMonthlyTargetProgress: () => {
-    const docVisits = safeJsonParse('web_doctor_visits').filter((v: any) => isCurrentMonth(v.visitDate || v.date)).length;
-    const chemistVisits = safeJsonParse('web_chemist_visits').filter((v: any) => isCurrentMonth(v.visitDate || v.date)).length;
-    
+   // const docVisits = safeJsonParse('web_doctor_visits').filter((v: any) => isCurrentMonth(v.visitDate || v.date)).length;
+       const docVisits = safeJsonParse('doctor_visits').filter((v: any) => isCurrentMonth(v.visitDate || v.date)).length;
+
+   //const chemistVisits = safeJsonParse('web_chemist_visits').filter((v: any) => isCurrentMonth(v.visitDate || v.date)).length;
+      const chemistVisits = safeJsonParse('chemist_visits').filter((v: any) => isCurrentMonth(v.visitDate || v.date)).length;
+
     const orders = safeJsonParse('web_orders').filter((o: any) => isCurrentMonth(o.dateFormatted || o.date));
     const salesAchieved = orders.reduce((sum: number, item: any) => sum + (parseFloat(item.totalAmount) || 0), 0);
 
@@ -124,7 +130,8 @@ export const dashboardService = {
   },
 
   getPendingFollowUps: () => {
-    const visits = safeJsonParse('web_doctor_visits');
+    //const visits = safeJsonParse('web_doctor_visits');
+    const visits = safeJsonParse('doctor_visits');
    // const followUps = visits.filter((v: any) => v.followUpDate && v.followUpDate.trim() !== '');
     const followUps = visits.filter((v: any) => v.nextFollowUp && v.nextFollowUp.trim() !== '');
     let dueTodayCount = 0;
@@ -176,7 +183,8 @@ export const dashboardService = {
   },
 
   getTodaySchedule: () => {
-    const visits = safeJsonParse('web_doctor_visits');
+   // const visits = safeJsonParse('web_doctor_visits');
+   const visits = safeJsonParse('doctor_visits');
    // const followUps = visits.filter((v: any) => v.followUpDate && isToday(v.followUpDate));
     const followUps = visits.filter((v: any) => v.nextFollowUp && isToday(v.nextFollowUp));
 
@@ -197,8 +205,11 @@ export const dashboardService = {
   },
 
   getRecentVisits: () => {
-    const docVisits = safeJsonParse('web_doctor_visits');
-    const chemVisits = safeJsonParse('web_chemist_visits');
+    //const docVisits = safeJsonParse('web_doctor_visits');
+     const docVisits = safeJsonParse('doctor_visits');
+
+   // const chemVisits = safeJsonParse('web_chemist_visits');
+   const chemVisits = safeJsonParse('chemist_visits');
     
     const allVisits = [...docVisits.map((v: any) => ({ name: v.doctorName, time: v.visitTime || '10:30 AM'})), 
                        ...chemVisits.map((v: any) => ({ name: v.chemistName, time: v.visitTime || '11:15 AM'}))];
@@ -218,7 +229,8 @@ export const dashboardService = {
     let dynamicNotifs: any[] = [];
 
     // 1. Check for Follow-ups due today
-    const visits = safeJsonParse('web_doctor_visits', []);
+    //const visits = safeJsonParse('web_doctor_visits', []);
+    const visits = safeJsonParse('doctor_visits', []);
     const followUpsDueToday = visits.filter((v: any) => v.nextFollowUp && isToday(v.nextFollowUp));
     
     followUpsDueToday.forEach((f: any) => {

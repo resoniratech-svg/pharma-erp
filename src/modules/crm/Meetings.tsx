@@ -735,12 +735,12 @@ export default function CrmMeetings() {
     }
   ];
 
-  const filteredData = meetings.filter((item) => {
+const filteredData = meetings.filter((item) => {
     const s = search.toLowerCase();
-    return item.title.toLowerCase().includes(s) || 
-           item.client.toLowerCase().includes(s) ||
-           item.venue.toLowerCase().includes(s) ||
-           item.meetingType.toLowerCase().includes(s);
+    return (item.title || '').toLowerCase().includes(s) || 
+           (item.client || '').toLowerCase().includes(s) ||
+           (item.venue || '').toLowerCase().includes(s) ||
+           (item.meetingType || '').toLowerCase().includes(s);
   });
 
   return (

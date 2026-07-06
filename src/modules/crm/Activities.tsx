@@ -420,6 +420,8 @@ export default function ActivityTracking() {
   useEffect(() => {
     compileActivityLogs();
   }, []);
+  
+    
 
   const safeJsonParse = (data: string | null, fallback: any) => {
     if (!data) return fallback;

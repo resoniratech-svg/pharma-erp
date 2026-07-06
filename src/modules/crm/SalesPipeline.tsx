@@ -196,23 +196,23 @@ export default function SalesPipeline() {
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <SummaryCard
-          title="Lead Generation"
-          value={metrics.leads.toString()}
-          subtitle="Active early-stage leads"
+          title="Total Leads"
+          value={(metrics.leads + metrics.qualification + metrics.negotiation + metrics.won).toString()}
+          subtitle="Total in pipeline"
           icon={<PieChart className="w-6 h-6" />}
           colorClass="text-slate-600"
           bgClass="bg-slate-100"
         />
         <SummaryCard
-          title="In Negotiation"
-          value={metrics.negotiation.toString()}
-          subtitle="Proposals sent"
+          title="Qualified / Negotiating"
+          value={(metrics.qualification + metrics.negotiation).toString()}
+          subtitle="Active deals in progress"
           icon={<Target className="w-6 h-6" />}
           colorClass="text-amber-600"
           bgClass="bg-amber-50"
         />
         <SummaryCard
-          title="Won / Closed"
+          title="Closed Won"
           value={metrics.won.toString()}
           subtitle="Converted deals"
           icon={<CheckCircle2 className="w-6 h-6" />}

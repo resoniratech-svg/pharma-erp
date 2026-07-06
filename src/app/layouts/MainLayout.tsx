@@ -525,8 +525,13 @@ const activeStyle =
         {/* User Profile Footer */}
         <div className="p-4 border-t border-slate-100 flex-shrink-0">
           <button className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary text-left group">
+            
             <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0 overflow-hidden">
+               {authUser?.profileImage ? (
+    <img src={authUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
+  ) : (
               <User className="w-4 h-4" />
+  )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-slate-800 truncate leading-tight group-hover:text-primary transition-colors">
@@ -570,8 +575,15 @@ const activeStyle =
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="flex items-center gap-3 p-1 pr-3 rounded-full hover:bg-slate-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0 overflow-hidden">
+                {/* <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0 overflow-hidden">
                   <User className="w-4 h-4" />
+                </div> */}
+                         <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0 overflow-hidden">
+                  {authUser?.profileImage ? (
+                    <img src={authUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
+                  ) : (
+                    <User className="w-4 h-4" />
+                  )}
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-semibold text-slate-700 leading-none mb-1">{displayName}</p>
@@ -595,8 +607,16 @@ const activeStyle =
                     >
                       {/* Dropdown Header */}
                       <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
-                        <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0">
+                        {/* <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0">
                           <User className="w-6 h-6" />
+                        </div> */}
+
+                        <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0 overflow-hidden">
+                          {authUser?.profileImage ? (
+                            <img src={authUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
+                          ) : (
+                            <User className="w-6 h-6" />
+                          )}
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-slate-900 truncate">{displayName}</p>
