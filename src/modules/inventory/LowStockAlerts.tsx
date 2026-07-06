@@ -19,133 +19,48 @@ import { inventoryService } from "../../services/inventoryService";
 import { productService } from "../../services/productService";
 import { warehouseService } from "../../services/warehouseService";
 
-// --- Deep Mock Data Layer ---
-// interface RawInventoryItem {
-//   id: string;
-//   productName: string;
-//   sku: string;
-//   category: string;
-//   warehouse: string;
-//   currentStock: number;
-//   reorderLevel: number;
-//   criticalLevel: number;
-//   safetyStock: number;
-//   supplier: string;
-//   supplierContact: string;
-//   lastPurchaseDate: string;
-//   lastSaleDate: string;
-//   lastUpdatedDate: string;
-// }
-
-// Full inventory state (includes healthy stock which will be filtered out)
-// const rawDatabase: RawInventoryItem[] = [
-//   {
-//     id: 'INV-001',
-//     productName: 'Paracetamol 650mg',
-//     sku: 'PRD-002',
-//     category: 'Tablets',
-//     warehouse: 'Hyderabad Warehouse',
-//     currentStock: 850,
-//     reorderLevel: 2000,
-//     criticalLevel: 1000,
-//     safetyStock: 500,
-//     supplier: 'HealthPlus Inc.',
-//     supplierContact: 'contact@healthplus.com',
-//     lastPurchaseDate: '15-Aug-2026',
-//     lastSaleDate: '18-Oct-2026',
-//     lastUpdatedDate: '18-Oct-2026',
-//   },
-//   {
-//     id: 'INV-002',
-//     productName: 'Cough Syrup 100ml',
-//     sku: 'PRD-003',
-//     category: 'Syrups',
-//     warehouse: 'Mumbai Warehouse',
-//     currentStock: 0,
-//     reorderLevel: 500,
-//     criticalLevel: 200,
-//     safetyStock: 100,
-//     supplier: 'MediCare Supply',
-//     supplierContact: 'sales@medicare.com',
-//     lastPurchaseDate: '01-May-2026',
-//     lastSaleDate: '10-Oct-2026',
-//     lastUpdatedDate: '10-Oct-2026',
-//   },
-//   {
-//     id: 'INV-003',
-//     productName: 'Bandages 10cm',
-//     sku: 'PRD-045',
-//     category: 'Consumables',
-//     warehouse: 'Delhi Warehouse',
-//     currentStock: 120,
-//     reorderLevel: 300,
-//     criticalLevel: 150,
-//     safetyStock: 50,
-//     supplier: 'Surgicals Ltd.',
-//     supplierContact: 'orders@surgicals.com',
-//     lastPurchaseDate: '12-Sep-2026',
-//     lastSaleDate: '15-Oct-2026',
-//     lastUpdatedDate: '15-Oct-2026',
-//   },
-//   {
-//     id: 'INV-004',
-//     productName: 'Healthy Vitamin C',
-//     sku: 'PRD-099',
-//     category: 'Vitamins',
-//     warehouse: 'Bangalore Warehouse',
-//     currentStock: 5000,
-//     reorderLevel: 1000,
-//     criticalLevel: 500,
-//     safetyStock: 500,
-//     supplier: 'VitaLife',
-//     supplierContact: 'supply@vitalife.com',
-//     lastPurchaseDate: '10-Oct-2026',
-//     lastSaleDate: '18-Oct-2026',
-//     lastUpdatedDate: '18-Oct-2026',
-//   }
-// ];
-
-// --- Calculated Interfaces ---
 interface CalculatedLowStock {
-
   id: string;
-
   productName: string;
-
   sku: string;
-
   category: string;
-
   warehouse: string;
-
   location: string;
-
   currentStock: number;
-
   reorderLevel: number;
-
   criticalLevel: number;
-
   suggestedQty: number;
-
   unit: string;
-
   supplier: string;
-
   lastUpdatedDate: string;
-
   status:
     | "Low Stock"
     | "Critical"
     | "Out Of Stock";
 }
 
+const formatDate = (dateString: string | undefined) => {
+  if (!dateString) return "-";
+  if (dateString.match(/^\d{2}-\d{2}-\d{4}$/)) {
+    return dateString;
+  }
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateString.split('-');
+    return `${day}-${month}-${year}`;
+  }
+  const date = new Date(dateString);
+  if (!isNaN(date.getTime())) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  return dateString;
+};
+
 export default function LowStockAlerts() {
-
   const inventory = inventoryService.getAll();
-
   const products = productService.getProducts();
-
   const warehouses = warehouseService.getAll();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -155,14 +70,10 @@ export default function LowStockAlerts() {
 
   const [selectedRecord, setSelectedRecord] = useState<CalculatedLowStock | null>(null);
   
-  // Create PO Modal State
   const [showPOModal, setShowPOModal] = useState(false);
   const [poRecord, setPoRecord] = useState<CalculatedLowStock | null>(null);
   const [poForm, setPoForm] = useState({ purchaseQty: '', expectedDate: '', remarks: '' });
   
-  // Local list to persist removals after PO is created (simulating state flow)
-  
-
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -173,25 +84,18 @@ export default function LowStockAlerts() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // --- Dynamic Calculation Engine ---
   const calculatedData: CalculatedLowStock[] = useMemo(() => {
     return inventory
-
       .map((stock) => {
         const product = products.find((p) => p.code === stock.productCode);
-
         const warehouse = warehouses.find((w) => w.id === stock.warehouseId);
 
         const reorderLevel = Number(product?.reorderLevel ?? 0);
-
         const currentStock = stock.availableQty;
-
         const criticalLevel = Math.floor(reorderLevel * 0.5);
-
         const suggestedQty = Math.max(reorderLevel - currentStock, 0);
 
         let status: CalculatedLowStock["status"];
-
         if (currentStock === 0) {
           status = "Out Of Stock";
         } else if (currentStock <= criticalLevel) {
@@ -202,39 +106,24 @@ export default function LowStockAlerts() {
 
         return {
           id: stock.id,
-
           productName: product?.name ?? "",
-
           sku: stock.productCode,
-
           category: product?.category ?? "",
-
           warehouse: warehouse?.name ?? "",
-
           location: warehouse?.code ?? "",
-
           currentStock,
-
           reorderLevel,
-
           criticalLevel,
-
           suggestedQty,
-
           unit: product?.type ?? "",
-
           supplier: product?.manufacturer ?? "",
-
           lastUpdatedDate: stock.lastUpdated,
-
           status,
         };
       })
-
       .filter((item) => item.currentStock < item.reorderLevel);
   }, [inventory, products, warehouses]);
 
-  // --- Dashboard Card Metrics ---
   const dashboardMetrics = useMemo(() => {
     let lowStockCount = 0;
     let outOfStockCount = 0;
@@ -248,14 +137,12 @@ export default function LowStockAlerts() {
         outOfStockCount += 1;
       } else if (c.status === 'Critical') {
         criticalCount += 1;
-        lowStockCount += 1; // Critical is a subset of Low Stock conceptually, but let's count separately or inclusively based on requirement.
-                            // Requirement says "Count of products where Available Qty < Reorder Level". That includes Critical and Out of Stock.
+        lowStockCount += 1; 
       } else if (c.status === 'Low Stock') {
         lowStockCount += 1;
       }
     });
 
-    // Recalculate low stock count properly according to rule:
     const totalLowStockProducts = calculatedData.filter(c => c.currentStock < c.reorderLevel).length;
 
     return {
@@ -266,13 +153,26 @@ export default function LowStockAlerts() {
     };
   }, [calculatedData]);
 
-  // --- Filtering ---
   const filteredData = calculatedData.filter((item) => {
     const term = search.toLowerCase();
     const matchSearch = item.productName.toLowerCase().includes(term) || 
-                        item.sku.toLowerCase().includes(term);
+                        item.sku.toLowerCase().includes(term) ||
+                        item.warehouse.toLowerCase().includes(term) ||
+                        item.category.toLowerCase().includes(term);
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
+  });
+
+  const statusOrder: Record<string, number> = {
+    "Out Of Stock": 1,
+    "Critical": 2,
+    "Low Stock": 3,
+  };
+
+  const sortedData = [...filteredData].sort((a, b) => {
+    const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+    if (statusDiff !== 0) return statusDiff;
+    return a.currentStock - b.currentStock;
   });
 
   const columns: Column<CalculatedLowStock>[] = [
@@ -329,7 +229,7 @@ export default function LowStockAlerts() {
   };
 
   const handleExportExcel = () => {
-    const exportData = filteredData.map(row => ({
+    const exportData = sortedData.map(row => ({
       'Product Name': row.productName,
       'SKU': row.sku,
       'Warehouse': row.warehouse,
@@ -356,7 +256,7 @@ export default function LowStockAlerts() {
     ];
     const csvContent = [
       headers.join(','),
-      ...filteredData.map(row => 
+      ...sortedData.map(row => 
         [
           `"${row.productName}"`,
           `"${row.sku}"`,
@@ -383,12 +283,11 @@ export default function LowStockAlerts() {
     setShowExportMenu(false);
   };
 
-  // --- Create PO Logic ---
   const openPOModal = (row: CalculatedLowStock) => {
     setPoRecord(row);
     setPoForm({
       purchaseQty: row.suggestedQty.toString(),
-      expectedDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // +7 days
+      expectedDate: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], 
       remarks: ''
     });
     setShowPOModal(true);
@@ -404,20 +303,6 @@ export default function LowStockAlerts() {
       alert("Please enter a valid purchase quantity.");
       return;
     }
-    
-    // Simulate procurement workflow: We assume PO is sent, and upon arrival GRN increases stock.
-    // For local mock demonstration, we can simulate an immediate stock arrival to resolve the alert.
-    // const updatedList = activeAlertsList.map(item => {
-    //   if (item.id === poRecord?.id) {
-    //     return {
-    //       ...item,
-    //       currentStock: item.currentStock + Number(poForm.purchaseQty)
-    //     };
-    //   }
-    //   return item;
-    // });
-
-    // setActiveAlertsList(updatedList);
     
     alert(`Purchase Order created successfully for ${poRecord?.productName} to supplier ${poRecord?.supplier}.`);
     closePOModal();
@@ -502,7 +387,7 @@ export default function LowStockAlerts() {
       </div>
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search product or SKU..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search product, SKU, warehouse or category..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
@@ -524,13 +409,12 @@ export default function LowStockAlerts() {
         <div className="overflow-x-auto">
           <DataTable
             columns={columns}
-            data={filteredData}
+            data={sortedData}
             emptyMessage="No low stock alerts. Inventory is healthy."
           />
         </div>
       </TableCard>
 
-      {/* Low Stock Details Drawer */}
       <Drawer
         open={!!selectedRecord}
         onClose={() => setSelectedRecord(null)}
@@ -539,7 +423,6 @@ export default function LowStockAlerts() {
         {selectedRecord && (
           <div className="space-y-6">
             
-            {/* Product Information */}
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Product Information</h3>
               <div className="space-y-2">
@@ -549,7 +432,6 @@ export default function LowStockAlerts() {
               </div>
             </div>
 
-            {/* Inventory Information */}
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Inventory Information</h3>
               <div className="space-y-2">
@@ -564,25 +446,13 @@ export default function LowStockAlerts() {
               </div>
             </div>
 
-            {/* Supplier Information */}
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Supplier Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Primary Supplier" value={selectedRecord.supplier} />
-                {/* <DrawerField label="Supplier Contact" value={<span className="text-violet-600">{selectedRecord.supplierContact}</span>} /> */}
               </div>
             </div>
 
-            {/* Movement Information */}
-            {/* <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Movement Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Last Purchase Date" value={selectedRecord.lastPurchaseDate} />
-                <DrawerField label="Last Sale Date" value={selectedRecord.lastSaleDate} />
-              </div>
-            </div> */}
-
-            {/* Status Information */}
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Status Information</h3>
               <div className="space-y-2">
@@ -594,11 +464,10 @@ export default function LowStockAlerts() {
               </div>
             </div>
 
-            {/* Audit Information */}
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Audit Information</h3>
               <div className="space-y-2">
-                <DrawerField label="Last Updated Date" value={selectedRecord.lastUpdatedDate} />
+                <DrawerField label="Last Updated Date" value={formatDate(selectedRecord.lastUpdatedDate)} />
               </div>
             </div>
 
@@ -610,12 +479,10 @@ export default function LowStockAlerts() {
         )}
       </Drawer>
 
-      {/* Create PO Modal */}
       {showPOModal && poRecord && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 backdrop-blur-[2px] bg-slate-900/40">
           <div className="bg-white rounded-2xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 w-full max-w-lg overflow-hidden">
             
-            {/* Modal Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white">
               <h2 className="text-lg font-bold text-slate-900">Create Purchase Order</h2>
               <button 
@@ -626,10 +493,8 @@ export default function LowStockAlerts() {
               </button>
             </div>
 
-            {/* Modal Body */}
             <div className="p-6 space-y-4">
               
-              {/* Prefilled Context */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-100 space-y-3 mb-6">
                 <div className="flex justify-between">
                   <span className="text-sm text-slate-500">Product:</span>
@@ -653,7 +518,6 @@ export default function LowStockAlerts() {
                 </div>
               </div>
 
-              {/* Editable Fields */}
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-1">Purchase Quantity *</label>
                 <input 
@@ -687,7 +551,6 @@ export default function LowStockAlerts() {
 
             </div>
 
-            {/* Modal Footer */}
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={closePOModal}>Cancel</ActionButton>
               <ActionButton icon={<ShoppingCart className="w-4 h-4" />} onClick={handleCreatePO}>Create PO</ActionButton>

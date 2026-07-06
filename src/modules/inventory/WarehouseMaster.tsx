@@ -14,7 +14,7 @@ import {
 } from '../products/components/shared';
 import { warehouseService } from '../../services/warehouseService';
 import authService from "../../services/authService";
-import  activityLogService  from "../../services/activityLogService";
+import activityLogService from "../../services/activityLogService";
 import * as XLSX from "xlsx";
 
 interface Warehouse {
@@ -40,8 +40,6 @@ interface Warehouse {
   lastModified: string;
 }
 
-
-
 const WAREHOUSE_TYPES = [
   "Main Warehouse",
   "Regional Warehouse",
@@ -49,6 +47,22 @@ const WAREHOUSE_TYPES = [
   "Cold Storage",
   "Returns Warehouse",
 ];
+
+const formatDate = (dateString: string | undefined) => {
+  if (!dateString) return "-";
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateString.split('-');
+    return `${day}-${month}-${year}`;
+  }
+  const date = new Date(dateString);
+  if (!isNaN(date.getTime())) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  return dateString;
+};
 
 export default function WarehouseMaster() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
@@ -89,16 +103,52 @@ export default function WarehouseMaster() {
 
   const [newWarehouse, setNewWarehouse] = useState<Partial<Warehouse>>(defaultNewWarehouse);
 
+  const autoGenerateWarehouseCode = () => {
+    const maxCodeNumber = warehouses.reduce((max, w) => {
+      const match = w.code.match(/WH-(\d+)/);
+      if (match) {
+        const num = parseInt(match[1], 10);
+        return num > max ? num : max;
+      }
+      return max;
+    }, 0);
+    return `WH-${String(maxCodeNumber + 1).padStart(6, "0")}`;
+  };
+
   const handleSave = () => {
-    if (!newWarehouse.code || !newWarehouse.name) {
-      alert("Warehouse Code and Warehouse Name are required.");
+    const code = (newWarehouse.code || "").trim();
+    const name = (newWarehouse.name || "").trim();
+    const contactPerson = (newWarehouse.contactPerson || "").trim();
+    const phone = (newWarehouse.phone || "").trim();
+    const email = (newWarehouse.email || "").trim();
+    const gstNumber = (newWarehouse.gstNumber || "").trim();
+    const licenseNumber = (newWarehouse.licenseNumber || "").trim();
+    const pinCode = (newWarehouse.pinCode || "").trim();
+    const address = (newWarehouse.address || "").trim();
+    const remarks = (newWarehouse.remarks || "").trim();
+    const city = (newWarehouse.city || "").trim();
+    const state = (newWarehouse.state || "").trim();
+    const country = (newWarehouse.country || "").trim();
+    const branch = (newWarehouse.branch || "").trim();
+
+    if (!code || !name) {
+      alert("Warehouse Code and Warehouse Name are required and cannot be empty.");
+      return;
+    }
+
+    if (code.length > 20) {
+      alert("Warehouse Code cannot exceed 20 characters.");
+      return;
+    }
+
+    if (name.length > 100) {
+      alert("Warehouse Name cannot exceed 100 characters.");
       return;
     }
 
     const duplicate = warehouses.find(
       (w) =>
-        w.code.trim().toLowerCase() ===
-          newWarehouse.code?.trim().toLowerCase() && w.id !== newWarehouse.id,
+        w.code.trim().toLowerCase() === code.toLowerCase() && w.id !== newWarehouse.id,
     );
 
     if (duplicate) {
@@ -106,44 +156,122 @@ export default function WarehouseMaster() {
       return;
     }
 
-   if (isEditingModal) {
-     const updatedWarehouse = {
-       ...newWarehouse,
-       lastModified: new Date().toISOString(),
-     } as Warehouse;
+    if (contactPerson.length > 100) {
+      alert("Contact Person cannot exceed 100 characters.");
+      return;
+    }
 
-     setWarehouses(
-       warehouses.map((w) =>
-         w.id === updatedWarehouse.id ? updatedWarehouse : w,
-       ),
-     );
+    if (phone) {
+      if (!/^\d+$/.test(phone)) {
+        alert("Phone Number must contain only digits.");
+        return;
+      }
+      if (phone.length > 10) {
+        alert("Phone Number cannot exceed 10 digits.");
+        return;
+      }
+    }
 
-     warehouseService.updateWarehouse(updatedWarehouse.id, updatedWarehouse);
-     activityLogService.addLog({
-       userId: currentUser?.id,
-       userName: currentUser?.fullName,
-       action: "Warehouse Updated",
-       module: "Warehouse Master",
-     });
-   } else {
-     const createdData: Warehouse = {
-       ...(newWarehouse as Warehouse),
-       id: Date.now().toString(),
-       createdAt: new Date().toISOString(),
-       createdBy: currentUser?.fullName ?? "System Admin",
-       lastModified: new Date().toISOString(),
-     };
+    if (email) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(email)) {
+        alert("Please enter a valid email address.");
+        return;
+      }
+    }
 
-     setWarehouses([...warehouses, createdData]);
+    if (gstNumber.length > 15) {
+      alert("GST Number cannot exceed 15 characters.");
+      return;
+    }
 
-     warehouseService.addWarehouse(createdData);
-     activityLogService.addLog({
-       userId: currentUser?.id,
-       userName: currentUser?.fullName,
-       action: "Warehouse Created",
-       module: "Warehouse Master",
-     });
-   }
+    if (!licenseNumber) {
+      alert("License Number is required and cannot be empty.");
+      return;
+    }
+
+    if (licenseNumber.length > 50) {
+      alert("License Number cannot exceed 50 characters.");
+      return;
+    }
+
+    if (pinCode) {
+      if (!/^\d+$/.test(pinCode)) {
+        alert("PIN Code must contain only digits.");
+        return;
+      }
+      if (pinCode.length > 6) {
+        alert("PIN Code cannot exceed 6 digits.");
+        return;
+      }
+    }
+
+    if (address.length > 250) {
+      alert("Address cannot exceed 250 characters.");
+      return;
+    }
+
+    if (remarks.length > 250) {
+      alert("Remarks cannot exceed 250 characters.");
+      return;
+    }
+
+    const cleanWarehouse = {
+      ...newWarehouse,
+      code,
+      name,
+      contactPerson,
+      phone,
+      email,
+      gstNumber,
+      licenseNumber,
+      pinCode,
+      address,
+      remarks,
+      city,
+      state,
+      country,
+      branch
+    };
+
+    if (isEditingModal) {
+      const updatedWarehouse = {
+        ...cleanWarehouse,
+        lastModified: new Date().toISOString(),
+      } as Warehouse;
+
+      setWarehouses(
+        warehouses.map((w) =>
+          w.id === updatedWarehouse.id ? updatedWarehouse : w,
+        ),
+      );
+
+      warehouseService.updateWarehouse(updatedWarehouse.id, updatedWarehouse);
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "Warehouse Updated",
+        module: "Warehouse Master",
+      });
+    } else {
+      const createdData: Warehouse = {
+        ...(cleanWarehouse as Warehouse),
+        id: Date.now().toString(),
+        createdAt: new Date().toISOString(),
+        createdBy: currentUser?.fullName ?? "System Admin",
+        lastModified: new Date().toISOString(),
+      };
+
+      setWarehouses([...warehouses, createdData]);
+
+      warehouseService.addWarehouse(createdData);
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "Warehouse Created",
+        module: "Warehouse Master",
+      });
+    }
     setShowFormModal(false);
   };
 
@@ -228,7 +356,11 @@ export default function WarehouseMaster() {
     },
   ];
 
-  const filteredData = warehouses.filter((item) => {
+  const sortedWarehouses = [...warehouses].sort((a, b) => {
+    return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+  });
+
+  const filteredData = sortedWarehouses.filter((item) => {
     const matchSearch = item.code.toLowerCase().includes(search.toLowerCase()) || item.name.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
@@ -236,14 +368,10 @@ export default function WarehouseMaster() {
 
   const getFormattedDate = () => {
     const d = new Date();
-
     const yyyy = d.getFullYear();
-
     const mm = String(d.getMonth() + 1).padStart(2, "0");
-
     const dd = String(d.getDate()).padStart(2, "0");
-
-    return `${yyyy}${mm}${dd}`;
+    return `${dd}-${mm}-${yyyy}`;
   };
 
   const handleExport = () => {
@@ -273,7 +401,10 @@ export default function WarehouseMaster() {
   };
 
   const openNewWarehouseModal = () => {
-    setNewWarehouse(defaultNewWarehouse);
+    setNewWarehouse({
+      ...defaultNewWarehouse,
+      code: autoGenerateWarehouseCode(),
+    });
     setIsEditingModal(false);
     setShowFormModal(true);
   };
@@ -335,8 +466,14 @@ export default function WarehouseMaster() {
 
       {/* Shared Create / Edit Form Modal */}
       {showFormModal && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div 
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowFormModal(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">
                 {isEditingModal ? "Edit Warehouse" : "Add Warehouse"}
@@ -362,13 +499,8 @@ export default function WarehouseMaster() {
                     </label>
                     <input
                       value={newWarehouse.code}
-                      onChange={(e) =>
-                        setNewWarehouse({
-                          ...newWarehouse,
-                          code: e.target.value,
-                        })
-                      }
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                      readOnly
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-500 cursor-not-allowed text-sm"
                     />
                   </div>
                   <div>
@@ -376,6 +508,7 @@ export default function WarehouseMaster() {
                       Warehouse Name *
                     </label>
                     <input
+                      maxLength={100}
                       value={newWarehouse.name}
                       onChange={(e) =>
                         setNewWarehouse({
@@ -437,9 +570,10 @@ export default function WarehouseMaster() {
                 <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Address *
+                      Address
                     </label>
                     <input
+                      maxLength={250}
                       value={newWarehouse.address}
                       onChange={(e) =>
                         setNewWarehouse({
@@ -452,7 +586,7 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      City *
+                      City
                     </label>
                     <input
                       value={newWarehouse.city}
@@ -467,7 +601,7 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      State *
+                      State
                     </label>
                     <input
                       value={newWarehouse.state}
@@ -482,7 +616,7 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Country *
+                      Country
                     </label>
                     <input
                       value={newWarehouse.country}
@@ -497,16 +631,18 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Pincode *
+                      Pincode
                     </label>
                     <input
+                      maxLength={6}
                       value={newWarehouse.pinCode}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 6);
                         setNewWarehouse({
                           ...newWarehouse,
-                          pinCode: e.target.value,
-                        })
-                      }
+                          pinCode: val,
+                        });
+                      }}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
                     />
                   </div>
@@ -524,6 +660,7 @@ export default function WarehouseMaster() {
                       Contact Person
                     </label>
                     <input
+                      maxLength={100}
                       value={newWarehouse.contactPerson}
                       onChange={(e) =>
                         setNewWarehouse({
@@ -539,13 +676,15 @@ export default function WarehouseMaster() {
                       Mobile Number
                     </label>
                     <input
+                      maxLength={10}
                       value={newWarehouse.phone}
-                      onChange={(e) =>
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, '').slice(0, 10);
                         setNewWarehouse({
                           ...newWarehouse,
-                          phone: e.target.value,
-                        })
-                      }
+                          phone: val,
+                        });
+                      }}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
                     />
                   </div>
@@ -579,6 +718,7 @@ export default function WarehouseMaster() {
                       GST Number
                     </label>
                     <input
+                      maxLength={15}
                       value={newWarehouse.gstNumber}
                       onChange={(e) =>
                         setNewWarehouse({
@@ -591,9 +731,10 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      License Number
+                      License Number *
                     </label>
                     <input
+                      maxLength={50}
                       value={newWarehouse.licenseNumber}
                       onChange={(e) =>
                         setNewWarehouse({
@@ -609,6 +750,7 @@ export default function WarehouseMaster() {
                       Remarks
                     </label>
                     <textarea
+                      maxLength={250}
                       value={newWarehouse.remarks}
                       onChange={(e) =>
                         setNewWarehouse({
@@ -746,14 +888,12 @@ export default function WarehouseMaster() {
                 <span className="font-medium text-slate-500">
                   {selectedWarehouse.createdBy}
                 </span>{" "}
-                on {new Date(selectedWarehouse.createdAt).toLocaleDateString()}
+                on {formatDate(selectedWarehouse.createdAt)}
               </p>
               <p>
                 Last modified:{" "}
                 <span className="font-medium text-slate-500">
-                  {new Date(
-                    selectedWarehouse.lastModified,
-                  ).toLocaleDateString()}
+                  {formatDate(selectedWarehouse.lastModified)}
                 </span>
               </p>
             </div>
@@ -763,8 +903,14 @@ export default function WarehouseMaster() {
 
       {/* Delete Confirmation Modal */}
       {warehouseToDelete && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 backdrop-blur-[2px]">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6">
+        <div 
+          className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 backdrop-blur-[2px]"
+          onClick={() => setWarehouseToDelete(null)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
             <h3 className="text-lg font-bold text-slate-900 mb-2">
               Delete Warehouse
             </h3>

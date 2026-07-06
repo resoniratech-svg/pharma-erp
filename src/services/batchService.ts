@@ -25,6 +25,11 @@ export interface BatchRecord {
 
   // Batch Status
   status: string;
+
+   createdBy?: string;
+  createdDate?: string;
+  lastUpdatedBy?: string;
+  lastUpdatedDate?: string;
 }
 
 const STORAGE_KEY = "batchRecords";

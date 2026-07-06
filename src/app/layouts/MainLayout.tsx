@@ -66,17 +66,17 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Product Management',
     icon: Package,
     subItems: [
-      { label: 'Product Master Management', path: '/workspace/products/master' },
       { label: 'HSN Master', path: '/workspace/products/hsn-master' },
-      { label: 'Batch Management', path: '/workspace/products/batches' },
-      { label: 'Expiry Tracking', path: '/workspace/products/expiry-tracking' },
-      { label: 'MRP Management', path: '/workspace/products/mrp-management' },
-      { label: 'PTR / PTS / PTD Pricing', path: '/workspace/products/pricing' },
-      { label: 'GST Management', path: '/workspace/products/gst' },
-      { label: 'Barcode Management', path: '/workspace/products/barcodes' },
-      { label: 'Composition Management', path: '/workspace/products/compositions' },
-      { label: 'Packing Type Management', path: '/workspace/products/packing-types' },
-      { label: 'Scheme Management', path: '/workspace/products/schemes' },
+{ label: 'GST Management', path: '/workspace/products/gst' },
+{ label: 'Composition Management', path: '/workspace/products/compositions' },
+{ label: 'Packing Type Management', path: '/workspace/products/packing-types' },
+{ label: 'Scheme Management', path: '/workspace/products/schemes' },
+{ label: 'Product Master Management', path: '/workspace/products/master' },
+{ label: 'MRP Management', path: '/workspace/products/mrp-management' },
+{ label: 'PTR / PTS / PTD Pricing', path: '/workspace/products/pricing' },
+{ label: 'Barcode Management', path: '/workspace/products/barcodes' },
+{ label: 'Batch Management', path: '/workspace/products/batches' },
+{ label: 'Expiry Tracking', path: '/workspace/products/expiry-tracking' },
     ],
   },
   {
@@ -552,26 +552,11 @@ const activeStyle =
               <Menu className="w-5 h-5" />
             </button>
 
-            {/* Search */}
-            <div className="hidden md:flex items-center relative group">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 transition-colors group-focus-within:text-primary" />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="pl-9 pr-4 py-2 w-64 bg-slate-100/50 border border-transparent rounded-full text-sm text-slate-900 placeholder:text-slate-500 focus:outline-none focus:bg-white focus:border-slate-300 focus:ring-4 focus:ring-primary/10 transition-all duration-200"
-              />
-            </div>
+
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            {/* System Status */}
-            <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-xs font-semibold border border-emerald-100">
-              <span className="flex h-2 w-2 relative">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              Operational
-            </div>
+
 
             <div className="flex items-center gap-1 sm:gap-2">
               <NotificationDropdown />

@@ -17,6 +17,18 @@ import { type Column, type BadgeVariant } from './components/shared';
 import { warehouseService } from '../../services/warehouseService';
 import { inventoryService, type InventoryRecord } from '../../services/inventoryService';
 import activityLogService from '../../services/activityLogService';
+import { warehouseTransferService } from '../../services/warehouseTransferService';
+import { outwardStockService } from '../../services/outwardStockService';
+
+const formatDate = (dateString: string) => {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+};
 
 interface OrderProduct {
   productName: string;
@@ -29,6 +41,7 @@ interface Dispatch {
   id: string;
   dispatchId: string;
   date: string;
+  dispatchType?: string;
   orderId: string;
   client: string;
   sourceWarehouse: string;
@@ -41,6 +54,7 @@ interface Dispatch {
   vehicleNumber?: string;
   driverName?: string;
   driverMobile?: string;
+  remarks?: string;
   createdBy: string;
   createdDate: string;
 }
@@ -65,11 +79,30 @@ export default function DispatchManagement() {
   const [newVehicle, setNewVehicle] = useState('');
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverMobile, setNewDriverMobile] = useState('');
+  const [newRemarks, setNewRemarks] = useState('');
   const [newProducts, setNewProducts] = useState<OrderProduct[]>([]);
+
+  const [dispatchType, setDispatchType] = useState('');
+  const [destinationWarehouse, setDestinationWarehouse] = useState('');
+  const [dispatchAddress, setDispatchAddress] = useState('');
+  const [referenceSearch, setReferenceSearch] = useState('');
+  const [showReferenceDropdown, setShowReferenceDropdown] = useState(false);
+  const [selectedReference, setSelectedReference] = useState<any>(null);
+
+  const [allTransfers, setAllTransfers] = useState<any[]>([]);
+  const [allOutwards, setAllOutwards] = useState<any[]>([]);
 
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [availableInventory, setAvailableInventory] = useState<InventoryRecord[]>([]);
   const [selectedInventoryId, setSelectedInventoryId] = useState('');
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowCreateModal(false);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem('pharma_erp_dispatches');
@@ -83,6 +116,9 @@ export default function DispatchManagement() {
     
     const whs = warehouseService.getAll();
     setWarehouses(whs.filter((w: any) => w.status === 'Active'));
+
+    setAllTransfers(warehouseTransferService.getAll());
+    setAllOutwards(outwardStockService.getAll());
 
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -102,6 +138,50 @@ export default function DispatchManagement() {
       setAvailableInventory(inventoryService.getByWarehouse(wh.id));
     } else {
       setAvailableInventory([]);
+    }
+  };
+
+  const handleDispatchTypeChange = (val: string) => {
+    setDispatchType(val);
+    setReferenceSearch('');
+    setSelectedReference(null);
+    setNewProducts([]);
+    setNewWarehouse('');
+    setDestinationWarehouse('');
+    setNewCustomer('');
+    setDispatchAddress('');
+    setNewOrder('');
+  };
+
+  const handleReferenceSelect = (record: any) => {
+    setSelectedReference(record);
+    setShowReferenceDropdown(false);
+    
+    if (dispatchType === 'Warehouse Transfer') {
+      setReferenceSearch(record.transferNo);
+      setNewOrder(record.transferNo);
+      setNewWarehouse(record.fromWarehouseName);
+      setDestinationWarehouse(record.toWarehouseName);
+      const mapped = (record.products || []).map((p: any) => ({
+        productName: p.productName,
+        batchNo: p.batchNo,
+        availableQty: p.availableQty || p.quantity || p.transferQty || 0,
+        dispatchQty: p.transferQty || p.quantity || 0
+      }));
+      setNewProducts(mapped);
+    } else {
+      setReferenceSearch(record.dispatchNo);
+      setNewOrder(record.dispatchNo);
+      setNewWarehouse(record.warehouseName);
+      setNewCustomer(record.client);
+      setDispatchAddress(record.address || 'Address from customer profile');
+      const mapped = (record.products || []).map((p: any) => ({
+        productName: p.productName,
+        batchNo: p.batchNo,
+        availableQty: p.availableQty || p.quantity || 0,
+        dispatchQty: p.quantity || 0
+      }));
+      setNewProducts(mapped);
     }
   };
 
@@ -149,9 +229,10 @@ export default function DispatchManagement() {
 
   const columns: Column<Dispatch>[] = [
     { key: 'dispatchId', label: 'Dispatch No', render: (row) => <span className="font-semibold text-slate-900">{row.dispatchId}</span> },
-    { key: 'date', label: 'Dispatch Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
-    { key: 'orderId', label: 'Order No', render: (row) => <span className="text-slate-700">{row.orderId}</span> },
-    { key: 'client', label: 'Customer', render: (row) => <span className="font-medium text-slate-800">{row.client}</span> },
+    { key: 'date', label: 'Dispatch Date', render: (row) => <span className="text-slate-600">{formatDate(row.date)}</span> },
+    { key: 'orderId', label: 'Reference Number', render: (row) => <span className="text-slate-700">{row.orderId}</span> },
+    { key: 'dispatchType' as any, label: 'Dispatch Type', render: (row) => <span className="text-slate-600">{row.dispatchType || 'Outward Stock'}</span> },
+    { key: 'client', label: 'Customer / Destination', render: (row) => <span className="font-medium text-slate-800">{row.client}</span> },
     { key: 'sourceWarehouse', label: 'Source Warehouse' },
     { key: 'totalItems', label: 'Total Items', render: (row) => <span className="text-slate-600">{row.totalItems}</span> },
     { key: 'totalQuantity', label: 'Total Quantity', render: (row) => <span className="text-slate-600 font-medium">{row.totalQuantity}</span> },
@@ -197,9 +278,10 @@ export default function DispatchManagement() {
   const handleExportExcel = () => {
     const exportData = filteredData.map(row => ({
       'Dispatch No': row.dispatchId,
-      'Dispatch Date': row.date,
-      'Order No': row.orderId,
-      'Customer': row.client,
+      'Dispatch Date': formatDate(row.date),
+      'Reference Number': row.orderId,
+      'Dispatch Type': row.dispatchType || 'Outward Stock',
+      'Customer / Destination': row.client,
       'Source Warehouse': row.sourceWarehouse,
       'Total Items': row.totalItems,
       'Total Quantity': row.totalQuantity,
@@ -215,12 +297,12 @@ export default function DispatchManagement() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Dispatch No', 'Dispatch Date', 'Order No', 'Customer', 'Source Warehouse', 'Total Items', 'Total Quantity', 'Transporter', 'LR Number', 'Status'];
+    const headers = ['Dispatch No', 'Dispatch Date', 'Reference Number', 'Dispatch Type', 'Customer / Destination', 'Source Warehouse', 'Total Items', 'Total Quantity', 'Transporter', 'LR Number', 'Status'];
     const csvContent = [
       headers.join(','),
       ...filteredData.map(row => 
         [
-          `"${row.dispatchId}"`, `"${row.date}"`, `"${row.orderId}"`, `"${row.client}"`,
+          `"${row.dispatchId}"`, `"${formatDate(row.date)}"`, `"${row.orderId}"`, `"${row.dispatchType || 'Outward Stock'}"`, `"${row.client}"`,
           `"${row.sourceWarehouse}"`, row.totalItems, row.totalQuantity, `"${row.transporter}"`, `"${row.lrNumber}"`, `"${row.status}"`
         ].join(',')
       )
@@ -238,11 +320,42 @@ export default function DispatchManagement() {
   };
 
   const handleSaveDispatch = () => {
-    if (!newOrder) return alert("Order Number is required.");
-    if (!newCustomer) return alert("Customer is required.");
-    if (!newWarehouse) return alert("Source Warehouse is required.");
-    if (!newTransporter) return alert("Transporter is required.");
-    if (!newLRNumber) return alert("LR Number is required.");
+    if (!dispatchType) return alert("Dispatch Type is required.");
+    if (!selectedReference) return alert("Please select a valid reference.");
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const selDate = new Date(newDate);
+    selDate.setHours(0,0,0,0);
+    if (selDate > today) return alert("Dispatch Date cannot be a future date.");
+
+    const tTransporter = newTransporter.trim();
+    if (!tTransporter) return alert("Transporter is required.");
+    if (tTransporter.length > 100) return alert("Transporter cannot exceed 100 characters.");
+
+    const tLR = newLRNumber.trim();
+    if (!tLR) return alert("LR Number is required.");
+    if (tLR.length > 30) return alert("LR Number cannot exceed 30 characters.");
+    if (dispatches.some(d => d.lrNumber.trim().toLowerCase() === tLR.toLowerCase())) {
+       return alert("LR Number must be unique.");
+    }
+
+    const tVehicle = newVehicle.trim();
+    if (!tVehicle) return alert("Vehicle Number is required.");
+    if (tVehicle.length > 20) return alert("Vehicle Number cannot exceed 20 characters.");
+    if (!/^[A-Za-z0-9 -]+$/.test(tVehicle)) return alert("Vehicle Number allows only letters, numbers, spaces, and hyphens.");
+
+    const tDriver = newDriverName.trim();
+    if (!tDriver) return alert("Driver Name is required.");
+    if (tDriver.length > 100) return alert("Driver Name cannot exceed 100 characters.");
+    if (!/^[A-Za-z\s]+$/.test(tDriver)) return alert("Driver Name can only contain alphabets and spaces.");
+
+    const tMobile = newDriverMobile.trim();
+    if (!tMobile) return alert("Driver Mobile is required.");
+    if (!/^\d{10}$/.test(tMobile)) return alert("Driver Mobile must be exactly 10 digits (no alphabets or special characters).");
+
+    const tRemarks = newRemarks.trim().substring(0, 250);
+
     if (newProducts.length === 0) return alert("At least one product must be added to dispatch.");
     
     let totalQty = 0;
@@ -262,20 +375,22 @@ export default function DispatchManagement() {
       id: Date.now().toString(),
       dispatchId,
       date: newDate,
+      dispatchType,
       orderId: newOrder,
-      client: newCustomer,
+      client: dispatchType === 'Warehouse Transfer' ? destinationWarehouse : newCustomer,
       sourceWarehouse: newWarehouse,
       totalItems: newProducts.length,
       totalQuantity: totalQty,
       status: 'Ready to Ship',
       products: [...newProducts],
-      transporter: newTransporter,
-      lrNumber: newLRNumber,
-      vehicleNumber: newVehicle,
-      driverName: newDriverName,
-      driverMobile: newDriverMobile,
+      transporter: tTransporter,
+      lrNumber: tLR,
+      vehicleNumber: tVehicle,
+      driverName: tDriver,
+      driverMobile: tMobile,
+      remarks: tRemarks,
       createdBy: currentUser?.fullName || 'System User',
-      createdDate: new Date().toLocaleString()
+      createdDate: formatDate(new Date().toISOString().split('T')[0])
     };
 
     const updatedDispatches = [newDispatchObj, ...dispatches];
@@ -309,8 +424,20 @@ export default function DispatchManagement() {
     setNewVehicle('');
     setNewDriverName('');
     setNewDriverMobile('');
+    setNewRemarks('');
     setNewProducts([]);
     setSelectedInventoryId('');
+    setDispatchType('');
+    setDestinationWarehouse('');
+    setDispatchAddress('');
+    setReferenceSearch('');
+    setSelectedReference(null);
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      setShowCreateModal(false);
+    }
   };
 
   return (
@@ -383,9 +510,10 @@ export default function DispatchManagement() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Dispatch Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Dispatch Number" value={<span className="font-semibold text-slate-900">{selectedDispatch.dispatchId}</span>} />
-                <DrawerField label="Dispatch Date" value={selectedDispatch.date} />
-                <DrawerField label="Order Number" value={selectedDispatch.orderId} />
-                <DrawerField label="Customer" value={selectedDispatch.client} />
+                <DrawerField label="Dispatch Date" value={formatDate(selectedDispatch.date)} />
+                <DrawerField label="Dispatch Type" value={selectedDispatch.dispatchType || 'Outward Stock'} />
+                <DrawerField label="Reference Number" value={selectedDispatch.orderId} />
+                <DrawerField label="Customer / Destination" value={selectedDispatch.client} />
                 <DrawerField label="Source Warehouse" value={selectedDispatch.sourceWarehouse} />
                 <DrawerField label="Status" value={
                   <Badge variant={
@@ -434,6 +562,7 @@ export default function DispatchManagement() {
                 <DrawerField label="Vehicle Number" value={selectedDispatch.vehicleNumber || '—'} />
                 <DrawerField label="Driver Name" value={selectedDispatch.driverName || '—'} />
                 <DrawerField label="Driver Mobile" value={selectedDispatch.driverMobile || '—'} />
+                {selectedDispatch.remarks && <DrawerField label="Remarks" value={selectedDispatch.remarks} />}
               </div>
             </div>
 
@@ -455,7 +584,10 @@ export default function DispatchManagement() {
       </Drawer>
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={handleBackdropClick}
+        >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">
@@ -483,43 +615,134 @@ export default function DispatchManagement() {
                 <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Order Number *</label>
-                <input type="text" value={newOrder} onChange={e => setNewOrder(e.target.value)} placeholder="Enter Order Number" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Customer *</label>
-                <input type="text" value={newCustomer} onChange={e => setNewCustomer(e.target.value)} placeholder="Enter Customer Name" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Source Warehouse *</label>
-                <select value={newWarehouse} onChange={e => handleWarehouseChange(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
-                  <option value="">Select Warehouse</option>
-                  {warehouses.map(w => <option key={w.id} value={w.name}>{w.name}</option>)}
+                <label className="block text-sm font-medium mb-1">Dispatch Type *</label>
+                <select value={dispatchType} onChange={e => handleDispatchTypeChange(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                  <option value="">Select Dispatch Type</option>
+                  <option value="Warehouse Transfer">Warehouse Transfer</option>
+                  <option value="Outward Stock">Outward Stock</option>
                 </select>
               </div>
+
+              {dispatchType === 'Warehouse Transfer' && (
+                <div className="relative">
+                  <label className="block text-sm font-medium mb-1 text-slate-700">Transfer Number *</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={referenceSearch}
+                      onChange={(e) => {
+                        setReferenceSearch(e.target.value);
+                        setShowReferenceDropdown(true);
+                      }}
+                      onFocus={() => setShowReferenceDropdown(true)}
+                      placeholder="Search Transfer Number..."
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-violet-400"
+                    />
+                    <ChevronDown
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+                      onClick={() => setShowReferenceDropdown(!showReferenceDropdown)}
+                    />
+                  </div>
+                  {showReferenceDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowReferenceDropdown(false)} />
+                      <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                        {allTransfers
+                          .filter(t => !['Dispatched', 'Completed', 'Cancelled'].includes(t.status))
+                          .filter(t => (t.transferNo || '').toLowerCase().includes(referenceSearch.toLowerCase()))
+                          .map((record) => (
+                            <div
+                              key={record.id}
+                              className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
+                              onClick={() => handleReferenceSelect(record)}
+                            >
+                              <span className="font-medium text-slate-900">{record.transferNo}</span> - {record.fromWarehouseName} to {record.toWarehouseName}
+                            </div>
+                          ))}
+                        {allTransfers.filter(t => !['Dispatched', 'Completed', 'Cancelled'].includes(t.status)).filter(t => (t.transferNo || '').toLowerCase().includes(referenceSearch.toLowerCase())).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-slate-500 italic">No eligible transfers found</div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {dispatchType === 'Outward Stock' && (
+                <div className="relative">
+                  <label className="block text-sm font-medium mb-1 text-slate-700">Outward Number *</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={referenceSearch}
+                      onChange={(e) => {
+                        setReferenceSearch(e.target.value);
+                        setShowReferenceDropdown(true);
+                      }}
+                      onFocus={() => setShowReferenceDropdown(true)}
+                      placeholder="Search Outward Number..."
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-violet-400"
+                    />
+                    <ChevronDown
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+                      onClick={() => setShowReferenceDropdown(!showReferenceDropdown)}
+                    />
+                  </div>
+                  {showReferenceDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowReferenceDropdown(false)} />
+                      <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                        {allOutwards
+                          .filter(t => !['Dispatched', 'Completed', 'Cancelled'].includes(t.status))
+                          .filter(t => (t.dispatchNo || '').toLowerCase().includes(referenceSearch.toLowerCase()))
+                          .map((record) => (
+                            <div
+                              key={record.id}
+                              className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
+                              onClick={() => handleReferenceSelect(record)}
+                            >
+                              <span className="font-medium text-slate-900">{record.dispatchNo}</span> - {record.client}
+                            </div>
+                          ))}
+                        {allOutwards.filter(t => !['Dispatched', 'Completed', 'Cancelled'].includes(t.status)).filter(t => (t.dispatchNo || '').toLowerCase().includes(referenceSearch.toLowerCase())).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-slate-500 italic">No eligible outward records found</div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
+              {dispatchType === 'Warehouse Transfer' && selectedReference && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Source Warehouse</label>
+                    <input type="text" value={newWarehouse} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Destination Warehouse</label>
+                    <input type="text" value={destinationWarehouse} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                  </div>
+                </>
+              )}
+
+              {dispatchType === 'Outward Stock' && selectedReference && (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Customer / Client</label>
+                    <input type="text" value={newCustomer} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Dispatch Address</label>
+                    <input type="text" value={dispatchAddress} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                  </div>
+                </>
+              )}
 
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Product Details</h3>
                 
-                {newWarehouse && (
-                  <div className="flex gap-3 mb-4">
-                    <select 
-                      value={selectedInventoryId} 
-                      onChange={e => setSelectedInventoryId(e.target.value)}
-                      className="flex-1 border border-slate-200 rounded-lg px-3 py-2"
-                    >
-                      <option value="">Select Product from Warehouse</option>
-                      {availableInventory.filter(i => i.availableQty > 0).map(i => (
-                        <option key={i.id} value={i.id}>
-                          {i.productName} (Batch: {i.batchNo}) - Available: {i.availableQty}
-                        </option>
-                      ))}
-                    </select>
-                    <ActionButton onClick={handleAddProduct} variant="secondary">Add</ActionButton>
-                  </div>
-                )}
-
-                {newProducts.length > 0 ? (
+                {selectedReference && newProducts.length > 0 ? (
                   <div className="overflow-x-auto border border-slate-200 rounded-lg">
                     <table className="w-full text-left text-sm">
                       <thead>
@@ -528,7 +751,6 @@ export default function DispatchManagement() {
                           <th className="py-2 px-3 font-semibold text-slate-600">Batch No (FEFO)</th>
                           <th className="py-2 px-3 font-semibold text-slate-600 text-right">Available Qty</th>
                           <th className="py-2 px-3 font-semibold text-slate-600 text-right w-40">Dispatch Qty *</th>
-                          <th className="py-2 px-3 font-semibold text-slate-600 w-10"></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -543,14 +765,9 @@ export default function DispatchManagement() {
                                 min="0"
                                 max={p.availableQty}
                                 value={p.dispatchQty}
-                                onChange={e => handleProductQtyChange(i, e.target.value)}
-                                className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-right"
+                                disabled
+                                className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-right bg-slate-50 text-slate-500 cursor-not-allowed"
                               />
-                            </td>
-                            <td className="py-2 px-3 text-right">
-                              <button onClick={() => handleRemoveProduct(i)} className="text-rose-500 hover:text-rose-700 transition-colors">
-                                <Trash2 className="w-4 h-4" />
-                              </button>
                             </td>
                           </tr>
                         ))}
@@ -558,14 +775,13 @@ export default function DispatchManagement() {
                           <td colSpan={2} className="py-2 px-3 text-right">Total Summary:</td>
                           <td className="py-2 px-3 text-right text-slate-500 font-normal">{newProducts.length} Items</td>
                           <td className="py-2 px-3 text-right text-lg text-violet-700">{newProducts.reduce((acc, curr) => acc + curr.dispatchQty, 0)}</td>
-                          <td></td>
                         </tr>
                       </tbody>
                     </table>
                   </div>
                 ) : (
                   <div className="text-center py-8 text-slate-500 text-sm border border-dashed border-slate-200 rounded-lg bg-slate-50">
-                    {newWarehouse ? "Please select and add products from the warehouse above." : "Please select a Source Warehouse to load available inventory."}
+                    {dispatchType ? "Please select a reference number to load products." : "Please select a Dispatch Type to load reference records."}
                   </div>
                 )}
               </div>
@@ -592,12 +808,38 @@ export default function DispatchManagement() {
                 <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="Optional" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Driver Name</label>
-                <input type="text" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} placeholder="Optional" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                <label className="block text-sm font-medium mb-1">Driver Name *</label>
+                <input 
+                  type="text" 
+                  value={newDriverName} 
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^A-Za-z\s]/g, '');
+                    setNewDriverName(val);
+                  }} 
+                  placeholder="e.g. John Doe" 
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2" 
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Driver Mobile</label>
-                <input type="text" value={newDriverMobile} onChange={e => setNewDriverMobile(e.target.value)} placeholder="Optional" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                <label className="block text-sm font-medium mb-1">Driver Mobile *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">+91</span>
+                  <input 
+                    type="text" 
+                    value={newDriverMobile} 
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setNewDriverMobile(val);
+                    }} 
+                    placeholder="9876543210" 
+                    className="w-full border border-slate-200 rounded-lg pl-12 pr-3 py-2" 
+                    maxLength={10}
+                  />
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Remarks</label>
+                <textarea value={newRemarks} onChange={e => setNewRemarks(e.target.value)} placeholder="Optional (Max 250 characters)" maxLength={250} className="w-full border border-slate-200 rounded-lg px-3 py-2 h-20 resize-none"></textarea>
               </div>
             </div>
 

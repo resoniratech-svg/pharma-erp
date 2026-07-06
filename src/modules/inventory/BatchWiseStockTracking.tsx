@@ -18,6 +18,7 @@ import { type Column } from './components/shared';
 import { inventoryService } from '../../services/inventoryService';
 import { getExpiryStatus, getDaysToExpiry } from "../../utils/expiryUtils";
 import { batchService } from "../../services/batchService";
+import { productService } from "../../services/productService";
 
 interface BatchItem {
   id: string;
@@ -32,7 +33,6 @@ interface BatchItem {
   status: 'Healthy' | 'Near Expiry' | 'Expired';
   mrp: number;
   ptr: number;
-
   barcode: string;
   createdBy: string;
   createdDate: string;
@@ -46,15 +46,24 @@ const getTodayDateStr = () => {
   return d;
 };
 
-// Use an actual date parsing mapping so we can calculate dynamically
-
-
-// const mockData: BatchItem[] = [
-//   { id: '1', batchNo: 'B-2024-001', productName: 'Amoxicillin 500mg', sku: 'PRD-001', category: 'Tablet', mfgDate: '2024-01-10', expiryDate: '2026-01-10', availableQty: 5000, warehouse: 'Main Hub', status: 'Active', mrp: 150, ptr: 100, pts: 120, barcode: '8901234567890', createdBy: 'Admin User', createdDate: '2024-01-12', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-10-01' },
-//   { id: '2', batchNo: 'B-2023-089', productName: 'Paracetamol 650mg', sku: 'PRD-002', category: 'Tablet', mfgDate: '2023-08-15', expiryDate: '2025-08-15', availableQty: 1200, warehouse: 'North Zone', status: 'Active', mrp: 50, ptr: 30, pts: 35, barcode: '8901234567891', createdBy: 'Admin User', createdDate: '2023-08-18', lastUpdatedBy: 'System', lastUpdatedDate: '2024-12-10' },
-//   { id: '3', batchNo: 'B-2022-045', productName: 'Cough Syrup 100ml', sku: 'PRD-004', category: 'Syrup', mfgDate: '2022-05-01', expiryDate: '2026-07-20', availableQty: 50, warehouse: 'South Zone', status: 'Near Expiry', mrp: 100, ptr: 60, pts: 75, barcode: '8901234567892', createdBy: 'System', createdDate: '2022-05-05', lastUpdatedBy: 'Admin User', lastUpdatedDate: '2025-11-01' },
-//   { id: '4', batchNo: 'B-2021-012', productName: 'Vitamin C 1000mg', sku: 'PRD-005', category: 'Tablet', mfgDate: '2021-02-20', expiryDate: '2023-02-20', availableQty: 0, warehouse: 'Main Hub', status: 'Expired', mrp: 200, ptr: 120, pts: 150, barcode: '8901234567893', createdBy: 'Admin User', createdDate: '2021-02-25', lastUpdatedBy: 'System', lastUpdatedDate: '2023-02-21' },
-// ];
+const formatDate = (dateString: string | undefined) => {
+  if (!dateString) return "-";
+  if (dateString.match(/^\d{2}-\d{2}-\d{4}$/)) {
+    return dateString;
+  }
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateString.split('-');
+    return `${day}-${month}-${year}`;
+  }
+  const date = new Date(dateString);
+  if (!isNaN(date.getTime())) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  return dateString;
+};
 
 export default function BatchWiseStockTracking() {
   const [search, setSearch] = useState('');
@@ -65,6 +74,8 @@ export default function BatchWiseStockTracking() {
 
   const [selectedBatch, setSelectedBatch] = useState<BatchItem | null>(null);
   const [inventoryData, setInventoryData] = useState<any[]>([]);
+  const [products] = useState(productService.getProducts());
+  const [batches] = useState(batchService.getAll());
 
   const today = getTodayDateStr();
 
@@ -81,68 +92,46 @@ export default function BatchWiseStockTracking() {
 
   useEffect(() => {
     const records = inventoryService.getAll();
-
     setInventoryData(records);
   }, []);
-
-  // const calculateDaysToExpiry = (expiryDateStr: string) => {
-  //   const expDate = parseDate(expiryDateStr);
-  //   const diffTime = expDate.getTime() - today.getTime();
-  //   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-  //   return diffDays;
-  // };
 
   // Ensure data status aligns with real date calculations dynamically for dashboard and mapping
   const dynamicData: BatchItem[] = useMemo(() => {
     return inventoryData.map((item) => {
+      const batch = batches.find((b) => b.batchNo === item.batchNo && (b.productCode === item.productCode || b.productName === item.productName));
+      const product = products.find(p => p.code === item.productCode || p.name === item.productName);
       
-      const batch = batchService
-        .getAll()
-        .find((b) => b.batchNo === item.batchNo);
-
-        const calculatedStatus = getExpiryStatus(batch?.expDate ?? "");
+      const calculatedStatus = getExpiryStatus(batch?.expDate ?? "");
+      
       return {
         id: item.id,
-
         batchNo: item.batchNo,
-
-        productName: item.productName,
-
-        sku: item.productCode || "",
-
-        category: "",
-
+        productName: item.productName || product?.name || "",
+        sku: item.productCode || product?.code || "",
+        category: product?.category || "",
         mfgDate: batch?.mfgDate ?? "",
-
         expiryDate: batch?.expDate ?? "",
-
         availableQty: item.availableQty,
-
         warehouse: `${item.warehouseCode} - ${item.warehouseName}`,
-
         status: calculatedStatus,
-
         mrp: Number(batch?.mrp ?? 0),
-
-       ptr: Number(batch?.ptr ?? 0),
-
-        
-
-        barcode: "",
-
-        createdBy: "System",
-
-        createdDate: "",
-
-        lastUpdatedBy: "System",
-
-        lastUpdatedDate: "",
+        ptr: Number(batch?.ptr ?? 0),
+        barcode: batch?.barcode ?? "",
+        createdBy: item.createdBy || batch?.createdBy || "System",
+        createdDate: item.createdDate || batch?.createdDate || "",
+        lastUpdatedBy: item.lastUpdatedBy || batch?.lastUpdatedBy || "System",
+        lastUpdatedDate: item.lastUpdated || batch?.lastUpdatedDate || "",
       };
     });
-  }, [inventoryData, today]);
+  }, [inventoryData, batches, products]);
 
   const filteredData = dynamicData.filter((item) => {
-    const matchSearch = item.productName.toLowerCase().includes(search.toLowerCase()) || item.batchNo.toLowerCase().includes(search.toLowerCase());
+    const searchLower = search.toLowerCase();
+    const matchSearch = item.productName.toLowerCase().includes(searchLower) || 
+                        item.batchNo.toLowerCase().includes(searchLower) ||
+                        item.sku.toLowerCase().includes(searchLower) ||
+                        item.barcode.toLowerCase().includes(searchLower) ||
+                        item.warehouse.toLowerCase().includes(searchLower);
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   });
@@ -154,7 +143,7 @@ export default function BatchWiseStockTracking() {
     let expired = 0;
 
     dynamicData.forEach((item) => {
-      const status = getExpiryStatus(item.expiryDate);
+      const status = item.status;
 
       if (status === "Healthy") {
         healthy++;
@@ -171,7 +160,7 @@ export default function BatchWiseStockTracking() {
       nearExpiry,
       expired,
     };
-  }, [dynamicData, today]);
+  }, [dynamicData]);
 
   const columns: Column<BatchItem>[] = [
     {
@@ -182,10 +171,10 @@ export default function BatchWiseStockTracking() {
       ),
     },
     { key: "productName", label: "Product Name" },
-    { key: "mfgDate", label: "MFG Date" },
-    { key: "expiryDate", label: "Expiry Date" },
+    { key: "mfgDate", label: "MFG Date", render: (row) => formatDate(row.mfgDate) },
+    { key: "expiryDate", label: "Expiry Date", render: (row) => formatDate(row.expiryDate) },
     {
-      key: "id", // Unique key for the pseudo-column
+      key: "daysToExpiry", 
       label: "Days To Expiry",
       render: (row) => {
         const days = getDaysToExpiry(row.expiryDate);
@@ -220,7 +209,7 @@ export default function BatchWiseStockTracking() {
       },
     },
     {
-      key: "id",
+      key: "actions",
       label: "Actions",
       render: (row) => (
         <button
@@ -241,7 +230,7 @@ export default function BatchWiseStockTracking() {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}${mm}${dd}`;
+    return `${dd}-${mm}-${yyyy}`;
   };
 
   const handleExportExcel = () => {
@@ -250,8 +239,8 @@ export default function BatchWiseStockTracking() {
       return {
         'Batch No': row.batchNo,
         'Product Name': row.productName,
-        'MFG Date': row.mfgDate,
-        'Expiry Date': row.expiryDate,
+        'MFG Date': formatDate(row.mfgDate),
+        'Expiry Date': formatDate(row.expiryDate),
         'Days To Expiry': days <= 0 ? 'Expired' : `${days} Days`,
         'Available Qty': row.availableQty,
         'Warehouse': row.warehouse,
@@ -277,8 +266,8 @@ export default function BatchWiseStockTracking() {
         return [
           row.batchNo, 
           `"${row.productName}"`, 
-          row.mfgDate, 
-          row.expiryDate, 
+          formatDate(row.mfgDate), 
+          formatDate(row.expiryDate), 
           days <= 0 ? 'Expired' : `${days} Days`, 
           row.availableQty, 
           `"${row.warehouse}"`, 
@@ -379,7 +368,7 @@ export default function BatchWiseStockTracking() {
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search by batch or product..."
+          placeholder="Search by batch, product, SKU, barcode or warehouse..."
         />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
@@ -399,11 +388,13 @@ export default function BatchWiseStockTracking() {
       </FilterBar>
 
       <TableCard>
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          emptyMessage="No batches found."
-        />
+        <div className="overflow-x-auto">
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            emptyMessage="No batches found."
+          />
+        </div>
       </TableCard>
 
       {/* Batch Details Drawer */}
@@ -423,7 +414,7 @@ export default function BatchWiseStockTracking() {
                   label="Product Name"
                   value={selectedBatch.productName}
                 />
-                <DrawerField label="SKU" value={selectedBatch.sku} />
+                <DrawerField label="Product Code" value={selectedBatch.sku} />
                 <DrawerField label="Category" value={selectedBatch.category} />
               </div>
             </div>
@@ -443,11 +434,11 @@ export default function BatchWiseStockTracking() {
                 />
                 <DrawerField
                   label="Manufacturing Date"
-                  value={selectedBatch.mfgDate}
+                  value={formatDate(selectedBatch.mfgDate)}
                 />
                 <DrawerField
                   label="Expiry Date"
-                  value={selectedBatch.expiryDate}
+                  value={formatDate(selectedBatch.expiryDate)}
                 />
                 <DrawerField
                   label="Days To Expiry"
@@ -474,7 +465,7 @@ export default function BatchWiseStockTracking() {
               </h3>
               <div className="space-y-2">
                 <DrawerField
-                  label="Warehouse / Location Name"
+                  label="Warehouse"
                   value={selectedBatch.warehouse}
                 />
               </div>
@@ -506,7 +497,7 @@ export default function BatchWiseStockTracking() {
                   label="Barcode"
                   value={
                     <span className="font-mono text-slate-500">
-                      {selectedBatch.barcode}
+                      {selectedBatch.barcode || "-"}
                     </span>
                   }
                 />
@@ -523,16 +514,16 @@ export default function BatchWiseStockTracking() {
                   value={selectedBatch.createdBy}
                 />
                 <DrawerField
-                  label="Created Date"
-                  value={selectedBatch.createdDate}
+                  label="Created On"
+                  value={formatDate(selectedBatch.createdDate)}
                 />
                 <DrawerField
-                  label="Last Updated By"
+                  label="Updated By"
                   value={selectedBatch.lastUpdatedBy}
                 />
                 <DrawerField
-                  label="Last Updated Date"
-                  value={selectedBatch.lastUpdatedDate}
+                  label="Updated On"
+                  value={formatDate(selectedBatch.lastUpdatedDate)}
                 />
               </div>
             </div>

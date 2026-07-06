@@ -25,122 +25,44 @@ import {
   getDaysToExpiry,
 } from "../../utils/expiryUtils";
 
-// --- Deep Mock Data Layer ---
-// interface RawExpiryStock {
-//   id: string;
-//   productName: string;
-//   sku: string;
-//   category: string;
-//   batchNo: string;
-//   warehouse: string;
-//   location: string;
-//   availableQty: number;
-//   unitCost: number;
-//   mfgDate: string;
-//   expiryDate: string;
-//   isDisposed: boolean;
-//   createdDate: string;
-//   lastUpdatedDate: string;
-// }
-
-// // Helper to generate dates relative to "today" for dynamic calculations
-// const getRelativeDate = (daysDiff: number) => {
-//   const d = new Date();
-//   d.setDate(d.getDate() + daysDiff);
-//   return d.toISOString().split('T')[0];
-// };
-
-// const rawDatabase: RawExpiryStock[] = [
-//   {
-//     id: 'EXP-001',
-//     productName: 'Paracetamol 650mg',
-//     sku: 'PRD-001',
-//     category: 'Tablets',
-//     batchNo: 'B-2024-331',
-//     warehouse: 'Hyderabad Warehouse',
-//     location: 'Aisle 1, Rack A',
-//     availableQty: 800,
-//     unitCost: 65,
-//     mfgDate: getRelativeDate(-700), // ~2 years ago
-//     expiryDate: getRelativeDate(45), // Near Expiry
-//     isDisposed: false,
-//     createdDate: getRelativeDate(-700),
-//     lastUpdatedDate: getRelativeDate(-30),
-//   },
-//   {
-//     id: 'EXP-002',
-//     productName: 'Cough Syrup 100ml',
-//     sku: 'PRD-045',
-//     category: 'Syrups',
-//     batchNo: 'B-2023-112',
-//     warehouse: 'Mumbai Warehouse',
-//     location: 'Aisle 3, Rack C',
-//     availableQty: 150,
-//     unitCost: 85,
-//     mfgDate: getRelativeDate(-800),
-//     expiryDate: getRelativeDate(-10), // Expired 10 days ago
-//     isDisposed: false,
-//     createdDate: getRelativeDate(-800),
-//     lastUpdatedDate: getRelativeDate(-10),
-//   },
-//   {
-//     id: 'EXP-003',
-//     productName: 'Eye Drops 5ml',
-//     sku: 'PRD-092',
-//     category: 'Drops',
-//     batchNo: 'B-2024-001',
-//     warehouse: 'Delhi Warehouse',
-//     location: 'Cold Storage 2',
-//     availableQty: 120,
-//     unitCost: 150,
-//     mfgDate: getRelativeDate(-400),
-//     expiryDate: getRelativeDate(15), // Critical
-//     isDisposed: false,
-//     createdDate: getRelativeDate(-400),
-//     lastUpdatedDate: getRelativeDate(-5),
-//   },
-//   {
-//     id: 'EXP-004',
-//     productName: 'Vitamin D3 Capsules',
-//     sku: 'PRD-105',
-//     category: 'Capsules',
-//     batchNo: 'B-2022-099',
-//     warehouse: 'Bangalore Warehouse',
-//     location: 'Dispose Area',
-//     availableQty: 0,
-//     unitCost: 200,
-//     mfgDate: getRelativeDate(-1200),
-//     expiryDate: getRelativeDate(-100),
-//     isDisposed: true, // Disposed
-//     createdDate: getRelativeDate(-1200),
-//     lastUpdatedDate: getRelativeDate(-2),
-//   }
-// ];
-
-// --- Calculated Interfaces ---
 interface CalculatedExpiryStock {
   id: string;
-
   productCode: string;
   productName: string;
-
   batchNo: string;
-
+  barcode: string;
   warehouseId: string;
   warehouseName: string;
-
   expiryDate: string;
-
   availableQty: number;
-
   unitCost: number;
-
   daysToExpiry: number;
-
   estimatedLoss: number;
-
   status: "Healthy" | "Near Expiry" | "Expired";
+  createdDate: string;
+  lastUpdatedDate: string;
+  createdBy: string;
+  lastUpdatedBy: string;
 }
+
+const formatDate = (dateString: string | undefined) => {
+  if (!dateString) return "-";
+  if (dateString.match(/^\d{2}-\d{2}-\d{4}$/)) {
+    return dateString;
+  }
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateString.split('-');
+    return `${day}-${month}-${year}`;
+  }
+  const date = new Date(dateString);
+  if (!isNaN(date.getTime())) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  return dateString;
+};
 
 const formatCurrency = (value: number) => {
   if (value >= 10000000) return `₹ ${(value / 10000000).toFixed(2)} Cr`;
@@ -150,11 +72,8 @@ const formatCurrency = (value: number) => {
 
 export default function ExpiryStock() {
   const inventory = inventoryService.getAll();
-
   const batches = batchService.getAll();
-
   const products = productService.getProducts();
-
   const warehouses = warehouseService.getAll();
 
   const [search, setSearch] = useState("");
@@ -179,84 +98,51 @@ export default function ExpiryStock() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // --- Dynamic Calculation Engine ---
   const calculatedData: CalculatedExpiryStock[] = useMemo(() => {
-    
-
     return inventory.map((stock) => {
       const batch = batches.find((b) => b.batchNo === stock.batchNo);
-
       const warehouse = warehouses.find((w) => w.id === stock.warehouseId);
-
       const product = products.find((p) => p.code === stock.productCode);
 
       const expiryDate = batch?.expDate ?? "";
-
       const daysToExpiry = getDaysToExpiry(expiryDate);
-
       const status = getExpiryStatus(expiryDate);
-
-      // const expiry = new Date(expiryDate);
-
-      // const daysToExpiry = Math.ceil(
-      //   (expiry.getTime() - today.getTime()) / (1000 * 60 * 60 * 24),
-      // );
-
-      // let status: "Healthy" | "Near Expiry" | "Expired";
-
-      // if (daysToExpiry < 0) {
-      //   status = "Expired";
-      // } else if (daysToExpiry <= 90) {
-      //   status = "Near Expiry";
-      // } else {
-      //   status = "Healthy";
-      // }
       
       return {
         id: stock.id,
-
         productCode: stock.productCode,
-
         productName: stock.productName,
-
         batchNo: stock.batchNo,
-
+        barcode: batch?.barcode || product?.barcode || "",
         warehouseId: stock.warehouseId,
-
         warehouseName: warehouse?.name ?? "",
-
         expiryDate,
-
         availableQty: stock.availableQty,
-
         unitCost: Number(product?.purchasePrice ?? 0),
-
         estimatedLoss: stock.availableQty * Number(product?.purchasePrice ?? 0),
-
         daysToExpiry,
-
-        status,
+        status: status as CalculatedExpiryStock["status"],
+        createdDate: batch?.createdDate || stock.lastUpdated,
+        lastUpdatedDate: batch?.lastUpdatedDate || stock.lastUpdated,
+        createdBy: batch?.createdBy || "System",
+        lastUpdatedBy: batch?.lastUpdatedBy || "System",
       };
     });
   }, [inventory, batches, warehouses, products]);
 
-  // --- Dashboard Card Metrics ---
   const dashboardMetrics = useMemo(() => {
     let totalExpiringBatches = 0;
     let expiredBatches = 0;
-    let expiryStockValue = 0; // Value of near expiry & critical
-    let estimatedLoss = 0; // Value of expired
+    let expiryStockValue = 0; 
+    let estimatedLoss = 0; 
 
     calculatedData.forEach((c) => {
       if (c.status === "Near Expiry") {
         totalExpiringBatches++;
-
         expiryStockValue += c.estimatedLoss;
       }
-
       if (c.status === "Expired") {
         expiredBatches++;
-
         estimatedLoss += c.estimatedLoss;
       }
     });
@@ -269,15 +155,28 @@ export default function ExpiryStock() {
     };
   }, [calculatedData]);
 
-  // --- Filtering ---
   const filteredData = calculatedData.filter((item) => {
     const term = search.toLowerCase();
     const matchSearch =
       item.productName.toLowerCase().includes(term) ||
       item.productCode.toLowerCase().includes(term) ||
-      item.batchNo.toLowerCase().includes(term);
+      item.batchNo.toLowerCase().includes(term) ||
+      item.barcode.toLowerCase().includes(term) ||
+      item.warehouseName.toLowerCase().includes(term);
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
+  });
+
+  const statusOrder: Record<string, number> = {
+    "Expired": 1,
+    "Near Expiry": 2,
+    "Healthy": 3,
+  };
+
+  const sortedData = [...filteredData].sort((a, b) => {
+    const statusDiff = statusOrder[a.status] - statusOrder[b.status];
+    if (statusDiff !== 0) return statusDiff;
+    return a.daysToExpiry - b.daysToExpiry;
   });
 
   const columns: Column<CalculatedExpiryStock>[] = [
@@ -285,66 +184,55 @@ export default function ExpiryStock() {
       key: "productName",
       label: "Product Name",
     },
-
     {
       key: "productCode",
       label: "SKU",
     },
-
     {
       key: "batchNo",
       label: "Batch No",
     },
-
     {
       key: "warehouseName",
       label: "Warehouse",
     },
-
     {
       key: "availableQty",
       label: "Available Qty",
     },
-
     {
       key: "expiryDate",
       label: "Expiry Date",
+      render: (row) => <span className={row.status === 'Expired' ? 'text-rose-600 font-semibold' : ''}>{formatDate(row.expiryDate)}</span>
     },
-
     {
       key: "daysToExpiry",
       label: "Days To Expiry",
       render: (row) =>
         row.daysToExpiry < 0 ? "Expired" : `${row.daysToExpiry} Days`,
     },
-
     {
       key: "estimatedLoss",
       label: "Estimated Loss",
-      render: (row) => `₹ ${row.estimatedLoss.toLocaleString()}`,
+      render: (row) => `₹ ${row.estimatedLoss.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
     },
-
     {
       key: "status",
       label: "Status",
       render: (row) => {
         let variant: "success" | "warning" | "danger" | "neutral" = "success";
-
         if (row.status === "Near Expiry") variant = "warning";
-
         if (row.status === "Expired") variant = "danger";
-
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
-
     {
       key: "id",
       label: "Actions",
       render: (row) => (
         <button
           onClick={() => setSelectedRecord(row)}
-          className="text-violet-600"
+          className="text-violet-600 font-medium hover:text-violet-800"
         >
           View
         </button>
@@ -360,7 +248,6 @@ export default function ExpiryStock() {
     return `${yyyy}${mm}${dd}`;
   };
 
-  // ✅ PASTE handleDispose HERE
   const handleDispose = (record: CalculatedExpiryStock) => {
     const inventoryRecords = inventoryService.getAll();
 
@@ -376,7 +263,6 @@ export default function ExpiryStock() {
           lastUpdated: new Date().toISOString(),
         };
       }
-
       return item;
     });
 
@@ -394,18 +280,17 @@ export default function ExpiryStock() {
     });
 
     alert("Stock disposed successfully.");
-
     setSelectedRecord(null);
   };
 
   const handleExportExcel = () => {
-    const exportData = filteredData.map((row) => ({
+    const exportData = sortedData.map((row) => ({
       "Product Name": row.productName,
       SKU: row.productCode,
       "Batch No": row.batchNo,
       Warehouse: row.warehouseName,
       "Available Qty": row.availableQty,
-      "Expiry Date": row.expiryDate,
+      "Expiry Date": formatDate(row.expiryDate),
       "Days To Expiry": row.daysToExpiry < 0 ? "Expired" : row.daysToExpiry,
       "Estimated Loss": row.estimatedLoss,
       Status: row.status,
@@ -427,7 +312,6 @@ export default function ExpiryStock() {
       "Batch No",
       "Warehouse",
       "Available Qty",
-      "MFG Date",
       "Expiry Date",
       "Days To Expiry",
       "Estimated Loss",
@@ -435,14 +319,14 @@ export default function ExpiryStock() {
     ];
     const csvContent = [
       headers.join(","),
-      ...filteredData.map((row) =>
+      ...sortedData.map((row) =>
         [
           `"${row.productName}"`,
           `"${row.productCode}"`,
           `"${row.batchNo}"`,
           `"${row.warehouseName}"`,
           row.availableQty,
-          row.expiryDate,
+          formatDate(row.expiryDate),
           row.daysToExpiry < 0 ? "Expired" : row.daysToExpiry,
           row.estimatedLoss,
           row.status,
@@ -542,7 +426,7 @@ export default function ExpiryStock() {
         <SearchInput
           value={search}
           onChange={setSearch}
-          placeholder="Search product, SKU or batch..."
+          placeholder="Search product, SKU, batch, barcode or warehouse..."
         />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
@@ -553,10 +437,9 @@ export default function ExpiryStock() {
           value={statusFilter}
           onChange={setStatusFilter}
           options={[
-            { label: "Critical", value: "Critical" },
+            { label: "Healthy", value: "Healthy" },
             { label: "Near Expiry", value: "Near Expiry" },
             { label: "Expired", value: "Expired" },
-            { label: "Disposed", value: "Disposed" },
           ]}
           placeholder="All Status"
         />
@@ -566,13 +449,12 @@ export default function ExpiryStock() {
         <div className="overflow-x-auto">
           <DataTable
             columns={columns}
-            data={filteredData}
+            data={sortedData}
             emptyMessage="No expiry issues found. Great job!"
           />
         </div>
       </TableCard>
 
-      {/* Expiry Stock Details Drawer */}
       <Drawer
         open={!!selectedRecord}
         onClose={() => setSelectedRecord(null)}
@@ -580,7 +462,6 @@ export default function ExpiryStock() {
       >
         {selectedRecord && (
           <div className="space-y-6">
-            {/* Product Information */}
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
                 Product Information
@@ -598,7 +479,6 @@ export default function ExpiryStock() {
                     </span>
                   }
                 />
-
                 <DrawerField
                   label="Status"
                   value={
@@ -618,7 +498,6 @@ export default function ExpiryStock() {
               </div>
             </div>
 
-            {/* Batch Information */}
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
                 Batch Information
@@ -632,7 +511,6 @@ export default function ExpiryStock() {
                     </span>
                   }
                 />
-
                 <DrawerField
                   label="Expiry Date"
                   value={
@@ -643,7 +521,7 @@ export default function ExpiryStock() {
                           : ""
                       }
                     >
-                      {selectedRecord.expiryDate}
+                      {formatDate(selectedRecord.expiryDate)}
                     </span>
                   }
                 />
@@ -664,7 +542,6 @@ export default function ExpiryStock() {
               </div>
             </div>
 
-            {/* Inventory Information */}
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
                 Inventory Information
@@ -686,7 +563,6 @@ export default function ExpiryStock() {
               </div>
             </div>
 
-            {/* Financial Information */}
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
                 Financial Information
@@ -715,22 +591,29 @@ export default function ExpiryStock() {
               </div>
             </div>
 
-            {/* Audit Information */}
-            {/* <div>
+            <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">
                 Audit Information
               </h3>
               <div className="space-y-2">
                 <DrawerField
-                  label="Created Date"
-                  value={selectedRecord.createdDate}
+                  label="Created By"
+                  value={selectedRecord.createdBy}
                 />
                 <DrawerField
-                  label="Last Updated Date"
-                  value={selectedRecord.lastUpdatedDate}
+                  label="Created On"
+                  value={formatDate(selectedRecord.createdDate)}
+                />
+                <DrawerField
+                  label="Updated By"
+                  value={selectedRecord.lastUpdatedBy}
+                />
+                <DrawerField
+                  label="Updated On"
+                  value={formatDate(selectedRecord.lastUpdatedDate)}
                 />
               </div>
-            </div> */}
+            </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
               <ActionButton

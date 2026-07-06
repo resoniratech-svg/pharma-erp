@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Download, ChevronDown, Filter } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Download, ChevronDown, Filter, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
@@ -17,120 +17,82 @@ import { type Column } from './components/shared';
 import { inventoryService } from "../../services/inventoryService";
 import { warehouseService } from "../../services/warehouseService";
 import { productService } from "../../services/productService";
+import { batchService } from "../../services/batchService";
 
-// --- Data Models ---
-
-// interface Product {
-//   name: string;
-//   sku: string;
-//   category: string;
-//   packType: string;
-//   uom: string;
-//   reorderLevel: number;
-// }
-
-// interface Location {
-//   code: string;
-//   name: string;
-//   city: string;
-//   state: string;
-//   type: string;
-//   status: 'Active' | 'Inactive';
-// }
-
-interface InventoryRecord {
+interface WarehouseSummary {
   id: string;
-  productName: string;
-  sku: string;
-  category: string;
-  packType: string;
-  uom: string;
-  location: string;
-  locationCode: string;
+  code: string;
+  name: string;
   city: string;
   state: string;
   type: string;
-  locationStatus: string;
+  status: string;
+  numProducts: number;
+  totalStock: number;
+  lowStockProducts: number;
+  outOfStockProducts: number;
+}
+
+interface ProductInventory {
+  id: string;
+  productCode: string;
+  productName: string;
+  category: string;
+  packType: string;
+  uom: string;
   availableQty: number;
   reorderLevel: number;
   status: 'In Stock' | 'Low Stock' | 'Out Of Stock';
-  createdBy: string;
-  createdDate: string;
-  lastUpdatedBy: string;
-  lastUpdatedDate: string;
 }
 
-// interface Transaction {
-//   sku: string;
-//   locationCode: string;
-//   type: 'Inward' | 'Outward';
-//   qty: number;
-// }
+interface BatchInventory {
+  id: string;
+  batchNo: string;
+  barcode: string;
+  availableQty: number;
+  mfgDate: string;
+  expiryDate: string;
+  status: string;
+}
 
-// interface Batch {
-//   sku: string;
-//   locationCode: string;
-//   batchNo: string;
-//   expiryDate: string;
-//   qty: number;
-// }
-
-// const mockProducts: Product[] = [
-//   { name: 'Paracetamol 650mg', sku: 'PRD-001', category: 'Tablets', packType: 'Box', uom: 'Units', reorderLevel: 1000 },
-//   { name: 'Amoxicillin 500mg', sku: 'PRD-002', category: 'Capsules', packType: 'Bottle', uom: 'Units', reorderLevel: 500 },
-// ];
-
-// const initialLocations: Location[] = [
-//   { code: 'HYD001', name: 'Hyderabad Warehouse', city: 'Hyderabad', state: 'Telangana', type: 'Regional Warehouse', status: 'Active' },
-//   { code: 'MUM001', name: 'Mumbai Warehouse', city: 'Mumbai', state: 'Maharashtra', type: 'Regional Warehouse', status: 'Active' },
-//   { code: 'DEL001', name: 'Delhi Warehouse', city: 'Delhi', state: 'Delhi', type: 'Distribution Center', status: 'Active' },
-// ];
-
-// // Mapping: `${SKU}_${LocationCode}` -> quantity
-// const initialInventoryMap: Record<string, number> = {
-//   'PRD-001_HYD001': 5000,
-//   'PRD-001_MUM001': 2000,
-//   'PRD-001_DEL001': 500,
-//   'PRD-002_HYD001': 1200,
-//   'PRD-002_MUM001': 0,
-//   'PRD-002_DEL001': 1500,
-// };
-
-// const mockTransactions: Transaction[] = [
-//   { sku: 'PRD-001', locationCode: 'HYD001', type: 'Inward', qty: 8000 },
-//   { sku: 'PRD-001', locationCode: 'HYD001', type: 'Outward', qty: 3000 },
-//   { sku: 'PRD-001', locationCode: 'MUM001', type: 'Inward', qty: 4000 },
-//   { sku: 'PRD-001', locationCode: 'MUM001', type: 'Outward', qty: 2000 },
-//   { sku: 'PRD-001', locationCode: 'DEL001', type: 'Inward', qty: 1000 },
-//   { sku: 'PRD-001', locationCode: 'DEL001', type: 'Outward', qty: 500 },
-// ];
-
-// const mockBatches: Batch[] = [
-//   { sku: 'PRD-001', locationCode: 'HYD001', batchNo: 'B-2025-001', expiryDate: '2026-12-15', qty: 2000 },
-//   { sku: 'PRD-001', locationCode: 'HYD001', batchNo: 'B-2025-002', expiryDate: '2027-01-20', qty: 3000 },
-//   { sku: 'PRD-001', locationCode: 'MUM001', batchNo: 'B-2024-089', expiryDate: '2025-11-10', qty: 2000 },
-// ];
+const formatDate = (dateString: string | undefined) => {
+  if (!dateString) return "-";
+  if (dateString.match(/^\d{2}-\d{2}-\d{4}$/)) {
+    return dateString;
+  }
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateString.split('-');
+    return `${day}-${month}-${year}`;
+  }
+  const date = new Date(dateString);
+  if (!isNaN(date.getTime())) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  return dateString;
+};
 
 export default function MultiLocationStock() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  
   const [inventory, setInventory] = useState(inventoryService.getAll());
-
   const [warehouses] = useState(warehouseService.getAll());
-
   const [products] = useState(productService.getProducts());
+  const [batches] = useState(batchService.getAll());
+
   useEffect(() => {
     setInventory(inventoryService.getAll());
   }, []);
 
- 
-  
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  const [selectedRecord, setSelectedRecord] = useState<InventoryRecord | null>(null);
-
-  
+  const [selectedWarehouse, setSelectedWarehouse] = useState<WarehouseSummary | null>(null);
+  const [productSearch, setProductSearch] = useState('');
+  const [selectedProduct, setSelectedProduct] = useState<ProductInventory | null>(null);
 
   // Handle clicking outside export menu to close it
   useEffect(() => {
@@ -143,95 +105,76 @@ export default function MultiLocationStock() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Compute flattened table data
-  const tableData = inventory.map((stock) => {
+  const warehouseSummaries = useMemo(() => {
+    return warehouses.map(warehouse => {
+      const whInventory = inventory.filter(item => item.warehouseId === warehouse.id || item.warehouseCode === warehouse.code);
+      
+      const productMap = new Map<string, number>();
+      whInventory.forEach(item => {
+        const code = item.productCode;
+        const qty = Number(item.availableQty) || 0;
+        productMap.set(code, (productMap.get(code) || 0) + qty);
+      });
 
-  const warehouse = warehouses.find(
-    (w) => w.id === stock.warehouseId
-  );
+      let numProducts = 0;
+      let totalStock = 0;
+      let lowStockProducts = 0;
+      let outOfStockProducts = 0;
 
-  const product = products.find(
-    (p) => p.code === stock.productCode
-  );
+      productMap.forEach((qty, productCode) => {
+        const product = products.find(p => p.code === productCode);
+        const reorderLevel = Number(product?.reorderLevel) || 0;
 
-  const reorderLevel = Number(product?.reorderLevel ?? 0);
+        numProducts++;
+        totalStock += qty;
 
-  let status: "In Stock" | "Low Stock" | "Out Of Stock";
+        if (qty <= 0) {
+          outOfStockProducts++;
+        } else if (qty <= reorderLevel) {
+          lowStockProducts++;
+        }
+      });
 
-  if (stock.availableQty <= 0) {
-    status = "Out Of Stock";
-  } else if (stock.availableQty <= reorderLevel) {
-    status = "Low Stock";
-  } else {
-    status = "In Stock";
-  }
+      return {
+        id: warehouse.id,
+        code: warehouse.code,
+        name: warehouse.name,
+        city: warehouse.city,
+        state: warehouse.state,
+        type: warehouse.type,
+        status: warehouse.status,
+        numProducts,
+        totalStock,
+        lowStockProducts,
+        outOfStockProducts
+      };
+    });
+  }, [warehouses, inventory, products]);
 
-  return {
-  ...stock,
-
-  sku: stock.productCode,
-
-  productName: stock.productName,
-
-  category: product?.category ?? "",
-
-  packType: product?.packingType ?? "",
-
-  uom: product?.type ?? "",
-
-  location: warehouse
-    ? `${warehouse.code} - ${warehouse.name}`
-    : "",
-
-  locationCode: warehouse?.code ?? "",
-
-  city: warehouse?.city ?? "",
-
-  state: warehouse?.state ?? "",
-
-  type: warehouse?.type ?? "",
-
-  locationStatus: warehouse?.status ?? "",
-
-  availableQty: stock.availableQty,
-
-  reorderLevel,
-
-  status,
-
-  createdBy: "",
-createdDate: "",
-lastUpdatedBy: "",
-lastUpdatedDate: "",
-
-  
-};
-
-});
-
-  const filteredData = tableData.filter((item) => {
-    const matchesSearch = item.productName.toLowerCase().includes(search.toLowerCase()) || 
-                          item.sku.toLowerCase().includes(search.toLowerCase()) ||
-                          item.location.toLowerCase().includes(search.toLowerCase());
+  const filteredWarehouses = warehouseSummaries.filter(w => {
+    const matchesSearch = w.code.toLowerCase().includes(search.toLowerCase()) || 
+                          w.name.toLowerCase().includes(search.toLowerCase()) || 
+                          w.city.toLowerCase().includes(search.toLowerCase());
                           
-    const matchesStatus = statusFilter ? item.status === statusFilter : true;
-
+    const matchesStatus = statusFilter ? w.status === statusFilter : true;
     return matchesSearch && matchesStatus;
   });
 
-  const columns: Column<InventoryRecord>[] = [
-    { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.productName}</span> },
-    { key: 'sku', label: 'SKU', render: (row) => <span className="text-slate-600">{row.sku}</span> },
-    { key: 'location', label: 'Location' },
-    { key: 'availableQty', label: 'Available Qty', render: (row) => <span className="font-medium text-slate-900">{row.availableQty}</span> },
-    { key: 'reorderLevel', label: 'Reorder Level', render: (row) => <span className="text-slate-500">{row.reorderLevel}</span> },
+  const columns: Column<WarehouseSummary>[] = [
+    { key: 'code', label: 'Warehouse Code', render: (row) => <span className="font-semibold text-violet-700">{row.code}</span> },
+    { key: 'name', label: 'Warehouse Name', render: (row) => <span className="font-medium text-slate-900">{row.name}</span> },
+    { key: 'numProducts', label: 'Number of Products' },
+    { key: 'totalStock', label: 'Total Stock' },
+    { key: 'lowStockProducts', label: 'Low Stock Products' },
+    { key: 'outOfStockProducts', label: 'Out Of Stock Products' },
     { 
       key: 'status', 
       label: 'Status', 
-      render: (row) => {
-        const variant = row.status === 'In Stock' ? 'success' : row.status === 'Low Stock' ? 'warning' : 'danger';
-        return <Badge variant={variant}>{row.status}</Badge>;
-      } 
+      render: (row) => (
+        <Badge variant={row.status === 'Active' ? 'success' : 'neutral'}>
+          {row.status}
+        </Badge>
+      )
     },
     {
       key: 'id',
@@ -240,7 +183,8 @@ lastUpdatedDate: "",
         <button
           onClick={(e) => {
             e.stopPropagation();
-            setSelectedRecord(row);
+            setSelectedWarehouse(row);
+            setProductSearch('');
           }}
           className="text-violet-600 font-medium hover:text-violet-800"
         >
@@ -255,22 +199,24 @@ lastUpdatedDate: "",
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}${mm}${dd}`;
+    return `${dd}-${mm}-${yyyy}`;
   };
 
   const handleExportExcel = () => {
-    const exportData = filteredData.map(row => ({
-      'Product Name': row.productName,
-      'SKU': row.sku,
-      'Location': row.location,
-      'Available Qty': row.availableQty,
-      'Reorder Level': row.reorderLevel,
+    const exportData = filteredWarehouses.map(row => ({
+      'Warehouse Code': row.code,
+      'Warehouse Name': row.name,
+      'City': row.city,
+      'Number of Products': row.numProducts,
+      'Total Stock': row.totalStock,
+      'Low Stock Products': row.lowStockProducts,
+      'Out Of Stock Products': row.outOfStockProducts,
       'Status': row.status
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Inventory');
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Warehouse Summary');
     
     const fileName = `multi_location_inventory_${getFormattedDate()}.xlsx`;
     XLSX.writeFile(workbook, fileName);
@@ -278,16 +224,18 @@ lastUpdatedDate: "",
   };
 
   const handleExportCSV = () => {
-    const headers = ['Product Name', 'SKU', 'Location', 'Available Qty', 'Reorder Level', 'Status'];
+    const headers = ['Warehouse Code', 'Warehouse Name', 'City', 'Number of Products', 'Total Stock', 'Low Stock Products', 'Out Of Stock Products', 'Status'];
     const csvContent = [
       headers.join(','),
-      ...filteredData.map(row => 
+      ...filteredWarehouses.map(row => 
         [
-          `"${row.productName}"`, 
-          row.sku, 
-          `"${row.location}"`, 
-          row.availableQty, 
-          row.reorderLevel, 
+          row.code,
+          `"${row.name}"`, 
+          `"${row.city}"`,
+          row.numProducts, 
+          row.totalStock,
+          row.lowStockProducts,
+          row.outOfStockProducts,
           row.status
         ].join(',')
       )
@@ -306,82 +254,121 @@ lastUpdatedDate: "",
     setShowExportMenu(false);
   };
 
-  
-
-  // const handleSaveLocation = () => {
-  //   if (!newLocation.code || !newLocation.name || !newLocation.city || !newLocation.state || !newLocation.type || !newLocation.status) {
-  //     alert("Please fill all mandatory fields.");
-  //     return;
-  //   }
-
-  //   const codeExists = warehouses.some(
-  //     (w) => w.code.toLowerCase() === newLocation.code.toLowerCase(),
-  //   );
-
-  //   if (codeExists) {
-  //     alert("Location Code must be unique.");
-  //     return;
-  //   }
-
-  //   const nameExists = warehouses.some(
-  //     (w) => w.name.toLowerCase() === newLocation.name.toLowerCase(),
-  //   );
-
-  //   if (nameExists) {
-  //     alert("Location Name must be unique.");
-  //     return;
-  //   }
-
-  //   const updatedWarehouses = [
-  //     ...warehouses,
-  //     {
-  //       id: Date.now().toString(),
-  //       ...newLocation,
-  //     },
-  //   ];
-
-  //   setWarehouses(updatedWarehouses);
-
-  //   warehouseService.saveAll(updatedWarehouses);
-
-  //   setShowLocationModal(false);
-  // };
-
-  // const getStockMovementSummary = (sku: string, locationCode: string) => {
-  //   const relevantTransactions = mockTransactions.filter(t => t.sku === sku && t.locationCode === locationCode);
-  //   const totalInward = relevantTransactions.filter(t => t.type === 'Inward').reduce((acc, curr) => acc + curr.qty, 0);
-  //   const totalOutward = relevantTransactions.filter(t => t.type === 'Outward').reduce((acc, curr) => acc + curr.qty, 0);
-  //   return { totalInward, totalOutward };
-  // };
-
-  // const getBatchInformation = (sku: string, locationCode: string) => {
-  //   const relevantBatches = mockBatches.filter(b => b.sku === sku && b.locationCode === locationCode);
+  const warehouseProducts = useMemo(() => {
+    if (!selectedWarehouse) return [];
+    const whInventory = inventory.filter(item => item.warehouseId === selectedWarehouse.id || item.warehouseCode === selectedWarehouse.code);
     
-  //   // Ensure accurate active batch count (qty > 0 and expiry in future)
-  //   const today = new Date();
-  //   today.setHours(0,0,0,0);
+    const productMap = new Map<string, ProductInventory>();
+    
+    whInventory.forEach(item => {
+      const code = item.productCode;
+      const qty = Number(item.availableQty) || 0;
+      
+      if (productMap.has(code)) {
+        const existing = productMap.get(code)!;
+        existing.availableQty += qty;
+        
+        const reorderLevel = existing.reorderLevel;
+        if (existing.availableQty <= 0) existing.status = "Out Of Stock";
+        else if (existing.availableQty <= reorderLevel) existing.status = "Low Stock";
+        else existing.status = "In Stock";
+      } else {
+        const product = products.find(p => p.code === code);
+        const reorderLevel = Number(product?.reorderLevel) || 0;
+        let status: 'In Stock' | 'Low Stock' | 'Out Of Stock' = 'In Stock';
+        if (qty <= 0) status = 'Out Of Stock';
+        else if (qty <= reorderLevel) status = 'Low Stock';
+        
+        productMap.set(code, {
+          id: code,
+          productCode: code,
+          productName: item.productName || product?.name || '',
+          category: product?.category || '',
+          packType: product?.packingType || '',
+          uom: product?.type || '',
+          availableQty: qty,
+          reorderLevel,
+          status
+        });
+      }
+    });
+  
+    return Array.from(productMap.values()).sort((a, b) => a.productName.localeCompare(b.productName));
+  }, [selectedWarehouse, inventory, products]);
 
-  //   const activeBatchesList = relevantBatches.filter(b => {
-  //     const exp = new Date(b.expiryDate);
-  //     return b.qty > 0 && exp >= today;
-  //   });
+  const filteredWarehouseProducts = warehouseProducts.filter(p => {
+    return p.productCode.toLowerCase().includes(productSearch.toLowerCase()) ||
+           p.productName.toLowerCase().includes(productSearch.toLowerCase());
+  });
 
-  //   const activeBatchesCount = activeBatchesList.length;
+  const productColumns: Column<ProductInventory>[] = [
+    { key: 'productCode', label: 'Product Code', render: (row) => <span className="font-medium text-slate-700">{row.productCode}</span> },
+    { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.productName}</span> },
+    { key: 'availableQty', label: 'Available Quantity', render: (row) => <span className="font-medium text-slate-900">{row.availableQty}</span> },
+    { key: 'reorderLevel', label: 'Reorder Level', render: (row) => <span className="text-slate-500">{row.reorderLevel}</span> },
+    { 
+      key: 'status', 
+      label: 'Status', 
+      render: (row) => {
+        const variant = row.status === 'In Stock' ? 'success' : row.status === 'Low Stock' ? 'warning' : 'danger';
+        return <Badge variant={variant}>{row.status}</Badge>;
+      } 
+    },
+    {
+      key: 'id',
+      label: 'Actions',
+      render: (row) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedProduct(row);
+          }}
+          className="text-violet-600 font-medium hover:text-violet-800"
+        >
+          View
+        </button>
+      )
+    }
+  ];
 
-  //   // Find nearest expiry
-  //   let nearestBatch: Batch | null = null;
-  //   if (activeBatchesList.length > 0) {
-  //     nearestBatch = activeBatchesList.reduce((prev, curr) => {
-  //       return new Date(prev.expiryDate) < new Date(curr.expiryDate) ? prev : curr;
-  //     });
-  //   }
+  const productBatches = useMemo(() => {
+    if (!selectedWarehouse || !selectedProduct) return [];
+    
+    const whProductInventory = inventory.filter(item => 
+      (item.warehouseId === selectedWarehouse.id || item.warehouseCode === selectedWarehouse.code) &&
+      item.productCode === selectedProduct.productCode
+    );
+    
+    return whProductInventory.map((item, index) => {
+      const batchInfo = batches.find(b => b.batchNo === item.batchNo && (b.productCode === item.productCode || b.productName === item.productName));
+      return {
+        id: item.id || `batch-${index}`,
+        batchNo: item.batchNo,
+        barcode: batchInfo?.barcode || '-',
+        availableQty: Number(item.availableQty) || 0,
+        mfgDate: batchInfo?.mfgDate || '-',
+        expiryDate: batchInfo?.expDate || '-',
+        status: batchInfo?.status || 'Active'
+      };
+    });
+  }, [selectedWarehouse, selectedProduct, inventory, batches]);
 
-  //   return {
-  //     activeBatches: activeBatchesCount,
-  //     nearestBatchNo: nearestBatch ? nearestBatch.batchNo : 'N/A',
-  //     nearestExpiryDate: nearestBatch ? new Date(nearestBatch.expiryDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-') : 'N/A'
-  //   };
-  // };
+  const batchColumns: Column<BatchInventory>[] = [
+    { key: 'batchNo', label: 'Batch Number', render: (row) => <span className="font-medium text-slate-900">{row.batchNo}</span> },
+    { key: 'barcode', label: 'Barcode', render: (row) => <span className="text-slate-600">{row.barcode}</span> },
+    { key: 'availableQty', label: 'Available Quantity', render: (row) => <span className="font-medium text-slate-900">{row.availableQty}</span> },
+    { key: 'mfgDate', label: 'Manufacturing Date', render: (row) => formatDate(row.mfgDate) },
+    { key: 'expiryDate', label: 'Expiry Date', render: (row) => formatDate(row.expiryDate) },
+    { 
+      key: 'status', 
+      label: 'Status', 
+      render: (row) => (
+        <Badge variant={row.status === 'Active' ? 'success' : 'neutral'}>
+          {row.status}
+        </Badge>
+      )
+    }
+  ];
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -421,15 +408,12 @@ lastUpdatedDate: "",
                 </div>
               )}
             </div>
-            {/* <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openAddLocationModal}>
-              Add Location
-            </ActionButton> */}
           </>
         }
       />
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search product, SKU or location..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search warehouse code, name, or city..." />
         
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
@@ -441,183 +425,114 @@ lastUpdatedDate: "",
           value={statusFilter}
           onChange={setStatusFilter}
           options={[
-            { label: 'In Stock', value: 'In Stock' },
-            { label: 'Low Stock', value: 'Low Stock' },
-            { label: 'Out Of Stock', value: 'Out Of Stock' },
+            { label: 'Active', value: 'Active' },
+            { label: 'Inactive', value: 'Inactive' },
           ]}
           placeholder="All Status"
         />
       </FilterBar>
 
       <TableCard>
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          emptyMessage="No location stock data found."
-        />
+        <div className="overflow-x-auto">
+          <DataTable
+            columns={columns}
+            data={filteredWarehouses}
+            emptyMessage="No warehouse data found."
+          />
+        </div>
       </TableCard>
 
-      {/* Add Location Modal
-      {showLocationModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">Add Location</h2>
-              <button onClick={() => setShowLocationModal(false)} className="text-slate-500 hover:text-slate-800">✕</button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2 mt-2 first:mt-0">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Location Information</h3>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Location Code *</label>
-                <input 
-                  type="text"
-                  value={newLocation.code} 
-                  onChange={(e) => setNewLocation({ ...newLocation, code: e.target.value })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 uppercase" 
-                  placeholder="e.g. WH001"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Location Name *</label>
-                <input 
-                  type="text"
-                  value={newLocation.name} 
-                  onChange={(e) => setNewLocation({ ...newLocation, name: e.target.value })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2" 
-                  placeholder="e.g. Central Warehouse"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">City *</label>
-                <input 
-                  type="text"
-                  value={newLocation.city} 
-                  onChange={(e) => setNewLocation({ ...newLocation, city: e.target.value })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2" 
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">State *</label>
-                <input 
-                  type="text"
-                  value={newLocation.state} 
-                  onChange={(e) => setNewLocation({ ...newLocation, state: e.target.value })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2" 
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Type *</label>
-                <select 
-                  value={newLocation.type} 
-                  onChange={(e) => setNewLocation({ ...newLocation, type: e.target.value as any })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                >
-                  <option value="Central Warehouse">Central Warehouse</option>
-                  <option value="Regional Hub">Regional Hub</option>
-                  <option value="Branch">Branch</option>
-                </select>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Status *</label>
-                <select 
-                  value={newLocation.status} 
-                  onChange={(e) => setNewLocation({ ...newLocation, status: e.target.value as any })} 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-200">
-              <ActionButton variant="secondary" onClick={() => setShowLocationModal(false)}>Cancel</ActionButton>
-              <ActionButton onClick={handleSaveLocation}>Save Location</ActionButton>
-            </div>
-          </div>
-        </div>
-      )} */}
-
-      {/* Inventory Details Drawer */}
+      {/* Warehouse Details Drawer (First Drawer) */}
       <Drawer
-        open={!!selectedRecord}
-        onClose={() => setSelectedRecord(null)}
-        title="Inventory Details"
+        open={!!selectedWarehouse}
+        onClose={() => setSelectedWarehouse(null)}
+        title="Warehouse Details"
       >
-        {selectedRecord && (
+        {selectedWarehouse && (
           <div className="space-y-6">
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Product Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Warehouse Information</h3>
               <div className="space-y-2">
-                <DrawerField label="Product Name" value={selectedRecord.productName} />
-                <DrawerField label="SKU" value={selectedRecord.sku} />
-                <DrawerField label="Category" value={selectedRecord.category} />
-                <DrawerField label="Pack Type" value={selectedRecord.packType} />
-                <DrawerField label="Unit of Measure" value={selectedRecord.uom} />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Location Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Location Code" value={selectedRecord.locationCode} />
-                <DrawerField label="Location Name" value={selectedRecord.location} />
-                <DrawerField label="City" value={selectedRecord.city} />
-                <DrawerField label="State" value={selectedRecord.state} />
-                <DrawerField label="Type" value={selectedRecord.type} />
-                <DrawerField label="Status" value={selectedRecord.locationStatus} />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Inventory Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Available Quantity" value={selectedRecord.availableQty} />
-                <DrawerField label="Reorder Level" value={selectedRecord.reorderLevel} />
+                <DrawerField label="Warehouse Code" value={selectedWarehouse.code} />
+                <DrawerField label="Warehouse Name" value={selectedWarehouse.name} />
+                <DrawerField label="Warehouse Type" value={selectedWarehouse.type} />
+                <DrawerField label="City" value={selectedWarehouse.city} />
+                <DrawerField label="State" value={selectedWarehouse.state} />
                 <DrawerField 
-                  label="Inventory Status" 
+                  label="Status" 
                   value={
-                    <Badge variant={selectedRecord.status === 'In Stock' ? 'success' : selectedRecord.status === 'Low Stock' ? 'warning' : 'danger'}>
-                      {selectedRecord.status}
+                    <Badge variant={selectedWarehouse.status === 'Active' ? 'success' : 'neutral'}>
+                      {selectedWarehouse.status}
                     </Badge>
                   } 
                 />
               </div>
             </div>
 
-            {/* <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Stock Movement Summary</h3>
-              <div className="space-y-2">
-                <DrawerField label="Total Inward" value={getStockMovementSummary(selectedRecord.sku, selectedRecord.locationCode).totalInward} />
-                <DrawerField label="Total Outward" value={getStockMovementSummary(selectedRecord.sku, selectedRecord.locationCode).totalOutward} />
-                <DrawerField label="Current Balance" value={selectedRecord.availableQty} />
-              </div>
-            </div>
-
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Batch Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Active Batches" value={getBatchInformation(selectedRecord.sku, selectedRecord.locationCode).activeBatches} />
-                <DrawerField label="Nearest Expiry Batch" value={getBatchInformation(selectedRecord.sku, selectedRecord.locationCode).nearestBatchNo} />
-                <DrawerField label="Expiry Date" value={getBatchInformation(selectedRecord.sku, selectedRecord.locationCode).nearestExpiryDate} />
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Warehouse Inventory</h3>
+              
+              <div className="mb-4">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={productSearch}
+                    onChange={(e) => setProductSearch(e.target.value)}
+                    placeholder="Search product code or name..."
+                    className="w-full pl-9 pr-4 py-2 text-sm bg-white border border-slate-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400"
+                  />
+                </div>
               </div>
-            </div> */}
 
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Audit Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Created By" value={selectedRecord.createdBy} />
-                <DrawerField label="Created Date" value={selectedRecord.createdDate} />
-                <DrawerField label="Last Updated By" value={selectedRecord.lastUpdatedBy} />
-                <DrawerField label="Last Updated Date" value={selectedRecord.lastUpdatedDate} />
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <DataTable
+                  columns={productColumns}
+                  data={filteredWarehouseProducts}
+                  emptyMessage="No products found in this warehouse."
+                />
               </div>
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-              <ActionButton variant="secondary" onClick={() => setSelectedRecord(null)}>Close</ActionButton>
+              <ActionButton variant="secondary" onClick={() => setSelectedWarehouse(null)}>Close</ActionButton>
+            </div>
+          </div>
+        )}
+      </Drawer>
+
+      {/* Product Details Drawer (Second Drawer) */}
+      <Drawer
+        open={!!selectedProduct}
+        onClose={() => setSelectedProduct(null)}
+        title="Product Inventory Details"
+      >
+        {selectedProduct && (
+          <div className="space-y-6">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Product Information</h3>
+              <div className="space-y-2">
+                <DrawerField label="Product Code" value={selectedProduct.productCode} />
+                <DrawerField label="Product Name" value={selectedProduct.productName} />
+                <DrawerField label="Category" value={selectedProduct.category} />
+                <DrawerField label="Packing Type" value={selectedProduct.packType} />
+                <DrawerField label="Unit of Measure" value={selectedProduct.uom} />
+              </div>
+            </div>
+
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Batch Inventory</h3>
+              <div className="overflow-x-auto border border-slate-200 rounded-lg">
+                <DataTable
+                  columns={batchColumns}
+                  data={productBatches}
+                  emptyMessage="No batch records found."
+                />
+              </div>
+            </div>
+
+            <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
+              <ActionButton variant="secondary" onClick={() => setSelectedProduct(null)}>Close</ActionButton>
             </div>
           </div>
         )}

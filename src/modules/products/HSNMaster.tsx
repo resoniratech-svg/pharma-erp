@@ -22,6 +22,22 @@ const initialMockData: HSNCode[] = [
   { id: '2', code: '30041000', description: 'Containing penicillins or derivatives thereof, with a penicillanic acid structure', status: 'Active', createdOn: '2023-02-15', lastUpdated: '2023-02-15' },
 ];
 
+const formatDate = (dateString: string | undefined) => {
+  if (!dateString) return "-";
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateString.split('-');
+    return `${day}-${month}-${year}`;
+  }
+  const date = new Date(dateString);
+  if (!isNaN(date.getTime())) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  return dateString;
+};
+
 export default function HSNMaster() {
   const [data, setData] = useState<HSNCode[]>([]);
   const [search, setSearch] = useState('');
@@ -57,8 +73,8 @@ export default function HSNMaster() {
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
-    { key: 'createdOn', label: 'Created On' },
-    { key: 'lastUpdated', label: 'Last Updated' },
+    { key: 'createdOn', label: 'Created On', render: (row) => formatDate(row.createdOn) },
+    { key: 'lastUpdated', label: 'Last Updated', render: (row) => formatDate(row.lastUpdated) },
     {
       key: 'id',
       label: 'Actions',
@@ -105,8 +121,8 @@ export default function HSNMaster() {
           `"${row.code}"`, 
           `"${row.description.replace(/"/g, '""')}"`, 
           row.status,
-          row.createdOn,
-          row.lastUpdated,
+          formatDate(row.createdOn),
+          formatDate(row.lastUpdated),
           `"${(row.remarks || '').replace(/"/g, '""')}"`
         ].join(',')
       )
@@ -340,8 +356,8 @@ export default function HSNMaster() {
                 </Badge>
               }
             />
-            <DrawerField label="Created On" value={selectedHSN.createdOn} />
-            <DrawerField label="Updated On" value={selectedHSN.lastUpdated} />
+            <DrawerField label="Created On" value={formatDate(selectedHSN.createdOn)} />
+            <DrawerField label="Updated On" value={formatDate(selectedHSN.lastUpdated)} />
             <DrawerField label="Remarks" value={selectedHSN.remarks || "N/A"} />
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3 mt-4">
@@ -362,8 +378,8 @@ export default function HSNMaster() {
       </Drawer>
 
       {itemToDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setItemToDelete(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6 text-rose-600" />
             </div>
@@ -392,8 +408,8 @@ export default function HSNMaster() {
       )}
 
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">
                 {isEditingModal ? "Edit HSN Code" : "Add HSN Code"}

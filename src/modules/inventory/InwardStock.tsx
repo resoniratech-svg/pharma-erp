@@ -55,11 +55,122 @@ interface Inward {
   createdDate: string;
   lastUpdatedBy: string;
   lastUpdatedDate: string;
+  remarks?: string;
 }
-
 
 const MOCK_SUPPLIERS = ['PharmaCorp Ltd.', 'HealthPlus Inc.', 'MediCare Supply'];
 
+const formatDate = (dateString: string | undefined) => {
+  if (!dateString) return "-";
+  if (dateString.match(/^\d{2}-\d{2}-\d{4}$/)) {
+    return dateString;
+  }
+  if (dateString.match(/^\d{4}-\d{2}-\d{2}$/)) {
+    const [year, month, day] = dateString.split('-');
+    return `${day}-${month}-${year}`;
+  }
+  const date = new Date(dateString);
+  if (!isNaN(date.getTime())) {
+    const day = String(date.getDate()).padStart(2, '0');
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const year = date.getFullYear();
+    return `${day}-${month}-${year}`;
+  }
+  return dateString;
+};
+
+function SearchableDropdown({
+  value,
+  onChange,
+  options,
+  placeholder,
+  allowAdd,
+  onAdd,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  options: { label: string; value: string }[];
+  placeholder?: string;
+  allowAdd?: boolean;
+  onAdd?: (newVal: string) => void;
+}) {
+  const [search, setSearch] = useState("");
+  const [isOpen, setIsOpen] = useState(false);
+
+  useEffect(() => {
+    const selected = options.find((o) => o.value === value);
+    if (selected) {
+      setSearch(selected.label);
+    } else {
+      setSearch(value || "");
+    }
+  }, [value, options]);
+
+  const filtered = options.filter((o) =>
+    o.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  return (
+    <div className="relative w-full text-sm">
+      <input
+        type="text"
+        value={search}
+        onChange={(e) => {
+          setSearch(e.target.value);
+          setIsOpen(true);
+        }}
+        onFocus={() => setIsOpen(true)}
+        placeholder={placeholder}
+        className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
+      />
+      <ChevronDown
+        className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+        onClick={(e) => {
+          e.stopPropagation();
+          setIsOpen(!isOpen);
+        }}
+      />
+      {isOpen && (
+        <>
+          <div className="fixed inset-0 z-10" onClick={(e) => {
+            e.stopPropagation();
+            setIsOpen(false);
+          }} />
+          <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+            {filtered.length > 0 ? (
+              filtered.map((opt) => (
+                <div
+                  key={opt.value}
+                  className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer text-slate-700"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onChange(opt.value);
+                    setIsOpen(false);
+                  }}
+                >
+                  {opt.label}
+                </div>
+              ))
+            ) : allowAdd && search.trim() ? (
+              <div
+                className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer flex items-center gap-2"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onAdd?.(search.trim());
+                  setIsOpen(false);
+                }}
+              >
+                + Add "{search.trim()}"
+              </div>
+            ) : (
+              <div className="px-3 py-2 text-sm text-slate-500">No results found</div>
+            )}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
 
 export default function InwardStock() {
   const [search, setSearch] = useState('');
@@ -80,6 +191,15 @@ export default function InwardStock() {
     .getAll()
     .filter((w) => w.status === "Active");
 
+  const [suppliers, setSuppliers] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem("erp_suppliers");
+      return saved ? JSON.parse(saved) : MOCK_SUPPLIERS;
+    } catch {
+      return MOCK_SUPPLIERS;
+    }
+  });
+
   // Create GRN Form State
   const [formData, setFormData] = useState({
     date: new Date().toISOString().split('T')[0],
@@ -88,6 +208,7 @@ export default function InwardStock() {
     invoiceNumber: '',
     invoiceDate: '',
     status: 'Completed' as Inward['status'],
+    remarks: '',
   });
 
   const [formProducts, setFormProducts] = useState<ProductLineItem[]>([]);
@@ -102,7 +223,11 @@ export default function InwardStock() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredData = inwardRecords.filter((item) => {
+  const sortedRecords = [...inwardRecords].sort((a, b) => {
+    return Number(b.id) - Number(a.id);
+  });
+
+  const filteredData = sortedRecords.filter((item) => {
     const matchSearch = item.grnNo.toLowerCase().includes(search.toLowerCase()) || item.supplier.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
@@ -116,7 +241,11 @@ export default function InwardStock() {
         <span className="font-semibold text-violet-700">{row.grnNo}</span>
       ),
     },
-    { key: "date", label: "Inward Date" },
+    { 
+      key: "date", 
+      label: "Inward Date",
+      render: (row) => formatDate(row.date)
+    },
     {
       key: "supplier",
       label: "Supplier / Vendor",
@@ -178,13 +307,13 @@ export default function InwardStock() {
     const yyyy = d.getFullYear();
     const mm = String(d.getMonth() + 1).padStart(2, '0');
     const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}${mm}${dd}`;
+    return `${dd}-${mm}-${yyyy}`;
   };
 
   const handleExportExcel = () => {
     const exportData = filteredData.map(row => ({
       'GRN Number': row.grnNo,
-      'Inward Date': row.date,
+      'Inward Date': formatDate(row.date),
       'Supplier / Vendor': row.supplier,
       'Location': `${row.warehouseCode} - ${row.warehouseName}`,
       'Total Items': row.itemsCount,
@@ -209,7 +338,7 @@ export default function InwardStock() {
       ...filteredData.map(row => 
         [
           row.grnNo, 
-          row.date, 
+          formatDate(row.date), 
           `"${row.supplier}"`, 
           `"${row.warehouseCode} - ${row.warehouseName}"`,
           row.itemsCount, 
@@ -242,6 +371,7 @@ export default function InwardStock() {
       invoiceNumber: '',
       invoiceDate: '',
       status: 'Completed',
+      remarks: '',
     });
     setFormProducts([]);
     setShowCreateModal(true);
@@ -256,6 +386,17 @@ export default function InwardStock() {
     } else {
       setShowCreateModal(false);
     }
+  };
+
+  const handleAddSupplier = (newSupplier: string) => {
+    const trimmed = newSupplier.trim();
+    if (!trimmed) return;
+    if (!suppliers.includes(trimmed)) {
+      const updated = [...suppliers, trimmed];
+      setSuppliers(updated);
+      localStorage.setItem("erp_suppliers", JSON.stringify(updated));
+    }
+    setFormData({ ...formData, supplier: trimmed });
   };
 
   useEffect(() => {
@@ -347,9 +488,24 @@ export default function InwardStock() {
   }, [formProducts]);
 
   const handleSaveGRN = () => {
-    // Validation
-    if (!formData.supplier || !formData.location || !formData.date) {
-      alert("Please fill all mandatory fields (Supplier, Location, Date).");
+    const supplier = formData.supplier.trim();
+    const location = formData.location.trim();
+    const date = formData.date;
+    const invoiceNumber = (formData.invoiceNumber || "").trim();
+    const remarks = (formData.remarks || "").trim();
+
+    if (!supplier || !location || !date || !invoiceNumber) {
+      alert("Please fill all mandatory fields (Supplier, Location, Date, Invoice Number).");
+      return;
+    }
+
+    if (new Date(date) > new Date()) {
+      alert("Inward Date cannot be a future date.");
+      return;
+    }
+
+    if (remarks.length > 250) {
+      alert("Remarks cannot exceed 250 characters.");
       return;
     }
 
@@ -359,31 +515,27 @@ export default function InwardStock() {
     }
 
     for (const p of formProducts) {
-      // Validate required text/date fields
       if (!p.product || !p.batchNo || !p.mfgDate || !p.expiryDate) {
         alert("Please fill all product fields completely.");
         return;
       }
 
-      // Quantity validation
-      if (Number(p.quantity) <= 0) {
-        alert("Quantity must be greater than zero.");
+      const qty = Number(p.quantity);
+      if (!Number.isInteger(qty) || qty <= 0) {
+        alert("Quantity must be a positive integer greater than zero.");
         return;
       }
 
-      // PTR validation
       if (Number(p.ptr) <= 0) {
         alert("Invalid PTR.");
         return;
       }
 
-      // MRP validation
       if (Number(p.mrp) <= 0) {
         alert("Invalid MRP.");
         return;
       }
 
-      // Date validation
       if (new Date(p.expiryDate) <= new Date(p.mfgDate)) {
         alert(
           `Expiry Date must be greater than Manufacturing Date for batch ${p.batchNo}.`,
@@ -392,30 +544,30 @@ export default function InwardStock() {
       }
     }
 
-    // Save Logic (Frontend Phase)
     const newGrnNo = `GRN-${new Date().getFullYear()}-${String(inwardRecords.length + 1).padStart(3, "0")}`;
 
     const newRecord: Inward = {
       id: Date.now().toString(),
       grnNo: newGrnNo,
       date: formData.date,
-      supplier: formData.supplier,
-      warehouseId: formData.location,
+      supplier: supplier,
+      warehouseId: location,
 
       warehouseCode:
-        warehouseService.getAll().find((w) => w.id === formData.location)
+        warehouseService.getAll().find((w) => w.id === location)
           ?.code ?? "",
 
       warehouseName:
-        warehouseService.getAll().find((w) => w.id === formData.location)
+        warehouseService.getAll().find((w) => w.id === location)
           ?.name ?? "",
-      invoiceNumber: formData.invoiceNumber,
+      invoiceNumber: invoiceNumber,
       invoiceDate: formData.invoiceDate,
       itemsCount: autoCalculatedMetrics.totalItems,
       totalQuantity: autoCalculatedMetrics.totalQuantity,
       totalValue: autoCalculatedMetrics.totalValue,
       status: formData.status,
       products: [...formProducts],
+      remarks: remarks,
       createdBy: currentUser?.fullName ?? "System",
 
       createdDate: new Date().toLocaleDateString("en-GB").replace(/\//g, "-"),
@@ -433,31 +585,18 @@ export default function InwardStock() {
 
     inwardStockService.saveAll(updatedRecords);
 
-    // const allBatches = batchService.getAll();
-    // formProducts.forEach((item) => {
-    //   const batch = allBatches.find((b) => b.batchNo === item.batchNo);
-
-    //   if (!batch) return;
-
-    //   batch.receivedQty = Number(batch.receivedQty) + Number(item.quantity);
-
-    //   batch.availableQty = Number(batch.availableQty) + Number(item.quantity);
-
-    //   batch.qty = Number(batch.qty) + Number(item.quantity);
-    // });
-
     const inventory = inventoryService.getAll();
 
     formProducts.forEach((item) => {
       const product = products.find((p) => p.name === item.product);
       const selectedWarehouse = warehouses.find(
-        (w) => w.id === formData.location,
+        (w) => w.id === location,
       );
 
       let stock = inventory.find(
         (record) =>
           record.batchNo === item.batchNo &&
-          record.warehouseId === formData.location
+          record.warehouseId === location
       );
 
       if (stock) {
@@ -540,6 +679,7 @@ export default function InwardStock() {
       invoiceNumber: "",
       invoiceDate: "",
       status: "Completed",
+      remarks: "",
     });
 
     setFormProducts([]);
@@ -636,8 +776,14 @@ export default function InwardStock() {
 
       {/* Create GRN Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={closeCreateModal}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+            onClick={(e) => e.stopPropagation()}
+          >
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">
                 Create Goods Receipt Note (GRN)
@@ -685,20 +831,16 @@ export default function InwardStock() {
                     <label className="block text-sm font-medium text-slate-700 mb-1">
                       Supplier / Vendor *
                     </label>
-                    <select
+                    <SearchableDropdown
                       value={formData.supplier}
-                      onChange={(e) =>
-                        setFormData({ ...formData, supplier: e.target.value })
+                      onChange={(val) =>
+                        setFormData({ ...formData, supplier: val })
                       }
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                    >
-                      <option value="">Select Supplier</option>
-                      {MOCK_SUPPLIERS.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
+                      options={suppliers.map((s) => ({ value: s, label: s }))}
+                      placeholder="Select Supplier"
+                      allowAdd={true}
+                      onAdd={handleAddSupplier}
+                    />
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
@@ -722,7 +864,7 @@ export default function InwardStock() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Invoice Number (Optional)
+                      Invoice / GRN Number *
                     </label>
                     <input
                       type="text"
@@ -774,9 +916,9 @@ export default function InwardStock() {
                   <table className="w-full text-sm text-left">
                     <thead className="text-xs text-slate-500 uppercase bg-slate-50">
                       <tr>
-                        <th className="px-3 py-2 whitespace-nowrap">Product</th>
+                        <th className="px-3 py-2 whitespace-nowrap">Product *</th>
                         <th className="px-3 py-2 whitespace-nowrap">
-                          Batch No
+                          Batch No *
                         </th>
                         <th className="px-3 py-2 whitespace-nowrap">
                           MFG Date
@@ -785,7 +927,7 @@ export default function InwardStock() {
                           Expiry Date
                         </th>
                         <th className="px-3 py-2 whitespace-nowrap w-24">
-                          Quantity
+                          Quantity *
                         </th>
                         <th className="px-3 py-2 whitespace-nowrap w-24">
                           PTR (₹)
@@ -800,62 +942,49 @@ export default function InwardStock() {
                       {formProducts.map((prod) => (
                         <tr key={prod.id} className="border-b border-slate-100">
                           <td className="px-2 py-2 min-w-[200px]">
-                            <select
+                            <SearchableDropdown
                               value={prod.product}
-                              onChange={(e) =>
+                              onChange={(val) =>
                                 handleProductChange(
                                   prod.id,
                                   "product",
-                                  e.target.value,
+                                  val,
                                 )
                               }
-                              className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
-                            >
-                              <option value="">Select Product</option>
-                              {products.map((product) => (
-                                <option key={product.id} value={product.name}>
-                                  {product.name}
-                                </option>
-                              ))}
-                            </select>
+                              options={products.map(p => ({ value: p.name, label: p.name }))}
+                              placeholder="Select Product"
+                            />
                           </td>
-                          <td className="px-2 py-2 min-w-[120px]">
-                            <select
+                          <td className="px-2 py-2 min-w-[150px]">
+                            <SearchableDropdown
                               value={prod.batchNo}
-                              onChange={(e) =>
+                              onChange={(val) =>
                                 handleProductChange(
                                   prod.id,
                                   "batchNo",
-                                  e.target.value,
+                                  val,
                                 )
                               }
-                              className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
-                            >
-                              <option value="">Select Batch</option>
-
-                              {batches
+                              options={batches
                                 .filter(
                                   (batch) => batch.productName === prod.product,
                                 )
-                                .map((batch) => (
-                                  <option key={batch.id} value={batch.batchNo}>
-                                    {batch.batchNo}
-                                  </option>
-                                ))}
-                            </select>
+                                .map((batch) => ({ value: batch.batchNo, label: batch.batchNo }))}
+                              placeholder="Select Batch"
+                            />
                           </td>
                           <td className="px-2 py-2 min-w-[140px]">
                             <input
-                              type="date"
-                              value={prod.mfgDate}
+                              type="text"
+                              value={formatDate(prod.mfgDate)}
                               readOnly
                               className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm cursor-not-allowed"
                             />
                           </td>
                           <td className="px-2 py-2 min-w-[140px]">
                             <input
-                              type="date"
-                              value={prod.expiryDate}
+                              type="text"
+                              value={formatDate(prod.expiryDate)}
                               readOnly
                               className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm cursor-not-allowed"
                             />
@@ -952,24 +1081,47 @@ export default function InwardStock() {
               {/* Status Section */}
               <section>
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
-                  Workflow Status
+                  Workflow Status & Remarks
                 </h3>
-                <div className="w-full md:w-1/2">
-                  <select
-                    value={formData.status}
-                    onChange={(e) =>
-                      setFormData({
-                        ...formData,
-                        status: e.target.value as any,
-                      })
-                    }
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                  >
-                    <option value="Draft">Draft</option>
-                    <option value="Pending QC">Pending QC</option>
-                    <option value="Completed">Completed</option>
-                    <option value="Rejected">Rejected</option>
-                  </select>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Status
+                    </label>
+                    <select
+                      value={formData.status}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          status: e.target.value as any,
+                        })
+                      }
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                    >
+                      <option value="Draft">Draft</option>
+                      <option value="Pending QC">Pending QC</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Rejected">Rejected</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Remarks (Optional)
+                    </label>
+                    <input
+                      maxLength={250}
+                      type="text"
+                      value={formData.remarks}
+                      onChange={(e) =>
+                        setFormData({
+                          ...formData,
+                          remarks: e.target.value,
+                        })
+                      }
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                      placeholder="Add any remarks here"
+                    />
+                  </div>
                 </div>
               </section>
             </div>
@@ -1007,7 +1159,7 @@ export default function InwardStock() {
                     </span>
                   }
                 />
-                <DrawerField label="Inward Date" value={selectedRecord.date} />
+                <DrawerField label="Inward Date" value={formatDate(selectedRecord.date)} />
                 <DrawerField
                   label="Supplier / Vendor"
                   value={selectedRecord.supplier}
@@ -1022,7 +1174,11 @@ export default function InwardStock() {
                 />
                 <DrawerField
                   label="Invoice Date"
-                  value={selectedRecord.invoiceDate || "N/A"}
+                  value={formatDate(selectedRecord.invoiceDate) || "N/A"}
+                />
+                <DrawerField
+                  label="Remarks"
+                  value={selectedRecord.remarks || "N/A"}
                 />
                 <DrawerField
                   label="Status"
@@ -1073,10 +1229,10 @@ export default function InwardStock() {
                           {prod.batchNo}
                         </td>
                         <td className="px-3 py-2 text-slate-600">
-                          {prod.mfgDate}
+                          {formatDate(prod.mfgDate)}
                         </td>
                         <td className="px-3 py-2 text-slate-600">
-                          {prod.expiryDate}
+                          {formatDate(prod.expiryDate)}
                         </td>
                         <td className="px-3 py-2 text-right font-medium">
                           {prod.quantity}
@@ -1134,16 +1290,16 @@ export default function InwardStock() {
                   value={selectedRecord.createdBy}
                 />
                 <DrawerField
-                  label="Created Date"
-                  value={selectedRecord.createdDate}
+                  label="Created On"
+                  value={formatDate(selectedRecord.createdDate)}
                 />
                 <DrawerField
-                  label="Last Updated By"
+                  label="Updated By"
                   value={selectedRecord.lastUpdatedBy}
                 />
                 <DrawerField
-                  label="Last Updated Date"
-                  value={selectedRecord.lastUpdatedDate}
+                  label="Updated On"
+                  value={formatDate(selectedRecord.lastUpdatedDate)}
                 />
               </div>
             </div>

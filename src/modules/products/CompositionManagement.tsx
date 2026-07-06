@@ -38,6 +38,16 @@ const initialMockData: Composition[] = [
   { id: '5', genericName: 'Vitamin C (Ascorbic Acid)', strength: '1000mg', dosageForm: 'Tablet', therapeuticClass: 'Vitamin Supplement', schedule: 'OTC', description: 'Vitamin supplement for immune system support.', associatedProducts: 15, status: 'Active', createdBy: 'System', createdDate: '2026-06-10' },
 ];
 
+const formatDate = (dateString?: string) => {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 export default function CompositionManagement() {
   const [data, setData] = useState<Composition[]>([]);
 
@@ -70,12 +80,6 @@ export default function CompositionManagement() {
     description: '',
     status: 'Active' as 'Active' | 'Inactive',
   });
-
-  
-
-  // const canCreate = permissions["Products & Master"]?.Create ?? true;
-  // const canEdit = permissions["Products & Master"]?.Edit ?? true;
-  // const canDelete = permissions["Products & Master"]?.Delete ?? true;
 
   // Temporary RBAC bypass for client demo
   const canCreate = true;
@@ -143,7 +147,7 @@ export default function CompositionManagement() {
   });
 
   const handleExport = () => {
-    const headers = ['Generic Name', 'Strength', 'Dosage Form', 'Therapeutic Class', 'Schedule', 'Linked Products', 'Status'];
+    const headers = ['Generic Name', 'Strength', 'Dosage Form', 'Therapeutic Class', 'Schedule', 'Description', 'Linked Products', 'Status', 'Created By', 'Created Date'];
     const csvContent = [
       headers.join(','),
       ...filteredData.map(row => 
@@ -152,9 +156,12 @@ export default function CompositionManagement() {
           `"${row.strength}"`, 
           `"${row.dosageForm}"`, 
           `"${row.therapeuticClass}"`, 
-          `"${row.schedule}"`, 
+          `"${row.schedule}"`,
+          `"${row.description || ''}"`,
           row.associatedProducts, 
-          row.status
+          row.status,
+          `"${row.createdBy}"`,
+          formatDate(row.createdDate)
         ].join(',')
       )
     ].join('\n');
@@ -195,15 +202,36 @@ export default function CompositionManagement() {
       dosageForm: selectedComp.dosageForm,
       therapeuticClass: selectedComp.therapeuticClass,
       schedule: selectedComp.schedule,
-      description: selectedComp.description,
+      description: selectedComp.description || '',
       status: selectedComp.status
     });
     setShowModal(true);
   };
 
   const handleSaveComposition = () => {
-    if (!newComp.genericName || !newComp.strength || !newComp.dosageForm || !newComp.therapeuticClass || !newComp.schedule || !newComp.status) {
+    const trimmedGenericName = newComp.genericName.trim();
+    const trimmedStrength = newComp.strength.trim();
+    const trimmedTherapeuticClass = newComp.therapeuticClass.trim();
+    const trimmedDescription = newComp.description.trim();
+
+    if (!trimmedGenericName || !trimmedStrength || !newComp.dosageForm || !trimmedTherapeuticClass || !newComp.schedule || !newComp.status) {
       alert("Please fill all mandatory fields (*).");
+      return;
+    }
+
+    // Duplicate Validation
+    const isDuplicate = data.some(
+      (c) =>
+        c.id !== newComp.id &&
+        c.status === "Active" &&
+        newComp.status === "Active" &&
+        c.genericName.trim().toLowerCase() === trimmedGenericName.toLowerCase() &&
+        c.strength.trim().toLowerCase() === trimmedStrength.toLowerCase() &&
+        c.dosageForm === newComp.dosageForm
+    );
+
+    if (isDuplicate) {
+      alert("An Active composition with this Generic Name, Strength, and Dosage Form already exists.");
       return;
     }
     
@@ -212,12 +240,12 @@ export default function CompositionManagement() {
     if (isEditingModal && newComp.id) {
       const updatedRecord: Composition = {
         id: newComp.id,
-        genericName: newComp.genericName,
-        strength: newComp.strength,
+        genericName: trimmedGenericName,
+        strength: trimmedStrength,
         dosageForm: newComp.dosageForm,
-        therapeuticClass: newComp.therapeuticClass,
+        therapeuticClass: trimmedTherapeuticClass,
         schedule: newComp.schedule,
-        description: newComp.description,
+        description: trimmedDescription,
         associatedProducts: selectedComp?.associatedProducts || 0,
         status: newComp.status as 'Active' | 'Inactive',
         createdBy: selectedComp?.createdBy || 'Admin User',
@@ -235,12 +263,12 @@ export default function CompositionManagement() {
     } else {
       const record: Composition = {
         id: Date.now().toString(),
-        genericName: newComp.genericName,
-        strength: newComp.strength,
+        genericName: trimmedGenericName,
+        strength: trimmedStrength,
         dosageForm: newComp.dosageForm,
-        therapeuticClass: newComp.therapeuticClass,
+        therapeuticClass: trimmedTherapeuticClass,
         schedule: newComp.schedule,
-        description: newComp.description,
+        description: trimmedDescription,
         associatedProducts: 0,
         status: newComp.status as 'Active' | 'Inactive',
         createdBy: 'Admin User',
@@ -260,6 +288,12 @@ export default function CompositionManagement() {
 
   const handleDelete = () => {
     if (itemToDelete) {
+      if (itemToDelete.associatedProducts > 0) {
+        alert("This composition is currently in use by one or more products and cannot be deleted. You may change its status to Inactive instead.");
+        setItemToDelete(null);
+        return;
+      }
+
       const updatedData = data.filter(item => item.id !== itemToDelete.id);
       setData(updatedData);
       compositionService.saveAll(updatedData);
@@ -370,7 +404,7 @@ export default function CompositionManagement() {
               }
             />
             <DrawerField label="Created By" value={selectedComp.createdBy} />
-            <DrawerField label="Created Date" value={selectedComp.createdDate} />
+            <DrawerField label="Created Date" value={formatDate(selectedComp.createdDate)} />
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3 mt-4">
               {canEdit && (
@@ -388,8 +422,8 @@ export default function CompositionManagement() {
 
       {/* Delete Confirmation Modal */}
       {itemToDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setItemToDelete(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6 text-rose-600" />
             </div>
@@ -417,8 +451,8 @@ export default function CompositionManagement() {
 
       {/* Add / Edit Composition Modal Form */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">
                 {isEditingModal ? "Edit Composition" : "Add Composition"}
@@ -436,7 +470,7 @@ export default function CompositionManagement() {
                 <label className="block text-sm font-medium mb-1">Generic Name *</label>
                 <input
                   type="text"
-                  maxLength={20}
+                  maxLength={100}
                   value={newComp.genericName}
                   onChange={(e) => setNewComp({ ...newComp, genericName: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
@@ -447,7 +481,7 @@ export default function CompositionManagement() {
                 <label className="block text-sm font-medium mb-1">Strength *</label>
                 <input
                   type="text"
-                  maxLength={20}
+                  maxLength={30}
                   value={newComp.strength}
                   onChange={(e) => setNewComp({ ...newComp, strength: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
@@ -479,7 +513,7 @@ export default function CompositionManagement() {
                 <label className="block text-sm font-medium mb-1">Therapeutic Class *</label>
                 <input
                   type="text"
-                  maxLength={20}
+                  maxLength={100}
                   value={newComp.therapeuticClass}
                   onChange={(e) => setNewComp({ ...newComp, therapeuticClass: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
@@ -507,6 +541,7 @@ export default function CompositionManagement() {
                 <label className="block text-sm font-medium mb-1">Description</label>
                 <textarea
                   rows={2}
+                  maxLength={250}
                   value={newComp.description}
                   onChange={(e) => setNewComp({ ...newComp, description: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2"
@@ -539,7 +574,7 @@ export default function CompositionManagement() {
               <div>
                 <label className="block text-sm font-medium mb-1">Created Date</label>
                 <input
-                  value={isEditingModal ? selectedComp?.createdDate || "N/A" : new Date().toISOString().split("T")[0]}
+                  value={formatDate(isEditingModal ? selectedComp?.createdDate : new Date().toISOString().split("T")[0])}
                   readOnly
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed"
                 />

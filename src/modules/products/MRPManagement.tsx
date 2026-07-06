@@ -20,86 +20,24 @@ import {
 } from './components/shared';
 
 import { type Column } from './types';
-import { mrpService } from '../../services/mrpService';
+import { mrpService, type MRPRecord } from '../../services/mrpService';
 import { productService } from '../../services/productService';
-import activityLogService  from '../../services/activityLogService';
+import activityLogService from '../../services/activityLogService';
 
-interface MRPItem {
-  id: string;
-  productCode: string;
-  productName: string;
-  category: string;
-  productType?: string;
-  mrp: number;
-  previousMrp?: number;
-  effectiveDate: string;
-  revisedBy: string;
-  revisionReason?: string;
-  remarks?: string;
-  status: 'Active' | 'Scheduled' | 'Expired' | 'Draft' | 'Cancelled';
-}
-
-const initialMockData: MRPItem[] = [
-  {
-    id: '1',
-    productCode: 'PRD-000002',
-    productName: 'Paracetamol 650mg',
-    category: 'Tablet',
-    productType: 'Tablet',
-    mrp: 120,
-    previousMrp: 110,
-    effectiveDate: '2026-06-01',
-    revisedBy: 'Admin User',
-    revisionReason: 'Cost Increase',
-    remarks: 'Routine inflation adjustment',
-    status: 'Active',
-  },
-  {
-    id: '2',
-    productCode: 'PRD-000001',
-    productName: 'Amoxicillin 500mg',
-    category: 'Capsule',
-    productType: 'Capsule',
-    mrp: 185,
-    previousMrp: 185,
-    effectiveDate: '2026-06-15',
-    revisedBy: 'Admin User',
-    revisionReason: 'Marketing Strategy',
-    remarks: 'No change in price',
-    status: 'Active',
-  },
-  {
-    id: '3',
-    productCode: 'PRD-000004',
-    productName: 'Vitamin C 1000mg',
-    category: 'Tablet',
-    productType: 'Tablet',
-    mrp: 240,
-    previousMrp: 210,
-    effectiveDate: '2026-07-01',
-    revisedBy: 'Pricing Team',
-    revisionReason: 'Distributor Request',
-    remarks: 'Approved by board',
-    status: 'Scheduled',
-  },
-  {
-    id: '4',
-    productCode: 'PRD-000003',
-    productName: 'Cough Syrup 100ml',
-    category: 'Syrup',
-    productType: 'Syrup',
-    mrp: 95,
-    previousMrp: 90,
-    effectiveDate: '2025-01-01',
-    revisedBy: 'Admin User',
-    revisionReason: 'Cost Reduction',
-    remarks: 'Old stock clearance',
-    status: 'Expired',
-  },
-];
+const formatDate = (dateStr: string) => {
+  if (!dateStr) return 'N/A';
+  if (dateStr.includes('T')) {
+    dateStr = dateStr.split('T')[0];
+  }
+  const parts = dateStr.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return dateStr;
+};
 
 export default function MRPManagement() {
-  const [data, setData] = useState<MRPItem[]>([]);
+  const [data, setData] = useState<MRPRecord[]>([]);
   const currentUser = JSON.parse(localStorage.getItem("authUser") || "{}");
   const [products, setProducts] = useState<any[]>([]);
 
@@ -107,66 +45,26 @@ export default function MRPManagement() {
     const savedProducts = productService.getProducts();
     setProducts(savedProducts);
 
-    const savedData = mrpService.getAll();
-    let loadedData = savedData.length ? savedData : initialMockData;
+    let records = mrpService.getAll();
+    records = mrpService.activateScheduledMRPs(records);
+    mrpService.saveAll(records);
     
-    // Auto-update Scheduled to Active when effective date is reached
-    const todayStr = new Date().toISOString().split('T')[0];
-    let changed = false;
-    
-    let updatedData = loadedData.map((item: MRPItem) => {
-      if (item.status === 'Scheduled' && item.effectiveDate <= todayStr) {
-        changed = true;
-        return { ...item, status: 'Active' as const };
-      }
-      return item;
-    });
-
-    // Enforce single active MRP rule if we flipped status
-    if (changed) {
-      const productsWithActive = Array.from(new Set(updatedData.filter((i:any) => i.status === 'Active').map((i:any) => i.productCode)));
-      productsWithActive.forEach(code => {
-        const activeItems = updatedData.filter((i:any) => i.productCode === code && i.status === 'Active');
-        if (activeItems.length > 1) {
-          activeItems.sort((a:any, b:any) => b.effectiveDate.localeCompare(a.effectiveDate));
-          const latestActiveId = activeItems[0].id;
-          updatedData = updatedData.map((item:any) => {
-            if (item.productCode === code && item.status === 'Active' && item.id !== latestActiveId) {
-              return { ...item, status: 'Expired' as const };
-            }
-            return item;
-          });
-        }
-      });
-    }
-
-    if (!savedData.length || changed) {
-      mrpService.saveAll(updatedData);
-    }
-    setData(updatedData);
+    setData(records);
   }, []);
 
-  useEffect(() => {
-    if (data.length > 0) {
-      mrpService.saveAll(data);
-    }
-  }, [data]);
+  const activeProducts = products.filter(p => p.status === 'Active');
 
-  // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
-  // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-  // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
-
-  // Temporary RBAC bypass for client demo
-const canCreate = true;
-const canEdit = true;
-const canDelete = true;
+  const canCreate = true;
+  const canEdit = true;
+  const canDelete = true;
+  
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
   const [showModal, setShowModal] = useState(false);
   const [isEditingModal, setIsEditingModal] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<MRPItem | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<MRPItem | null>(null);
+  const [selectedItem, setSelectedItem] = useState<MRPRecord | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<MRPRecord | null>(null);
 
   const [newMrp, setNewMrp] = useState({
     id: '',
@@ -174,115 +72,39 @@ const canDelete = true;
     productCode: '',
     category: '',
     productType: '',
+    manufacturer: '',
     currentMrp: '',
     newMrp: '',
     effectiveDate: '',
     revisionReason: '',
     remarks: '',
-    revisedBy: 'Admin User',
-    status: 'Draft' as 'Draft' | 'Scheduled' | 'Active' | 'Cancelled' | 'Expired'
   });
 
-  const checkMrpInUse = (mrpItem: MRPItem) => {
+  const checkMrpInUse = (mrpItem: MRPRecord) => {
     const invoices = JSON.parse(localStorage.getItem("billing_gst_invoices") || "[]");
     return invoices.some((inv: any) =>
-      inv.items.some((item: any) => item.productCode === mrpItem.productCode && Number(item.mrp) === mrpItem.mrp)
+      inv.items.some((item: any) => item.productCode === mrpItem.productCode && Number(item.mrp || item.currentMrp) === mrpItem.currentMrp)
     );
   };
 
-  const resolveStatus = (effDateStr: string, currentStatus: MRPItem['status']): MRPItem['status'] => {
-    if (['Cancelled', 'Expired', 'Draft'].includes(currentStatus)) {
-      return currentStatus;
-    }
-    const todayStr = new Date().toISOString().split('T')[0];
-    if (effDateStr > todayStr) {
-      return 'Scheduled';
-    } else {
-      return 'Active';
-    }
-  };
-
-  const calculatePriceChangePercentage = (oldPrice: number | undefined, newPrice: number) => {
-    if (oldPrice === undefined || oldPrice === 0) return null;
-    const diff = newPrice - oldPrice;
-    const pct = (diff / oldPrice) * 100;
-    const sign = pct >= 0 ? '+' : '';
-    return `${sign}${pct.toFixed(1)}%`;
-  };
-
-  const columns: Column<MRPItem>[] = [
-    {
-      key: 'productCode',
-      label: 'PRODUCT CODE',
-    },
-    {
-      key: 'productName',
-      label: 'PRODUCT NAME',
-      render: (row) => (
-        <span className="font-semibold text-slate-900">
-          {row.productName}
-        </span>
-      ),
-    },
-    {
-      key: 'category',
-      label: 'CATEGORY',
-    },
-    {
-      key: 'mrp',
-      label: 'MRP',
-      render: (row) => `₹${row.mrp}`,
-    },
-    {
-      key: 'effectiveDate',
-      label: 'EFFECTIVE DATE',
-    },
-    {
-      key: 'revisedBy',
-      label: 'REVISED BY',
-    },
-    {
-      key: 'status',
-      label: 'STATUS',
-      render: (row) => (
-        <Badge
-          variant={
-            row.status === 'Active'
-              ? 'success'
-              : row.status === 'Scheduled'
-              ? 'warning'
-              : row.status === 'Draft' || row.status === 'Cancelled'
-              ? 'neutral'
-              : 'danger'
-          }
-        >
+  const columns: Column<MRPRecord>[] = [
+    { key: 'productCode', label: 'Product Code' },
+    { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.productName}</span> },
+    { key: 'previousMrp', label: 'Previous MRP', render: (row) => row.previousMrp ? `₹${row.previousMrp.toFixed(2)}` : 'N/A' },
+    { key: 'currentMrp', label: 'Current MRP', render: (row) => `₹${row.currentMrp.toFixed(2)}` },
+    { key: 'effectiveFrom', label: 'Effective From', render: (row) => formatDate(row.effectiveFrom) },
+    { key: 'status', label: 'Status', render: (row) => (
+        <Badge variant={row.status === 'Active' ? 'success' : row.status === 'Scheduled' ? 'warning' : row.status === 'Draft' || row.status === 'Cancelled' ? 'neutral' : 'danger'}>
           {row.status}
         </Badge>
-      ),
+      )
     },
-    {
-      key: 'id',
-      label: 'ACTIONS',
-      render: (row) => (
+    { key: 'updatedAt', label: 'Last Updated', render: (row) => formatDate(row.updatedAt) },
+    { key: 'id', label: 'Actions', render: (row) => (
         <div className="flex gap-3">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setSelectedItem(row);
-            }}
-            className="text-violet-600 font-medium hover:text-violet-800"
-          >
-            View
-          </button>
+          <button onClick={(e) => { e.stopPropagation(); setSelectedItem(row); }} className="text-violet-600 font-medium hover:text-violet-800">View</button>
           {canDelete && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setItemToDelete(row);
-            }}
-            className="text-rose-600 font-medium hover:text-rose-800"
-            title="Delete"
-          >
+          <button onClick={(e) => { e.stopPropagation(); setItemToDelete(row); }} className="text-rose-600 font-medium hover:text-rose-800" title="Delete">
             <Trash2 className="w-4 h-4" />
           </button>
           )}
@@ -292,23 +114,17 @@ const canDelete = true;
   ];
 
   const filteredData = data.filter((item) => {
-    const matchesSearch =
-      item.productName.toLowerCase().includes(search.toLowerCase()) ||
-      item.productCode.toLowerCase().includes(search.toLowerCase());
-
-    const matchesStatus = statusFilter
-      ? item.status === statusFilter
-      : true;
-
+    const matchesSearch = item.productName.toLowerCase().includes(search.toLowerCase()) || item.productCode.toLowerCase().includes(search.toLowerCase());
+    const matchesStatus = statusFilter ? item.status === statusFilter : true;
     return matchesSearch && matchesStatus;
   });
 
   const handleExport = () => {
-    const headers = ['Product Code', 'Product Name', 'Category', 'MRP', 'Effective Date', 'Revised By', 'Status'];
+    const headers = ['Product Code', 'Product Name', 'Previous MRP', 'Current MRP', 'Effective From', 'Status', 'Last Updated'];
     const csvContent = [
       headers.join(','),
       ...filteredData.map(row => 
-        [row.productCode, `"${row.productName}"`, row.category, row.mrp, row.effectiveDate, row.revisedBy, row.status].join(',')
+        [row.productCode, `"${row.productName}"`, row.previousMrp || '', row.currentMrp, formatDate(row.effectiveFrom), row.status, formatDate(row.updatedAt)].join(',')
       )
     ].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -328,26 +144,23 @@ const canDelete = true;
     });
   };
 
-  const handleProductSelect = (productName: string) => {
-    const product = products.find((p) => p.name === productName);
+  const handleProductSelect = (productCode: string) => {
+    const product = activeProducts.find((p) => p.code === productCode);
     if (product) {
+      const currentRecord = mrpService.getCurrentMRP(productCode);
+      const activeMrp = currentRecord ? currentRecord.currentMrp : product.mrp;
+      
       setNewMrp({
         ...newMrp,
         productName: product.name,
         productCode: product.code,
-        category: product.category,
-        productType: product.productType || '',
-        currentMrp: String(product.mrp || '')
+        category: product.category || '',
+        productType: product.productType || product.type || '',
+        manufacturer: product.manufacturer || '',
+        currentMrp: activeMrp ? String(activeMrp) : '',
       });
     } else {
-      setNewMrp({
-        ...newMrp,
-        productName: productName,
-        productCode: '',
-        category: '',
-        productType: '',
-        currentMrp: ''
-      });
+      setNewMrp({ ...newMrp, productName: '', productCode: '', category: '', productType: '', manufacturer: '', currentMrp: '' });
     }
   };
 
@@ -359,13 +172,12 @@ const canDelete = true;
       productCode: '',
       category: '',
       productType: '',
+      manufacturer: '',
       currentMrp: '',
       newMrp: '',
       effectiveDate: new Date().toISOString().split('T')[0],
       revisionReason: '',
       remarks: '',
-      revisedBy: currentUser?.fullName || 'Admin User',
-      status: 'Draft'
     });
     setShowModal(true);
   };
@@ -373,35 +185,33 @@ const canDelete = true;
   const openEditModal = () => {
     if (!selectedItem) return;
     if (selectedItem.status === 'Cancelled' || selectedItem.status === 'Expired') {
-      alert("Error: Cannot edit Cancelled or Expired MRP records.");
+      alert("Error: Cannot revise Cancelled or Expired MRP records.");
       return;
     }
     setIsEditingModal(true);
-    const product = products.find((p) => p.name === selectedItem.productName);
     setNewMrp({
       id: selectedItem.id,
       productName: selectedItem.productName,
       productCode: selectedItem.productCode,
       category: selectedItem.category,
-      productType: selectedItem.productType || product?.productType || '',
-      currentMrp: product?.mrp ? String(product.mrp) : '',
-      newMrp: selectedItem.mrp.toString(),
-      effectiveDate: selectedItem.effectiveDate,
+      productType: selectedItem.productType || '',
+      manufacturer: selectedItem.manufacturer || '',
+      currentMrp: selectedItem.previousMrp ? String(selectedItem.previousMrp) : '',
+      newMrp: selectedItem.currentMrp.toString(),
+      effectiveDate: selectedItem.effectiveFrom,
       revisionReason: selectedItem.revisionReason || '',
       remarks: selectedItem.remarks || '',
-      revisedBy: selectedItem.revisedBy,
-      status: selectedItem.status
     });
     setShowModal(true);
   };
 
   const handleSaveMrp = () => {
-    if (!newMrp.productName || !newMrp.newMrp || !newMrp.effectiveDate || !newMrp.revisionReason || !newMrp.status) {
+    if (!newMrp.productCode || !newMrp.newMrp || !newMrp.effectiveDate || !newMrp.revisionReason) {
       alert("Please fill all mandatory fields (*).");
       return;
     }
 
-    const newMrpVal = Number(newMrp.newMrp);
+    const newMrpVal = Number(parseFloat(newMrp.newMrp).toFixed(2));
     if (isNaN(newMrpVal) || newMrpVal <= 0) {
       alert("Error: MRP must be a positive numeric value greater than 0.");
       return;
@@ -411,75 +221,62 @@ const canDelete = true;
       return;
     }
 
-    // Pricing Chain validation
-    const product = products.find(p => p.code === newMrp.productCode);
-    if (product) {
-      const ptr = parseFloat(product.ptr) || 0;
-      const pts = parseFloat(product.pts) || 0;
-      const purchasePrice = parseFloat(product.purchasePrice) || 0;
-      if (newMrpVal < ptr || newMrpVal < pts || newMrpVal < purchasePrice) {
-        alert(`Error: MRP cannot be lower than the product's selling chain rates (PTR: ₹${ptr}, PTS: ₹${pts}, Purchase Price: ₹${purchasePrice}).`);
-        return;
-      }
-    }
-
-    // Effective Date cannot be prior to latest existing effective date
-    const sameProductMrps = data.filter(item => item.productCode === newMrp.productCode && item.id !== newMrp.id);
-    if (sameProductMrps.length > 0) {
-      const latestEffectiveDate = sameProductMrps.reduce((latest, item) => 
-        item.effectiveDate > latest ? item.effectiveDate : latest, sameProductMrps[0].effectiveDate);
-      
-      if (newMrp.effectiveDate < latestEffectiveDate) {
-        alert(`Error: The effective date (${newMrp.effectiveDate}) cannot be earlier than the latest existing effective date (${latestEffectiveDate}) for this product.`);
-        return;
-      }
-    }
-
-    // Duplicate combinations check
-    const isDuplicate = data.some(
-      (item) => item.productCode === newMrp.productCode && item.effectiveDate === newMrp.effectiveDate && item.id !== newMrp.id
-    );
-    if (isDuplicate) {
-      alert(`Error: An MRP record for product "${newMrp.productName}" on effective date "${newMrp.effectiveDate}" already exists.`);
+    if (newMrp.currentMrp && newMrpVal === Number(newMrp.currentMrp)) {
+      alert("Error: New MRP cannot equal Current MRP.");
       return;
     }
 
-    const resolvedStatus = resolveStatus(newMrp.effectiveDate, newMrp.status as any);
-    
-    // Deactivate older active revisions
-    let resolvedList = data;
-    if (resolvedStatus === 'Active') {
-      resolvedList = data.map(item => 
-        (item.productCode === newMrp.productCode && item.status === 'Active' && item.id !== newMrp.id)
-          ? { ...item, status: 'Expired' as const }
-          : item
-      );
+    const isDuplicate = mrpService.validateDuplicateVersion(
+      newMrp.productCode,
+      newMrp.effectiveDate,
+      isEditingModal ? newMrp.id : undefined
+    );
+
+    if (isDuplicate) {
+      alert("An MRP version already exists for this product with the selected Effective Date.");
+      return;
     }
-    
+
+    let allRecords = mrpService.getAll();
+
     if (isEditingModal && newMrp.id) {
-      const updatedRecord: MRPItem = {
+      const todayStr = new Date().toISOString().split('T')[0];
+      const resolvedStatus = newMrp.effectiveDate > todayStr ? 'Scheduled' : 'Active';
+
+      const updatedRecord: MRPRecord = {
         id: newMrp.id,
-        productCode: newMrp.productCode || 'N/A',
+        productCode: newMrp.productCode,
         productName: newMrp.productName,
-        category: newMrp.category || 'N/A',
+        category: newMrp.category,
         productType: newMrp.productType,
-        mrp: newMrpVal,
-        previousMrp: Number(newMrp.currentMrp) || undefined,
-        effectiveDate: newMrp.effectiveDate,
+        manufacturer: newMrp.manufacturer,
+        previousMrp: newMrp.currentMrp ? Number(newMrp.currentMrp) : undefined,
+        currentMrp: newMrpVal,
+        effectiveFrom: newMrp.effectiveDate,
         revisionReason: newMrp.revisionReason,
         remarks: newMrp.remarks,
-        revisedBy: newMrp.revisedBy,
-        status: resolvedStatus
+        status: resolvedStatus,
+        createdAt: selectedItem?.createdAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+        createdBy: selectedItem?.createdBy || currentUser?.fullName || 'System',
+        updatedBy: currentUser?.fullName || 'System'
       };
-      
-      setData(resolvedList.map(item => item.id === updatedRecord.id ? updatedRecord : item));
 
-      // Sync active MRP back to product master immediately
       if (resolvedStatus === 'Active') {
+        allRecords = mrpService.expirePreviousActiveMRP(allRecords, updatedRecord.productCode, updatedRecord.id);
         const updatedProducts = products.map((p) =>
-          p.code === updatedRecord.productCode ? { ...p, mrp: newMrpVal.toFixed(2) } : p
+          p.code === updatedRecord.productCode ? { ...p, mrp: updatedRecord.currentMrp } : p
         );
         productService.saveProducts(updatedProducts);
+        setProducts(updatedProducts);
+      }
+
+      allRecords = allRecords.map(item => item.id === updatedRecord.id ? updatedRecord : item);
+      mrpService.saveAll(allRecords);
+      setData(allRecords);
+
+      if (selectedItem && selectedItem.id === updatedRecord.id) {
+        setSelectedItem(updatedRecord);
       }
 
       activityLogService.addLog({
@@ -488,38 +285,43 @@ const canDelete = true;
         action: `MRP Updated - Product: ${newMrp.productName}, New Price: ₹${newMrpVal} (${resolvedStatus})`,
         module: "MRP Management",
       });
-      if (selectedItem && selectedItem.id === updatedRecord.id) {
-        setSelectedItem(updatedRecord);
-      }
     } else {
-      const record: MRPItem = {
-        id: Date.now().toString(),
-        productCode: newMrp.productCode || 'N/A',
+      const payload = {
+        productCode: newMrp.productCode,
         productName: newMrp.productName,
-        category: newMrp.category || 'N/A',
+        category: newMrp.category,
         productType: newMrp.productType,
-        mrp: newMrpVal,
-        previousMrp: Number(newMrp.currentMrp) || undefined,
-        effectiveDate: newMrp.effectiveDate,
+        manufacturer: newMrp.manufacturer,
+        previousMrp: newMrp.currentMrp ? Number(newMrp.currentMrp) : undefined,
+        currentMrp: newMrpVal,
+        effectiveFrom: newMrp.effectiveDate,
         revisionReason: newMrp.revisionReason,
         remarks: newMrp.remarks,
-        revisedBy: newMrp.revisedBy,
-        status: resolvedStatus
+        createdBy: currentUser?.fullName || 'System',
+        updatedBy: currentUser?.fullName || 'System'
       };
-      setData([record, ...resolvedList]);
 
-      // Sync active MRP back to product master immediately
-      if (resolvedStatus === 'Active') {
+      const newRecord = mrpService.createMRPVersion(payload);
+      
+      allRecords = [...allRecords, newRecord];
+      
+      if (newRecord.status === 'Active') {
+        allRecords = mrpService.expirePreviousActiveMRP(allRecords, newRecord.productCode, newRecord.id);
+        
         const updatedProducts = products.map((p) =>
-          p.code === record.productCode ? { ...p, mrp: newMrpVal.toFixed(2) } : p
+          p.code === newRecord.productCode ? { ...p, mrp: newRecord.currentMrp } : p
         );
         productService.saveProducts(updatedProducts);
+        setProducts(updatedProducts);
       }
+      
+      mrpService.saveAll(allRecords);
+      setData(allRecords);
 
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,
-        action: `MRP Created - Product: ${newMrp.productName}, Price: ₹${newMrpVal} (${resolvedStatus})`,
+        action: `MRP Created - Product: ${newMrp.productName}, Price: ₹${newMrpVal} (${newRecord.status})`,
         module: "MRP Management",
       });
     }
@@ -532,9 +334,10 @@ const canDelete = true;
       const inUse = checkMrpInUse(itemToDelete);
       if (inUse) {
         const updated = data.map(item =>
-          item.id === itemToDelete.id ? { ...item, status: 'Cancelled' as const } : item
+          item.id === itemToDelete.id ? { ...item, status: 'Cancelled' as const, updatedAt: new Date().toISOString() } : item
         );
         setData(updated);
+        mrpService.saveAll(updated);
         activityLogService.addLog({
           userId: currentUser?.id,
           userName: currentUser?.fullName,
@@ -543,28 +346,19 @@ const canDelete = true;
         });
         alert("Warning: This MRP is used in invoices. To preserve financial history, it was marked as Cancelled instead of deleted.");
       } else {
-        setData(data.filter(item => item.id !== itemToDelete.id));
+        const updated = data.filter(item => item.id !== itemToDelete.id);
+        setData(updated);
+        mrpService.saveAll(updated);
         activityLogService.addLog({
           userId: currentUser?.id,
           userName: currentUser?.fullName,
-          action: `MRP Deleted - Product: ${itemToDelete.productName}, Price: ₹${itemToDelete.mrp}`,
+          action: `MRP Deleted - Product: ${itemToDelete.productName}, Price: ₹${itemToDelete.currentMrp}`,
           module: "MRP Management",
         });
       }
       setItemToDelete(null);
     }
   };
-
-  // if (!canView) {
-  //   return (
-  //     <div className="p-10 text-center">
-  //       <h2 className="text-xl font-semibold">Access Denied</h2>
-  //       <p className="text-slate-500 mt-2">
-  //         You do not have permission to view Product Management.
-  //       </p>
-  //     </div>
-  //   );
-  // }
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -573,18 +367,11 @@ const canDelete = true;
         subtitle="Manage Maximum Retail Price (MRP), revisions, and product-wise pricing controls."
         actions={
           <>
-            <ActionButton
-              variant="secondary"
-              icon={<Download className="w-4 h-4" />}
-              onClick={handleExport}
-            >
+            <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />} onClick={handleExport}>
               Export
             </ActionButton>
              {canCreate && (
-            <ActionButton
-              icon={<Plus className="w-4 h-4" />}
-              onClick={openNewModal}
-            >
+            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openNewModal}>
               New MRP
             </ActionButton>
              )}
@@ -593,21 +380,12 @@ const canDelete = true;
       />
 
       <FilterBar>
-        <SearchInput
-          value={search}
-          onChange={setSearch}
-          placeholder="Search product..."
-        />
-
+        <SearchInput value={search} onChange={setSearch} placeholder="Search product..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
-
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
-          <span className="text-sm font-medium text-slate-600">
-            Filters:
-          </span>
+          <span className="text-sm font-medium text-slate-600">Filters:</span>
         </div>
-
         <SelectFilter
           value={statusFilter}
           onChange={setStatusFilter}
@@ -631,7 +409,6 @@ const canDelete = true;
         />
       </TableCard>
 
-      {/* MRP Details Drawer */}
       <Drawer open={!!selectedItem} onClose={() => setSelectedItem(null)} title="MRP Details">
         {selectedItem && (
           <div className="space-y-6">
@@ -641,27 +418,17 @@ const canDelete = true;
                 <DrawerField label="Product Code" value={selectedItem.productCode || 'N/A'} />
                 <DrawerField label="Product Name" value={selectedItem.productName || 'N/A'} />
                 <DrawerField label="Category" value={selectedItem.category || 'N/A'} />
+                <DrawerField label="Product Type" value={selectedItem.productType || 'N/A'} />
+                <DrawerField label="Manufacturer" value={selectedItem.manufacturer || 'N/A'} />
               </div>
             </div>
 
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Pricing Information</h3>
               <div className="space-y-2">
-                <DrawerField label="Previous MRP" value={selectedItem.previousMrp ? `₹${selectedItem.previousMrp}` : 'N/A'} />
-                <DrawerField 
-                  label="Current MRP" 
-                  value={
-                    <span className="flex items-center gap-2">
-                      ₹{selectedItem.mrp}
-                      {selectedItem.previousMrp !== undefined && (
-                        <span className={`text-xs font-semibold px-1.5 py-0.5 rounded ${selectedItem.mrp >= selectedItem.previousMrp ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'}`}>
-                          {calculatePriceChangePercentage(selectedItem.previousMrp, selectedItem.mrp)}
-                        </span>
-                      )}
-                    </span>
-                  } 
-                />
-                <DrawerField label="Effective Date" value={selectedItem.effectiveDate || 'N/A'} />
+                <DrawerField label="Previous MRP" value={selectedItem.previousMrp ? `₹${selectedItem.previousMrp.toFixed(2)}` : 'N/A'} />
+                <DrawerField label="Current MRP" value={`₹${selectedItem.currentMrp.toFixed(2)}`} />
+                <DrawerField label="Effective From" value={formatDate(selectedItem.effectiveFrom)} />
               </div>
             </div>
 
@@ -670,12 +437,11 @@ const canDelete = true;
               <div className="space-y-2">
                 <DrawerField label="Revision Reason" value={selectedItem.revisionReason || 'N/A'} />
                 <DrawerField label="Remarks" value={selectedItem.remarks || 'N/A'} />
-                <DrawerField label="Revised By" value={selectedItem.revisedBy || 'N/A'} />
               </div>
             </div>
 
             <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Status Information</h3>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">System Information</h3>
               <div className="space-y-2">
                 <DrawerField 
                   label="Status" 
@@ -685,12 +451,14 @@ const canDelete = true;
                     </Badge>
                   } 
                 />
+                <DrawerField label="Created On" value={formatDate(selectedItem.createdAt)} />
+                <DrawerField label="Updated On" value={formatDate(selectedItem.updatedAt)} />
               </div>
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
               {canEdit && selectedItem.status !== 'Cancelled' && selectedItem.status !== 'Expired' && (
-              <ActionButton onClick={openEditModal}>Edit MRP</ActionButton>
+              <ActionButton onClick={openEditModal}>Revise MRP</ActionButton>
               )}
               <ActionButton variant="secondary" onClick={() => setSelectedItem(null)}>Close</ActionButton>
             </div>
@@ -698,10 +466,9 @@ const canDelete = true;
         )}
       </Drawer>
 
-      {/* Delete Confirmation Modal */}
       {itemToDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setItemToDelete(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6 text-rose-600" />
             </div>
@@ -711,10 +478,7 @@ const canDelete = true;
             </p>
             <div className="flex gap-3">
               <button onClick={() => setItemToDelete(null)} className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors">Cancel</button>
-              <button
-                onClick={handleDelete}
-                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 transition-colors"
-              >
+              <button onClick={handleDelete} className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 transition-colors">
                 Confirm Delete
               </button>
             </div>
@@ -722,119 +486,86 @@ const canDelete = true;
         </div>
       )}
 
-      {/* New/Edit MRP Modal */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">{isEditingModal ? 'Edit MRP' : 'New MRP'}</h2>
+              <h2 className="text-xl font-bold text-slate-900">{isEditingModal ? 'Revise MRP' : 'New MRP'}</h2>
               <button onClick={() => setShowModal(false)} className="text-slate-500 hover:text-slate-800">✕</button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* PRODUCT INFORMATION */}
               <div className="md:col-span-2 mt-2 first:mt-0">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">PRODUCT INFORMATION</h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Product Information</h3>
               </div>
-              <div className="md:col-span-2">
+              
+              <div>
                 <label className="block text-sm font-medium mb-1">Product *</label>
                 <select 
-                  value={newMrp.productName} 
+                  value={newMrp.productCode} 
                   onChange={(e) => !isEditingModal && handleProductSelect(e.target.value)} 
                   disabled={isEditingModal}
-                  className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${isEditingModal ? 'bg-slate-50 opacity-70 cursor-not-allowed' : ''}`}
+                  className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${isEditingModal ? 'bg-slate-50 opacity-70 cursor-not-allowed' : 'bg-white focus:outline-none focus:border-violet-400'}`}
                 >
                   <option value="">Select Product</option>
-                  {products.map(p => <option key={p.code} value={p.name}>{p.name}</option>)}
+                  {activeProducts.map(p => <option key={p.code} value={p.code}>{p.name} ({p.code})</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Product Code</label>
-                <input value={newMrp.productCode} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
+                <label className="block text-sm font-medium mb-1">Category (Read Only)</label>
+                <input value={newMrp.category} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Category</label>
-                <input value={newMrp.category} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
+                <label className="block text-sm font-medium mb-1">Product Type (Read Only)</label>
+                <input value={newMrp.productType} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed" />
               </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Product Type</label>
-                <input value={newMrp.productType} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
-              </div>
-
-              {/* CURRENT PRICING INFORMATION */}
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">CURRENT PRICING INFORMATION</h3>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Current MRP</label>
-                <input value={newMrp.currentMrp ? `₹${newMrp.currentMrp}` : ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
+              <div>
+                <label className="block text-sm font-medium mb-1">Manufacturer (Read Only)</label>
+                <input value={newMrp.manufacturer} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed" />
               </div>
 
-              {/* NEW PRICING INFORMATION */}
               <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">NEW PRICING INFORMATION</h3>
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">MRP Information</h3>
+              </div>
+              
+              <div>
+                <label className="block text-sm font-medium mb-1">Current MRP (Read Only)</label>
+                <input value={newMrp.currentMrp ? `₹${Number(newMrp.currentMrp).toFixed(2)}` : ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">New MRP *</label>
                 <div className="relative">
                   <span className="absolute left-3 top-2 text-slate-500">₹</span>
-                  <input type="number" value={newMrp.newMrp} onChange={(e) => setNewMrp({ ...newMrp, newMrp: e.target.value })} className="w-full border border-slate-200 rounded-lg pl-7 pr-3 py-2" />
+                  <input type="number" step="0.01" value={newMrp.newMrp} onChange={(e) => setNewMrp({ ...newMrp, newMrp: e.target.value })} className="w-full border border-slate-200 rounded-lg pl-7 pr-3 py-2 bg-white focus:outline-none focus:border-violet-400" />
                 </div>
-                {newMrp.currentMrp && newMrp.newMrp && (
-                  <p className="text-xs mt-1 font-medium text-slate-500">
-                    Change: {calculatePriceChangePercentage(Number(newMrp.currentMrp), Number(newMrp.newMrp))}
-                  </p>
-                )}
               </div>
+              
               <div>
                 <label className="block text-sm font-medium mb-1">Effective Date *</label>
-                <input type="date" value={newMrp.effectiveDate} onChange={(e) => setNewMrp({ ...newMrp, effectiveDate: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                <input type="date" value={newMrp.effectiveDate} onChange={(e) => setNewMrp({ ...newMrp, effectiveDate: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-violet-400" />
               </div>
-
-              {/* REVISION INFORMATION */}
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">REVISION INFORMATION</h3>
-              </div>
-              <div className="md:col-span-2">
+              <div>
                 <label className="block text-sm font-medium mb-1">Revision Reason *</label>
-                <select value={newMrp.revisionReason} onChange={(e) => setNewMrp({ ...newMrp, revisionReason: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                <select value={newMrp.revisionReason} onChange={(e) => setNewMrp({ ...newMrp, revisionReason: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-violet-400">
                   <option value="">Select Reason</option>
+                  <option value="Government Revision">Government Revision</option>
+                  <option value="Company Price Update">Company Price Update</option>
                   <option value="Cost Increase">Cost Increase</option>
-                  <option value="Cost Reduction">Cost Reduction</option>
-                  <option value="Government Regulation">Government Regulation</option>
-                  <option value="Marketing Strategy">Marketing Strategy</option>
-                  <option value="Distributor Request">Distributor Request</option>
+                  <option value="Promotional Pricing">Promotional Pricing</option>
+                  <option value="Market Adjustment">Market Adjustment</option>
                   <option value="Other">Other</option>
                 </select>
               </div>
+              
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Remarks</label>
-                <textarea rows={2} value={newMrp.remarks} onChange={(e) => setNewMrp({ ...newMrp, remarks: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Revised By</label>
-                <input value={newMrp.revisedBy} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50" />
-              </div>
-
-              {/* STATUS INFORMATION */}
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">STATUS INFORMATION</h3>
-              </div>
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Status *</label>
-                <select value={newMrp.status} onChange={(e) => setNewMrp({ ...newMrp, status: e.target.value as any })} className="w-full border border-slate-200 rounded-lg px-3 py-2">
-                  <option value="Draft">Draft</option>
-                  <option value="Scheduled">Scheduled</option>
-                  <option value="Active">Active</option>
-                  <option value="Cancelled">Cancelled</option>
-                  <option value="Expired">Expired</option>
-                </select>
+                <textarea rows={2} value={newMrp.remarks} onChange={(e) => setNewMrp({ ...newMrp, remarks: e.target.value })} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:border-violet-400" />
               </div>
             </div>
 
             <div className="flex justify-end gap-3 mt-6 pt-6 border-t border-slate-100">
               <ActionButton variant="secondary" onClick={() => setShowModal(false)}>Cancel</ActionButton>
-              <ActionButton onClick={handleSaveMrp}>{isEditingModal ? 'Save Changes' : 'Save MRP'}</ActionButton>
+              <ActionButton onClick={handleSaveMrp}>Save MRP</ActionButton>
             </div>
           </div>
         </div>

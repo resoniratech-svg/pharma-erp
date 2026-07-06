@@ -16,6 +16,7 @@ import { type Column } from './types';
 import { productService } from "../../services/productService";
 import { packingTypeService } from "../../services/packingTypeService";
 import { compositionService } from "../../services/compositionService";
+import { schemeService } from "../../services/schemeService";
 import activityLogService from "../../services/activityLogService";
 import { hsnService, type HSNCode } from '../../services/hsnService';
 import { GetCurrentGSTByHSN } from './GSTManagement';
@@ -140,12 +141,15 @@ export default function ProductMaster() {
   
   const [packingTypes, setPackingTypes] = useState<any[]>([]);
   const [showPackingTypeDropdown, setShowPackingTypeDropdown] = useState(false);
+  const [packingTypeSearch, setPackingTypeSearch] = useState("");
 
   const [compositions, setCompositions] = useState<any[]>([]);
   const [showCompositionDropdown, setShowCompositionDropdown] = useState(false);
+  const [compositionSearch, setCompositionSearch] = useState("");
 
   const [schemes, setSchemes] = useState<any[]>([]);
   const [showSchemeDropdown, setShowSchemeDropdown] = useState(false);
+  const [schemeSearch, setSchemeSearch] = useState("");
 
   const [activeHSNs, setActiveHSNs] = useState<HSNCode[]>([]);
   const [showHsnDropdown, setShowHsnDropdown] = useState(false);
@@ -205,15 +209,18 @@ export default function ProductMaster() {
   };
 
   const handlePriceChange = (fieldName: string, rawValue: string) => {
-    const sanitizedValue = rawValue.replace(/[^0-9.]/g, "");
+    let sanitizedValue = rawValue.replace(/[^0-9.]/g, "");
     const parts = sanitizedValue.split('.');
-    let finalValue = sanitizedValue;
     if (parts.length > 2) {
-      finalValue = parts[0] + '.' + parts.slice(1).join('');
+      sanitizedValue = parts[0] + '.' + parts.slice(1).join('');
+    }
+    const newParts = sanitizedValue.split('.');
+    if (newParts.length === 2 && newParts[1].length > 2) {
+      sanitizedValue = newParts[0] + '.' + newParts[1].substring(0, 2);
     }
     setNewProduct((prev) => ({
       ...prev,
-      [fieldName]: finalValue,
+      [fieldName]: sanitizedValue,
     }));
   };
 
@@ -291,7 +298,7 @@ export default function ProductMaster() {
     const savedCompositions = compositionService.getAll();
     setCompositions(savedCompositions.filter((item: any) => item.status === "Active"));
 
-    const savedSchemes = JSON.parse(localStorage.getItem("pharma_erp_schemes") || "[]");
+    const savedSchemes = schemeService.getAll();
     setSchemes(savedSchemes.filter((item: any) => item.status === "Active"));
 
     setActiveHSNs(hsnService.getActive());
@@ -347,9 +354,89 @@ export default function ProductMaster() {
   };
 
   const handleSaveProduct = () => {
-    if (!newProduct.code || !newProduct.name || !newProduct.type || !newProduct.manufacturer || !newProduct.hsnCode || !newProduct.packingType) {
-      alert("Please fill all mandatory fields (*). Product Code, Name, Type, Manufacturer, Packing Type, and HSN are required.");
+    if (!newProduct.code || !newProduct.name || !newProduct.type || !newProduct.manufacturer || !newProduct.packingType) {
+      alert("Please fill all mandatory fields (*). Product Code, Name, Type, Manufacturer, and Packing Type are required.");
       return;
+    }
+
+    if (!newProduct.mrp) {
+      alert("MRP is required.");
+      return;
+    }
+    if (!newProduct.ptr) {
+      alert("PTR is required.");
+      return;
+    }
+    if (!newProduct.pts) {
+      alert("PTS is required.");
+      return;
+    }
+
+    const mrpVal = parseFloat(newProduct.mrp) || 0;
+    const ptrVal = parseFloat(newProduct.ptr) || 0;
+    const ptsVal = parseFloat(newProduct.pts) || 0;
+
+    if (mrpVal <= 0 || ptrVal <= 0 || ptsVal <= 0) {
+      alert("Prices must be greater than zero.");
+      return;
+    }
+    if (mrpVal === ptrVal) {
+      alert("MRP and PTR cannot be equal.");
+      return;
+    }
+    if (ptrVal === ptsVal) {
+      alert("PTR and PTS cannot be equal.");
+      return;
+    }
+    if (mrpVal <= ptrVal) {
+      alert("MRP must be greater than PTR.");
+      return;
+    }
+    if (ptrVal <= ptsVal) {
+      alert("PTR must be greater than PTS.");
+      return;
+    }
+
+    const purchaseVal = newProduct.purchasePrice ? parseFloat(newProduct.purchasePrice) : null;
+    const sellingVal = newProduct.sellingPrice ? parseFloat(newProduct.sellingPrice) : null;
+
+    if (purchaseVal !== null && purchaseVal <= 0) {
+      alert("Purchase Price must be greater than zero.");
+      return;
+    }
+    if (sellingVal !== null && sellingVal <= 0) {
+      alert("Selling Price must be greater than zero.");
+      return;
+    }
+    if (purchaseVal !== null && sellingVal !== null) {
+      if (sellingVal < purchaseVal) {
+        alert("Selling Price cannot be less than Purchase Price.");
+        return;
+      }
+    }
+
+    if (newProduct.unitsPerPack) {
+      const units = parseFloat(newProduct.unitsPerPack);
+      if (isNaN(units) || !Number.isInteger(units) || units <= 0) {
+        alert("Units Per Pack must be greater than zero.");
+        return;
+      }
+    }
+    if (newProduct.packsInBox) {
+      const packs = parseFloat(newProduct.packsInBox);
+      if (isNaN(packs) || !Number.isInteger(packs) || packs <= 0) {
+        alert("Packs In Box must be greater than zero.");
+        return;
+      }
+    }
+
+    const minStock = newProduct.minimumStock ? parseFloat(newProduct.minimumStock) : null;
+    const reorderLvl = newProduct.reorderLevel ? parseFloat(newProduct.reorderLevel) : null;
+    if (minStock !== null && reorderLvl !== null) {
+      if (minStock < reorderLvl) {
+        alert("Minimum Stock cannot be less than Reorder Level.");
+        return;
+      }
     }
 
     const isCodeDuplicate = products.some((p) => p.code.trim().toLowerCase() === newProduct.code.trim().toLowerCase() && p.id !== editingProductId);
@@ -358,9 +445,15 @@ export default function ProductMaster() {
       return;
     }
 
-    const isNameDuplicate = products.some((p) => p.name.trim().toLowerCase() === newProduct.name.trim().toLowerCase() && p.id !== editingProductId);
+    const normalizedName = newProduct.name.trim().replace(/\s+/g, ' ');
+    if (normalizedName === "") {
+      alert("Product Name cannot contain only spaces.");
+      return;
+    }
+
+    const isNameDuplicate = products.some((p) => p.name.trim().replace(/\s+/g, ' ').toLowerCase() === normalizedName.toLowerCase() && p.id !== editingProductId);
     if (isNameDuplicate) {
-      alert(`Error: Product Name "${newProduct.name}" already exists.`);
+      alert("Product Name already exists.");
       return;
     }
 
@@ -434,7 +527,7 @@ export default function ProductMaster() {
     { key: "mrp", label: "MRP", width: "8%", render: (row) => row.mrp ? `₹ ${row.mrp}` : "-" },
     { key: "ptr", label: "PTR", width: "8%", render: (row) => row.ptr ? `₹ ${row.ptr}` : "-" },
     { key: "pts", label: "PTS", width: "8%", render: (row) => row.pts ? `₹ ${row.pts}` : "-" },
-    { key: "ptd", label: "PTD", width: "8%", render: (row) => row.ptd ? `₹ ${row.ptd}` : "-" },
+    // { key: "ptd", label: "PTD", width: "8%", render: (row) => row.ptd ? `₹ ${row.ptd}` : "-" },
     { key: "gst", label: "GST %", width: "8%", render: (row) => row.gst ? `${row.gst}%` : "-" },
     { key: "scheme", label: "Scheme", width: "10%", render: (row) => row.scheme || "-" },
     { key: "status", label: "Status", width: "10%", render: (row) => { const variant = row.status === "Active" ? "success" : row.status === "Inactive" ? "warning" : "danger"; return <Badge variant={variant}>{row.status}</Badge>; } },
@@ -458,7 +551,7 @@ export default function ProductMaster() {
     <div className="animate-in fade-in duration-500">
       <PageHeader title="Product Master Management" subtitle="Manage primary product catalog and essential details." actions={<>
             <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />} onClick={handleExport}>Export</ActionButton>
-            {canCreate && (<ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditMode(false); setEditingProductId(null); setNewProduct({ code: autoGenerateProductCode(), name: "", genericName: "", brandName: "", category: "", type: "", manufacturer: "", composition: "", scheme: "", packingType: "", unitsPerPack: "", packsInBox: "", totalUnits: "", hsnCode: "", minimumStock: "", reorderLevel: "", batchTracking: true, expiryTracking: true, status: "Active", mrp: "", ptr: "", pts: "", ptd: "", purchasePrice: "", sellingPrice: "", gst: "" }); setHsnSearch(""); setShowNewProductModal(true); }}>New Product</ActionButton>)}
+            {canCreate && (<ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => { setEditMode(false); setEditingProductId(null); setNewProduct({ code: autoGenerateProductCode(), name: "", genericName: "", brandName: "", category: "", type: "", manufacturer: "", composition: "", scheme: "", packingType: "", unitsPerPack: "", packsInBox: "", totalUnits: "", hsnCode: "", minimumStock: "", reorderLevel: "", batchTracking: true, expiryTracking: true, status: "Active", mrp: "", ptr: "", pts: "", ptd: "", purchasePrice: "", sellingPrice: "", gst: "" }); setHsnSearch(""); setPackingTypeSearch(""); setCompositionSearch(""); setSchemeSearch(""); setShowNewProductModal(true); }}>New Product</ActionButton>)}
           </>} />
 
       <FilterBar>
@@ -516,7 +609,7 @@ export default function ProductMaster() {
               <DrawerField label="Status" value={selectedProduct.status} />
             </div>
             <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3">
-              {canEdit && (<ActionButton className="min-w-[140px]" onClick={() => { setNewProduct({ code: selectedProduct.code, name: selectedProduct.name, genericName: selectedProduct.genericName, brandName: selectedProduct.brandName, category: selectedProduct.category, type: selectedProduct.type, manufacturer: selectedProduct.manufacturer, composition: selectedProduct.composition || "", scheme: selectedProduct.scheme || "", packingType: selectedProduct.packingType, unitsPerPack: selectedProduct.unitsPerPack, packsInBox: selectedProduct.packsInBox || "", totalUnits: selectedProduct.totalUnits || "", hsnCode: selectedProduct.hsnCode, minimumStock: selectedProduct.minimumStock || "", reorderLevel: selectedProduct.reorderLevel || "", batchTracking: selectedProduct.batchTracking ?? true, expiryTracking: selectedProduct.expiryTracking ?? true, status: selectedProduct.status, mrp: selectedProduct.mrp || "", ptr: selectedProduct.ptr || "", pts: selectedProduct.pts || "", ptd: selectedProduct.ptd || "", purchasePrice: selectedProduct.purchasePrice || "", sellingPrice: selectedProduct.sellingPrice || "", gst: selectedProduct.gst || "" }); setHsnSearch(selectedProduct.hsnCode); setEditMode(true); setShowNewProductModal(true); setEditingProductId(selectedProduct.id); setSelectedProduct(null); }}>Edit Product</ActionButton>)}
+              {canEdit && (<ActionButton className="min-w-[140px]" onClick={() => { setNewProduct({ code: selectedProduct.code, name: selectedProduct.name, genericName: selectedProduct.genericName, brandName: selectedProduct.brandName, category: selectedProduct.category, type: selectedProduct.type, manufacturer: selectedProduct.manufacturer, composition: selectedProduct.composition || "", scheme: selectedProduct.scheme || "", packingType: selectedProduct.packingType, unitsPerPack: selectedProduct.unitsPerPack, packsInBox: selectedProduct.packsInBox || "", totalUnits: selectedProduct.totalUnits || "", hsnCode: selectedProduct.hsnCode, minimumStock: selectedProduct.minimumStock || "", reorderLevel: selectedProduct.reorderLevel || "", batchTracking: selectedProduct.batchTracking ?? true, expiryTracking: selectedProduct.expiryTracking ?? true, status: selectedProduct.status, mrp: selectedProduct.mrp || "", ptr: selectedProduct.ptr || "", pts: selectedProduct.pts || "", ptd: selectedProduct.ptd || "", purchasePrice: selectedProduct.purchasePrice || "", sellingPrice: selectedProduct.sellingPrice || "", gst: selectedProduct.gst || "" }); setHsnSearch(selectedProduct.hsnCode); setPackingTypeSearch(selectedProduct.packingType); setCompositionSearch(selectedProduct.composition || ""); setSchemeSearch(selectedProduct.scheme || ""); setEditMode(true); setShowNewProductModal(true); setEditingProductId(selectedProduct.id); setSelectedProduct(null); }}>Edit Product</ActionButton>)}
               <ActionButton variant="secondary" onClick={() => setSelectedProduct(null)}>Close</ActionButton>
             </div>
           </div>
@@ -524,8 +617,8 @@ export default function ProductMaster() {
       </Drawer>
 
       {productToDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setProductToDelete(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <h2 className="text-xl font-bold text-slate-900 mb-2">Delete Product</h2>
             <p className="text-slate-600 mb-6 leading-relaxed">Are you sure you want to delete this product?<br />This action cannot be undone.</p>
             <div className="flex justify-end gap-3 mt-4">
@@ -612,17 +705,25 @@ export default function ProductMaster() {
                   <div className="relative">
                     <label className="block text-sm font-medium mb-1 text-slate-700">Composition</label>
                     <div className="relative">
-                      <input type="text" value={newProduct.composition} onChange={(e) => { handleAlphanumericChange("composition", e.target.value); setShowCompositionDropdown(true); }} onFocus={() => setShowCompositionDropdown(true)} placeholder="Search Composition..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <input type="text" value={compositionSearch} onChange={(e) => { setCompositionSearch(e.target.value); setShowCompositionDropdown(true); }} onFocus={() => setShowCompositionDropdown(true)} placeholder="Search Composition..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowCompositionDropdown(!showCompositionDropdown)} />
                     </div>
                     {showCompositionDropdown && (
                       <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowCompositionDropdown(false)} />
+                        <div className="fixed inset-0 z-10" onClick={() => {
+                          setShowCompositionDropdown(false);
+                          if (compositionSearch.trim() === "") {
+                            setNewProduct({ ...newProduct, composition: "" });
+                            setCompositionSearch("");
+                          } else if (newProduct.composition !== compositionSearch) {
+                            setCompositionSearch(newProduct.composition || "");
+                          }
+                        }} />
                         <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                          {compositions.filter((c: any) => c.genericName.toLowerCase().includes((newProduct.composition || "").toLowerCase())).map((comp: any) => (
-                            <div key={comp.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, composition: comp.genericName }); setShowCompositionDropdown(false); }}>{comp.genericName}</div>
+                          {compositions.filter((c: any) => c.genericName.toLowerCase().includes(compositionSearch.toLowerCase())).map((comp: any) => (
+                            <div key={comp.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, composition: comp.genericName }); setCompositionSearch(comp.genericName); setShowCompositionDropdown(false); }}>{comp.genericName}</div>
                           ))}
-                          {compositions.filter((c: any) => c.genericName.toLowerCase().includes((newProduct.composition || "").toLowerCase())).length === 0 && (
+                          {compositions.filter((c: any) => c.genericName.toLowerCase().includes(compositionSearch.toLowerCase())).length === 0 && (
                             <div className="px-3 py-2 text-sm text-slate-500 italic">No matching composition found</div>
                           )}
                         </div>
@@ -633,17 +734,25 @@ export default function ProductMaster() {
                   <div className="relative">
                     <label className="block text-sm font-medium mb-1 text-slate-700">Scheme</label>
                     <div className="relative">
-                      <input type="text" value={newProduct.scheme} onChange={(e) => { handleAlphanumericChange("scheme", e.target.value); setShowSchemeDropdown(true); }} onFocus={() => setShowSchemeDropdown(true)} placeholder="Search Scheme..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <input type="text" value={schemeSearch} onChange={(e) => { setSchemeSearch(e.target.value); setShowSchemeDropdown(true); }} onFocus={() => setShowSchemeDropdown(true)} placeholder="Search Scheme..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowSchemeDropdown(!showSchemeDropdown)} />
                     </div>
                     {showSchemeDropdown && (
                       <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowSchemeDropdown(false)} />
+                        <div className="fixed inset-0 z-10" onClick={() => {
+                          setShowSchemeDropdown(false);
+                          if (schemeSearch.trim() === "") {
+                            setNewProduct({ ...newProduct, scheme: "" });
+                            setSchemeSearch("");
+                          } else if (newProduct.scheme !== schemeSearch) {
+                            setSchemeSearch(newProduct.scheme || "");
+                          }
+                        }} />
                         <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                          {schemes.filter((c: any) => c.name.toLowerCase().includes((newProduct.scheme || "").toLowerCase())).map((sch: any) => (
-                            <div key={sch.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, scheme: sch.name }); setShowSchemeDropdown(false); }}>{sch.name}</div>
+                          {schemes.filter((c: any) => c.name.toLowerCase().includes(schemeSearch.toLowerCase())).map((sch: any) => (
+                            <div key={sch.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, scheme: sch.name }); setSchemeSearch(sch.name); setShowSchemeDropdown(false); }}>{sch.name}</div>
                           ))}
-                          {schemes.filter((c: any) => c.name.toLowerCase().includes((newProduct.scheme || "").toLowerCase())).length === 0 && (
+                          {schemes.filter((c: any) => c.name.toLowerCase().includes(schemeSearch.toLowerCase())).length === 0 && (
                             <div className="px-3 py-2 text-sm text-slate-500 italic">No matching scheme found</div>
                           )}
                         </div>
@@ -683,17 +792,22 @@ export default function ProductMaster() {
                   <div className="relative">
                     <label className="block text-sm font-medium mb-1 text-slate-700">Packing Type *</label>
                     <div className="relative">
-                      <input type="text" value={newProduct.packingType} onChange={(e) => { handleAlphanumericChange("packingType", e.target.value); setShowPackingTypeDropdown(true); }} onFocus={() => setShowPackingTypeDropdown(true)} placeholder="Search Packing Type..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
+                      <input type="text" value={packingTypeSearch} onChange={(e) => { setPackingTypeSearch(e.target.value); setShowPackingTypeDropdown(true); }} onFocus={() => setShowPackingTypeDropdown(true)} placeholder="Search Packing Type..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowPackingTypeDropdown(!showPackingTypeDropdown)} />
                     </div>
                     {showPackingTypeDropdown && (
                       <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowPackingTypeDropdown(false)} />
+                        <div className="fixed inset-0 z-10" onClick={() => {
+                          setShowPackingTypeDropdown(false);
+                          if (newProduct.packingType !== packingTypeSearch) {
+                            setPackingTypeSearch(newProduct.packingType);
+                          }
+                        }} />
                         <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                          {packingTypes.filter((c: any) => c.name.toLowerCase().includes((newProduct.packingType || "").toLowerCase())).map((pt: any) => (
-                            <div key={pt.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, packingType: pt.name }); setShowPackingTypeDropdown(false); }}>{pt.name}</div>
+                          {packingTypes.filter((c: any) => c.name.toLowerCase().includes(packingTypeSearch.toLowerCase())).map((pt: any) => (
+                            <div key={pt.id} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, packingType: pt.name }); setPackingTypeSearch(pt.name); setShowPackingTypeDropdown(false); }}>{pt.name}</div>
                           ))}
-                          {packingTypes.filter((c: any) => c.name.toLowerCase().includes((newProduct.packingType || "").toLowerCase())).length === 0 && (
+                          {packingTypes.filter((c: any) => c.name.toLowerCase().includes(packingTypeSearch.toLowerCase())).length === 0 && (
                             <div className="px-3 py-2 text-sm text-slate-500 italic">No matching packing type found</div>
                           )}
                         </div>
@@ -710,7 +824,7 @@ export default function ProductMaster() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1 text-slate-700">Total Units</label>
-                    <input type="text" readOnly value={newProduct.totalUnits} placeholder="Auto-calculated" className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed font-medium" />
+                    <input type="text" value={newProduct.totalUnits} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed" />
                   </div>
                 </div>
               </div>
@@ -721,23 +835,23 @@ export default function ProductMaster() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-4">
                   {/* Row 1 */}
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-slate-700">MRP</label>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">MRP *</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
                       <input type="text" value={newProduct.mrp} onChange={(e) => handlePriceChange("mrp", e.target.value)} className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-slate-700">PTR</label>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">PTR *</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
                       <input type="text" value={newProduct.ptr} onChange={(e) => handlePriceChange("ptr", e.target.value)} className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
                     </div>
                   </div>
-                  
+
                   {/* Row 2 */}
                   <div>
-                    <label className="block text-sm font-medium mb-1 text-slate-700">PTS</label>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">PTS *</label>
                     <div className="relative">
                       <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500">₹</span>
                       <input type="text" value={newProduct.pts} onChange={(e) => handlePriceChange("pts", e.target.value)} className="w-full border border-slate-200 rounded-lg pl-8 pr-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
@@ -765,7 +879,7 @@ export default function ProductMaster() {
 
                   {/* Row 4 */}
                   <div className="relative">
-                    <label className="block text-sm font-medium mb-1 text-slate-700">HSN Code *</label>
+                    <label className="block text-sm font-medium mb-1 text-slate-700">HSN Code </label>
                     <div className="relative">
                       <input type="text" value={hsnSearch} onChange={(e) => { setHsnSearch(e.target.value); setShowHsnDropdown(true); }} onFocus={() => setShowHsnDropdown(true)} placeholder="Search HSN Code..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowHsnDropdown(!showHsnDropdown)} />

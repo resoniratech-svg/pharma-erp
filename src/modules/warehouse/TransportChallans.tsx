@@ -22,6 +22,16 @@ import {
 import { type Column, type BadgeVariant } from './components/shared';
 import { transportChallanService, type Challan } from '../../services/transportChallanService';
 
+const formatDate = (dateString: string) => {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 let cachedLogoBase64: string | null = null;
 
 const getLogoBase64 = async (): Promise<string> => {
@@ -64,7 +74,16 @@ export default function TransportChallans() {
   const [newVehicle, setNewVehicle] = useState('');
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverMobile, setNewDriverMobile] = useState('');
+  const [newRemarks, setNewRemarks] = useState('');
   const [nextChallanNo, setNextChallanNo] = useState('');
+
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setShowCreateModal(false);
+    };
+    window.addEventListener('keydown', handleEsc);
+    return () => window.removeEventListener('keydown', handleEsc);
+  }, []);
 
   useEffect(() => {
     setChallans(transportChallanService.getAllChallans());
@@ -119,7 +138,7 @@ export default function TransportChallans() {
 
   const columns: Column<Challan>[] = [
     { key: 'challanNo', label: 'Challan No', render: (row) => <span className="font-semibold text-slate-900">{row.challanNo}</span> },
-    { key: 'challanDate', label: 'Challan Date', render: (row) => <span className="text-slate-600">{row.challanDate}</span> },
+    { key: 'challanDate', label: 'Challan Date', render: (row) => <span className="text-slate-600">{formatDate(row.challanDate)}</span> },
     { key: 'dispatchNo', label: 'Dispatch No', render: (row) => <span className="text-slate-700">{row.dispatchNo}</span> },
     { key: 'customer', label: 'Customer', render: (row) => <span className="font-medium text-slate-800">{row.customer}</span> },
     { key: 'transporter', label: 'Transporter' },
@@ -188,7 +207,7 @@ export default function TransportChallans() {
   const handleExportExcel = () => {
     const exportData = filteredData.map(row => ({
       'Challan No': row.challanNo,
-      'Challan Date': row.challanDate,
+      'Challan Date': formatDate(row.challanDate),
       'Dispatch No': row.dispatchNo,
       'Customer': row.customer,
       'Transporter': row.transporter,
@@ -209,7 +228,7 @@ export default function TransportChallans() {
       headers.join(','),
       ...filteredData.map(row => 
         [
-          `"${row.challanNo}"`, `"${row.challanDate}"`, `"${row.dispatchNo}"`, `"${row.customer}"`,
+          `"${row.challanNo}"`, `"${formatDate(row.challanDate)}"`, `"${row.dispatchNo}"`, `"${row.customer}"`,
           `"${row.transporter}"`, `"${row.vehicleNo}"`, row.totalQty, `"${row.status}"`
         ].join(',')
       )
@@ -240,7 +259,13 @@ export default function TransportChallans() {
     }
     
     try {
-      generatePdf(challan);
+      const formattedChallan = {
+        ...challan,
+        challanDate: formatDate(challan.challanDate),
+        dispatchDate: formatDate(challan.dispatchDate),
+        createdDate: formatDate(challan.createdDate)
+      };
+      generatePdf(formattedChallan as any);
     } finally {
       if (base64) {
         (jsPDF.prototype as any).addImage = originalAddImage;
@@ -263,7 +288,13 @@ export default function TransportChallans() {
 
     try {
       const doc = new jsPDF();
-      applyTransportChallanTemplate(doc, challan);
+      const formattedChallan = {
+        ...challan,
+        challanDate: formatDate(challan.challanDate),
+        dispatchDate: formatDate(challan.dispatchDate),
+        createdDate: formatDate(challan.createdDate)
+      };
+      applyTransportChallanTemplate(doc, formattedChallan as any);
       
       const pdfUrl = doc.output('bloburl');
       const iframe = document.createElement('iframe');
@@ -303,8 +334,36 @@ export default function TransportChallans() {
 
   const handleGenerateChallan = () => {
     if (!activeDispatch) return alert("Dispatch Number is required.");
-    if (!newTransporter) return alert("Transporter is required.");
-    if (!newVehicle) return alert("Vehicle Number is required.");
+    
+    if (challans.some(c => c.dispatchNo === activeDispatch.dispatchId && c.status !== 'Cancelled')) {
+      return alert("A Transport Challan already exists for this Dispatch Number.");
+    }
+    
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const selDate = new Date(newDate);
+    selDate.setHours(0,0,0,0);
+    if (selDate > today) return alert("Challan Date cannot be a future date.");
+
+    const tTransporter = newTransporter.trim();
+    if (!tTransporter) return alert("Transporter is required.");
+    if (tTransporter.length > 100) return alert("Transporter cannot exceed 100 characters.");
+
+    const tVehicle = newVehicle.trim();
+    if (!tVehicle) return alert("Vehicle Number is required.");
+    if (tVehicle.length > 20) return alert("Vehicle Number cannot exceed 20 characters.");
+    if (!/^[A-Za-z0-9 -]+$/.test(tVehicle)) return alert("Vehicle Number allows only letters, numbers, spaces, and hyphens.");
+
+    const tDriver = newDriverName.trim();
+    if (!tDriver) return alert("Driver Name is required.");
+    if (tDriver.length > 100) return alert("Driver Name cannot exceed 100 characters.");
+    if (!/^[A-Za-z\s]+$/.test(tDriver)) return alert("Driver Name can only contain alphabets and spaces.");
+
+    const tMobile = newDriverMobile.trim();
+    if (!tMobile) return alert("Driver Mobile is required.");
+    if (!/^\d{10}$/.test(tMobile)) return alert("Driver Mobile must be exactly 10 digits (no alphabets or special characters).");
+
+    const tRemarks = newRemarks.trim().substring(0, 250);
 
     const challanNo = transportChallanService.generateNextChallanNumber();
     const currentUser = transportChallanService.getCurrentUser();
@@ -326,9 +385,10 @@ export default function TransportChallans() {
       totalQty: activeDispatch.totalQuantity,
       status: 'Generated',
       products: activeDispatch.products.map((p: any) => ({ ...p })),
+      remarks: tRemarks,
       createdBy: currentUser?.fullName || 'System User',
-      createdDate: new Date().toLocaleString()
-    };
+      createdDate: new Date().toISOString().split('T')[0]
+    } as Challan;
 
     const updatedChallans = transportChallanService.createChallan(newChallanObj);
     setChallans(updatedChallans);
@@ -342,8 +402,15 @@ export default function TransportChallans() {
     setNewVehicle('');
     setNewDriverName('');
     setNewDriverMobile('');
+    setNewRemarks('');
 
     alert('Transport Challan generated successfully!');
+  };
+
+  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (e.target === e.currentTarget) {
+      setShowCreateModal(false);
+    }
   };
 
   return (
@@ -413,7 +480,7 @@ export default function TransportChallans() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Challan Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Challan Number" value={<span className="font-semibold text-slate-900">{selectedChallan.challanNo}</span>} />
-                <DrawerField label="Challan Date" value={selectedChallan.challanDate} />
+                <DrawerField label="Challan Date" value={formatDate(selectedChallan.challanDate)} />
                 <DrawerField label="Dispatch Number" value={selectedChallan.dispatchNo} />
                 <DrawerField label="Status" value={
                   <Badge variant={
@@ -430,7 +497,14 @@ export default function TransportChallans() {
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Customer & Warehouse</h3>
               <div className="space-y-2">
-                <DrawerField label="Customer Name" value={selectedChallan.customer} />
+                {(selectedChallan as any).dispatchType === 'Warehouse Transfer' ? (
+                  <DrawerField label="Destination Warehouse" value={selectedChallan.customer} />
+                ) : (
+                  <DrawerField label="Customer Name" value={selectedChallan.customer} />
+                )}
+                {(selectedChallan as any).dispatchType && (
+                  <DrawerField label="Dispatch Type" value={(selectedChallan as any).dispatchType} />
+                )}
                 <DrawerField label="Source Warehouse" value={selectedChallan.sourceWarehouse} />
               </div>
             </div>
@@ -470,6 +544,7 @@ export default function TransportChallans() {
                 <DrawerField label="Vehicle Number" value={<span className="font-mono text-slate-700">{selectedChallan.vehicleNo}</span>} />
                 <DrawerField label="Driver Name" value={selectedChallan.driverName || '—'} />
                 <DrawerField label="Driver Mobile" value={selectedChallan.driverMobile || '—'} />
+                {(selectedChallan as any).remarks && <DrawerField label="Remarks" value={(selectedChallan as any).remarks} />}
               </div>
             </div>
 
@@ -477,7 +552,9 @@ export default function TransportChallans() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Audit Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Created By" value={selectedChallan.createdBy} />
-                <DrawerField label="Created Date" value={selectedChallan.createdDate} />
+                <DrawerField label="Created Date" value={formatDate(selectedChallan.createdDate)} />
+                {(selectedChallan as any).updatedBy && <DrawerField label="Updated By" value={(selectedChallan as any).updatedBy} />}
+                {(selectedChallan as any).updatedDate && <DrawerField label="Updated Date" value={formatDate((selectedChallan as any).updatedDate)} />}
               </div>
             </div>
 
@@ -489,7 +566,10 @@ export default function TransportChallans() {
       </Drawer>
 
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
+          onClick={handleBackdropClick}
+        >
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">
@@ -526,10 +606,16 @@ export default function TransportChallans() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Dispatch Date</label>
-                <input type="text" value={activeDispatch?.date || ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+                <input type="text" value={activeDispatch?.date ? formatDate(activeDispatch.date) : ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Customer</label>
+                <label className="block text-sm font-medium mb-1">Dispatch Type</label>
+                <input type="text" value={activeDispatch?.dispatchType || ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">
+                  {activeDispatch?.dispatchType === 'Warehouse Transfer' ? 'Destination Warehouse' : 'Customer'}
+                </label>
                 <input type="text" value={activeDispatch?.client || ''} readOnly className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" placeholder="Auto-populated" />
               </div>
               <div className="md:col-span-2">
@@ -589,12 +675,38 @@ export default function TransportChallans() {
                 <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="e.g. MH-01-AB-1234" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Driver Name</label>
-                <input type="text" value={newDriverName} onChange={e => setNewDriverName(e.target.value)} placeholder="Driver Name (Optional)" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                <label className="block text-sm font-medium mb-1">Driver Name *</label>
+                <input 
+                  type="text" 
+                  value={newDriverName} 
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^A-Za-z\s]/g, '');
+                    setNewDriverName(val);
+                  }} 
+                  placeholder="e.g. John Doe" 
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2" 
+                />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Driver Mobile</label>
-                <input type="text" value={newDriverMobile} onChange={e => setNewDriverMobile(e.target.value)} placeholder="Mobile Number (Optional)" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                <label className="block text-sm font-medium mb-1">Driver Mobile *</label>
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">+91</span>
+                  <input 
+                    type="text" 
+                    value={newDriverMobile} 
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '').slice(0, 10);
+                      setNewDriverMobile(val);
+                    }} 
+                    placeholder="9876543210" 
+                    className="w-full border border-slate-200 rounded-lg pl-12 pr-3 py-2" 
+                    maxLength={10}
+                  />
+                </div>
+              </div>
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-1">Remarks</label>
+                <textarea value={newRemarks} onChange={e => setNewRemarks(e.target.value)} placeholder="Optional (Max 250 characters)" maxLength={250} className="w-full border border-slate-200 rounded-lg px-3 py-2 h-20 resize-none"></textarea>
               </div>
             </div>
 

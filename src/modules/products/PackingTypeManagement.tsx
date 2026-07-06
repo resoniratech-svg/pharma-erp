@@ -16,7 +16,6 @@ import { type Column } from './types';
 import { packingTypeService } from "../../services/packingTypeService";
 import activityLogService from "../../services/activityLogService";
 
-
 interface PackingType {
   id: string;
   name: string;
@@ -24,7 +23,14 @@ interface PackingType {
   uom: string; // Unit of measure
   description: string;
   status: 'Active' | 'Inactive';
+  associatedProducts?: number;
+  createdBy?: string;
+  createdOn?: string;
+  updatedBy?: string;
+  updatedOn?: string;
 }
+
+const baseUoms = ['Strip', 'Bottle', 'Vial', 'Ampoule', 'Tube', 'Sachet', 'Pack', 'Box'];
 
 const initialMockData: PackingType[] = [
   { id: '1', name: 'Alu-Alu Blister', code: 'BLS-ALU', uom: 'Strip', description: 'Double aluminum foil blister pack', status: 'Active' },
@@ -32,6 +38,16 @@ const initialMockData: PackingType[] = [
   { id: '3', name: 'Glass Vial', code: 'VIL-GLS', uom: 'Vial', description: '10ml clear glass vial for injectables', status: 'Active' },
   { id: '4', name: 'Sachet', code: 'SAC-FOIL', uom: 'Sachet', description: '5g foil sachet for powders', status: 'Inactive' },
 ];
+
+const formatDate = (dateString?: string) => {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const year = date.getFullYear();
+  return `${day}-${month}-${year}`;
+};
 
 export default function PackingTypeManagement() {
   const [data, setData] = useState<PackingType[]>([]);
@@ -43,17 +59,21 @@ export default function PackingTypeManagement() {
   const [showModal, setShowModal] = useState(false);
   const [isEditingModal, setIsEditingModal] = useState(false);
 
-  
-  
-  
-  // const canCreate = hasModulePermission(activeRole, "Products & Master", "Create");
-  // const canEdit = hasModulePermission(activeRole, "Products & Master", "Edit");
-  // const canDelete = hasModulePermission(activeRole, "Products & Master", "Delete");
-
   // Temporary RBAC bypass for client demo
   const canCreate = true;
   const canEdit = true;
   const canDelete = true;
+
+  const [customUoms, setCustomUoms] = useState<string[]>([]);
+  const [isAddingNewUom, setIsAddingNewUom] = useState(false);
+  const [newUomValue, setNewUomValue] = useState("");
+
+  useEffect(() => {
+    const stored = localStorage.getItem('customUoms');
+    if (stored) {
+      setCustomUoms(JSON.parse(stored));
+    }
+  }, []);
 
   const [newPacking, setNewPacking] = useState({
     id: '',
@@ -117,18 +137,35 @@ export default function PackingTypeManagement() {
   });
 
   const handleExport = () => {
+    const hasAuditFields = data.some(item => item.createdOn || item.createdBy);
     const headers = ['Packing Name', 'Code', 'Unit of Measure', 'Description', 'Status'];
+    
+    if (hasAuditFields) {
+      headers.push('Created By', 'Created On', 'Updated By', 'Updated On');
+    }
+
     const csvContent = [
       headers.join(','),
-      ...filteredData.map(row => 
-        [
+      ...filteredData.map(row => {
+        const rowData = [
           `"${row.name}"`, 
           `"${row.code}"`, 
           `"${row.uom}"`, 
-          `"${row.description.replace(/"/g, '""')}"`, 
+          `"${(row.description || '').replace(/"/g, '""')}"`, 
           row.status
-        ].join(',')
-      )
+        ];
+
+        if (hasAuditFields) {
+          rowData.push(
+            `"${row.createdBy || ''}"`,
+            row.createdOn ? formatDate(row.createdOn) : '',
+            `"${row.updatedBy || ''}"`,
+            row.updatedOn ? formatDate(row.updatedOn) : ''
+          );
+        }
+
+        return rowData.join(',');
+      })
     ].join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -142,8 +179,45 @@ export default function PackingTypeManagement() {
     document.body.removeChild(link);
   };
 
+  const handleSaveNewUom = () => {
+    const trimmed = newUomValue.trim();
+    if (!trimmed) {
+      alert("Unit of Measure cannot be empty.");
+      return;
+    }
+    if (trimmed.length > 50) {
+      alert("Unit of Measure cannot exceed 50 characters.");
+      return;
+    }
+
+    const dataUoms = Array.from(new Set(data.map(d => d.uom)));
+    const allUoms = Array.from(new Set([...baseUoms, ...customUoms, ...dataUoms]));
+    
+    const isDuplicate = allUoms.some(u => u.toLowerCase() === trimmed.toLowerCase());
+    if (isDuplicate) {
+      alert("This Unit of Measure already exists.");
+      return;
+    }
+
+    const updatedCustom = [...customUoms, trimmed];
+    setCustomUoms(updatedCustom);
+    localStorage.setItem('customUoms', JSON.stringify(updatedCustom));
+    
+    setNewPacking({ ...newPacking, uom: trimmed });
+    setIsAddingNewUom(false);
+    setNewUomValue("");
+  };
+
+  const cancelAddNewUom = () => {
+    setIsAddingNewUom(false);
+    setNewUomValue("");
+    setNewPacking({ ...newPacking, uom: baseUoms[0] });
+  };
+
   const openNewModal = () => {
     setIsEditingModal(false);
+    setIsAddingNewUom(false);
+    setNewUomValue("");
     setNewPacking({
       id: '',
       code: '',
@@ -158,30 +232,52 @@ export default function PackingTypeManagement() {
   const openEditModal = () => {
     if (!selectedPacking) return;
     setIsEditingModal(true);
+    setIsAddingNewUom(false);
+    setNewUomValue("");
     setNewPacking({
       id: selectedPacking.id,
       code: selectedPacking.code,
       name: selectedPacking.name,
       uom: selectedPacking.uom,
-      description: selectedPacking.description,
+      description: selectedPacking.description || '',
       status: selectedPacking.status
     });
     setShowModal(true);
   };
 
   const handleSavePacking = () => {
-    if (!newPacking.code || !newPacking.name || !newPacking.uom || !newPacking.status) {
+    const trimmedCode = newPacking.code.trim();
+    const trimmedName = newPacking.name.trim();
+    const trimmedDescription = newPacking.description.trim();
+
+    if (!trimmedCode || !trimmedName || !newPacking.uom || !newPacking.status) {
       alert("Please fill all mandatory fields (*).");
+      return;
+    }
+
+    // Duplicate Validation
+    const isDuplicate = data.some(
+      (pt) =>
+        pt.id !== newPacking.id &&
+        pt.status === "Active" &&
+        newPacking.status === "Active" &&
+        (pt.code.trim().toLowerCase() === trimmedCode.toLowerCase() ||
+         pt.name.trim().toLowerCase() === trimmedName.toLowerCase())
+    );
+
+    if (isDuplicate) {
+      alert("An Active Packing Type with this Code or Name already exists.");
       return;
     }
     
     if (isEditingModal && newPacking.id) {
       const updatedRecord: PackingType = {
+        ...selectedPacking!,
         id: newPacking.id,
-        code: newPacking.code,
-        name: newPacking.name,
+        code: trimmedCode,
+        name: trimmedName,
         uom: newPacking.uom,
-        description: newPacking.description,
+        description: trimmedDescription,
         status: newPacking.status as 'Active' | 'Inactive'
       };
       
@@ -198,10 +294,10 @@ export default function PackingTypeManagement() {
     } else {
       const record: PackingType = {
         id: Date.now().toString(),
-        code: newPacking.code,
-        name: newPacking.name,
+        code: trimmedCode,
+        name: trimmedName,
         uom: newPacking.uom,
-        description: newPacking.description,
+        description: trimmedDescription,
         status: newPacking.status as 'Active' | 'Inactive'
       };
       setData([record, ...data]);
@@ -218,6 +314,12 @@ export default function PackingTypeManagement() {
 
   const handleDelete = () => {
     if (itemToDelete) {
+      if ((itemToDelete.associatedProducts || 0) > 0) {
+        alert("This Packing Type is currently in use by one or more products and cannot be deleted. You may change its status to Inactive instead.");
+        setItemToDelete(null);
+        return;
+      }
+
       setData(data.filter(item => item.id !== itemToDelete.id));
       activityLogService.addLog({
         userId: currentUser.id,
@@ -231,7 +333,7 @@ export default function PackingTypeManagement() {
 
   useEffect(() => {
     const savedData = packingTypeService.getAll();
-    if (savedData.length > 0) {
+    if (savedData && savedData.length > 0) {
       setData(savedData);
     } else {
       setData(initialMockData);
@@ -331,6 +433,19 @@ export default function PackingTypeManagement() {
               }
             />
 
+            {selectedPacking.createdBy && (
+              <DrawerField label="Created By" value={selectedPacking.createdBy} />
+            )}
+            {selectedPacking.createdOn && (
+              <DrawerField label="Created On" value={formatDate(selectedPacking.createdOn)} />
+            )}
+            {selectedPacking.updatedBy && (
+              <DrawerField label="Updated By" value={selectedPacking.updatedBy} />
+            )}
+            {selectedPacking.updatedOn && (
+              <DrawerField label="Updated On" value={formatDate(selectedPacking.updatedOn)} />
+            )}
+
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3 mt-4">
               {canEdit && (
                 <ActionButton onClick={openEditModal}>
@@ -350,8 +465,8 @@ export default function PackingTypeManagement() {
 
       {/* Delete Confirmation Modal */}
       {itemToDelete && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-in zoom-in-95 duration-200">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setItemToDelete(null)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 text-center animate-in zoom-in-95 duration-200" onClick={(e) => e.stopPropagation()}>
             <div className="w-12 h-12 rounded-full bg-rose-100 flex items-center justify-center mx-auto mb-4">
               <Trash2 className="w-6 h-6 text-rose-600" />
             </div>
@@ -381,8 +496,8 @@ export default function PackingTypeManagement() {
 
       {/* Add / Edit Packing Type Modal Form */}
       {showModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4" onClick={() => setShowModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">
                 {isEditingModal ? "Edit Packing Type" : "Add Packing Type"}
@@ -425,7 +540,7 @@ export default function PackingTypeManagement() {
                 </label>
                 <input
                   type="text"
-                  maxLength={20}
+                  maxLength={100}
                   value={newPacking.name}
                   onChange={(e) =>
                     setNewPacking({ ...newPacking, name: e.target.value })
@@ -439,22 +554,50 @@ export default function PackingTypeManagement() {
                 <label className="block text-sm font-medium mb-1">
                   Unit of Measure *
                 </label>
-                <select
-                  value={newPacking.uom}
-                  onChange={(e) =>
-                    setNewPacking({ ...newPacking, uom: e.target.value })
-                  }
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
-                >
-                  <option value="Strip">Strip</option>
-                  <option value="Bottle">Bottle</option>
-                  <option value="Vial">Vial</option>
-                  <option value="Ampoule">Ampoule</option>
-                  <option value="Tube">Tube</option>
-                  <option value="Sachet">Sachet</option>
-                  <option value="Pack">Pack</option>
-                  <option value="Box">Box</option>
-                </select>
+                {!isAddingNewUom ? (
+                  <select
+                    value={newPacking.uom}
+                    onChange={(e) => {
+                      if (e.target.value === "ADD_NEW") {
+                        setIsAddingNewUom(true);
+                      } else {
+                        setNewPacking({ ...newPacking, uom: e.target.value });
+                      }
+                    }}
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                  >
+                    {Array.from(new Set([...baseUoms, ...customUoms, ...data.map(d => d.uom)])).map(uom => (
+                      <option key={uom} value={uom}>{uom}</option>
+                    ))}
+                    <option value="ADD_NEW" className="font-semibold text-violet-600">+ Add New Unit</option>
+                  </select>
+                ) : (
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      maxLength={50}
+                      value={newUomValue}
+                      onChange={(e) => setNewUomValue(e.target.value)}
+                      className="flex-1 border border-slate-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-violet-500 focus:border-violet-500"
+                      placeholder="Enter new unit"
+                      autoFocus
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSaveNewUom}
+                      className="px-3 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 text-sm font-medium whitespace-nowrap"
+                    >
+                      Add
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelAddNewUom}
+                      className="px-3 py-2 bg-slate-100 text-slate-700 rounded-lg hover:bg-slate-200 text-sm font-medium whitespace-nowrap"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -463,7 +606,7 @@ export default function PackingTypeManagement() {
                 </label>
                 <textarea
                   rows={2}
-                  maxLength={20}
+                  maxLength={250}
                   value={newPacking.description}
                   onChange={(e) =>
                     setNewPacking({ ...newPacking, description: e.target.value })
