@@ -41,6 +41,115 @@ export default function ActivityTracking() {
     }
   }, []);
 
+  useEffect(() => {
+    try {
+      // 1. Get logged-in user name
+      const authUser = JSON.parse(localStorage.getItem('authUser') || '{}');
+      const userName = authUser.fullName || authUser.name || 'Medical Representative';
+
+      // 2. Fetch all raw stores
+      const docData = JSON.parse(localStorage.getItem('doctor_visits') || localStorage.getItem('web_doctor_visits') || '[]');
+      const chemData = JSON.parse(localStorage.getItem('chemist_visits') || localStorage.getItem('web_chemist_visits') || '[]');
+      const orderData = JSON.parse(localStorage.getItem('@orders') || localStorage.getItem('web_orders') || '[]');
+      const attendanceData = JSON.parse(localStorage.getItem('web_attendance_records') || '[]');
+      const dcrData = JSON.parse(localStorage.getItem('web_daily_reports') || '[]');
+
+      const compiledActivities: ActivityItem[] = [];
+
+      // 3. Map Attendance shifts
+      attendanceData.filter((a: any) => a.repName === userName).forEach((a: any) => {
+        compiledActivities.push({
+          id: a.id,
+          activityId: `ACT-ATT-${a.id.slice(-4)}`,
+          mrName: a.repName,
+          activityType: 'Attendance',
+          customerName: a.location,
+          territory: a.location.split(',')[0] || 'HQ',
+          date: a.date,
+          startTime: a.checkInTime,
+          endTime: a.checkOutTime || '-',
+          duration: a.workingHours || 'In Progress',
+          status: a.checkOutTime && a.checkOutTime !== '-' ? 'Completed' : 'In Progress'
+        });
+      });
+
+      // 4. Map Doctor Visits
+      docData.filter((v: any) => v.mrName === userName).forEach((v: any) => {
+        compiledActivities.push({
+          id: v.id,
+          activityId: `ACT-DOC-${v.id.slice(-4)}`,
+          mrName: v.mrName,
+          activityType: 'Doctor Visit',
+          customerName: `Dr. ${v.doctorName}`,
+          territory: v.location?.split(',')[0] || 'Clinic',
+          date: v.visitDate || '',
+          startTime: v.time || '',
+          endTime: '',
+          duration: '30 mins',
+          status: 'Completed'
+        });
+      });
+
+      // 5. Map Chemist Visits
+      chemData.filter((c: any) => c.mrName === userName).forEach((c: any) => {
+        compiledActivities.push({
+          id: c.id,
+          activityId: `ACT-CHM-${c.id.slice(-4)}`,
+          mrName: c.mrName,
+          activityType: 'Chemist Visit',
+          customerName: c.shopName,
+          territory: c.location?.split(',')[0] || 'Pharmacy',
+          date: c.visitDate || '',
+          startTime: c.time || '',
+          endTime: '',
+          duration: '30 mins',
+          status: 'Completed'
+        });
+      });
+
+      // 6. Map Order Bookings
+      orderData.forEach((o: any) => {
+        compiledActivities.push({
+          id: o.id,
+          activityId: `ACT-ORD-${o.id.slice(-4)}`,
+          mrName: userName,
+          activityType: 'Order Booking',
+          customerName: o.customerName,
+          territory: o.distributor || 'City',
+          date: o.dateFormatted || o.date || '',
+          startTime: '',
+          endTime: '',
+          duration: '',
+          status: o.status === 'Cancelled' ? 'Missed' : 'Completed'
+        });
+      });
+
+      // 7. Map DCR reports
+      dcrData.filter((r: any) => r.repName === userName).forEach((r: any) => {
+        compiledActivities.push({
+          id: r.id,
+          activityId: `ACT-DCR-${r.id.slice(-4)}`,
+          mrName: r.repName,
+          activityType: 'DCR Submission',
+          customerName: 'HQ Office',
+          territory: r.area,
+          date: r.date,
+          startTime: r.startTime || '',
+          endTime: r.endTime || '',
+          duration: `${r.totalKmTravelled} km`,
+          status: 'Completed'
+        });
+      });
+
+      // Sort activities chronologically by date
+      compiledActivities.sort((x, y) => y.date.localeCompare(x.date));
+
+      setActivities(compiledActivities);
+    } catch (e) {
+      console.error("Failed to load activity logs:", e);
+    }
+  }, []);
+
   const handleExport = () => {
     const headers = ['Activity ID', 'MR Name', 'Activity Type', 'Customer', 'Territory', 'Date', 'Start Time', 'End Time', 'Duration', 'Status'];
     const csvContent = [

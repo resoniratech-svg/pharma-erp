@@ -207,17 +207,34 @@ export default function MeetingLocationTracking() {
   const [meetings, setMeetings] = useState<MeetingLocation[]>([]);
 
   useEffect(() => {
-     // ✅ ChatGPT Fix 2: Added try...catch to protect against corrupt localStorage
      try {
-         const stored = localStorage.getItem('meeting_locations');
+         // Pull data from the CRM Meetings module
+         const stored = localStorage.getItem('crm_meetings');
          if (stored) {
-             setMeetings(JSON.parse(stored));
+             const crmMeetings = JSON.parse(stored);
+             
+             // Map CRM Meeting format to Location Tracking format
+             const mappedMeetings = crmMeetings.map((m: any) => ({
+                 id: m.id,
+                 eventId: `EVT-${m.id}`,
+                 eventName: m.title || 'Untitled Event',
+                 location: m.venue || 'Remote / Unknown',
+                 organizer: m.client || 'N/A',
+                 startTime: m.time || 'TBD',
+                 endTime: 'TBD', // CRM doesn't store end time natively
+                 attendees: m.participants ? m.participants.split(',').length : 1,
+                 // Derive GPS Status from Meeting Status
+                 gpsStatus: m.status === 'Completed' ? 'Verified' : 
+                           (m.status === 'Scheduled' ? 'Pending' : 'Flagged')
+             }));
+             
+             setMeetings(mappedMeetings);
          } else {
              setMeetings([]); 
          }
      } catch (error) {
          console.error("Failed to load meeting locations:", error);
-         setMeetings([]); // Safely fall back to empty array if data is corrupt
+         setMeetings([]); 
      }
   }, []);
 

@@ -41,12 +41,12 @@ export default function TargetTracking() {
       };
 
       // 1. Calculate Doctor Visits (Current Month)
-      const docData = JSON.parse(localStorage.getItem('web_doctor_visits') || '[]');
+      const docData = JSON.parse(localStorage.getItem('doctor_visits') ||  localStorage.getItem('web_doctor_visits') ||  '[]');
       const currentDocVisits = docData.filter((v: any) => isCurrentMonth(v.visitDate || v.date));
       setDocsVisited(currentDocVisits.length);
 
       // 2. Calculate Chemist Visits (Current Month)
-      const chemistData = JSON.parse(localStorage.getItem('web_chemist_visits') || '[]');
+      const chemistData = JSON.parse(localStorage.getItem('chemist_visits') ||localStorage.getItem('web_chemist_visits') ||'[]');
       const currentChemistVisits = chemistData.filter((v: any) => isCurrentMonth(v.visitDate || v.date));
       setChemistsVisited(currentChemistVisits.length);
 

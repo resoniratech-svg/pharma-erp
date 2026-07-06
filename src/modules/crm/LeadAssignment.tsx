@@ -241,13 +241,11 @@ interface Lead {
   assignedBy?: string; 
 }
 
-const MR_LIST = ['Priya Reddy', 'Rahul Verma', 'Amit Kumar', 'Sanjay Patel', 'Ramesh Sharma'];
-
 export default function LeadAssignment() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
-  
+  const [mrList, setMrList] = useState<string[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [assignForm, setAssignForm] = useState({
@@ -265,6 +263,16 @@ export default function LeadAssignment() {
       if (stored) {
         setLeads(JSON.parse(stored));
       }
+      
+      const storedUsers = localStorage.getItem('app_users');
+      if (storedUsers) {
+        const users = JSON.parse(storedUsers);
+        const onlyMRs = users
+          .filter((u: any) => u.role === 'Medical Representative' && u.status === 'Active')
+          .map((u: any) => u.name);
+        
+        setMrList(onlyMRs.length > 0 ? onlyMRs : ['No Active MRs Found']);
+      }
     } catch (error) {
       console.error("Failed to load leads:", error);
     }
@@ -273,7 +281,7 @@ export default function LeadAssignment() {
   const openAssignDrawer = (lead: Lead) => {
     setSelectedLead(lead);
     setAssignForm({
-      assignedTo: lead.assignedTo || MR_LIST[0],
+      assignedTo: lead.assignedTo || mrList[0] || '',
       priority: lead.priority || 'Medium'
     });
     setIsDrawerOpen(true);
@@ -525,7 +533,7 @@ export default function LeadAssignment() {
                   required
                 >
                   <option value="" disabled>Select a Representative</option>
-                  {MR_LIST.map(mr => (
+                  {mrList.map(mr => (
                     <option key={mr} value={mr}>{mr}</option>
                   ))}
                 </select>

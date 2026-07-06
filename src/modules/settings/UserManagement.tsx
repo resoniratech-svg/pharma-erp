@@ -79,7 +79,20 @@ function ActionMenu({ row, onEdit, onToggleStatus }: { row: AppUser, onEdit: (ro
 }
 
 export default function UserManagement() {
-  const [users, setUsers] = useState<AppUser[]>(initialMockData);
+//  const [users, setUsers] = useState<AppUser[]>(initialMockData);
+const [users, setUsers] = useState<AppUser[]>([]);
+
+// Load data when page opens
+useEffect(() => {
+  const stored = localStorage.getItem('app_users');
+  if (stored) {
+    setUsers(JSON.parse(stored));
+  } else {
+    // Save mock data if database is empty
+    setUsers(initialMockData);
+    localStorage.setItem('app_users', JSON.stringify(initialMockData));
+  }
+}, []);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
   
@@ -112,8 +125,10 @@ export default function UserManagement() {
   };
 
   const handleToggleStatus = (row: AppUser) => {
-    const newStatus = row.status === 'Active' ? 'Inactive' : 'Active';
-    setUsers(users.map(u => u.id === row.id ? { ...u, status: newStatus } : u));
+    const newStatus = (row.status === 'Active' ? 'Inactive' : 'Active') as AppUser['status'];
+    const updated = users.map(u => u.id === row.id ? { ...u, status: newStatus } : u);
+    setUsers(updated);
+    localStorage.setItem('app_users', JSON.stringify(updated));
   };
 
   const columns: Column<AppUser>[] = [
@@ -152,30 +167,36 @@ export default function UserManagement() {
       return;
     }
 
+    let updatedUsers: AppUser[] = [];
+
     if (editingId) {
-      setUsers(users.map(u => u.id === editingId ? {
+      updatedUsers = users.map(u => u.id === editingId ? {
         ...u,
         name: fullName,
         email: email,
         phone: mobile || 'N/A',
         role: role,
-        status: status,
+        status: status as AppUser['status'],
         empId: empId,
         username: username,
-      } : u));
+      } : u);
     } else {
       const newUser: AppUser = {
-        id: Math.random().toString(36).substr(2, 9),
+        id: Math.random().toString(36).substring(2, 9),
         name: fullName,
         email: email,
         phone: mobile || 'N/A',
         role: role,
-        status: status,
+        status: status as AppUser['status'],
         empId: empId,
         username: username,
       };
-      setUsers([...users, newUser]);
+      updatedUsers = [...users, newUser];
     }
+    
+    setUsers(updatedUsers);
+    localStorage.setItem('app_users', JSON.stringify(updatedUsers));
+
     
     // Reset form
     setEditingId(null);

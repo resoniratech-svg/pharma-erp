@@ -149,12 +149,28 @@ export default function Attendance() {
     { key: 'checkInTime', label: 'Check In', render: (row) => <span className="text-emerald-600 font-medium">{row.checkInTime}</span> },
     { key: 'checkOutTime', label: 'Check Out', render: (row) => <span className="text-rose-600 font-medium">{row.checkOutTime}</span> },
     { key: 'location', label: 'Start Location' },
-    {
+    // {
+    //   key: 'status',
+    //   label: 'Status',
+    //   render: (row) => {
+    //     const variant = row.status === 'Present' ? 'success' : row.status === 'Absent' ? 'danger' : row.status === 'Half Day' ? 'warning' : 'neutral';
+    //     return <Badge variant={variant}>{row.status}</Badge>;
+    //   },
+    // },
+        {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        const variant = row.status === 'Present' ? 'success' : row.status === 'Absent' ? 'danger' : row.status === 'Half Day' ? 'warning' : 'neutral';
-        return <Badge variant={variant}>{row.status}</Badge>;
+        // Read dayStatus from localStorage record, fallback to status
+        const currentStatus = (row as any).dayStatus || row.status;
+        
+        // Define color variant mapping
+        const variant = 
+          currentStatus === 'Present' || currentStatus === 'Completed' ? 'success' : 
+          currentStatus === 'Absent' || currentStatus === 'Missed Check-Out' || currentStatus === 'Auto Closed' ? 'danger' : 
+          currentStatus === 'Half Day' || currentStatus === 'Pending Checkout' ? 'warning' : 'neutral';
+          
+        return <Badge variant={variant}>{currentStatus}</Badge>;
       },
     },
     {
