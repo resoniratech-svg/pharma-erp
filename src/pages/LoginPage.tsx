@@ -113,17 +113,70 @@ export default function LoginPage() {
     return ok;
   };
 
-  /* Submit — login against mock user database */
+  /* Submit — login against backend API first, fallback to mock user database */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setLoading(true);
-    /* Simulate API delay */
-    await new Promise((res) => setTimeout(res, 1600));
 
-    //const user = USERS.find(u => u.email === email && u.password === password);
-        // Fetch from persistent localStorage database first, fall back to USERS array
+    // 1. Try to login against the real backend API
+    try {
+      const BASE_URL = import.meta.env.VITE_API_URL || 'https://pharma-erp-pharma-backend.rrh5yv.easypanel.host/api';
+      const response = await fetch(`${BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        const { token, user } = result.data;
+
+        // Check if user role matches the workspace role
+        if (user.role !== role.id) {
+          setLoading(false);
+          setEmailErr(`Invalid credentials for ${role.title} workspace.`);
+          setPasswordErr('');
+          return;
+        }
+
+        setLoading(false);
+        setSuccess(true);
+
+        await new Promise((res) => setTimeout(res, 700));
+
+        const authUser = {
+          id: String(user.id),
+          email: user.email,
+          fullName: user.name,
+          roleId: user.role,
+        };
+
+        localStorage.setItem("activeRole", user.role);
+        localStorage.setItem("workspaceRole", role.id);
+        localStorage.setItem("userId", String(user.id));
+        localStorage.setItem("authUser", JSON.stringify(authUser));
+        localStorage.setItem("authToken", token);
+
+        activityLogService.addLog({
+          userId: String(user.id),
+          userName: user.name,
+          action: "Login",
+          module: "Authentication",
+        });
+
+        navigate("/workspace/dashboard");
+        return;
+      }
+    } catch (err) {
+      console.warn("Backend connection failed, falling back to mock database:", err);
+    }
+
+    // 2. Fallback to mock user database if backend fails or connection is rejected
     let dbUsers = USERS;
     const storedDb = localStorage.getItem('web_users_database');
     if (storedDb) {
