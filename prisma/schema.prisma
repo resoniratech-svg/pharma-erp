@@ -181,6 +181,23 @@ model Product {
 
   minStock Int
 
+  genericName   String?
+  brandName     String?
+  type          String?
+  manufacturer  String?
+  composition   String?
+  scheme        String?
+  packingType   String?
+  unitsPerPack  String?
+  packsInBox    String?
+  totalUnits    String?
+  purchasePrice Float?
+  sellingPrice  Float?
+  reorderLevel  Int?
+  batchTracking Boolean @default(false)
+  expiryTracking Boolean @default(false)
+  status        String @default("Active")
+
   batches Batch[]
 
   invoiceItems InvoiceItem[]

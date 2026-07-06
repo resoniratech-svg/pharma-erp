@@ -1,0 +1,17 @@
+-- AlterTable
+ALTER TABLE "Product" ADD COLUMN     "batchTracking" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "brandName" TEXT,
+ADD COLUMN     "composition" TEXT,
+ADD COLUMN     "expiryTracking" BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN     "genericName" TEXT,
+ADD COLUMN     "manufacturer" TEXT,
+ADD COLUMN     "packingType" TEXT,
+ADD COLUMN     "packsInBox" TEXT,
+ADD COLUMN     "purchasePrice" DOUBLE PRECISION,
+ADD COLUMN     "reorderLevel" INTEGER,
+ADD COLUMN     "scheme" TEXT,
+ADD COLUMN     "sellingPrice" DOUBLE PRECISION,
+ADD COLUMN     "status" TEXT NOT NULL DEFAULT 'Active',
+ADD COLUMN     "totalUnits" TEXT,
+ADD COLUMN     "type" TEXT,
+ADD COLUMN     "unitsPerPack" TEXT;
