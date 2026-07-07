@@ -1,4 +1,16 @@
-const BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+let BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+
+if (typeof window !== 'undefined') {
+  const storedOverride = localStorage.getItem('VITE_API_URL');
+  if (storedOverride) {
+    BASE_URL = storedOverride;
+  } else if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    if (BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1')) {
+      const apiHost = window.location.hostname.replace('-web', '-api');
+      BASE_URL = `${window.location.protocol}//${apiHost}/api`;
+    }
+  }
+}
 
 interface RequestOptions extends RequestInit {
   bodyData?: any;
