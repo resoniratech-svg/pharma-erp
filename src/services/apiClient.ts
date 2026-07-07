@@ -6,7 +6,7 @@ if (typeof window !== 'undefined') {
     BASE_URL = storedOverride;
   } else if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
     if (BASE_URL.includes('localhost') || BASE_URL.includes('127.0.0.1')) {
-      const apiHost = window.location.hostname.replace('-web', '-api');
+      const apiHost = window.location.hostname.replace('-web', '-backend');
       BASE_URL = `${window.location.protocol}//${apiHost}/api`;
     }
   }
