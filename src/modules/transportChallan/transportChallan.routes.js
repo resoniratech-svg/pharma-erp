@@ -26,4 +26,10 @@ router.get(
   controller.getTransportChallanById
 );
 
+router.put(
+  "/:id",
+  authMiddleware,
+  controller.updateTransportChallan
+);
+
 module.exports = router;

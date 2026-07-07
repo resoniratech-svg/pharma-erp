@@ -26,8 +26,17 @@ const getTransportChallanByIdRepo =
     });
   };
 
+const updateTransportChallanRepo =
+  async (id, data) => {
+    return prisma.transportChallan.update({
+      where: { id },
+      data,
+    });
+  };
+
 module.exports = {
   createTransportChallanRepo,
   getTransportChallansRepo,
   getTransportChallanByIdRepo,
+  updateTransportChallanRepo,
 };

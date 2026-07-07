@@ -93,11 +93,24 @@ const updateBatch = async (
   res
 ) => {
   try {
+    const payload = { ...req.body };
+    if (payload.manufacturingDate) {
+      payload.manufacturingDate = new Date(payload.manufacturingDate);
+    }
+    if (payload.expiryDate) {
+      payload.expiryDate = new Date(payload.expiryDate);
+    }
+    if (payload.productId) {
+      payload.productId = Number(payload.productId);
+    }
+    if (payload.quantity !== undefined) {
+      payload.quantity = Number(payload.quantity);
+    }
 
     const result =
       await batchService.updateBatch(
         Number(req.params.id),
-        req.body
+        payload
       );
 
     res.status(200).json({

@@ -19,8 +19,15 @@ const getTransportChallanByIdService =
       .getTransportChallanByIdRepo(id);
   };
 
+const updateTransportChallanService =
+  async (id, data) => {
+    return repository
+      .updateTransportChallanRepo(id, data);
+  };
+
 module.exports = {
   createTransportChallanService,
   getTransportChallansService,
   getTransportChallanByIdService,
+  updateTransportChallanService,
 };

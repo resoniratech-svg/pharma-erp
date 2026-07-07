@@ -11,7 +11,12 @@ const createInventoryRepo = async (
 const getInventoriesRepo = async () => {
   return prisma.inventory.findMany({
     include: {
-      batch: true,
+      batch: {
+        include: {
+          product: true,
+        },
+      },
+      warehouse: true,
     },
   });
 };
@@ -22,7 +27,12 @@ const getInventoryById = async (
   return prisma.inventory.findUnique({
     where: { id },
     include: {
-      batch: true,
+      batch: {
+        include: {
+          product: true,
+        },
+      },
+      warehouse: true,
     },
   });
 };
