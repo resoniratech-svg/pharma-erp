@@ -172,6 +172,38 @@ const DailyMovementTrackingScreen = () => {
     return `${formattedDate} ${formattedTime}`;
   };
 
+  const isDateMatch = (itemDate: any, targetDate: string): boolean => {
+    if (!itemDate) return false;
+    try {
+      if (/^\d{2}-\d{2}-\d{4}$/.test(itemDate)) {
+        return itemDate === targetDate;
+      }
+      const parts = itemDate.toString().replace(/,/g, '').split(/[\s-]+/);
+      if (parts.length >= 3) {
+        const day = parts[0].padStart(2, '0');
+        const monthStr = parts[1];
+        const year = parts[2];
+        const months: { [key: string]: string } = {
+          'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+          'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
+          'january': '01', 'february': '02', 'march': '03', 'april': '04', 'june': '06',
+          'july': '07', 'august': '08', 'september': '09', 'october': '10', 'november': '11', 'december': '12'
+        };
+        let month = '01';
+        if (months[monthStr.toLowerCase()]) {
+          month = months[monthStr.toLowerCase()];
+        } else {
+          month = monthStr.padStart(2, '0');
+        }
+        const normalized = `${day}-${month}-${year}`;
+        return normalized === targetDate;
+      }
+      return false;
+    } catch {
+      return false;
+    }
+  };
+
   // Real-time visit coverage calculations
   const calculateRealCoverage = async () => {
     try {
@@ -186,11 +218,11 @@ const DailyMovementTrackingScreen = () => {
       // Match visits for selected date
       const todayDocs = docVisits.filter((v: any) => {
         const val = v.date || v.visitDate || v.timestamp;
-        return val === selectedDate;
+        return isDateMatch(val, selectedDate);
       });
       const todayChems = chemVisits.filter((v: any) => {
         const val = v.date || v.visitDate || v.timestamp;
-        return val === selectedDate;
+        return isDateMatch(val, selectedDate);
       });
 
       const totalVisitedToday = todayDocs.length + todayChems.length;
@@ -264,14 +296,117 @@ const DailyMovementTrackingScreen = () => {
     try {
       const key = `@gps_movement_${selectedDate}`;
       const stored = await AsyncStorage.getItem(key);
+      let logs: LocationLog[] = [];
       if (stored) {
-        const parsed: LocationLog[] = safeJsonParse(stored, []);
-        setMovementLogs(parsed);
-        calculateTotalDist(parsed);
-      } else {
-        setMovementLogs([]);
-        setTotalDistance(0);
+        logs = safeJsonParse(stored, []);
       }
+      
+      if (logs.length === 0) {
+        const compiled: LocationLog[] = [];
+        
+        // 1. Add Check-In if exists
+        const checkInLat = await AsyncStorage.getItem('@check_in_lat');
+        const checkInLng = await AsyncStorage.getItem('@check_in_lng');
+        const checkInAddress = await AsyncStorage.getItem('@check_in_address');
+        const checkInTime = await AsyncStorage.getItem('@check_in_time');
+        
+        if (checkInLat && checkInLng) {
+          compiled.push({
+            id: Date.now() - 100000,
+            time: checkInTime || '09:00 AM',
+            latitude: parseFloat(checkInLat),
+            longitude: parseFloat(checkInLng),
+            address: checkInAddress || 'Check-in location',
+            type: 'checkin',
+            label: 'Checked-In: Beat Start',
+            accuracy: 4
+          });
+        }
+        
+        // 2. Add doctor visits today
+        const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
+        const docVisits = safeJsonParse(docVisitsData, []);
+        const todayDocs = docVisits.filter((v: any) => isDateMatch(v.date || v.visitDate || v.timestamp, selectedDate));
+        
+        todayDocs.forEach((v: any, idx: number) => {
+          if (v.latitude && v.longitude) {
+            compiled.push({
+              id: v.id || (Date.now() - 50000 + idx),
+              time: v.visitTime || '10:00 AM',
+              latitude: parseFloat(v.latitude),
+              longitude: parseFloat(v.longitude),
+              address: v.clinicAddress || v.address || 'Doctor clinic',
+              type: 'doctor',
+              label: `Visit: Dr. ${v.doctorName || 'Doctor'}`,
+              accuracy: 5
+            });
+          }
+        });
+        
+        // 3. Add chemist visits today
+        const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
+        const chemVisits = safeJsonParse(chemistVisitsData, []);
+        const todayChems = chemVisits.filter((v: any) => isDateMatch(v.date || v.visitDate || v.timestamp, selectedDate));
+        
+        todayChems.forEach((v: any, idx: number) => {
+          if (v.latitude && v.longitude) {
+            compiled.push({
+              id: v.id || (Date.now() - 25000 + idx),
+              time: v.visitTime || '11:00 AM',
+              latitude: parseFloat(v.latitude),
+              longitude: parseFloat(v.longitude),
+              address: v.address || 'Chemist pharmacy store',
+              type: 'chemist',
+              label: `Visit: ${v.shopName || v.chemistName || 'Chemist'}`,
+              accuracy: 6
+            });
+          }
+        });
+        
+        // 4. Add Check-Out if exists
+        const checkOutLat = await AsyncStorage.getItem('@check_out_lat');
+        const checkOutLng = await AsyncStorage.getItem('@check_out_lng');
+        const checkOutAddress = await AsyncStorage.getItem('@check_out_address');
+        const checkOutTime = await AsyncStorage.getItem('@check_out_time');
+        
+        if (checkOutLat && checkOutLng) {
+          compiled.push({
+            id: Date.now(),
+            time: checkOutTime || '06:00 PM',
+            latitude: parseFloat(checkOutLat),
+            longitude: parseFloat(checkOutLng),
+            address: checkOutAddress || 'Check-out location',
+            type: 'checkout',
+            label: 'Checked-Out: Beat End',
+            accuracy: 4
+          });
+        }
+
+        const timeToMinutes = (timeStr: string): number => {
+          if (!timeStr) return 0;
+          const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
+          if (!match) return 0;
+          let hrs = parseInt(match[1]);
+          const mins = parseInt(match[2]);
+          const ampm = match[3].toUpperCase();
+          if (ampm === 'PM' && hrs < 12) hrs += 12;
+          if (ampm === 'AM' && hrs === 12) hrs = 0;
+          return hrs * 60 + mins;
+        };
+
+        compiled.sort((a, b) => {
+          if (a.type === 'checkin') return -1;
+          if (b.type === 'checkin') return 1;
+          if (a.type === 'checkout') return 1;
+          if (b.type === 'checkout') return -1;
+          return timeToMinutes(a.time) - timeToMinutes(b.time);
+        });
+        
+        logs = compiled;
+      }
+
+      setMovementLogs(logs);
+      calculateTotalDist(logs);
       await calculateRealCoverage();
       setLastSynced(formatLastSyncedTime());
     } catch (e) {
@@ -448,9 +583,23 @@ console.log('TYPE:', typeof selectedDate);
 
   // Dev Simulation seed logs
   const addMockCoordinatesNode = async () => {
-    const baseNode = movementLogs[movementLogs.length - 1] || DEFAULT_LOGS[0];
-    const newLat = baseNode.latitude + (Math.random() - 0.5) * 0.006;
-    const newLng = baseNode.longitude + (Math.random() - 0.5) * 0.006;
+    let baseLat = 17.3850;
+    let baseLng = 78.4867;
+    
+    if (movementLogs.length > 0) {
+      baseLat = movementLogs[movementLogs.length - 1].latitude;
+      baseLng = movementLogs[movementLogs.length - 1].longitude;
+    } else {
+      const checkInLat = await AsyncStorage.getItem('@check_in_lat');
+      const checkInLng = await AsyncStorage.getItem('@check_in_lng');
+      if (checkInLat && checkInLng) {
+        baseLat = parseFloat(checkInLat);
+        baseLng = parseFloat(checkInLng);
+      }
+    }
+
+    const newLat = baseLat + (Math.random() - 0.5) * 0.003;
+    const newLng = baseLng + (Math.random() - 0.5) * 0.003;
     const timeStr = new Date().toLocaleTimeString('en-US', {
       hour: '2-digit',
       minute: '2-digit',
@@ -482,12 +631,30 @@ console.log('TYPE:', typeof selectedDate);
     setLoading(true);
     try {
       const key = `@gps_movement_${selectedDate}`;
-      await AsyncStorage.setItem(key, JSON.stringify(DEFAULT_LOGS));
-      setMovementLogs(DEFAULT_LOGS);
-      calculateTotalDist(DEFAULT_LOGS);
+      const checkInLat = await AsyncStorage.getItem('@check_in_lat');
+      const checkInLng = await AsyncStorage.getItem('@check_in_lng');
+      
+      let seeded = [...DEFAULT_LOGS];
+      if (checkInLat && checkInLng) {
+        const targetLat = parseFloat(checkInLat);
+        const targetLng = parseFloat(checkInLng);
+        const latOffset = targetLat - DEFAULT_LOGS[0].latitude;
+        const lngOffset = targetLng - DEFAULT_LOGS[0].longitude;
+        
+        seeded = DEFAULT_LOGS.map(log => ({
+          ...log,
+          latitude: parseFloat((log.latitude + latOffset).toFixed(5)),
+          longitude: parseFloat((log.longitude + lngOffset).toFixed(5)),
+          address: log.type === 'checkin' ? 'Checked-In: HQ Gate' : log.address
+        }));
+      }
+      
+      await AsyncStorage.setItem(key, JSON.stringify(seeded));
+      setMovementLogs(seeded);
+      calculateTotalDist(seeded);
       await calculateRealCoverage();
       setLastSynced(formatLastSyncedTime());
-      customAlert('Demo Loaded', 'Simulated route data loaded successfully.');
+      customAlert('Demo Loaded', 'Simulated route data loaded successfully around your check-in location.');
     } catch (e) {
       console.log('Failed to load demo route logs', e);
       setError('Failed to seed demo route.');
@@ -499,12 +666,11 @@ console.log('TYPE:', typeof selectedDate);
   const clearLogs = async () => {
     const key = `@gps_movement_${selectedDate}`;
     await AsyncStorage.removeItem(key);
-    setMovementLogs([]);
-    setTotalDistance(0);
+    await loadMovementLogs(false);
     setIsSimulating(false);
     setIsLiveTracking(false);
-    setRouteCoverage('N/A');
-    customAlert('Logs Cleared', 'Location coordinates cleared for ' + selectedDate);
+    await calculateRealCoverage();
+    customAlert('Logs Cleared', 'Tracked location coordinates cleared for ' + selectedDate);
   };
 
   // Coordinate projections
@@ -527,9 +693,99 @@ console.log('TYPE:', typeof selectedDate);
 
   const projectedNodes = projectCoordinates(movementLogs);
 
+  const avgAccuracy = movementLogs.length > 0
+    ? Math.round(movementLogs.reduce((sum, log) => sum + (log.accuracy || 0), 0) / movementLogs.length)
+    : 5;
+  const averageAccuracy = `±${avgAccuracy}m`;
+
+  const handleClearLogs = () => {
+    if (Platform.OS === 'web') {
+      const confirmClear = window.confirm('Are you sure you want to clear location logs for ' + selectedDate + '?');
+      if (confirmClear) {
+        clearLogs();
+      }
+    } else {
+      Alert.alert(
+        'Confirm Clear',
+        'Are you sure you want to clear location logs for ' + selectedDate + '?',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Clear', onPress: clearLogs, style: 'destructive' }
+        ]
+      );
+    }
+  };
+
   // Dynamic MR metrics
   const firstLogged = movementLogs.length > 0 ? movementLogs[0].time : '--:--';
   const lastLogged = movementLogs.length > 0 ? movementLogs[movementLogs.length - 1].time : '--:--';
+
+  let calculatedWorkingHours = '0.0 hrs';
+  if (movementSummary?.checkInTime) {
+    const checkInDate = new Date(movementSummary.checkInTime);
+    const end = movementSummary.checkOutTime ? new Date(movementSummary.checkOutTime) : new Date();
+    const diffMs = end.getTime() - checkInDate.getTime();
+    if (diffMs > 0) {
+      const diffHrs = diffMs / (1000 * 60 * 60);
+      calculatedWorkingHours = `${diffHrs.toFixed(1)} hrs`;
+    }
+  } else if (movementSummary?.workingHours) {
+    calculatedWorkingHours = `${movementSummary.workingHours} hrs`;
+  }
+
+  const mapHtml = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <style>
+    html, body, #map { height: 100%; margin: 0; padding: 0; }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <script>
+    const logs = ${JSON.stringify(movementLogs)};
+    if (logs.length > 0) {
+      const map = L.map('map');
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap'
+      }).addTo(map);
+
+      const points = logs.map(l => [l.latitude, l.longitude]);
+      
+      const polyline = L.polyline(points, {color: '#4F46E5', weight: 4, opacity: 0.8}).addTo(map);
+      
+      logs.forEach((log, idx) => {
+        let color = '#2563EB';
+        if (log.type === 'checkin') color = '#10B981';
+        else if (log.type === 'checkout') color = '#EF4444';
+        else if (log.type === 'doctor') color = '#06B6D4';
+        else if (log.type === 'chemist') color = '#F59E0B';
+
+        const customIcon = L.divIcon({
+          className: 'custom-div-icon',
+          html: '<div style="background-color: ' + color + '; width: 22px; height: 22px; border-radius: 50%; border: 2px solid white; display: flex; align-items: center; justify-content: center; color: white; font-weight: bold; font-size: 11px; box-shadow: 0 2px 5px rgba(0,0,0,0.3)">' + (idx + 1) + '</div>',
+          iconSize: [22, 22],
+          iconAnchor: [11, 11]
+        });
+
+        L.marker([log.latitude, log.longitude], {icon: customIcon})
+          .bindPopup('<b>' + (idx + 1) + '. ' + log.label + '</b><br/>⏱️ ' + log.time + '<br/>📍 ' + log.address)
+          .addTo(map);
+      });
+
+      map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+    } else {
+      document.getElementById('map').innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#64748B;font-family:sans-serif;font-size:14px;">No GPS route path trace available</div>';
+    }
+  </script>
+</body>
+</html>
+  `;
 
   const webInputStyle = {
     borderWidth: 1,
@@ -675,121 +931,110 @@ console.log('TYPE:', typeof selectedDate);
               <Text style={styles.statLabel}>Route Coverage</Text>
             </View>
             <View style={styles.statCard}>
-              <Text style={[styles.statVal, { color: '#0D9488' }]}>±5m</Text>
+              <Text style={[styles.statVal, { color: '#0D9488' }]}>{averageAccuracy}</Text>
               <Text style={styles.statLabel}>GPS Precision</Text>
             </View>
           </View>
 
-          <View style={{ marginTop: 20 }}>
-
-  <Text style={{
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginBottom: 12
-  }}>
-    Backend Daily Summary
-  </Text>
-
-  <View style={{
-    backgroundColor: '#fff',
-    padding: 15,
-    borderRadius: 12
-  }}>
-
-    <Text>
-      👨‍⚕️ Doctor Visits:
-      {' '}
-      {movementSummary?.doctorVisits || 0}
-    </Text>
-
-    <Text>
-      💊 Chemist Visits:
-      {' '}
-      {movementSummary?.chemistVisits || 0}
-    </Text>
-
-    <Text>
-      📍 Total Stops:
-      {' '}
-      {movementSummary?.totalStops || 0}
-    </Text>
-
-    <Text>
-      ⏱ Working Hours:
-      {' '}
-      {movementSummary?.workingHours || 0}
-    </Text>
-
-    <Text>
-      🟢 Check In:
-      {' '}
-      {
-        movementSummary?.checkInTime
-          ? new Date(
-              movementSummary.checkInTime
-            ).toLocaleTimeString()
-          : 'N/A'
-      }
-    </Text>
-
-    <Text>
-      🔴 Check Out:
-      {' '}
-      {
-        movementSummary?.checkOutTime
-          ? new Date(
-              movementSummary.checkOutTime
-            ).toLocaleTimeString()
-          : 'N/A'
-      }
-    </Text>
-
-  </View>
-
-</View>
-
-          {/* 🗺️ Route Trace Canvas */}
-          <Text style={styles.sectionTitle}>🗺️ Visual GPS Path Trace</Text>
-          <View style={styles.mapContainer}>
-            <View style={styles.gridBg}>
-              <View style={styles.gridLineH} />
-              <View style={styles.gridLineH} />
-              <View style={styles.gridLineH} />
-              <View style={styles.gridLineV} />
-              <View style={styles.gridLineV} />
-              <View style={styles.gridLineV} />
+          {/* Today's Performance Summary Grid */}
+          <Text style={styles.sectionTitle}>📋 Today's Performance Summary</Text>
+          <View style={styles.summaryContainer}>
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryIcon}>👨‍⚕️</Text>
+                <Text style={styles.summaryVal}>{movementSummary?.doctorVisits || 0}</Text>
+                <Text style={styles.summaryLabel}>Doctor Visits</Text>
+              </View>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryIcon}>💊</Text>
+                <Text style={styles.summaryVal}>{movementSummary?.chemistVisits || 0}</Text>
+                <Text style={styles.summaryLabel}>Chemist Visits</Text>
+              </View>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryIcon}>📍</Text>
+                <Text style={styles.summaryVal}>{movementSummary?.totalStops || 0}</Text>
+                <Text style={styles.summaryLabel}>Total Stops</Text>
+              </View>
             </View>
+            <View style={styles.summaryRow}>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryIcon}>⏱️</Text>
+                <Text style={styles.summaryVal}>{calculatedWorkingHours}</Text>
+                <Text style={styles.summaryLabel}>Working Hours</Text>
+              </View>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryIcon}>🟢</Text>
+                <Text style={styles.summaryVal}>
+                  {movementSummary?.checkInTime
+                    ? new Date(movementSummary.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : 'N/A'}
+                </Text>
+                <Text style={styles.summaryLabel}>Check In</Text>
+              </View>
+              <View style={styles.summaryCard}>
+                <Text style={styles.summaryIcon}>🔴</Text>
+                <Text style={styles.summaryVal}>
+                  {movementSummary?.checkOutTime
+                    ? new Date(movementSummary.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                    : 'N/A'}
+                </Text>
+                <Text style={styles.summaryLabel}>Check Out</Text>
+              </View>
+            </View>
+          </View>
 
-            {projectedNodes.length > 0 ? (
-              projectedNodes.map((node: any, idx: number) => {
-                const isLatest = idx === projectedNodes.length - 1;
-                let color = '#2563EB';
-                if (node.type === 'checkin') color = '#10B981';
-                if (node.type === 'checkout') color = '#EF4444';
-                if (node.type === 'doctor') color = '#06B6D4';
-                if (node.type === 'chemist') color = '#F59E0B';
-
-                return (
-                  <View
-                    key={node.id}
-                    style={[
-                      styles.mapNode,
-                      {
-                        left: node.x,
-                        top: node.y,
-                        backgroundColor: color,
-                        shadowColor: color,
-                      },
-                    ]}
-                  >
-                    {isLatest && <View style={styles.pulseRing} />}
-                    <Text style={styles.nodeIdx}>{idx + 1}</Text>
-                  </View>
-                );
-              })
+          {/* 🗺️ Route Trace Map */}
+          <Text style={styles.sectionTitle}>🗺️ Daily Movement Beat Map</Text>
+          <View style={styles.mapContainer}>
+            {Platform.OS === 'web' ? (
+              <iframe
+                srcDoc={mapHtml}
+                style={{ width: '100%', height: '100%', border: 'none', borderRadius: 12 }}
+                title="GPS Route Map"
+              />
             ) : (
-              <View style={styles.emptyMapContent}>
-                <Text style={styles.emptyMapText}>No visual track path available</Text>
+              <View style={{ flex: 1 }}>
+                <View style={styles.gridBg}>
+                  <View style={styles.gridLineH} />
+                  <View style={styles.gridLineH} />
+                  <View style={styles.gridLineH} />
+                  <View style={styles.gridLineV} />
+                  <View style={styles.gridLineV} />
+                  <View style={styles.gridLineV} />
+                </View>
+
+                {projectedNodes.length > 0 ? (
+                  projectedNodes.map((node: any, idx: number) => {
+                    const isLatest = idx === projectedNodes.length - 1;
+                    let color = '#2563EB';
+                    if (node.type === 'checkin') color = '#10B981';
+                    if (node.type === 'checkout') color = '#EF4444';
+                    if (node.type === 'doctor') color = '#06B6D4';
+                    if (node.type === 'chemist') color = '#F59E0B';
+
+                    return (
+                      <View
+                        key={node.id}
+                        style={[
+                          styles.mapNode,
+                          {
+                            left: node.x,
+                            top: node.y,
+                            backgroundColor: color,
+                            shadowColor: color,
+                          },
+                        ]}
+                      >
+                        {isLatest && <View style={styles.pulseRing} />}
+                        <Text style={styles.nodeIdx}>{idx + 1}</Text>
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={styles.emptyMapContent}>
+                    <Text style={styles.emptyMapText}>No visual track path available</Text>
+                  </View>
+                )}
               </View>
             )}
           </View>
@@ -798,7 +1043,7 @@ console.log('TYPE:', typeof selectedDate);
           <View style={styles.logHeaderRow}>
             <Text style={styles.sectionTitle}>Route Track Details</Text>
             {movementLogs.length > 0 && (
-              <TouchableOpacity onPress={clearLogs}>
+              <TouchableOpacity onPress={handleClearLogs}>
                 <Text style={styles.clearText}>Clear Logs</Text>
               </TouchableOpacity>
             )}
@@ -1033,6 +1278,50 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     textAlign: 'center',
     textTransform: 'uppercase',
+  },
+  summaryContainer: {
+    marginHorizontal: 0,
+    marginTop: 10,
+    gap: 12,
+    marginBottom: 20,
+  },
+  summaryRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  summaryCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#0F172A',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.04,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
+  summaryIcon: {
+    fontSize: 20,
+    marginBottom: 6,
+  },
+  summaryVal: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#0F172A',
+    textAlign: 'center',
+  },
+  summaryLabel: {
+    fontSize: 9,
+    color: '#64748B',
+    marginTop: 2,
+    textAlign: 'center',
+    fontWeight: '500',
   },
   sectionTitle: {
     fontSize: 14,

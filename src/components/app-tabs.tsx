@@ -20,7 +20,7 @@ export default function AppTabs() {
         name="index"
         options={{
           title: 'Home',
-          tabBarIcon: ({ color }) => (
+          tabBarIcon: ({ color }: { color: string }) => (
             <SymbolView
               name="house.fill"
               size={22}
@@ -34,7 +34,7 @@ export default function AppTabs() {
         name="explore"
         options={{
           title: 'Explore',
-          tabBarIcon: ({ color }) => (
+          tabBarIcon: ({ color }: { color: string }) => (
             <SymbolView
               name="paperplane.fill"
               size={22}

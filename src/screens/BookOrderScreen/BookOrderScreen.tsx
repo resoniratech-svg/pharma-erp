@@ -12,6 +12,12 @@ import {
   KeyboardAvoidingView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
+import { getChemists } from '../../services/chemistService';
+import { getHospitals } from '../../services/hospitalService';
+import { getStockists } from '../../services/stockistService';
+import { getProducts } from '../../services/productService';
+import { getDistributors } from '../../services/distributorService';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -33,12 +39,6 @@ const PRODUCT_LIST = [
 ];
 
 const CUSTOMER_MASTERS: Record<string, Array<{ name: string; mobile: string; due: number }>> = {
-  Doctor: [
-    { name: 'Dr. Ramesh (Cardiologist)', mobile: '9876543210', due: 0 },
-    { name: 'Dr. Kumar (Pediatrician)', mobile: '8765432109', due: 0 },
-    { name: 'Dr. Anitha (Dermatologist)', mobile: '7654321098', due: 0 },
-    { name: 'Dr. Suresh (General Physician)', mobile: '6543210987', due: 0 }
-  ],
   Chemist: [
     { name: 'Apollo Pharmacy', mobile: '9988776655', due: 5000 },
     { name: 'MedPlus Drugs', mobile: '8877665544', due: 3500 },
@@ -59,15 +59,31 @@ const CUSTOMER_MASTERS: Record<string, Array<{ name: string; mobile: string; due
 };
 
 const BookOrderScreen = () => {
+  const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
+
+  // Predefined lists loaded from API
+  const [chemists, setChemists] = useState<any[]>([]);
+  const [hospitals, setHospitals] = useState<any[]>([]);
+  const [stockists, setStockists] = useState<any[]>([]);
+  const [products, setProducts] = useState<any[]>([]);
+  const [distributors, setDistributors] = useState<any[]>([]);
+
+  // Selected state variables
+  const [customerSource, setCustomerSource] = useState('Existing Customer');
   const [customerType, setCustomerType] = useState('Chemist');
   const [customerName, setCustomerName] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState(PRODUCT_LIST[0].name);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string | number | null>(null);
+
+  const [selectedProduct, setSelectedProduct] = useState('');
   const [showProductDropdown, setShowProductDropdown] = useState(false);
   const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [showDistributorDropdown, setShowDistributorDropdown] = useState(false);
+  
   const [quantity, setQuantity] = useState('');
-  const [rate, setRate] = useState(PRODUCT_LIST[0].defaultRate.toString());
-  const [totalAmount, setTotalAmount] = useState('0');
+  const [rate, setRate] = useState('0.00');
+  const [totalAmount, setTotalAmount] = useState('0.00');
   const [distributor, setDistributor] = useState('');
   const [remarks, setRemarks] = useState('');
   const [orders, setOrders] = useState<any[]>([]);
@@ -89,26 +105,172 @@ const BookOrderScreen = () => {
     }
   };
 
-  // Simulate API fetch delay on mount
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setLoadingMaster(false);
-    }, 800);
-    return () => clearTimeout(timer);
-  }, []);
+    if (isFocused) {
+      checkAttendanceStatus();
+    }
+  }, [isFocused]);
+
+  const checkAttendanceStatus = async () => {
+    try {
+      const storedCheckedIn = await AsyncStorage.getItem('@checked_in');
+      const attendanceDate = await AsyncStorage.getItem('@attendance_date');
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      let isCheckInValid = false;
+      if (storedCheckedIn === 'true' && attendanceDate) {
+        const storedDateStr = attendanceDate.split('T')[0];
+        if (storedDateStr === todayStr) {
+          isCheckInValid = true;
+        } else {
+          // Forgot to checkout: auto-checkout from previous day
+          await AsyncStorage.removeItem('@checked_in');
+          await AsyncStorage.removeItem('@check_in_time');
+          await AsyncStorage.removeItem('@check_in_lat');
+          await AsyncStorage.removeItem('@check_in_lng');
+          await AsyncStorage.removeItem('@check_in_address');
+          await AsyncStorage.removeItem('@attendance_date');
+        }
+      }
+
+      if (!isCheckInValid) {
+        customAlert(
+          'Check-In Required',
+          'Please check-in first so that attendance is recorded correctly.'
+        );
+        navigation.navigate('Attendance');
+      }
+    } catch (e) {
+      console.log('Failed to verify attendance status', e);
+    }
+  };
+
+  // Load master data on mount/focus
+  useEffect(() => {
+    const fetchData = async () => {
+      setLoadingMaster(true);
+      try {
+        // Fetch Chemists
+        const chemRes = await getChemists();
+        const chemData = chemRes.data || chemRes;
+        if (Array.isArray(chemData)) setChemists(chemData);
+        else if (chemRes.data && Array.isArray(chemRes.data.data)) setChemists(chemRes.data.data);
+
+        // Fetch Hospitals
+        try {
+          const hospRes = await getHospitals();
+          const hospData = hospRes.data || hospRes;
+          if (Array.isArray(hospData)) setHospitals(hospData);
+          else if (hospRes.data && Array.isArray(hospRes.data.data)) setHospitals(hospRes.data.data);
+        } catch(e) { console.log('hospitals load err', e); }
+
+        // Fetch Stockists
+        try {
+          const stockRes = await getStockists();
+          const stockData = stockRes.data || stockRes;
+          if (Array.isArray(stockData)) setStockists(stockData);
+          else if (stockRes.data && Array.isArray(stockRes.data.data)) setStockists(stockRes.data.data);
+        } catch(e) { console.log('stockists load err', e); }
+
+        // Fetch Distributors
+        try {
+          const distRes = await getDistributors();
+          const distData = distRes.data || distRes;
+          if (Array.isArray(distData)) setDistributors(distData);
+          else if (distRes.data && Array.isArray(distRes.data.data)) setDistributors(distRes.data.data);
+        } catch(e) { console.log('distributors load err', e); }
+
+        // Fetch Products
+        const prodRes = await getProducts();
+        const prodData = prodRes.data || prodRes;
+        if (Array.isArray(prodData)) {
+          setProducts(prodData);
+          if (prodData.length > 0) {
+            const defaultProd = prodData[0];
+            const defaultName = defaultProd.name || defaultProd.productName || '';
+            setSelectedProduct(defaultName);
+            setRate((defaultProd.ptr || defaultProd.mrp || 0).toString());
+          }
+        } else {
+          // Use hardcoded product default fallback
+          if (PRODUCT_LIST.length > 0) {
+            setSelectedProduct(PRODUCT_LIST[0].name);
+            setRate(PRODUCT_LIST[0].defaultRate.toString());
+          }
+        }
+      } catch (err) {
+        console.log('Failed to load dynamic data in BookOrderScreen:', err);
+        // Fallbacks if backend fails
+        if (PRODUCT_LIST.length > 0) {
+          setSelectedProduct(PRODUCT_LIST[0].name);
+          setRate(PRODUCT_LIST[0].defaultRate.toString());
+        }
+      } finally {
+        setLoadingMaster(false);
+      }
+    };
+    fetchData();
+  }, [isFocused]);
+
+  // Helper to load dynamic customer selection
+  const getDropdownCustomers = () => {
+    if (customerType === 'Chemist' && chemists.length > 0) {
+      return chemists.map(c => ({
+        id: `chem_${c.id}`,
+        name: c.name || c.chemistName || '',
+        mobile: c.mobile || '',
+      }));
+    }
+    if (customerType === 'Hospital' && hospitals.length > 0) {
+      return hospitals.map(h => ({
+        id: `hosp_${h.id}`,
+        name: h.name || h.hospitalName || '',
+        mobile: h.mobile || '',
+      }));
+    }
+    if (customerType === 'Stockist' && stockists.length > 0) {
+      return stockists.map(s => ({
+        id: `stock_${s.id}`,
+        name: s.name || s.stockistName || '',
+        mobile: s.mobile || '',
+      }));
+    }
+    // Fallback static lists
+    return (CUSTOMER_MASTERS[customerType] || []).map((cust, idx) => ({
+      id: `static_${customerType}_${idx}`,
+      name: cust.name,
+      mobile: cust.mobile,
+    }));
+  };
+
+  // Helper to load dynamic product list
+  const getProductOptions = () => {
+    if (products.length > 0) {
+      return products.map(p => ({
+        name: p.name || p.productName || '',
+        rate: p.ptr || p.mrp || 0,
+      }));
+    }
+    return PRODUCT_LIST.map(p => ({
+      name: p.name,
+      rate: p.defaultRate,
+    }));
+  };
 
   // Auto pre-fill default rate when product changes
   useEffect(() => {
-    const prod = PRODUCT_LIST.find(p => p.name === selectedProduct);
+    const list = getProductOptions();
+    const prod = list.find(p => p.name === selectedProduct);
     if (prod) {
-      setRate(prod.defaultRate.toFixed(2));
+      setRate(prod.rate.toFixed(2));
     }
-  }, [selectedProduct]);
+  }, [selectedProduct, products]);
 
   // Reset selected customer name/mobile when type changes
   useEffect(() => {
     setCustomerName('');
     setCustomerMobile('');
+    setSelectedCustomerId(null);
   }, [customerType]);
 
   // Auto calculate total amount
@@ -155,8 +317,8 @@ const BookOrderScreen = () => {
       customAlert('Error', 'Please enter or select customer name');
       return;
     }
-    if (!customerMobile.trim() || customerMobile.length !== 10) {
-      customAlert('Error', 'Please enter a valid 10-digit mobile number');
+    if (!customerMobile.trim() || customerMobile.length !== 10 || !/^[6-9]\d{9}$/.test(customerMobile)) {
+      customAlert('Error', 'Please enter a valid 10-digit mobile number starting with 6-9');
       return;
     }
     if (!quantity.trim() || parseFloat(quantity) <= 0) {
@@ -197,6 +359,7 @@ const BookOrderScreen = () => {
         setEditingOrderId(null);
         setCustomerName('');
         setCustomerMobile('');
+        setSelectedCustomerId(null);
         setQuantity('');
         setRemarks('');
       } catch (error) {
@@ -233,6 +396,7 @@ const BookOrderScreen = () => {
         // Reset inputs
         setCustomerName('');
         setCustomerMobile('');
+        setSelectedCustomerId(null);
         setQuantity('');
         setRemarks('');
       } catch (error) {
@@ -251,6 +415,7 @@ const BookOrderScreen = () => {
     setRate(order.rate.toString());
     setDistributor(order.distributor || '');
     setRemarks(order.remarks);
+    setSelectedCustomerId(null);
     
     customAlert('Editing Order', `Modifying order ${order.orderNumber}. Adjust fields at the top of the form.`);
   };
@@ -377,8 +542,38 @@ const BookOrderScreen = () => {
             </View>
           )}
 
+          {/* Customer Source Selector */}
+          <Text style={styles.label}>Customer Source *</Text>
+          <View style={styles.selectorRow}>
+            {['Existing Customer', 'New Customer'].map((source) => (
+              <TouchableOpacity
+                key={source}
+                onPress={() => {
+                  setCustomerSource(source);
+                  setCustomerName('');
+                  setCustomerMobile('');
+                  setSelectedCustomerId(null);
+                  setShowCustomerDropdown(false);
+                }}
+                style={[
+                  styles.selectorButton,
+                  customerSource === source && styles.selectorActive,
+                ]}
+              >
+                <Text
+                  style={[
+                    styles.selectorText,
+                    customerSource === source && styles.selectorTextActive,
+                  ]}
+                >
+                  {source}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           {/* Customer Type Selector */}
-          <Text style={styles.label}>Customer Type *</Text>
+          <Text style={styles.label}>Order For *</Text>
           <View style={styles.selectorRow}>
             {['Chemist', 'Hospital', 'Stockist'].map((type) => (
               <TouchableOpacity
@@ -402,83 +597,87 @@ const BookOrderScreen = () => {
           </View>
 
           {/* Customer Dropdown Master List */}
-          <Text style={styles.label}>Select Predefined Customer *</Text>
-          <TouchableOpacity
-            style={styles.dropdownTrigger}
-            onPress={() => setShowCustomerDropdown(!showCustomerDropdown)}
-          >
-            <Text style={styles.dropdownTriggerText}>
-              {customerName ? customerName : `-- Choose ${customerType} from Database --`}
-            </Text>
-            <Text style={styles.dropdownArrow}>▼</Text>
-          </TouchableOpacity>
+          {customerSource === 'Existing Customer' && (
+            <>
+              <Text style={styles.label}>Select Predefined Customer *</Text>
+              <TouchableOpacity
+                style={styles.dropdownTrigger}
+                onPress={() => setShowCustomerDropdown(!showCustomerDropdown)}
+              >
+                <Text style={styles.dropdownTriggerText}>
+                  {customerName ? customerName : `-- Choose ${customerType} from Database --`}
+                </Text>
+                <Text style={styles.dropdownArrow}>▼</Text>
+              </TouchableOpacity>
 
-          {showCustomerDropdown && (
-            <View style={styles.dropdownContainer}>
-              {CUSTOMER_MASTERS[customerType].map((cust) => (
-                <TouchableOpacity
-                  key={cust.name}
-                  style={[
-                    styles.dropdownOption,
-                    customerName === cust.name && styles.dropdownOptionActive
-                  ]}
-                  onPress={() => {
-                    setCustomerName(cust.name);
-                   // setCustomerMobile(cust.mobile);
-                    setCustomerMobile(cust.mobile);
-                    setShowCustomerDropdown(false);
-                  }}
-                >
-                  <Text style={[
-                    styles.dropdownOptionText,
-                    customerName === cust.name && styles.dropdownOptionTextActive
-                  ]}>
-                    👤 {cust.name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
+              {showCustomerDropdown && (
+                <View style={styles.dropdownContainer}>
+                  {getDropdownCustomers().map((cust) => (
+                    <TouchableOpacity
+                      key={cust.id}
+                      style={[
+                        styles.dropdownOption,
+                        selectedCustomerId === cust.id && styles.dropdownOptionActive
+                      ]}
+                      onPress={() => {
+                        setSelectedCustomerId(cust.id);
+                        setCustomerName(cust.name);
+                        setCustomerMobile(cust.mobile);
+                        setShowCustomerDropdown(false);
+                      }}
+                    >
+                      <Text style={[
+                        styles.dropdownOptionText,
+                        selectedCustomerId === cust.id && styles.dropdownOptionTextActive
+                      ]}>
+                        👤 {cust.name} {cust.mobile ? `(${cust.mobile})` : ''}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </>
           )}
 
-          <Text style={styles.label}>Customer Name (Editable) *</Text>
+          <Text style={styles.label}>Customer Name *</Text>
           <TextInput
-            style={styles.input}
-            placeholder="Name will autofill, or type custom"
+            style={[
+              styles.input,
+              customerSource === 'Existing Customer' && { backgroundColor: '#F1F5F9', color: '#475569' }
+            ]}
+            placeholder={customerSource === 'Existing Customer' ? "Select from dropdown above" : "Enter customer name"}
             value={customerName}
             onChangeText={setCustomerName}
+            editable={customerSource === 'New Customer'}
           />
-{/* 
-          <Text style={styles.label}>Customer Mobile (Editable) *</Text>
+
+          <Text style={styles.label}>Customer Mobile *</Text>
           <TextInput
-            style={styles.input}
-            placeholder="10-digit number will autofill, or type custom"
+            style={[
+              styles.input,
+              customerSource === 'Existing Customer' && { backgroundColor: '#F1F5F9', color: '#475569' }
+            ]}
+            placeholder={customerSource === 'Existing Customer' ? "Select from dropdown above" : "Enter 10-digit number"}
             value={customerMobile}
-            onChangeText={setCustomerMobile}
+            onChangeText={(text) => setCustomerMobile(text.replace(/[^0-9]/g, ''))}
             keyboardType="numeric"
             maxLength={10}
-          /> */}
-          <Text style={styles.label}>Customer Mobile (Editable) *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="10-digit number will autofill, or type custom"
-            value={customerMobile}
-            onChangeText={(text) => setCustomerMobile(text.replace(/[^0-9]/g, ''))} // Strips letters/spaces
-            keyboardType="numeric"
-            maxLength={10}
+            editable={customerSource === 'New Customer'}
           />
+
           {/* Product Dropdown Selector */}
           <Text style={styles.label}>Product Name *</Text>
           <TouchableOpacity
             style={styles.dropdownTrigger}
             onPress={() => setShowProductDropdown(!showProductDropdown)}
           >
-            <Text style={styles.dropdownTriggerText}>{selectedProduct}</Text>
+            <Text style={styles.dropdownTriggerText}>{selectedProduct || '-- Choose Product --'}</Text>
             <Text style={styles.dropdownArrow}>▼</Text>
           </TouchableOpacity>
 
           {showProductDropdown && (
             <View style={styles.dropdownContainer}>
-              {PRODUCT_LIST.map((prod) => (
+              {getProductOptions().map((prod) => (
                 <TouchableOpacity
                   key={prod.name}
                   style={[
@@ -494,7 +693,7 @@ const BookOrderScreen = () => {
                     styles.dropdownOptionText,
                     selectedProduct === prod.name && styles.dropdownOptionTextActive
                   ]}>
-                    💊 {prod.name} (₹{prod.defaultRate.toFixed(2)} / unit)
+                    💊 {prod.name} (Rate: ₹{prod.rate.toFixed(2)} / unit)
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -515,22 +714,61 @@ const BookOrderScreen = () => {
             <View style={styles.rowItem}>
               <Text style={styles.label}>Rate (₹) *</Text>
               <TextInput
-                style={styles.input}
+                style={[styles.input, { backgroundColor: '#F1F5F9', color: '#475569' }]}
                 placeholder="e.g. 15.00"
                 value={rate}
                 onChangeText={setRate}
                 keyboardType="numeric"
+                editable={false}
               />
             </View>
           </View>
 
           <Text style={styles.label}>Forward To Distributor</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Metro Pharma"
-            value={distributor}
-            onChangeText={setDistributor}
-          />
+          <TouchableOpacity
+            style={styles.dropdownTrigger}
+            onPress={() => setShowDistributorDropdown(!showDistributorDropdown)}
+          >
+            <Text style={styles.dropdownTriggerText}>{distributor || '-- Select Distributor --'}</Text>
+            <Text style={styles.dropdownArrow}>▼</Text>
+          </TouchableOpacity>
+
+          {showDistributorDropdown && (
+            <View style={styles.dropdownContainer}>
+              <TouchableOpacity
+                style={[
+                  styles.dropdownOption,
+                  distributor === '' && styles.dropdownOptionActive
+                ]}
+                onPress={() => {
+                  setDistributor('');
+                  setShowDistributorDropdown(false);
+                }}
+              >
+                <Text style={styles.dropdownOptionText}>-- None --</Text>
+              </TouchableOpacity>
+              {distributors.map((d: any, idx: number) => (
+                <TouchableOpacity
+                  key={d.id || idx}
+                  style={[
+                    styles.dropdownOption,
+                    distributor === (d.name || d.distributorName) && styles.dropdownOptionActive
+                  ]}
+                  onPress={() => {
+                    setDistributor(d.name || d.distributorName || '');
+                    setShowDistributorDropdown(false);
+                  }}
+                >
+                  <Text style={[
+                    styles.dropdownOptionText,
+                    distributor === (d.name || d.distributorName) && styles.dropdownOptionTextActive
+                  ]}>
+                    🚚 {d.name || d.distributorName} {d.mobile ? `(${d.mobile})` : ''}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
 
           <Text style={styles.label}>Remarks</Text>
           <TextInput
@@ -618,14 +856,11 @@ const BookOrderScreen = () => {
                           <Text style={styles.orderNumberText}>{order.orderNumber || 'ORD-Legacy'}</Text>
                           <Text style={styles.orderName}>{order.customerName || 'N/A'}</Text>
                         </View>
-                        <TouchableOpacity 
-                          onPress={() => cycleStatus(order.id)}
-                          style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}
-                        >
+                        <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
                           <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
-                            {(order.status || 'Pending')} 🔄
+                            {order.status || 'Pending'}
                           </Text>
-                        </TouchableOpacity>
+                        </View>
                       </View>
                       
                       <Text style={styles.orderInfo}>📱 Mobile: {order.customerMobile || 'N/A'}</Text>

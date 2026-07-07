@@ -98,3 +98,16 @@ export const getAllFollowUps = async () => {
 
   return response.data.data;
 };
+
+export const rescheduleFollowUp = async (id: number, newFollowUpDate: string) => {
+  const token = await AsyncStorage.getItem('@token');
+  return api.patch(
+    `/follow-ups/${id}/reschedule`,
+    { followUpDate: newFollowUpDate },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+};

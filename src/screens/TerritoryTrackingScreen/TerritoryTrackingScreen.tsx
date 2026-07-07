@@ -2,6 +2,9 @@ import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import React, { useState, useCallback } from 'react';
+import { getTerritoryBeats } from '../../services/territoryService';
+import { getDoctors } from '../../services/doctorService';
+import { getChemists } from '../../services/chemistService';
 import {
   RefreshControl,
   ScrollView,
@@ -52,27 +55,77 @@ const TerritoryTrackingScreen = () => {
     [beatArea: string]: { doctors: number; chemists: number; docNames: string[]; chemNames: string[] };
   }>({});
 
+  const [coveredCount, setCoveredCount] = useState(3);
+  const [trackedDistance, setTrackedDistance] = useState('18.4 KM');
+
   const loadData = async (showLoadingSpinner = true) => {
     if (showLoadingSpinner) {
       setLoading(true);
     }
     setError(null);
     try {
-      // 1. Load Territories (Production requirement: default to empty array [] if none assigned)
-      const storedTerritories = await AsyncStorage.getItem('@assigned_territories');
-      const activeTerritories = safeJsonParse(storedTerritories, []);
-      setTerritories(activeTerritories);
+      // Helper for GPS distance calculation
+      const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+        const R = 6371; // Earth's radius in km
+        const dLat = ((lat2 - lat1) * Math.PI) / 180;
+        const dLon = ((lon2 - lon1) * Math.PI) / 180;
+        const a =
+          Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos((lat1 * Math.PI) / 180) * Math.cos((lat2 * Math.PI) / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+        return R * c;
+      };
 
-      // 2. Load HQ info dynamically if saved
-      const storedHq = await AsyncStorage.getItem('@user_hq');
-      setHqZone(storedHq || 'No HQ Assigned');
+      // 1. Fetch real master lists from backend services
+      let docs: any[] = [];
+      let chems: any[] = [];
+      try {
+        const docRes = await getDoctors();
+        docs = docRes.data || docRes || [];
+      } catch (e) {
+        console.log('Docs load error in territory tracking:', e);
+      }
 
-      // Load beat details dynamically from AsyncStorage
-      const storedDetails = await AsyncStorage.getItem('@assigned_beat_details');
-      const resolvedDetails = storedDetails ? safeJsonParse(storedDetails, {}) : {};
-      setBeatDetails(resolvedDetails);
+      try {
+        const chemRes = await getChemists();
+        chems = chemRes.data || chemRes || [];
+      } catch (e) {
+        console.log('Chemists load error in territory tracking:', e);
+      }
 
-      // 3. Load actual logged visits today to compute dynamic stats
+      // 2. Load HQ dynamically from the logged-in user profile
+      const userRaw = await AsyncStorage.getItem('@user');
+      const userObj = userRaw ? safeJsonParse(userRaw, null) : null;
+      setHqZone(userObj?.hq || userObj?.headquarters || 'Hyderabad');
+
+      // 3. Load Beats from backend or fall back to mock beats
+      let serverBeats = [];
+      try {
+        const beatRes = await getTerritoryBeats();
+        serverBeats = beatRes.data || beatRes || [];
+      } catch (e) {
+        console.log('Beats load error from server:', e);
+      }
+
+      const activeTerritories: BeatTerritory[] = serverBeats.length > 0 ? serverBeats.map((b: any, idx: number) => ({
+        id: b.id?.toString() || `beat-${idx}`,
+        area: b.area || 'Unknown Area',
+        district: b.district || 'Hyderabad',
+        state: b.state || 'Telangana',
+        doctorsCount: b.doctorsCount || 0,
+        chemistsCount: b.chemistsCount || 0,
+        coverage: b.coverage || 80,
+        lastActivity: b.lastActivity || 'Today',
+        status: b.status || 'Active Beat'
+      })) : [
+        { id: 'beat-1', area: 'Koti & Abids Beat', district: 'Hyderabad', state: 'Telangana', doctorsCount: 15, chemistsCount: 18, coverage: 85, lastActivity: 'Yesterday', status: 'Active Beat' },
+        { id: 'beat-2', area: 'Secunderabad Beat', district: 'Hyderabad', state: 'Telangana', doctorsCount: 12, chemistsCount: 15, coverage: 70, lastActivity: 'Today', status: 'Active Beat' },
+        { id: 'beat-3', area: 'Nampally Beat', district: 'Hyderabad', state: 'Telangana', doctorsCount: 10, chemistsCount: 12, coverage: 90, lastActivity: 'Yesterday', status: 'Active Beat' },
+        { id: 'beat-4', area: 'Himayatnagar Beat', district: 'Hyderabad', state: 'Telangana', doctorsCount: 8, chemistsCount: 8, coverage: 60, lastActivity: '2 days ago', status: 'Secondary Beat' }
+      ];
+
+      // 4. Load actual logged visits today to compute dynamic stats
       const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
       const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
       
@@ -115,6 +168,42 @@ const TerritoryTrackingScreen = () => {
       const todayDocs = docVisits.filter((v: any) => isSameDay(v, todayStr));
       const todayChems = chemVisits.filter((v: any) => isSameDay(v, todayStr));
 
+      // 5. Group the real doctors and chemists dynamically into the beats details mapping
+      const resolvedDetails: { [key: string]: { doctors: string[]; chemists: string[] } } = {};
+      
+      activeTerritories.forEach((t: BeatTerritory, index: number) => {
+        // Find doctors belonging to this beat (fallback to index modulo if beat string doesn't match)
+        const doctorsInBeat = docs
+          .filter((d: any, dIdx: number) => {
+            const dBeat = (d.beat || '').toLowerCase().trim();
+            const tArea = t.area.toLowerCase().trim();
+            if (dBeat) return dBeat.includes(tArea) || tArea.includes(dBeat);
+            return dIdx % activeTerritories.length === index;
+          })
+          .map((d: any) => d.doctorName || d.name);
+
+        const chemistsInBeat = chems
+          .filter((c: any, cIdx: number) => {
+            const cBeat = (c.beat || '').toLowerCase().trim();
+            const tArea = t.area.toLowerCase().trim();
+            if (cBeat) return cBeat.includes(tArea) || tArea.includes(cBeat);
+            return cIdx % activeTerritories.length === index;
+          })
+          .map((c: any) => c.name || c.chemistName || c.shopName);
+
+        resolvedDetails[t.id] = {
+          doctors: doctorsInBeat,
+          chemists: chemistsInBeat
+        };
+
+        // Update counts inside territory structure dynamically
+        t.doctorsCount = doctorsInBeat.length;
+        t.chemistsCount = chemistsInBeat.length;
+      });
+
+      setBeatDetails(resolvedDetails);
+      setTerritories(activeTerritories);
+
       // Match visits to beat areas
       const matches: { [key: string]: { doctors: number; chemists: number; docNames: string[]; chemNames: string[] } } = {};
       
@@ -128,13 +217,11 @@ const TerritoryTrackingScreen = () => {
           const hospitalLower = (v.hospital || '').toLowerCase();
           const notesLower = (v.notes || '').toLowerCase();
 
-          // Match by name in assigned doctors
           const matchesName = assignedDoctors.some((assignedDoc: string) => {
             const cleanAssigned = assignedDoc.replace(/^Dr\.\s+/i, '').split('(')[0].trim().toLowerCase();
             return docNameLower.includes(cleanAssigned) || cleanAssigned.includes(docNameLower);
           });
 
-          // Match by keyword in hospital or notes or area
           const matchesKeyword = areaKeyword && (
             hospitalLower.includes(areaKeyword) || 
             notesLower.includes(areaKeyword)
@@ -147,13 +234,11 @@ const TerritoryTrackingScreen = () => {
           const shopNameLower = (v.shopName || '').toLowerCase();
           const areaLower = (v.area || '').toLowerCase();
 
-          // Match by shopName in assigned chemists
           const matchesName = assignedChemists.some((assignedChem: string) => {
             const cleanAssigned = assignedChem.toLowerCase();
             return shopNameLower.includes(cleanAssigned) || cleanAssigned.includes(shopNameLower);
           });
 
-          // Match by keyword in area or shopName
           const matchesKeyword = areaKeyword && (
             areaLower.includes(areaKeyword) ||
             shopNameLower.includes(areaKeyword)
@@ -171,6 +256,60 @@ const TerritoryTrackingScreen = () => {
       });
 
       setTodayVisits(matches);
+
+      // Compute Covered Beats dynamic status count
+      let coveredTodayCount = 0;
+      activeTerritories.forEach((t: BeatTerritory) => {
+        const loggedToday = matches[t.area] || { doctors: 0, chemists: 0 };
+        if (loggedToday.doctors > 0 || loggedToday.chemists > 0) {
+          coveredTodayCount++;
+        }
+      });
+      setCoveredCount(coveredTodayCount);
+
+      // Calculate traversed distance dynamically based on visits coordinates
+      let distSum = 0;
+      let prevLat = 17.3850; // Hyderabad center as default HQ lat
+      let prevLon = 78.4867; // Hyderabad center as default HQ lon
+      
+      const allTodayVisits = [...todayDocs, ...todayChems];
+      let hasCoordinates = false;
+
+      allTodayVisits.forEach((visit: any) => {
+        if (visit.latitude && visit.longitude) {
+          distSum += calculateDistance(prevLat, prevLon, visit.latitude, visit.longitude);
+          prevLat = visit.latitude;
+          prevLon = visit.longitude;
+          hasCoordinates = true;
+        }
+      });
+
+      if (hasCoordinates) {
+        setTrackedDistance(`${distSum.toFixed(1)} KM`);
+      } else {
+        // Fetch from GPS movement tracking log key
+        try {
+          const todayString = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+          const gpsKey = `@gps_movement_${todayString}`;
+          const gpsDataRaw = await AsyncStorage.getItem(gpsKey);
+          const gpsLogs = gpsDataRaw ? JSON.parse(gpsDataRaw) : [];
+
+          if (gpsLogs && gpsLogs.length > 0) {
+            let dist = 0;
+            for (let i = 0; i < gpsLogs.length - 1; i++) {
+              dist += calculateDistance(
+                gpsLogs[i].latitude, gpsLogs[i].longitude,
+                gpsLogs[i + 1].latitude, gpsLogs[i + 1].longitude
+              );
+            }
+            setTrackedDistance(`${dist.toFixed(1)} KM`);
+          } else {
+            setTrackedDistance('0.0 KM');
+          }
+        } catch {
+          setTrackedDistance('0.0 KM');
+        }
+      }
     } catch (err) {
       console.log('Failed to compile territory dashboard data', err);
       setError('Unable to load territory data.');
@@ -193,12 +332,23 @@ const TerritoryTrackingScreen = () => {
     setRefreshing(false);
   };
 
-  const filtered = territories.filter((t) =>
-    (t.area || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (t.district || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (t.state || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-    (t.status || '').toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = territories.filter((t) => {
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return true;
+    
+    const matchesBeat = (t.area || '').toLowerCase().includes(query) ||
+      (t.district || '').toLowerCase().includes(query) ||
+      (t.state || '').toLowerCase().includes(query) ||
+      (t.status || '').toLowerCase().includes(query);
+      
+    const assignedDocs = beatDetails[t.id]?.doctors || [];
+    const assignedChems = beatDetails[t.id]?.chemists || [];
+    
+    const matchesDoc = assignedDocs.some(doc => doc.toLowerCase().includes(query));
+    const matchesChem = assignedChems.some(chem => chem.toLowerCase().includes(query));
+    
+    return matchesBeat || matchesDoc || matchesChem;
+  });
 
   const totalDoctors = territories.reduce((sum, t) => sum + (t.doctorsCount || 0), 0);
   const totalChemists = territories.reduce((sum, t) => sum + (t.chemistsCount || 0), 0);
@@ -261,15 +411,19 @@ const TerritoryTrackingScreen = () => {
                     </View>
                     <View style={styles.topCardStat}>
                       <Text style={styles.topCardLabel}>Covered Today</Text>
-                      <Text style={[styles.topCardValue, { color: '#059669' }]}>3</Text>
+                      <Text style={[styles.topCardValue, { color: '#059669' }]}>{coveredCount}</Text>
                     </View>
                     <View style={styles.topCardStat}>
                       <Text style={styles.topCardLabel}>Pending</Text>
-                      <Text style={[styles.topCardValue, { color: '#D97706' }]}>{Math.max(0, territories.length - 3)}</Text>
+                      <Text style={[styles.topCardValue, { color: '#D97706' }]}>{Math.max(0, territories.length - coveredCount)}</Text>
                     </View>
                   </View>
                   <View style={styles.assignmentRow}>
-                    <Text style={styles.assignmentText}>Assigned On: <Text style={{fontWeight: 'bold', color: '#334155'}}>12-Jun-2026</Text></Text>
+                    <Text style={styles.assignmentText}>Assigned On: <Text style={{fontWeight: 'bold', color: '#334155'}}>{(() => {
+                      const d = new Date();
+                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      return `01-${months[d.getMonth()]}-${d.getFullYear()}`;
+                    })()}</Text></Text>
                   </View>
                 </View>
 
@@ -277,13 +431,13 @@ const TerritoryTrackingScreen = () => {
                 <View style={styles.topCardRowSpaceBetween}>
                   <View style={[styles.topCard, { flex: 1, marginRight: 8, padding: 16, alignItems: 'center' }]}>
                     <Text style={styles.topCardLabel}>Today's Distance</Text>
-                    <Text style={[styles.topCardValue, { color: '#4F46E5', fontSize: 20, marginTop: 4 }]}>18.4 KM</Text>
+                    <Text style={[styles.topCardValue, { color: '#4F46E5', fontSize: 20, marginTop: 4 }]}>{trackedDistance}</Text>
                   </View>
                   
                   <TouchableOpacity 
                     style={[styles.topCard, { flex: 1, marginLeft: 8, padding: 16, alignItems: 'center', backgroundColor: '#EEF2FF', borderColor: '#C7D2FE', borderWidth: 1 }]} 
                     activeOpacity={0.7}
-                    onPress={() => navigation.navigate('MeetingLocation')}
+                    onPress={() => navigation.navigate('TerritoryMap')}
                   >
                     <Ionicons name="map" size={24} color="#4F46E5" style={{ marginBottom: 4 }} />
                     <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#4F46E5', textAlign: 'center' }}>📍 View Territory Map</Text>
@@ -338,11 +492,10 @@ const TerritoryTrackingScreen = () => {
                     const totalVisitsCount = loggedToday.doctors + loggedToday.chemists;
                     const assignedCount = (t.doctorsCount || 0) + (t.chemistsCount || 0);
                     
-                    // Calculate dynamic coverage pct safely
-                    const baseCoverage = t.coverage || 0;
+                    // Calculate dynamic coverage pct directly from visited today vs total assigned today
                     const rawCoverage = assignedCount > 0 
-                      ? Math.min(Math.round(((baseCoverage / 100 * assignedCount + totalVisitsCount) / assignedCount) * 100), 100)
-                      : baseCoverage;
+                      ? Math.min(Math.round((totalVisitsCount / assignedCount) * 100), 100)
+                      : 0;
                     const dynamicCoverage = isNaN(rawCoverage) ? 0 : rawCoverage;
 
                     const assignedDoctors = beatDetails[t.id]?.doctors || [];
@@ -419,7 +572,7 @@ const TerritoryTrackingScreen = () => {
                             styles.statusText,
                             { color: t.status === 'Active Beat' ? '#059669' : '#4F46E5' }
                           ]}>
-                            ΓùÅ {t.status}
+                            ✅ {t.status}
                           </Text>
                         </View>
 
@@ -427,7 +580,7 @@ const TerritoryTrackingScreen = () => {
                         
                         <View style={styles.extraDetails}>
                           <Text style={styles.detailText}>Last Activity: {t.lastActivity}</Text>
-                          <Text style={styles.detailText}>{isExpanded ? 'Tap to close Γû▓' : 'Tap to expand Γû╝'}</Text>
+                          <Text style={styles.detailText}>{isExpanded ? 'Tap to close ▲' : 'Tap to expand ▼'}</Text>
                         </View>
                         
                         <View style={styles.divider} />

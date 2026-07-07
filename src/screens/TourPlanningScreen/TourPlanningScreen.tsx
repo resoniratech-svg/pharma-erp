@@ -941,7 +941,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   summaryRow: {
-    flex: 'row',
+    flexDirection: 'row',
     gap: 12,
     marginBottom: 20,
   },

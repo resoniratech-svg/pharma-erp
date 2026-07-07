@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, RefreshControl } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
@@ -19,6 +19,7 @@ const safeJsonParse = (data: string | null, fallback: any) => {
 const ActivityNotificationsScreen = () => {
   const navigation = useNavigation<any>();
   const [notifications, setNotifications] = useState<ActivityNotification[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
 
   const loadActivityNotifications = async () => {
     try {
@@ -76,7 +77,7 @@ const ActivityNotificationsScreen = () => {
         compiled.push({
           id: `doc-${visit.id}`,
           title: 'Doctor Visit Logged',
-          message: `Visit recorded for Dr. ${visit.doctorName}.`,
+          message: `Visit recorded for Dr. ${visit.doctorName || visit.name || 'Unknown'}.`,
           time: visit.time || visit.date || 'Today',
           module: 'visit'
         });
@@ -88,7 +89,7 @@ const ActivityNotificationsScreen = () => {
         compiled.push({
           id: `chem-${visit.id}`,
           title: 'Chemist Visit Logged',
-          message: `Visit recorded for ${visit.shopName}.`,
+          message: `Visit recorded for ${visit.shopName || visit.chemistName || 'Pharmacy'}.`,
           time: visit.time || visit.date || 'Today',
           module: 'visit'
         });
@@ -100,6 +101,12 @@ const ActivityNotificationsScreen = () => {
       console.log('Error loading activity notifications', e);
     }
   };
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await loadActivityNotifications();
+    setRefreshing(false);
+  }, []);
 
   useFocusEffect(useCallback(() => { loadActivityNotifications(); }, []));
 
@@ -136,7 +143,12 @@ const ActivityNotificationsScreen = () => {
         <Text style={styles.headerSubtitle}>System confirmations for your actions</Text>
       </View>
 
-      <ScrollView contentContainerStyle={styles.listContainer}>
+      <ScrollView 
+        contentContainerStyle={styles.listContainer}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#4F46E5']} />
+        }
+      >
         {notifications.length > 0 ? (
           notifications.map((item) => (
             <View key={item.id.toString()} style={styles.card}>

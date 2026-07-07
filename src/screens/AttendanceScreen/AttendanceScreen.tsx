@@ -49,6 +49,7 @@ const AttendanceScreen = () => {
       const storedLat = await AsyncStorage.getItem('@check_in_lat');
       const storedLng = await AsyncStorage.getItem('@check_in_lng');
       const storedAddr = await AsyncStorage.getItem('@check_in_address');
+      const storedDate = await AsyncStorage.getItem('@attendance_date');
 
       const storedName = await AsyncStorage.getItem('@user_name');
       const storedRole = await AsyncStorage.getItem('@designation');
@@ -58,7 +59,25 @@ const AttendanceScreen = () => {
       const storedLogs = await AsyncStorage.getItem('@attendance_logs');
       setLogs(safeJsonParse(storedLogs, []));
 
-      if (storedCheckedIn === 'true') {
+      const todayStr = new Date().toISOString().split('T')[0];
+      let isCheckInValid = false;
+
+      if (storedCheckedIn === 'true' && storedDate) {
+        const storedDateStr = storedDate.split('T')[0];
+        if (storedDateStr === todayStr) {
+          isCheckInValid = true;
+        } else {
+          // Forgot to checkout: auto-checkout from previous day
+          await AsyncStorage.removeItem('@checked_in');
+          await AsyncStorage.removeItem('@check_in_time');
+          await AsyncStorage.removeItem('@check_in_lat');
+          await AsyncStorage.removeItem('@check_in_lng');
+          await AsyncStorage.removeItem('@check_in_address');
+          await AsyncStorage.removeItem('@attendance_date');
+        }
+      }
+
+      if (isCheckInValid) {
         setIsCheckedIn(true);
         setCheckInTime(storedTime || '');
         if (storedLat && storedLng) {

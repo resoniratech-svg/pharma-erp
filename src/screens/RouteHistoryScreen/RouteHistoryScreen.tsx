@@ -12,6 +12,8 @@ import {
   TouchableOpacity,
   View,
   ActivityIndicator,
+  Linking,
+  Alert,
 } from 'react-native';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
@@ -44,14 +46,10 @@ const RouteHistoryScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [backendRoute,
-  setBackendRoute] =
-  useState<any[]>([]);
 
   // States for aggregated data
   const [timelineEvents, setTimelineEvents] = useState<TimelineEvent[]>([]);
-  const [backendRouteHistory, setBackendRouteHistory] =
-  useState<any[]>([]);
+  const [backendRouteHistory, setBackendRouteHistory] = useState<any[]>([]);
   const [summary, setSummary] = useState({
     doctors: 0,
     chemists: 0,
@@ -66,6 +64,21 @@ const RouteHistoryScreen = () => {
     plannedCalls: 0,
     actualCalls: 0,
   });
+
+  const handleCoordsPress = (coordsStr?: string) => {
+    if (!coordsStr) return;
+    const cleanStr = coordsStr.replace(/[^\d.,-]/g, '');
+    const parts = cleanStr.split(',');
+    if (parts.length === 2) {
+      const lat = parts[0];
+      const lon = parts[1];
+      const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lon}`;
+      Linking.openURL(url).catch(() => {
+        if (Platform.OS === 'web') alert('Unable to open Google Maps');
+        else Alert.alert('Error', 'Unable to open Google Maps');
+      });
+    }
+  };
 
   // Date converters
   const getWebDateFormat = (dateStr: string) => {
@@ -172,20 +185,6 @@ const RouteHistoryScreen = () => {
     }
   };
 
- useEffect(() => {
-
-  const loadAll = async () => {
-
-    await loadBackendRouteHistory();
-
-    await compileRouteHistory();
-
-  };
-
-  loadAll();
-
-}, [selectedDate]);
-
 const loadBackendRouteHistory = async () => {
   try {
 
@@ -240,35 +239,54 @@ useEffect(() => {
   loadAll();
 
 }, [selectedDate]);
+  const matchAttendanceDate = (logDate: string, selectedDateStr: string): boolean => {
+    if (!logDate || !selectedDateStr) return false;
+    try {
+      const [selDay, selMonth, selYear] = selectedDateStr.split('-');
+      let logDateObj: Date;
+      if (logDate.includes('-')) {
+        const parts = logDate.split('-');
+        if (parts[0].length === 4) {
+          logDateObj = new Date(logDate);
+        } else {
+          const [d, m, y] = parts;
+          const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+          const monthIndex = isNaN(Number(m)) ? months.indexOf(m.toLowerCase()) : Number(m) - 1;
+          logDateObj = new Date(Number(y), monthIndex, Number(d));
+        }
+      } else {
+        logDateObj = new Date(logDate);
+      }
+      
+      if (isNaN(logDateObj.getTime())) {
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        const monthName = months[Number(selMonth) - 1];
+        const normalizedLog = logDate.toLowerCase();
+        const hasDay = normalizedLog.includes(selDay) || normalizedLog.includes(String(Number(selDay)));
+        const hasMonth = normalizedLog.includes(selMonth) || normalizedLog.includes(monthName.toLowerCase());
+        const hasYear = normalizedLog.includes(selYear);
+        return hasDay && hasMonth && hasYear;
+      }
+      
+      const day = logDateObj.getDate().toString().padStart(2, '0');
+      const month = (logDateObj.getMonth() + 1).toString().padStart(2, '0');
+      const year = logDateObj.getFullYear().toString();
+      return day === selDay && month === selMonth && year === selYear;
+    } catch {
+      return false;
+    }
+  };
 
-const compileRouteHistory = async () => {
-  setLoading(true);
-  setError(null);
+  const compileRouteHistory = async () => {
+    setLoading(true);
+    setError(null);
 
-  try {
-
-    // 1. Fetch all datasets from AsyncStorage
-    const docVisitsData =
-      await AsyncStorage.getItem(
-        '@doctor_visits'
-      );
-
-    const chemistVisitsData =
-      await AsyncStorage.getItem(
-        '@chemist_visits'
-      );
-
-    const tourPlansData =
-      await AsyncStorage.getItem(
-        '@tour_plans'
-      );
-
-    const attendanceLogsData =
-      await AsyncStorage.getItem(
-        '@attendance_logs'
-      );
-
-    // your remaining compileRouteHistory code continues here...
+    try {
+      // 1. Fetch all datasets from AsyncStorage
+      const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
+      const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
+      const tourPlansData = await AsyncStorage.getItem('@tour_plans');
+      const attendanceLogsData = await AsyncStorage.getItem('@attendance_logs');
 
       const allDocVisits = safeJsonParse(docVisitsData, []);
       const allChemistVisits = safeJsonParse(chemistVisitsData, []);
@@ -279,14 +297,14 @@ const compileRouteHistory = async () => {
       const docsToday = allDocVisits.filter((v: any) => isSameDay(v, selectedDate));
       const chemistsToday = allChemistVisits.filter((v: any) => isSameDay(v, selectedDate));
       const planToday = allTourPlans.find((p: any) => normalizeTourPlanDate(p.date) === selectedDate);
-      const attendanceToday = attendanceLogs.find((l: any) => l.date === selectedDate);
+      const attendanceToday = attendanceLogs.find((l: any) => matchAttendanceDate(l.date, selectedDate));
 
       // Check if selectedDate is today & retrieve active checked-in attendance details
       const todayStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
       const isToday = selectedDate === todayStr;
-      const storedCheckedIn = await AsyncStorage.getItem('@attendance_checked_in');
-      const storedCheckInTime = await AsyncStorage.getItem('@attendance_time');
-      const storedAddress = await AsyncStorage.getItem('@attendance_address');
+      const storedCheckedIn = await AsyncStorage.getItem('@checked_in');
+      const storedCheckInTime = await AsyncStorage.getItem('@check_in_time');
+      const storedAddress = await AsyncStorage.getItem('@check_in_address');
 
       let checkInTime = null;
       let checkInAddress = '';
@@ -303,6 +321,23 @@ const compileRouteHistory = async () => {
       } else if (isToday && storedCheckedIn === 'true' && storedCheckInTime) {
         checkInTime = storedCheckInTime;
         checkInAddress = storedAddress || '';
+        checkOutTime = '-';
+        try {
+          const storedDateStr = await AsyncStorage.getItem('@attendance_date');
+          if (storedDateStr) {
+            const checkInDate = new Date(storedDateStr);
+            const now = new Date();
+            let diffMs = now.getTime() - checkInDate.getTime();
+            if (diffMs < 0) diffMs = 0;
+            const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+            const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+            durationStr = `${diffHrs}h ${diffMins}m`;
+          } else {
+            durationStr = 'Active';
+          }
+        } catch {
+          durationStr = 'Active';
+        }
       }
 
       // 3. Compute Summary Card Stats
@@ -367,7 +402,7 @@ const compileRouteHistory = async () => {
         const hasGps = v.latitude && v.longitude && v.latitude !== 'No GPS Data';
         
         eventsList.push({
-          time: v.time || '10:30 AM',
+          time: v.visitTime || v.time || '10:30 AM',
           title: `🩺 Doctor Visited: ${docFormattedName}`,
           subtitle: `Hospital/Clinic: ${v.hospital || 'Clinic'} (${v.specialty || 'General'})`,
           type: 'doctor',
@@ -384,7 +419,7 @@ const compileRouteHistory = async () => {
         const hasGps = v.latitude && v.longitude && v.latitude !== 'No GPS Data';
         
         eventsList.push({
-          time: v.time || '02:00 PM',
+          time: v.visitTime || v.time || '02:00 PM',
           title: `💊 Chemist Visited: ${v.shopName || 'Unknown Shop'}`,
           subtitle: `Chemist: ${v.chemistName || 'Staff'} (Location: ${v.area || 'N/A'})`,
           type: 'chemist',
@@ -508,7 +543,14 @@ backendRouteHistory.forEach((item: any) => {
         if (b.type === 'checkin') return 1;
         if (a.type === 'checkout') return 1;
         if (b.type === 'checkout') return -1;
-        return timeToMinutes(a.time) - timeToMinutes(b.time);
+        
+        const timeDiff = timeToMinutes(a.time) - timeToMinutes(b.time);
+        if (timeDiff !== 0) return timeDiff;
+        
+        // Secondary sort: alphabetical by type, then title to be fully deterministic
+        const typeComp = a.type.localeCompare(b.type);
+        if (typeComp !== 0) return typeComp;
+        return a.title.localeCompare(b.title);
       });
 
       // // E. Real Attendance Check-Out Integration
@@ -696,7 +738,13 @@ backendRouteHistory.forEach((item: any) => {
                           <Text style={[styles.gpsBadgeText, { color: event.gpsVerified ? '#10B981' : '#F59E0B' }]}>
                             {event.gpsVerified ? '🟢 GPS Verified' : '⚠️ GPS Unavailable'}
                           </Text>
-                          {event.coords ? <Text style={styles.gpsCoordsText}> ({event.coords})</Text> : null}
+                          {event.coords ? (
+                            <TouchableOpacity onPress={() => handleCoordsPress(event.coords)}>
+                              <Text style={[styles.gpsCoordsText, { color: '#4F46E5', textDecorationLine: 'underline' }]}>
+                                 ({event.coords})
+                              </Text>
+                            </TouchableOpacity>
+                          ) : null}
                         </View>
                       )}
                     </View>

@@ -12,6 +12,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation, useIsFocused } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker'; 
 import * as Location from 'expo-location';
@@ -195,15 +196,59 @@ const TimePickerField = ({
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DoctorVisitScreen = () => {
+  const navigation = useNavigation<any>();
+  const isFocused = useIsFocused();
+
   // Common states
   const [visits, setVisits] = useState<DoctorVisit[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (isFocused) {
+      checkAttendanceStatus();
+    }
+  }, [isFocused]);
+
+  const checkAttendanceStatus = async () => {
+    try {
+      const storedCheckedIn = await AsyncStorage.getItem('@checked_in');
+      const attendanceDate = await AsyncStorage.getItem('@attendance_date');
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      let isCheckInValid = false;
+      if (storedCheckedIn === 'true' && attendanceDate) {
+        const storedDateStr = attendanceDate.split('T')[0];
+        if (storedDateStr === todayStr) {
+          isCheckInValid = true;
+        } else {
+          // Forgot to checkout: auto-checkout from previous day
+          await AsyncStorage.removeItem('@checked_in');
+          await AsyncStorage.removeItem('@check_in_time');
+          await AsyncStorage.removeItem('@check_in_lat');
+          await AsyncStorage.removeItem('@check_in_lng');
+          await AsyncStorage.removeItem('@check_in_address');
+          await AsyncStorage.removeItem('@attendance_date');
+        }
+      }
+
+      if (!isCheckInValid) {
+        customAlert(
+          'Check-In Required',
+          'Please check-in first so that attendance is recorded correctly.'
+        );
+        navigation.navigate('Attendance');
+      }
+    } catch (e) {
+      console.log('Failed to verify attendance status', e);
+    }
+  };
+
   // API Dropdown states
   const [doctors, setDoctors] = useState<any[]>([]);
   const [doctorId, setDoctorId] = useState<number | null>(null);
+  const [doctorSource, setDoctorSource] = useState<'Existing' | 'New'>('Existing');
   
   // Dynamic tracking state variables for MR ID
   const [mrId, setMrId] = useState<number | null>(null);
@@ -273,9 +318,18 @@ const DoctorVisitScreen = () => {
   };
 
   const handleSubmit = async () => {
-    if (!doctorId) { customAlert('Error', 'Please select a Doctor'); return; }
-    if (!clinic.trim()) { customAlert('Error', 'Please enter Clinic / Hospital'); return; }
-    if (!visitDate) { customAlert('Error', 'Please select Visit Date'); return; }
+    if (doctorSource === 'Existing' && !doctorId) { 
+      customAlert('Error', 'Please select a Doctor from the dropdown.'); 
+      return; 
+    }
+    if (!doctorName.trim()) { 
+      customAlert('Error', 'Please enter Doctor Name'); 
+      return; 
+    }
+    if (!clinic.trim()) { 
+      customAlert('Error', 'Please enter Clinic / Hospital'); 
+      return; 
+    }
     if (mobile.trim() && mobile.length !== 10) {
       customAlert('Error', 'Mobile number must be exactly 10 digits.');
       return;
@@ -337,47 +391,37 @@ const DoctorVisitScreen = () => {
     console.log('LATITUDE:', currentLat);
     console.log('LONGITUDE:', currentLon);
 
-    // Backend submission step
-    try {
-      const result = await createDoctorVisit(
-        doctorId,
-        remarks,
-        productsDiscussed,
-        Number(samplesGiven || 0),
-        currentLat,
-        currentLon
-      );
-      console.log('Doctor Visit Saved to Backend:', result);
+    // Backend submission step (Only for existing doctors in backend master)
+    if (doctorSource === 'Existing' && doctorId) {
+      try {
+        const result = await createDoctorVisit(
+          doctorId,
+          remarks,
+          productsDiscussed,
+          Number(samplesGiven || 0),
+          currentLat,
+          currentLon
+        );
+        console.log('Doctor Visit Saved to Backend:', result);
 
-      console.log('FOLLOWUP MR ID:', mrId);
-      console.log('FOLLOWUP DOCTOR ID:', doctorId);
-
-      if (nextFollowUp) {
-        console.log('FOLLOWUP MR ID:', mrId);
-
-        console.log('FOLLOWUP PAYLOAD:', {
-          mrId: Number(mrId),
-          doctorId: Number(doctorId),
-          title: 'Doctor Follow Up',
-          remarks: remarks || 'Doctor follow-up scheduled',
-          followUpDate: new Date(nextFollowUp),
-        });
-
-        await createFollowUp({
-          mrId: Number(mrId),
-          doctorId: Number(doctorId),
-          title: 'Doctor Follow Up',
-          remarks: remarks || 'Doctor follow-up scheduled',
-          followUpDate: new Date(nextFollowUp),
-        });
-
-        console.log('Follow-up schedule created successfully on server.');
+        if (nextFollowUp) {
+          await createFollowUp({
+            mrId: Number(mrId),
+            doctorId: Number(doctorId),
+            title: 'Doctor Follow Up',
+            remarks: remarks || 'Doctor follow-up scheduled',
+            followUpDate: new Date(nextFollowUp),
+          });
+          console.log('Follow-up schedule created successfully on server.');
+        }
+      } catch (error) {
+        console.log('Doctor Visit API Error:', error);
+        customAlert('Error', 'Failed to save Doctor Visit to server.');
+        setIsSubmitting(false);
+        return;
       }
-    } catch (error) {
-      console.log('Doctor Visit API Error:', error);
-      customAlert('Error', 'Failed to save Doctor Visit to server.');
-      setIsSubmitting(false);
-      return;
+    } else {
+      console.log('Manual/New doctor visit - logging locally to AsyncStorage only');
     }
 
     const newVisit: DoctorVisit = {
@@ -399,7 +443,6 @@ const DoctorVisitScreen = () => {
       distanceVerified: distVerified,
       remarks,
       status,
-      followUpDate: nextFollowUp,
     };
 
     const updatedVisits = [newVisit, ...visits];
@@ -407,6 +450,26 @@ const DoctorVisitScreen = () => {
 
     try {
       await AsyncStorage.setItem('@doctor_visits', JSON.stringify(updatedVisits));
+
+      // ✅ Instantly append a local notification if a follow-up is scheduled
+      if (nextFollowUp) {
+        try {
+          const notifsData = await AsyncStorage.getItem('@notifications');
+          const notifsList = notifsData ? JSON.parse(notifsData) : [];
+          notifsList.unshift({
+            id: `dyn-doc-notif-${Date.now()}`,
+            type: 'followup',
+            title: `📅 Follow-up Scheduled`,
+            message: `Follow-up with Dr. ${doctorName} scheduled for ${nextFollowUp}.`,
+            time: 'Just now',
+            unread: true,
+          });
+          await AsyncStorage.setItem('@notifications', JSON.stringify(notifsList.slice(0, 50)));
+        } catch (e) {
+          console.log('Failed to save follow-up notification:', e);
+        }
+      }
+
       customAlert('✅ Visit Saved!', `Dr. ${doctorName} visit logged successfully.`);
     } catch (err) {
       customAlert('Error', 'Failed to save visit data locally.');
@@ -416,7 +479,7 @@ const DoctorVisitScreen = () => {
     setDoctorId(null); setDoctorName(''); setSpecialty(''); setClinic(''); setMobile('');
     setVisitType('Routine Visit'); setDoctorClass('B'); setProductsDiscussed('');
     setSamplesGiven(''); setPrescriptionPotential('Medium'); setNextFollowUp('');
-    setRemarks(''); setStatus('Scheduled');
+    setRemarks(''); setStatus('Scheduled'); setDoctorSource('Existing');
     setIsSubmitting(false);
   };
 
@@ -455,56 +518,130 @@ const DoctorVisitScreen = () => {
         <Text style={styles.title}>🩺 Doctor Visit</Text>
 
         <View style={styles.form}>
-          <Text style={styles.label}>Select Doctor *</Text>
-          <View
-            style={{
-              borderWidth: 1,
-              borderColor: '#ddd',
-              borderRadius: 8,
-              marginBottom: 12,
+          <ToggleRow
+            label="Doctor Source"
+            options={['Existing Doctor', 'New Doctor']}
+            selected={doctorSource === 'Existing' ? 'Existing Doctor' : 'New Doctor'}
+            onSelect={(val) => {
+              setDoctorSource(val === 'Existing Doctor' ? 'Existing' : 'New');
+              setDoctorId(null);
+              setDoctorName('');
+              setSpecialty('');
+              setClinic('');
+              setMobile('');
             }}
-          >
-            <Picker
-              selectedValue={doctorId}
-              onValueChange={(itemValue) => {
-                const doctorIdNum = Number(itemValue);
-                setDoctorId(doctorIdNum);
-                const selectedDoctor = doctors.find((d) => d.id === doctorIdNum);
-                if (selectedDoctor) {
-                  setDoctorName(selectedDoctor.name || '');
-                  setSpecialty(selectedDoctor.specialization || '');
-                  setClinic(selectedDoctor.hospital || '');
-                  setMobile(selectedDoctor.mobile || '');
-                }
-              }}
-            >
-              <Picker.Item label="Select Doctor" value={null} />
-              {doctors.map((doctor) => (
-                <Picker.Item key={doctor.id} label={doctor.name} value={doctor.id} />
-              ))}
-            </Picker>
-          </View>
+          />
+
+          {doctorSource === 'Existing' && (
+            <>
+              <Text style={styles.label}>Select Doctor *</Text>
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#ddd',
+                  borderRadius: 8,
+                  marginBottom: 12,
+                }}
+              >
+                <Picker
+                  selectedValue={doctorId}
+                  onValueChange={(itemValue) => {
+                    if (itemValue === null || !itemValue) {
+                      setDoctorId(null);
+                      setDoctorName('');
+                      setSpecialty('');
+                      setClinic('');
+                      setMobile('');
+                      return;
+                    }
+                    const doctorIdNum = Number(itemValue);
+                    setDoctorId(doctorIdNum);
+                    const selectedDoctor = doctors.find((d) => d.id === doctorIdNum);
+                    if (selectedDoctor) {
+                      setDoctorName(selectedDoctor.name || '');
+                      setSpecialty(selectedDoctor.specialization || '');
+                      setClinic(selectedDoctor.hospital || '');
+                      setMobile(selectedDoctor.mobile || '');
+                    }
+                  }}
+                >
+                  <Picker.Item label="-- Select Existing Doctor --" value={null} />
+                  {doctors.map((doctor) => (
+                    <Picker.Item key={doctor.id} label={doctor.name} value={doctor.id} />
+                  ))}
+                </Picker>
+              </View>
+            </>
+          )}
+
+          <Text style={styles.label}>Doctor Name *</Text>
+          <TextInput 
+            style={[
+              styles.input,
+              (doctorSource === 'Existing' && doctorId !== null) && {
+                backgroundColor: '#F1F5F9',
+                color: '#64748B',
+              },
+            ]}
+            placeholder="Enter doctor's name"
+            value={doctorName} 
+            onChangeText={setDoctorName} 
+            editable={doctorSource === 'New' || doctorId === null}
+          />
 
           <Text style={styles.label}>Specialty</Text>
-          <TextInput style={styles.input} placeholder="e.g. Cardiologist"
-            value={specialty} onChangeText={setSpecialty} />
+          <TextInput 
+            style={[
+              styles.input,
+              (doctorSource === 'Existing' && doctorId !== null) && {
+                backgroundColor: '#F1F5F9',
+                color: '#64748B',
+              },
+            ]}
+            placeholder="e.g. Cardiologist"
+            value={specialty} 
+            onChangeText={setSpecialty} 
+            editable={doctorSource === 'New' || doctorId === null}
+          />
 
           <Text style={styles.label}>Clinic / Hospital Name *</Text>
-          <TextInput style={styles.input} placeholder="e.g. City General Hospital"
-            value={clinic} onChangeText={setClinic} />
+          <TextInput 
+            style={[
+              styles.input,
+              (doctorSource === 'Existing' && doctorId !== null) && {
+                backgroundColor: '#F1F5F9',
+                color: '#64748B',
+              },
+            ]}
+            placeholder="e.g. City General Hospital"
+            value={clinic} 
+            onChangeText={setClinic} 
+            editable={doctorSource === 'New' || doctorId === null}
+          />
 
           <Text style={styles.label}>Mobile Number</Text>
-          <TextInput style={styles.input} placeholder="Enter 10-digit mobile number"
+          <TextInput 
+            style={[
+              styles.input,
+              (doctorSource === 'Existing' && doctorId !== null) && {
+                backgroundColor: '#F1F5F9',
+                color: '#64748B',
+              },
+            ]}
+            placeholder="Enter 10-digit mobile number"
             value={mobile}
             onChangeText={(text) => setMobile(text.replace(/[^0-9]/g, '').slice(0, 10))}
-            keyboardType="numeric" maxLength={10} />
+            keyboardType="numeric" 
+            maxLength={10} 
+            editable={doctorSource === 'New' || doctorId === null}
+          />
 
           <DatePickerField label="Visit Date *" value={visitDate} onChange={setVisitDate} />
           <TimePickerField label="Visit Time" value={visitTime} onChange={setVisitTime} />
 
           <ToggleRow
             label="Visit Type"
-            options={['Routine Visit', 'Follow Up', 'New Doctor']}
+            options={['Routine Visit', 'Follow Up']}
             selected={visitType} onSelect={setVisitType}
           />
 

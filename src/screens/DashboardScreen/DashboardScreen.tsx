@@ -2,6 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getMeetingsByMr } from '../../services/meetingService';
 
 interface RecentOrder {
   id: string; client: string; status: 'Shipped' | 'Pending' | 'Failed'; amount: string; date: string;
@@ -133,33 +134,29 @@ const DashboardScreen = () => {
     } catch (e) { console.log(e); }
     
     try {
-      const storedMeetings = await AsyncStorage.getItem('@meetings');
-      const allMeetings = storedMeetings ? JSON.parse(storedMeetings) : [];
-      const todayDate = new Date();
+      const meetingsData = await getMeetingsByMr();
+      const meetingsList = Array.isArray(meetingsData) ? meetingsData : [];
+      const todayStr = new Date().toISOString().split('T')[0];
       
-      const todayMeetings = allMeetings.filter((m: any) => {
-        if (!m.date) return false;
-        const datePart = m.date.split(' ')[0];
-        const parts = datePart.split('-');
-        let mDate = new Date();
-        const months = { 'Jan': 0, 'Feb': 1, 'Mar': 2, 'Apr': 3, 'May': 4, 'Jun': 5, 'Jul': 6, 'Aug': 7, 'Sep': 8, 'Oct': 9, 'Nov': 10, 'Dec': 11 } as any;
-
-        if (parts.length === 3) {
-           if (parts[0].length === 4) {
-              mDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
-           } else if (isNaN(parseInt(parts[1], 10))) {
-              // DD-MMM-YYYY
-              mDate = new Date(parseInt(parts[2], 10), months[parts[1]], parseInt(parts[0], 10));
-           } else {
-              mDate = new Date(parseInt(parts[2], 10), parseInt(parts[1], 10) - 1, parseInt(parts[0], 10));
-           }
-        }
-        return mDate.getFullYear() === todayDate.getFullYear() && 
-               mDate.getMonth() === todayDate.getMonth() && 
-               mDate.getDate() === todayDate.getDate();
+      const todayMeetings = meetingsList.filter((m: any) => {
+        if (!m.meetingDate) return false;
+        const meetingDateStr = new Date(m.meetingDate).toISOString().split('T')[0];
+        
+        const isCompleted = m.status === 'COMPLETED' || m.status === 'Completed';
+        const isCancelled = m.status === 'CANCELLED' || m.status === 'Cancelled';
+        
+        return meetingDateStr === todayStr && !isCompleted && !isCancelled;
       });
-      setScheduleList(todayMeetings.map((m: any) => ({ title: `${m.time} - ${m.topic} (${m.venue})` })));
-    } catch (e) { console.log(e); }
+      
+      setScheduleList(todayMeetings.map((m: any) => ({
+        topic: m.title || 'Meeting',
+        time: new Date(m.meetingDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        venue: m.location || 'N/A'
+      })));
+    } catch (e) {
+      console.log('Error loading today schedule meetings:', e);
+      setScheduleList([]);
+    }
     
     // Pending Follow Ups from all sources
     const combinedFollowUps = [
@@ -333,7 +330,14 @@ const DashboardScreen = () => {
           <View style={styles.largeCard}>
             <Text style={styles.cardTitle}>📅 Today's Schedule</Text>
             {scheduleList.length > 0 ? (
-              scheduleList.map((item, idx) => <Text key={idx} style={styles.listSubText}>{item.title}</Text>)
+              scheduleList.map((item, idx) => (
+                <View key={idx} style={styles.listRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listTitleText}>{item.topic}</Text>
+                    <Text style={styles.listSubText}>⏰ {item.time} • 📍 {item.venue}</Text>
+                  </View>
+                </View>
+              ))
             ) : (
               <View style={styles.emptyBox}><Text style={styles.emptyText}>No schedule planned today.</Text></View>
             )}
@@ -671,7 +675,7 @@ const styles = StyleSheet.create({
   drawerContainer: { width: '78%', height: '100%', backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.1, shadowRadius: 15, elevation: 16, paddingTop: 50, paddingBottom: 20, display: 'flex' },
   drawerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   logoRow: { flexDirection: 'row', alignItems: 'center' },
-  drawerLogo: { width: 150, height: 50, marginRight: 8 },
+  drawerLogo: { width: 85, height: 85, marginTop: -20, marginBottom: -20, marginLeft: -15, marginRight: 0 },
   logoTextContainer: { flexDirection: 'column', justifyContent: 'center', marginLeft: 10 },
   logoText: { fontSize: 16, fontWeight: 'bold', color: '#0F172A' },
   logoSubtitle: { fontSize: 11, color: '#64748B', marginTop: 2, fontWeight: '500' },

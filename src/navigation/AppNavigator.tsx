@@ -161,6 +161,7 @@ import FollowUpRemindersScreen from '../screens/FollowUpRemindersScreen/FollowUp
 import MeetingRemindersScreen from '@/screens/MeetingRemindersScreen/MeetingRemindersScreen';
 import ActivityNotificationsScreen from '@/screens/ActivityNotificationsScreen/ActivityNotificationsScreen';
 import MeetingSchedulingScreen from '../screens/MeetingSchedulingScreen/MeetingSchedulingScreen';
+import TerritoryMapScreen from '../screens/TerritoryMapScreen/TerritoryMapScreen';
 
 
 const Stack = createNativeStackNavigator();
@@ -272,6 +273,11 @@ const AppNavigator = () => {
       <Stack.Screen
         name="TerritoryTracking"
         component={TerritoryTrackingScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen
+        name="TerritoryMap"
+        component={TerritoryMapScreen}
         options={{ headerShown: false }}
       />
       <Stack.Screen

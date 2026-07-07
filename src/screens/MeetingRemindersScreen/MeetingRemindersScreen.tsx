@@ -87,68 +87,38 @@ const MeetingRemindersScreen = () => {
     setLoading(true);
     try {
       const todayStr = new Date().toISOString().split('T')[0];
-      const meetings = await getMeetingsByMr();
-
-      console.log(
-  'FIRST MEETING',
-  JSON.stringify(meetings[0], null, 2)
-);
-
-      console.log('MEETINGS FROM API', meetings);
+      const meetingsData = await getMeetingsByMr();
+      const meetingsList = Array.isArray(meetingsData) ? meetingsData : [];
       
       const upcomingReminders: MeetingReminder[] = [];
 
-      meetings.forEach((m: any) => {
+      meetingsList.forEach((m: any) => {
+        if (!m.meetingDate) return;
+        const meetingDate = new Date(m.meetingDate).toISOString().split('T')[0];
 
-  const meetingDate =
-    new Date(m.meetingDate)
-      .toISOString()
-      .split('T')[0];
+        const isCompleted = m.status === 'COMPLETED' || m.status === 'Completed';
+        const isCancelled = m.status === 'CANCELLED' || m.status === 'Cancelled';
 
-  if (
-    m.status !== 'COMPLETED' &&
-    m.status !== 'CANCELLED'
-  ) {
-
-    upcomingReminders.push({
-      id: m.id.toString(),
-
-      topic: m.title || 'Meeting',
-
-      participants:
-        m.meetingDoctors?.length > 0
-          ? `${m.meetingDoctors.length} Doctor(s)`
-          : m.meetingChemists?.length > 0
-          ? `${m.meetingChemists.length} Chemist(s)`
-          : 'General Meeting',
-
-      date: meetingDate,
-
-      time:
-        new Date(m.meetingDate)
-          .toLocaleTimeString(),
-
-      venue:
-        m.location || 'N/A',
-
-      status:
-        m.status,
-
-      timestamp:
-        new Date(m.meetingDate).getTime(),
-
-      isToday:
-        meetingDate === todayStr,
-
-      daysText:
-        getDaysRemaining(
-          meetingDate,
-          todayStr
-        )
-    });
-
-  }
-});
+        if (!isCompleted && !isCancelled) {
+          upcomingReminders.push({
+            id: m.id.toString(),
+            topic: m.title || 'Meeting',
+            participants:
+              m.meetingDoctors && m.meetingDoctors.length > 0
+                ? `${m.meetingDoctors.length} Doctor(s)`
+                : m.meetingChemists && m.meetingChemists.length > 0
+                ? `${m.meetingChemists.length} Chemist(s)`
+                : 'General Meeting',
+            date: meetingDate,
+            time: new Date(m.meetingDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            venue: m.location || 'N/A',
+            status: m.status || 'Scheduled',
+            timestamp: new Date(m.meetingDate).getTime(),
+            isToday: meetingDate === todayStr,
+            daysText: getDaysRemaining(meetingDate, todayStr)
+          });
+        }
+      });
 
       upcomingReminders.sort((a, b) => a.timestamp - b.timestamp);
       setReminders(upcomingReminders);

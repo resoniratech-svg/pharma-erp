@@ -1,7 +1,8 @@
 import {
-  getAllFollowUps, // ⬅️ Step 2: Imported backend service endpoints
+  getAllFollowUps,
   completeFollowUp,
-  cancelFollowUp
+  cancelFollowUp,
+  rescheduleFollowUp,
 } from '../../services/followUpService';
 import React, { useState, useEffect } from 'react';
 import {
@@ -16,6 +17,7 @@ import {
   Linking,
   Modal,
   ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
@@ -50,6 +52,7 @@ const FollowUpsScreen = () => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
 
   // Expandable Card state (stores expanded visit IDs)
   const [expandedCards, setExpandedCards] = useState<{ [key: number]: boolean }>({});
@@ -161,9 +164,9 @@ const FollowUpsScreen = () => {
     filterAndCategorize();
   }, [visits, searchQuery, activeTab]);
 
-  // ⬅️ Step 3: Replaced full loadFollowUps function matching specifications exactly
   const loadFollowUps = async () => {
     setLoading(true);
+    setError(null);
     try {
       const data = await getAllFollowUps();
       console.log('Backend FollowUps:', data);
@@ -177,7 +180,8 @@ const FollowUpsScreen = () => {
           'Contact',
         specialty: item.doctor?.specialization || 'General',
         hospital: item.doctor?.hospitalName || item.chemist?.address || '',
-        followUpDate: new Date(item.followUpDate).toLocaleDateString(),
+        mobile: item.doctor?.mobile || item.chemist?.mobile || item.mobile || '',
+        followUpDate: formatDateString(new Date(item.followUpDate)),
         followUpStatus:
           item.status === 'COMPLETED'
             ? 'Completed'
@@ -186,14 +190,24 @@ const FollowUpsScreen = () => {
             : 'Pending',
         followUpType: item.doctorId ? 'Doctor' : 'Chemist',
         remarks: item.remarks,
+        products: item.products,
+        samples: item.samples,
+        notes: item.notes,
       }));
 
       setVisits(formattedData);
-    } catch (error) {
-      console.log('FollowUp Load Error:', error);
+    } catch (err: any) {
+      console.log('FollowUp Load Error:', err);
+      setError('Failed to load follow-up records. Please drag down to refresh.');
     } finally {
       setLoading(false);
     }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadFollowUps();
+    setRefreshing(false);
   };
 
   const handleNotificationsForToday = async (list: any[]) => {
@@ -282,7 +296,6 @@ const FollowUpsScreen = () => {
     setFilteredVisits(list);
   };
 
-  // ⬅️ Step 4: Completely integrated backend completeFollowUp dispatch triggers
   const handleMarkCompleted = async (visitId: number) => {
     try {
       await completeFollowUp(visitId);
@@ -294,7 +307,6 @@ const FollowUpsScreen = () => {
     }
   };
 
-  // ⬅️ Step 5: Completely integrated backend cancelFollowUp dispatch triggers
   const handleCancelFollowUp = async (visitId: number) => {
     try {
       await cancelFollowUp(visitId);
@@ -318,27 +330,20 @@ const FollowUpsScreen = () => {
       return;
     }
 
-    const updatedVisits = visits.map((v: any) => {
-      if (v.id === selectedVisitId) {
-        return {
-          ...v,
-          followUpDate: newFollowUpDate,
-          followUpStatus: 'Rescheduled',
-        };
-      }
-      return v;
-    });
+    if (selectedVisitId === null) return;
 
-    setVisits(updatedVisits);
     try {
-      const sourceList = safeJsonParse(await AsyncStorage.getItem('@doctor_visits'), []);
-      const updatedSource = sourceList.map((item: any) => item.id === selectedVisitId ? { ...item, followUpDate: newFollowUpDate, status: 'Rescheduled' } : item);
-      await AsyncStorage.setItem('@doctor_visits', JSON.stringify(updatedSource));
+      const dateObj = parseDateString(newFollowUpDate);
+      const isoDateStr = dateObj.toISOString();
+
+      await rescheduleFollowUp(selectedVisitId, isoDateStr);
       
       setRescheduleModalVisible(false);
       customAlert('Rescheduled', `Follow-up has been rescheduled to ${newFollowUpDate}.`);
+      await loadFollowUps();
     } catch (e) {
-      console.log('Failed to reschedule follow-up');
+      console.log('Failed to reschedule follow-up on server:', e);
+      customAlert('Error', 'Failed to reschedule follow-up on server.');
     }
   };
 
@@ -460,7 +465,12 @@ const FollowUpsScreen = () => {
           </View>
 
           {/* Follow-up Cards ScrollList */}
-          <ScrollView contentContainerStyle={styles.listContainer}>
+          <ScrollView
+            contentContainerStyle={styles.listContainer}
+            refreshControl={
+              <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#3B82F6']} />
+            }
+          >
             {filteredVisits.length > 0 ? (
               filteredVisits.map((item, index) => {
                 const isCompleted = item.followUpStatus === 'Completed';
@@ -564,6 +574,13 @@ const FollowUpsScreen = () => {
                         </TouchableOpacity>
 
                         <TouchableOpacity
+                          onPress={() => openRescheduleModal(item.id, item.followUpDate)}
+                          style={[styles.actionBtn, { backgroundColor: '#FEF3C7', borderWidth: 1, borderColor: '#FDE68A' }]}
+                        >
+                          <Text style={{ fontSize: 11, color: '#D97706', fontWeight: 'bold' }}>📅 Reschedule</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
                           onPress={() => handleCancelFollowUp(item.id)}
                           style={[styles.actionBtn, { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5' }]}
                         >
@@ -583,7 +600,9 @@ const FollowUpsScreen = () => {
               })
             ) : (
               <View style={styles.emptyContainer}>
-                <Text style={styles.emptyText}>No follow-ups matches found.</Text>
+                <Text style={styles.emptyText}>
+                  {searchQuery ? "No follow-ups match your search." : "No follow-ups scheduled."}
+                </Text>
               </View>
             )}
             <View style={{ height: 40 }} />

@@ -16,6 +16,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
+import {
+  getAllFollowUps,
+  completeFollowUp,
+  rescheduleFollowUp,
+} from '../../services/followUpService';
 
 interface FollowUpReminder {
   id: string;
@@ -68,91 +73,32 @@ const FollowUpRemindersScreen = () => {
   const loadReminders = async () => {
     try {
       const todayStr = new Date().toISOString().split('T')[0];
+      const data = await getAllFollowUps();
       
-      const doctorVisits = safeJsonParse(await AsyncStorage.getItem('@doctor_visits'), []);
-      const chemistVisits = safeJsonParse(await AsyncStorage.getItem('@chemist_visits'), []);
+      const loadedReminders: FollowUpReminder[] = (data || []).map((item: any) => {
+        const followDate = item.followUpDate ? item.followUpDate.split('T')[0] : '';
+        const isCompleted = item.status === 'COMPLETED' || item.status === 'Completed';
+        const isCancelled = item.status === 'CANCELLED' || item.status === 'Cancelled';
+        const daysRemaining = getDaysRemaining(followDate, todayStr);
+        const isOverdue = daysRemaining < 0 && !isCompleted && !isCancelled;
 
-     console.log(
-  'DOCTOR FOLLOWUPS',
-  JSON.stringify(
-    doctorVisits.map((v: any) => ({
-      id: v.id,
-      doctorName: v.doctorName,
-      followUpDate: v.followUpDate,
-    })),
-    null,
-    2
-  )
-);
-
-console.log(
-  'CHEMIST FOLLOWUPS',
-  JSON.stringify(
-    chemistVisits.map((v: any) => ({
-      id: v.id,
-      chemistName: v.chemistName,
-      followUpDate: v.followUpDate,
-    })),
-    null,
-    2
-  )
-);
-      console.log('DOCTOR VISITS', doctorVisits);
-console.log('CHEMIST VISITS', chemistVisits);
-
-      const completedIds = safeJsonParse(await AsyncStorage.getItem('@completed_followups'), []);
-      const rescheduledDates = safeJsonParse(await AsyncStorage.getItem('@rescheduled_followups'), {});
-      
-
-      const loadedReminders: FollowUpReminder[] = [];
-
-      doctorVisits.forEach((v: any) => {
-        if (v.followUpDate) {
-          const actualDate = rescheduledDates[`doc_${v.id}`] || v.followUpDate;
-          const isCompleted = completedIds.includes(`doc_${v.id}`);
-          const daysRemaining = getDaysRemaining(actualDate, todayStr);
-          const isOverdue = daysRemaining < 0 && !isCompleted;
-
-          loadedReminders.push({
-            id: `doc_${v.id || Date.now()}`,
-            originalId: v.id,
-            name: `Dr. ${v.doctorName || 'Unknown'}`,
-            type: 'Doctor',
-            date: actualDate,
-            purpose: 'Doctor Follow-Up',
-            priority: isOverdue || daysRemaining === 0 ? 'High' : (daysRemaining > 7 ? 'Low' : 'Medium'),
-            status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
-            notes: v.notes || 'Routine check-in regarding recent visit.',
-            contactPerson: v.hospital || v.specialty || 'Clinic',
-          });
-        }
-      });
-
-      chemistVisits.forEach((v: any) => {
-        if (v.followUpDate) {
-          const actualDate = rescheduledDates[`chem_${v.id}`] || v.followUpDate;
-          const isCompleted = completedIds.includes(`chem_${v.id}`);
-          const daysRemaining = getDaysRemaining(actualDate, todayStr);
-          const isOverdue = daysRemaining < 0 && !isCompleted;
-
-          loadedReminders.push({
-            id: `chem_${v.id || Date.now()}`,
-            originalId: v.id,
-            name: v.chemistName || 'Pharmacy',
-            type: 'Chemist',
-            date: actualDate,
-            purpose: 'Stock & Order Follow-Up',
-            priority: isOverdue || daysRemaining === 0 ? 'High' : (daysRemaining > 7 ? 'Low' : 'Medium'),
-            status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
-            notes: v.notes || 'Check pending orders and stock levels.',
-            contactPerson: v.location || 'Pharmacy Desk',
-          });
-        }
+        return {
+          id: item.id.toString(),
+          originalId: item.id.toString(),
+          name: item.doctor?.doctorName || item.doctor?.name || item.chemist?.name || 'Contact',
+          type: item.doctorId ? 'Doctor' : 'Chemist',
+          date: followDate,
+          purpose: item.doctorId ? 'Doctor Follow-Up' : 'Chemist Follow-Up',
+          priority: isOverdue || daysRemaining === 0 ? 'High' : (daysRemaining > 7 ? 'Low' : 'Medium'),
+          status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
+          notes: item.remarks || 'Routine check-in regarding recent visit.',
+          contactPerson: item.doctor?.specialization || item.doctor?.hospitalName || item.chemist?.address || 'Clinic',
+        };
       });
 
       setReminders(loadedReminders);
     } catch (e) {
-      console.log('Failed to load reminders', e);
+      console.log('Failed to load reminders from backend:', e);
     } finally {
       setLoading(false);
     }
@@ -184,16 +130,10 @@ console.log('CHEMIST VISITS', chemistVisits);
 
   const executeMarkCompleted = async (id: string) => {
     try {
-      const completedIds = safeJsonParse(await AsyncStorage.getItem('@completed_followups'), []);
-      if (!completedIds.includes(id)) {
-        completedIds.push(id);
-        await AsyncStorage.setItem('@completed_followups', JSON.stringify(completedIds));
-      }
-      
-      const updated = reminders.map(item => item.id === id ? { ...item, status: 'Completed' as const } : item);
-      setReminders(updated);
+      await completeFollowUp(Number(id));
+      await loadReminders();
     } catch (e) {
-      console.log('Failed to complete', e);
+      console.log('Failed to complete follow up on server:', e);
     }
   };
 
@@ -219,27 +159,14 @@ console.log('CHEMIST VISITS', chemistVisits);
     }
 
     try {
-      const rescheduledDates = safeJsonParse(await AsyncStorage.getItem('@rescheduled_followups'), {});
-      rescheduledDates[activeReminder.id] = newDateStr;
-      await AsyncStorage.setItem('@rescheduled_followups', JSON.stringify(rescheduledDates));
-
-      const updated = reminders.map(item => {
-        if (item.id === activeReminder.id) {
-          const daysRemaining = getDaysRemaining(newDateStr, todayStr);
-          return {
-            ...item,
-            date: newDateStr,
-            status: (daysRemaining < 0 ? 'Overdue' : 'Pending') as 'Overdue' | 'Pending',
-          };
-        }
-        return item;
-      });
-
-      setReminders(updated);
+      const dateObj = new Date(newDateStr);
+      await rescheduleFollowUp(Number(activeReminder.id), dateObj.toISOString());
+      
       setRescheduleModalVisible(false);
+      await loadReminders();
       if (Platform.OS !== 'web') Alert.alert('Success', 'Follow-up date has been rescheduled.');
     } catch (e) {
-      console.log('Error rescheduling', e);
+      console.log('Error rescheduling on server:', e);
     }
   };
 

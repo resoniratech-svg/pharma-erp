@@ -12,6 +12,7 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  Linking,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker'; // Imported cross-platform Picker
 
@@ -22,6 +23,9 @@ import {
 } from '../../services/meetingService';
 import { getDoctors } from '../../services/doctorService';
 import { getChemists } from '../../services/chemistService';
+import { getHospitals } from '../../services/hospitalService';
+import { getStockists } from '../../services/stockistService';
+import { completeMeeting, cancelMeeting } from '../../services/meetingService';
 
 interface Meeting {
   id: number;
@@ -46,6 +50,9 @@ interface Meeting {
   mr?: { name?: string };  
   meetingDoctors?: Array<{ doctor?: { name?: string; doctorName?: string } }>; 
   meetingChemists?: Array<{ chemist?: { name?: string } }>; 
+  meetingHospitals?: Array<{ hospital?: { name?: string } }>;
+  meetingStockists?: Array<{ stockist?: { name?: string } }>;
+  meetingLink?: string;
 }
 
 const safeJsonParse = (data: string | null, fallback: any) => {
@@ -77,10 +84,15 @@ const MeetingSchedulerScreen = () => {
   // Inserted background entity dropdown track data states below meetings hook
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
   const [selectedChemistId, setSelectedChemistId] = useState<number | null>(null);
+  const [selectedHospitalId, setSelectedHospitalId] = useState<number | null>(null);
+  const [selectedStockistId, setSelectedStockistId] = useState<number | null>(null);
 
   // Background entity track data arrays
   const [doctors, setDoctors] = useState<any[]>([]);
   const [chemists, setChemists] = useState<any[]>([]);
+  const [hospitals, setHospitals] = useState<any[]>([]);
+  const [stockists, setStockists] = useState<any[]>([]);
+  const [meetingLink, setMeetingLink] = useState('');
 
   const scrollViewRef = React.useRef<ScrollView>(null);
 
@@ -100,16 +112,45 @@ const MeetingSchedulerScreen = () => {
   // Connected mounting callback to trigger backend fetching loops
   useEffect(() => {
     loadBackendData();
+    const fetchUserName = async () => {
+      const storedName = await AsyncStorage.getItem('@user_name');
+      if (storedName) setOrganizer(storedName);
+    };
+    fetchUserName();
   }, []);
 
   // Configured loader thread utility function to handle network operations
   const loadBackendData = async () => {
     try {
       const doctorsResponse = await getDoctors();
-      setDoctors(doctorsResponse.data || doctorsResponse);
+      const docData = doctorsResponse.data || doctorsResponse;
+      if (Array.isArray(docData)) {
+        setDoctors(docData);
+      } else if (doctorsResponse.data && Array.isArray(doctorsResponse.data.data)) {
+        setDoctors(doctorsResponse.data.data);
+      }
 
       const chemistsResponse = await getChemists();
-      setChemists(chemistsResponse.data || chemistsResponse);
+      const chemData = chemistsResponse.data || chemistsResponse;
+      if (Array.isArray(chemData)) {
+        setChemists(chemData);
+      } else if (chemistsResponse.data && Array.isArray(chemistsResponse.data.data)) {
+        setChemists(chemistsResponse.data.data);
+      }
+
+      try {
+        const hospRes = await getHospitals();
+        const hospData = hospRes.data || hospRes;
+        if (Array.isArray(hospData)) setHospitals(hospData);
+        else if (hospRes.data && Array.isArray(hospRes.data.data)) setHospitals(hospRes.data.data);
+      } catch(e) { console.log('hospitals load err', e); }
+
+      try {
+        const stockRes = await getStockists();
+        const stockData = stockRes.data || stockRes;
+        if (Array.isArray(stockData)) setStockists(stockData);
+        else if (stockRes.data && Array.isArray(stockRes.data.data)) setStockists(stockRes.data.data);
+      } catch(e) { console.log('stockists load err', e); }
 
       const meetingsData = await getMeetingsByMr();
       console.log('MEETINGS DATA:', JSON.stringify(meetingsData, null, 2));
@@ -167,8 +208,12 @@ const MeetingSchedulerScreen = () => {
       customAlert('Error', 'Please enter a meeting topic.');
       return;
     }
-    if (!venue.trim()) {
+    if ((meetingMode === 'Physical' || meetingMode === 'Hybrid') && !venue.trim()) {
       customAlert('Error', 'Please enter a meeting venue.');
+      return;
+    }
+    if ((meetingMode === 'Online' || meetingMode === 'Hybrid') && !meetingLink.trim()) {
+      customAlert('Error', 'Please enter a meeting link.');
       return;
     }
     if (!organizer.trim()) {
@@ -203,9 +248,10 @@ const MeetingSchedulerScreen = () => {
       }
     }
 
-    const isConflict = meetings.some(
-      (m) => m.date === meetingDate && m.time === meetingTime && m.status !== 'Cancelled'
-    );
+    const isConflict = meetings.some((m) => {
+      const mDate = m.meetingDate ? m.meetingDate.split('T')[0] : m.date;
+      return mDate === meetingDate && m.time === meetingTime && m.status !== 'Cancelled';
+    });
     if (isConflict) {
       customAlert(
         'Scheduling Conflict',
@@ -214,49 +260,84 @@ const MeetingSchedulerScreen = () => {
       return;
     }
 
-    if (!selectedDoctorId && !selectedChemistId) {
-      customAlert('Error', 'Select at least one Doctor or Chemist');
+    // Dynamic validations based on Meeting Type
+    if ((meetingType === 'Doctor Group Meeting' || meetingType === 'Clinical Presentation') && !selectedDoctorId) {
+      customAlert('Error', 'Please select a Doctor.');
+      return;
+    }
+    if (meetingType === 'Chemist Meeting' && !selectedChemistId) {
+      customAlert('Error', 'Please select a Chemist.');
+      return;
+    }
+    if (meetingType === 'Hospital Meeting' && !selectedHospitalId) {
+      customAlert('Error', 'Please select a Hospital.');
+      return;
+    }
+    if (meetingType === 'Stockist Review' && !selectedStockistId) {
+      customAlert('Error', 'Please select a Stockist.');
       return;
     }
 
     try {
       const mrId = await AsyncStorage.getItem('@mrId');
 
-      console.log('MEETING PAYLOAD', {
+      const payload = {
         mrId: Number(mrId),
         title: topic,
         description: agenda,
         meetingDate: new Date(
           `${meetingDate}T${formatTime12to24(meetingTime)}:00`
         ).toISOString(),
-        location: venue,
-        doctorIds: selectedDoctorId ? [selectedDoctorId] : [],
-        chemistIds: selectedChemistId ? [selectedChemistId] : [],
-      });
+        location: meetingMode === 'Online' ? meetingLink : venue,
+        meetingLink: meetingMode === 'Physical' ? '' : meetingLink,
+        doctorIds: (meetingType === 'Doctor Group Meeting' || meetingType === 'Clinical Presentation') && selectedDoctorId ? [selectedDoctorId] : [],
+        chemistIds: meetingType === 'Chemist Meeting' && selectedChemistId ? [selectedChemistId] : [],
+        hospitalIds: meetingType === 'Hospital Meeting' && selectedHospitalId ? [selectedHospitalId] : [],
+        stockistIds: meetingType === 'Stockist Review' && selectedStockistId ? [selectedStockistId] : [],
+        meetingType: meetingType,
+        meetingMode: meetingMode,
+        reminder: reminder,
+        outcome: outcome,
+        followUpDate: followUpDate || undefined,
+        organizer: organizer,
+      };
 
-      await createMeeting({
-        mrId: Number(mrId),
-        title: topic,
-        description: agenda,
-        meetingDate: new Date(
-          `${meetingDate}T${formatTime12to24(meetingTime)}:00`
-        ).toISOString(),
-        location: venue,
-        doctorIds: selectedDoctorId ? [selectedDoctorId] : [],
-        chemistIds: selectedChemistId ? [selectedChemistId] : [],
-      });
+      console.log('MEETING PAYLOAD', payload);
+
+      await createMeeting(payload);
+
+      // Save meeting reminder notification if a reminder is selected
+      if (reminder !== 'None') {
+        try {
+          const notifsData = await AsyncStorage.getItem('@notifications');
+          const notifsList = notifsData ? JSON.parse(notifsData) : [];
+          notifsList.unshift({
+            id: `meet-reminder-${Date.now()}`,
+            type: 'meeting',
+            title: `⏰ Meeting Reminder Set`,
+            message: `Reminder for "${topic}" set ${reminder} before the meeting starts at ${meetingTime} on ${formatDateDisplay(meetingDate)}.`,
+            time: 'Just now',
+            unread: true,
+          });
+          await AsyncStorage.setItem('@notifications', JSON.stringify(notifsList.slice(0, 50)));
+        } catch (e) {
+          console.log('Failed to save meeting reminder notification:', e);
+        }
+      }
 
       customAlert('Success', 'Meeting scheduled successfully');
 
       // Clear Form Fields
       setTopic('');
       setVenue('');
-      setOrganizer('');
+      setMeetingLink('');
       setParticipants('');
       setFollowUpDate('');
       setAgenda('');
       setSelectedDoctorId(null);
       setSelectedChemistId(null);
+      setSelectedHospitalId(null);
+      setSelectedStockistId(null);
 
       loadBackendData();
     } catch (error: any) {
@@ -275,19 +356,25 @@ const MeetingSchedulerScreen = () => {
   };
 
   const handleUpdateStatus = async (id: number, newStatus: 'Completed' | 'Cancelled') => {
-    const updated = meetings.map((m) => {
-      if (m.id === id) {
-        return { ...m, status: newStatus };
-      }
-      return m;
-    });
-
-    setMeetings(updated);
     try {
-      await AsyncStorage.setItem('@meetings', JSON.stringify(updated));
-      customAlert('Status Updated', `Meeting status marked as ${newStatus}.`);
+      if (newStatus === 'Completed') {
+        await completeMeeting(id);
+      } else {
+        await cancelMeeting(id);
+      }
+      loadBackendData();
+      customAlert('Status Updated', `Meeting status marked as ${newStatus} on the server.`);
     } catch (e) {
-      console.error('Failed to update status:', e);
+      console.log('Failed to sync status update with server:', e);
+      // Fallback local update
+      const updated = meetings.map((m) => {
+        if (m.id === id) {
+          return { ...m, status: newStatus };
+        }
+        return m;
+      });
+      setMeetings(updated);
+      customAlert('Status Updated Locally', `Updated locally, failed to sync with server.`);
     }
   };
 
@@ -300,6 +387,72 @@ const MeetingSchedulerScreen = () => {
       default:
         return { bg: '#DBEAFE', text: '#2563EB' };
     }
+  };
+
+  const handleMeetingTypeChange = (type: any) => {
+    setMeetingType(type);
+    setSelectedDoctorId(null);
+    setSelectedChemistId(null);
+    setSelectedHospitalId(null);
+    setSelectedStockistId(null);
+  };
+
+  const getDoctorsList = () => {
+    if (doctors && doctors.length > 0) {
+      return doctors.map(d => ({
+        id: d.id,
+        name: d.name || d.doctorName || '',
+      }));
+    }
+    return [
+      { id: 1, name: 'Dr. Ramesh (Cardiologist)' },
+      { id: 2, name: 'Dr. Kumar (Pediatrician)' },
+      { id: 3, name: 'Dr. Anitha (Dermatologist)' },
+      { id: 4, name: 'Dr. Suresh (General Physician)' },
+    ];
+  };
+
+  const getChemistsList = () => {
+    if (chemists && chemists.length > 0) {
+      return chemists.map(c => ({
+        id: c.id,
+        name: c.name || c.chemistName || '',
+      }));
+    }
+    return [
+      { id: 1, name: 'Apollo Pharmacy' },
+      { id: 2, name: 'MedPlus Drugs' },
+      { id: 3, name: 'Sri Rama Medicals' },
+      { id: 4, name: 'Care Chemists' },
+    ];
+  };
+
+  const getHospitalsList = () => {
+    if (hospitals && hospitals.length > 0) {
+      return hospitals.map(h => ({
+        id: h.id,
+        name: h.name || h.hospitalName || '',
+      }));
+    }
+    return [
+      { id: 1, name: 'Yashoda Hospital' },
+      { id: 2, name: 'Apollo Hospitals' },
+      { id: 3, name: 'Care Hospital' },
+    ];
+  };
+
+  const getStockistsList = () => {
+    if (stockists && stockists.length > 0) {
+      return stockists.map(s => ({
+        id: s.id,
+        name: s.name || s.stockistName || '',
+      }));
+    }
+    return [
+      { id: 1, name: 'Metro Pharma Distributors' },
+      { id: 2, name: 'Sri Balaji Agencies' },
+      { id: 3, name: 'Venkateshwara Medical Agencies' },
+    ];
   };
 
   return (
@@ -335,10 +488,10 @@ const MeetingSchedulerScreen = () => {
           <Text style={styles.sectionLabel}>Meeting Type *</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
             <View style={{ flexDirection: 'row', gap: 6 }}>
-              {(['Doctor Group Meeting', 'Chemist Meeting', 'Hospital Meeting', 'Stockist Review', 'Clinical Presentation', 'Team Meeting'] as const).map((type) => (
+               {(['Doctor Group Meeting', 'Chemist Meeting', 'Hospital Meeting', 'Stockist Review', 'Clinical Presentation', 'Team Meeting'] as const).map((type) => (
                 <TouchableOpacity
                   key={type}
-                  onPress={() => setMeetingType(type as any)}
+                  onPress={() => handleMeetingTypeChange(type)}
                   style={[styles.typeBtn, meetingType === type && styles.typeBtnActive, { marginRight: 6 }]}
                 >
                   <Text style={[styles.typeBtnText, meetingType === type && styles.typeBtnTextActive]}>
@@ -351,11 +504,12 @@ const MeetingSchedulerScreen = () => {
 
           <Text style={styles.sectionLabel}>Organizer *</Text>
           <TextInput
-            style={styles.input}
-            placeholder="e.g. RSM, ASM, Management"
+            style={[styles.input, { backgroundColor: '#F1F5F9', color: '#475569' }]}
+            placeholder="Loading organizer name..."
             placeholderTextColor="#94A3B8"
             value={organizer}
             onChangeText={setOrganizer}
+            editable={false}
           />
 
           {/* Date & Time Selectors */}
@@ -450,19 +604,31 @@ const MeetingSchedulerScreen = () => {
             </View>
           </View>
 
-          <Text style={styles.sectionLabel}>Meeting Venue / Location *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="e.g. Apollo Hospital Conference Hall"
-            placeholderTextColor="#94A3B8"
-            value={venue}
-            onChangeText={setVenue}
-            onFocus={() => {
-              setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }, 150);
-            }}
-          />
+          {(meetingMode === 'Physical' || meetingMode === 'Hybrid') && (
+            <>
+              <Text style={styles.sectionLabel}>Meeting Venue / Location *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. Apollo Hospital Conference Hall"
+                placeholderTextColor="#94A3B8"
+                value={venue}
+                onChangeText={setVenue}
+              />
+            </>
+          )}
+
+          {(meetingMode === 'Online' || meetingMode === 'Hybrid') && (
+            <>
+              <Text style={styles.sectionLabel}>Meeting Link *</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g. https://meet.google.com/abc-xyz"
+                placeholderTextColor="#94A3B8"
+                value={meetingLink}
+                onChangeText={setMeetingLink}
+              />
+            </>
+          )}
 
           <Text style={styles.sectionLabel}>Meeting Mode *</Text>
           <View style={styles.typeSelectorRow}>
@@ -505,31 +671,73 @@ const MeetingSchedulerScreen = () => {
             ))}
           </View>
 
-          <Text style={styles.sectionLabel}>Select Doctor</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={selectedDoctorId}
-              onValueChange={(value) => setSelectedDoctorId(value)}
-            >
-              <Picker.Item label="Select Doctor" value={null} color="#94A3B8" />
-              {doctors.map((doctor) => (
-                <Picker.Item key={doctor.id} label={doctor.name} value={doctor.id} />
-              ))}
-            </Picker>
-          </View>
+          {(meetingType === 'Doctor Group Meeting' || meetingType === 'Clinical Presentation') && (
+            <>
+              <Text style={styles.sectionLabel}>Select Doctor *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedDoctorId}
+                  onValueChange={(value) => setSelectedDoctorId(value)}
+                >
+                  <Picker.Item label="Select Doctor" value={null} color="#94A3B8" />
+                  {getDoctorsList().map((doctor) => (
+                    <Picker.Item key={doctor.id} label={doctor.name} value={doctor.id} />
+                  ))}
+                </Picker>
+              </View>
+            </>
+          )}
 
-          <Text style={styles.sectionLabel}>Select Chemist</Text>
-          <View style={styles.pickerContainer}>
-            <Picker
-              selectedValue={selectedChemistId}
-              onValueChange={(value) => setSelectedChemistId(value)}
-            >
-              <Picker.Item label="Select Chemist" value={null} color="#94A3B8" />
-              {chemists.map((chemist) => (
-                <Picker.Item key={chemist.id} label={chemist.name} value={chemist.id} />
-              ))}
-            </Picker>
-          </View>
+          {meetingType === 'Chemist Meeting' && (
+            <>
+              <Text style={styles.sectionLabel}>Select Chemist *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedChemistId}
+                  onValueChange={(value) => setSelectedChemistId(value)}
+                >
+                  <Picker.Item label="Select Chemist" value={null} color="#94A3B8" />
+                  {getChemistsList().map((chemist) => (
+                    <Picker.Item key={chemist.id} label={chemist.name} value={chemist.id} />
+                  ))}
+                </Picker>
+              </View>
+            </>
+          )}
+
+          {meetingType === 'Hospital Meeting' && (
+            <>
+              <Text style={styles.sectionLabel}>Select Hospital *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedHospitalId}
+                  onValueChange={(value) => setSelectedHospitalId(value)}
+                >
+                  <Picker.Item label="Select Hospital" value={null} color="#94A3B8" />
+                  {getHospitalsList().map((hosp) => (
+                    <Picker.Item key={hosp.id} label={hosp.name} value={hosp.id} />
+                  ))}
+                </Picker>
+              </View>
+            </>
+          )}
+
+          {meetingType === 'Stockist Review' && (
+            <>
+              <Text style={styles.sectionLabel}>Select Stockist *</Text>
+              <View style={styles.pickerContainer}>
+                <Picker
+                  selectedValue={selectedStockistId}
+                  onValueChange={(value) => setSelectedStockistId(value)}
+                >
+                  <Picker.Item label="Select Stockist" value={null} color="#94A3B8" />
+                  {getStockistsList().map((stock) => (
+                    <Picker.Item key={stock.id} label={stock.name} value={stock.id} />
+                  ))}
+                </Picker>
+              </View>
+            </>
+          )}
 
           <Text style={styles.sectionLabel}>Meeting Agenda / Notes</Text>
           <TextInput
@@ -610,34 +818,45 @@ const MeetingSchedulerScreen = () => {
                     }
                   </Text>
 
-                  <Text style={styles.meetInfo}>
-                    👨‍⚕️ Doctor: {
-                      meet.meetingDoctors &&
-                      meet.meetingDoctors.length > 0
-                        ? meet.meetingDoctors
-                            .map(
-                              (d: any) =>
-                                d.doctor?.name ||
-                                d.doctor?.doctorName
-                            )
-                            .join(', ')
-                        : 'N/A'
-                    }
-                  </Text>
+                  {(meet.meetingType === 'Doctor Group Meeting' || meet.meetingType === 'Clinical Presentation') && (
+                    <Text style={styles.meetInfo}>
+                      👨‍⚕️ Doctor: {
+                        meet.meetingDoctors && meet.meetingDoctors.length > 0
+                          ? meet.meetingDoctors.map((d: any) => d.doctor?.name || d.doctor?.doctorName || 'N/A').join(', ')
+                          : 'N/A'
+                      }
+                    </Text>
+                  )}
 
-                  <Text style={styles.meetInfo}>
-                    💊 Chemist: {
-                      meet.meetingChemists &&
-                      meet.meetingChemists.length > 0
-                        ? meet.meetingChemists
-                            .map(
-                              (c: any) =>
-                                c.chemist?.name
-                            )
-                            .join(', ')
-                        : 'N/A'
-                    }
-                  </Text>
+                  {meet.meetingType === 'Chemist Meeting' && (
+                    <Text style={styles.meetInfo}>
+                      💊 Chemist: {
+                        meet.meetingChemists && meet.meetingChemists.length > 0
+                          ? meet.meetingChemists.map((c: any) => c.chemist?.name || 'N/A').join(', ')
+                          : 'N/A'
+                      }
+                    </Text>
+                  )}
+
+                  {meet.meetingType === 'Hospital Meeting' && (
+                    <Text style={styles.meetInfo}>
+                      🏥 Hospital: {
+                        meet.meetingHospitals && meet.meetingHospitals.length > 0
+                          ? meet.meetingHospitals.map((h: any) => h.hospital?.name || 'N/A').join(', ')
+                          : 'N/A'
+                      }
+                    </Text>
+                  )}
+
+                  {meet.meetingType === 'Stockist Review' && (
+                    <Text style={styles.meetInfo}>
+                      📦 Stockist: {
+                        meet.meetingStockists && meet.meetingStockists.length > 0
+                          ? meet.meetingStockists.map((s: any) => s.stockist?.name || 'N/A').join(', ')
+                          : 'N/A'
+                      }
+                    </Text>
+                  )}
 
                   {meet.description ? (
                     <Text style={styles.meetInfo}>
@@ -670,6 +889,32 @@ const MeetingSchedulerScreen = () => {
                         meet.agenda
                       }
                     </Text>
+                  ) : null}
+
+                  {meet.meetingLink ? (
+                    <TouchableOpacity
+                      onPress={() => {
+                        Linking.openURL(meet.meetingLink!).catch((err) =>
+                          console.error('Failed to open link:', err)
+                        );
+                      }}
+                      style={{
+                        backgroundColor: '#EFF6FF',
+                        borderColor: '#BFDBFE',
+                        borderWidth: 1,
+                        padding: 10,
+                        borderRadius: 8,
+                        marginTop: 10,
+                        alignItems: 'center',
+                        flexDirection: 'row',
+                        justifyContent: 'center',
+                        gap: 8,
+                      }}
+                    >
+                      <Text style={{ color: '#1E40AF', fontWeight: 'bold', fontSize: 13 }}>
+                        💻 Join Online Meeting
+                      </Text>
+                    </TouchableOpacity>
                   ) : null}
 
                   {isScheduled && (
