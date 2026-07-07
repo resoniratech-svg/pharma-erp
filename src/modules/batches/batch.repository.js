@@ -3,7 +3,7 @@ const prisma = require("../../config/db");
 const createBatchRepo = async (
   data
 ) => {
-  const existingBatch = await prisma.batch.findUnique({
+  const existingBatch = await prisma.batch.findFirst({
     where: { batchNumber: data.batchNumber },
   });
 
