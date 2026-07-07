@@ -19,11 +19,11 @@ import {
   type WarehouseTransfer,
 } from "../../services/warehouseTransferService";
 
-import { warehouseService } from "../../services/warehouseService";
-import { inventoryService } from "../../services/inventoryService";
-import { productService } from "../../services/productService";
+import { warehouseService, type WarehouseRecord } from "../../services/warehouseService";
+import { inventoryService, type InventoryRecord } from "../../services/inventoryService";
+import { productService, type Product } from "../../services/productService";
 import { stockLedgerService } from "../../services/stockLedgerService";
-import { batchService } from "../../services/batchService";
+import { batchService, type BatchRecord } from "../../services/batchService";
 import { getExpiryStatus } from "../../utils/expiryUtils";
 
 // --- Data Models ---
@@ -68,6 +68,31 @@ export default function WarehouseTransfer() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<WarehouseTransfer | null>(null);
+
+  const [warehouses, setWarehouses] = useState<WarehouseRecord[]>([]);
+  const [inventory, setInventory] = useState<InventoryRecord[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [batches, setBatches] = useState<BatchRecord[]>([]);
+
+  useEffect(() => {
+    async function loadBackendData() {
+      try {
+        const [wList, invList, pList, bList] = await Promise.all([
+          warehouseService.loadWarehouses(),
+          inventoryService.loadInventory(),
+          productService.loadProducts(),
+          batchService.loadBatches()
+        ]);
+        setWarehouses(wList);
+        setInventory(invList);
+        setProducts(pList);
+        setBatches(bList);
+      } catch (err) {
+        console.error("Failed to load backend data in WarehouseTransfer:", err);
+      }
+    }
+    loadBackendData();
+  }, []);
 
   // Initiate Transfer Form State
   const [formData, setFormData] = useState({
@@ -232,9 +257,7 @@ export default function WarehouseTransfer() {
     ]);
   };
 
-  const warehouses = warehouseService.getAll();
-  const inventory = inventoryService.getAll();
-  const products = productService.getProducts();
+  // State-loaded database caches used here: warehouses, inventory, products
 
   const handleProductChange = (id: string, field: keyof TransferLineItem, value: any) => {
     setFormProducts(prev => prev.map(p => {
@@ -527,7 +550,7 @@ export default function WarehouseTransfer() {
     alert("Transfer completed successfully.");
   };
 
-  const batches = batchService.getAll();
+  // State-loaded database cache used here: batches
   
   const eligibleInventory = inventory.filter((stock) => {
     if (stock.warehouseId !== formData.fromWarehouseId) return false;

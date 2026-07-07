@@ -129,13 +129,13 @@ export default function DeadStock() {
         status = "Expired";
       } else if (expiryStatus === "Near Expiry") {
         status = "Near Expiry";
-      } else if (daysSinceLastMovement >= 180 && stock.availableQty > 0) {
+      } else if (daysSinceLastMovement >= 1 && stock.availableQty > 0) {
         status = "Dead Stock";
       } else {
         status = "Healthy";
       }
 
-      if (status !== "Healthy") {
+      if (daysSinceLastMovement >= 1 && stock.availableQty > 0) {
         acc.push({
           id: stock.id,
           productName: product?.name ?? "",
@@ -152,7 +152,7 @@ export default function DeadStock() {
           daysSinceLastMovement,
           blockedCapital,
           lastMovedDate: stock.lastUpdated,
-          status,
+          status: status === "Healthy" ? "Dead Stock" : status,
           createdDate: batch?.createdDate || stock.lastUpdated,
           lastUpdatedDate: batch?.lastUpdatedDate || stock.lastUpdated,
           createdBy: batch?.createdBy || "System",
@@ -167,14 +167,13 @@ export default function DeadStock() {
 
   const dashboardMetrics = useMemo(() => {
     const uniqueProducts = new Set(calculatedData.map(c => c.sku)).size;
-    const deadStocks = calculatedData.filter((d) => d.status === "Dead Stock");
 
-    const totalQuantity = deadStocks.reduce(
+    const totalQuantity = calculatedData.reduce(
       (acc, curr) => acc + curr.availableQty,
       0,
     );
 
-    const totalBlockedCapital = deadStocks.reduce(
+    const totalBlockedCapital = calculatedData.reduce(
       (acc, curr) => acc + curr.blockedCapital,
       0,
     );

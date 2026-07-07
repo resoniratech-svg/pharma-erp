@@ -135,14 +135,13 @@ export default function BatchManagement() {
   }, []);
 
   useEffect(() => {
-    const savedBatches = batchService.getAll() as unknown as Batch[];
-    setBatches(savedBatches || []);
+    batchService.loadBatches().then((savedBatches) => {
+      setBatches((savedBatches || []) as unknown as Batch[]);
+    });
   }, []);
 
   useEffect(() => {
-    if (batches.length > 0) {
-      batchService.saveAll(batches as unknown as BatchRecord[]);
-    }
+    batchService.saveAll(batches as unknown as BatchRecord[]);
   }, [batches]);
 
   const calculateShelfLife = (mfg?: string, exp?: string) => {
@@ -291,9 +290,18 @@ export default function BatchManagement() {
         status: resolvedStatus,
       } as Batch;
 
-      setBatches(
-        batches.map((b) => (b.id === updatedBatch.id ? updatedBatch : b))
-      );
+      batchService.updateBatch(updatedBatch.id, {
+        batchNo: updatedBatch.batchNo,
+        mfgDate: updatedBatch.mfgDate,
+        expDate: updatedBatch.expDate,
+        availableQty: updatedBatch.availableQty,
+        status: updatedBatch.status,
+      }).then(() => {
+        batchService.loadBatches().then((data) => {
+          setBatches(data as unknown as Batch[]);
+        });
+      });
+
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,
@@ -304,30 +312,25 @@ export default function BatchManagement() {
         setSelectedBatch(updatedBatch);
       }
     } else {
-      const batch: Batch = {
-        id: Date.now().toString(),
+      const product = productService.getProducts().find(p => p.code === newBatch.productCode);
+      if (!product) return;
+
+      batchService.addBatch({
+        productId: String(product.id),
+        productCode: product.code,
+        productName: product.name,
         batchNo: trimmedBatchNo,
-        productName: newBatch.productName!,
-        productCode: newBatch.productCode,
-        hsnCode: newBatch.hsnCode,
-        gst: newBatch.gst,
-        composition: newBatch.composition,
-        packingType: newBatch.packingType,
-        scheme: newBatch.scheme,
-        unit: newBatch.unit || "",
-        manufacturer: newBatch.manufacturer || "",
         mfgDate: newBatch.mfgDate!,
         expDate: newBatch.expDate!,
-        receivedQty: received,
+        ptr: Number(newBatch.ptr),
+        mrp: Number(newBatch.mrp),
         availableQty: received,
-        mrp: newBatch.mrp || "",
-        ptr: newBatch.ptr || "",
-        pts: newBatch.pts || "",
-        barcode: activeBarcode.barcode,
-        remarks: trimmedRemarks,
         status: resolvedStatus,
-      };
-      setBatches([batch, ...batches]);
+      }).then(() => {
+        batchService.loadBatches().then((data) => {
+          setBatches(data as unknown as Batch[]);
+        });
+      });
 
       activityLogService.addLog({
         userId: currentUser?.id,
@@ -344,10 +347,13 @@ export default function BatchManagement() {
 
     const inUse = checkBatchInUse(batchToDelete);
     if (inUse) {
-      const updated = batches.map(b =>
-        b.id === batchToDelete.id ? { ...b, status: 'Inactive' as const } : b
-      );
-      setBatches(updated);
+      batchService.updateBatch(batchToDelete.id, {
+        status: 'Inactive'
+      }).then(() => {
+        batchService.loadBatches().then((data) => {
+          setBatches(data as unknown as Batch[]);
+        });
+      });
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,
@@ -356,7 +362,15 @@ export default function BatchManagement() {
       });
       alert("Warning: This batch is referenced in billing invoices. To preserve transaction logs, it was marked as Inactive instead of deleted.");
     } else {
-      setBatches(batches.filter((b) => b.id !== batchToDelete.id));
+      batchService.deleteBatch(batchToDelete.id)
+        .then(() => {
+          batchService.loadBatches().then((data) => {
+            setBatches(data as unknown as Batch[]);
+          });
+        })
+        .catch((err: any) => {
+          alert(err.message || "Failed to delete batch.");
+        });
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,

@@ -16,7 +16,7 @@ import {
 import { type Column } from './components/shared';
 import { inwardStockService } from "../../services/inwardStockService";
 import { productService } from "../../services/productService";
-import { batchService } from "../../services/batchService";
+import { batchService, type BatchRecord } from "../../services/batchService";
 import { inventoryService } from "../../services/inventoryService";
 import { stockLedgerService } from "../../services/stockLedgerService";
 import  activityLogService  from "../../services/activityLogService";
@@ -184,7 +184,11 @@ export default function InwardStock() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<Inward | null>(null);
   const [products] = useState(productService.getProducts());
-  const [batches] = useState(batchService.getAll());
+  const [batches, setBatches] = useState<BatchRecord[]>([]);
+
+  useEffect(() => {
+    batchService.loadBatches().then(setBatches);
+  }, []);
 
   const currentUser = authService.getCurrentUser();
   const warehouses = warehouseService
@@ -487,7 +491,7 @@ export default function InwardStock() {
     return { totalItems, totalQuantity, totalValue };
   }, [formProducts]);
 
-  const handleSaveGRN = () => {
+  const handleSaveGRN = async () => {
     const supplier = formData.supplier.trim();
     const location = formData.location.trim();
     const date = formData.date;
@@ -587,53 +591,67 @@ export default function InwardStock() {
 
     const inventory = inventoryService.getAll();
 
-    formProducts.forEach((item) => {
+    // 1. Ensure all batches exist in the database (create them if they don't)
+    for (const item of formProducts) {
       const product = products.find((p) => p.name === item.product);
-      const selectedWarehouse = warehouses.find(
-        (w) => w.id === location,
+      if (!product) continue;
+
+      const batches = batchService.getAll();
+      let matchedBatch = batches.find(
+        (b) => b.batchNo === item.batchNo && b.productCode === product.code
       );
+
+      if (!matchedBatch) {
+        await batchService.addBatch({
+          productId: product.id,
+          productCode: product.code,
+          productName: product.name,
+          batchNo: item.batchNo,
+          mfgDate: item.mfgDate,
+          expDate: item.expiryDate,
+          ptr: Number(item.ptr),
+          mrp: Number(item.mrp),
+          availableQty: Number(item.quantity),
+          status: "Active",
+        });
+      }
+    }
+
+    // 2. Add or update inventory records in the database
+    for (const item of formProducts) {
+      const product = products.find((p) => p.name === item.product);
+      const selectedWarehouse = warehouses.find((w) => w.id === location);
 
       let stock = inventory.find(
         (record) =>
-          record.batchNo === item.batchNo &&
-          record.warehouseId === location
+          record.batchNo === item.batchNo && record.warehouseId === location
       );
 
       if (stock) {
-        inventoryService.updateAvailableQty(
+        await inventoryService.updateAvailableQty(
           stock.batchNo,
           stock.warehouseId,
-          stock.availableQty + Number(item.quantity),
+          stock.availableQty + Number(item.quantity)
         );
       } else {
-        inventoryService.addRecord({
+        await inventoryService.addRecord({
           id: Date.now().toString(),
-
           productCode: product?.code ?? "",
-
           productName: item.product,
-
           batchNo: item.batchNo,
-
           warehouseId: selectedWarehouse?.id ?? "",
           warehouseCode: selectedWarehouse?.code ?? "",
           warehouseName: selectedWarehouse?.name ?? "",
           ptr: Number(item.ptr),
-
           availableQty: Number(item.quantity),
-
           reservedQty: 0,
-
           damagedQty: 0,
-
           blockedQty: 0,
-
           expiredQty: 0,
-
           lastUpdated: new Date().toISOString(),
         });
       }
-    });
+    }
 
 
     formProducts.forEach((item) => {
@@ -672,6 +690,11 @@ export default function InwardStock() {
       module: "Inward Stock",
     });
 
+    // Refresh database cache and state
+    const updatedBatches = await batchService.loadBatches();
+    setBatches(updatedBatches);
+    await inventoryService.loadInventory();
+
     setFormData({
       date: new Date().toISOString().split("T")[0],
       supplier: "",
@@ -686,7 +709,7 @@ export default function InwardStock() {
 
     setShowCreateModal(false);
 
-    alert("GRN saved successfully!");
+    alert("inward stock management done successfully");
   };
 
   return (
@@ -912,7 +935,7 @@ export default function InwardStock() {
                   </button>
                 </div>
 
-                <div className="overflow-x-auto pb-4">
+                <div className="overflow-x-auto pb-48">
                   <table className="w-full text-sm text-left">
                     <thead className="text-xs text-slate-500 uppercase bg-slate-50">
                       <tr>

@@ -86,8 +86,13 @@ export default function TransportChallans() {
   }, []);
 
   useEffect(() => {
-    setChallans(transportChallanService.getAllChallans());
-    setDispatches(transportChallanService.getAllDispatches());
+    Promise.all([
+      transportChallanService.loadChallans(),
+      transportChallanService.loadDispatches()
+    ]).then(([challansData, dispatchesData]) => {
+      setChallans(challansData);
+      setDispatches(dispatchesData);
+    });
 
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -390,8 +395,15 @@ export default function TransportChallans() {
       createdDate: new Date().toISOString().split('T')[0]
     } as Challan;
 
-    const updatedChallans = transportChallanService.createChallan(newChallanObj);
-    setChallans(updatedChallans);
+    transportChallanService.createChallan(newChallanObj)
+      .then(() => {
+        transportChallanService.loadChallans().then((data) => {
+          setChallans(data);
+        });
+      })
+      .catch((err: any) => {
+        alert(err.message || "Failed to create transport challan");
+      });
     
     setShowCreateModal(false);
     

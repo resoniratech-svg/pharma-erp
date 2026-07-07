@@ -31,6 +31,11 @@ import NotificationDropdown from '../../components/NotificationDropdown';
 import { ROLE_SUPER_ADMIN, ROLE_WAREHOUSE_MANAGER, ROLE_ACCOUNTANT, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_MEDICAL_REPRESENTATIVE, ROLE_TRANSPORT_STAFF, ROLES } from '../../constants/roles';
 import mjLogo from '../../assets/logo/pharmaLOGO.png';
 
+import { productService } from '../../services/productService';
+import { warehouseService } from '../../services/warehouseService';
+import { inventoryService } from '../../services/inventoryService';
+import { batchService } from '../../services/batchService';
+
 /* ── Constants ───────────────────────────────────────────────────── */
 const PRIMARY_HEX = '#7c3aed';
 const BG_HEX = '#f8fafc';
@@ -325,6 +330,16 @@ export function MainLayout() {
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['Products']);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Load backend database records in parallel on mount to populate the cache globally
+  useEffect(() => {
+    Promise.all([
+      productService.loadProducts(),
+      warehouseService.loadWarehouses(),
+      inventoryService.loadInventory(),
+      batchService.loadBatches()
+    ]).catch(err => console.error("Failed to load backend database caches:", err));
+  }, []);
 
   // Auto-expand the active menu when the route changes
   useEffect(() => {

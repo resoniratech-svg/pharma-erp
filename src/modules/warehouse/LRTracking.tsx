@@ -40,7 +40,9 @@ export default function LRTracking() {
   };
 
   useEffect(() => {
-    setLrData(transportChallanService.getAllLRRecords());
+    transportChallanService.loadChallans().then(() => {
+      setLrData(transportChallanService.getAllLRRecords());
+    });
 
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {

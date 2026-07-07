@@ -19,6 +19,7 @@ import { inventoryService, type InventoryRecord } from '../../services/inventory
 import activityLogService from '../../services/activityLogService';
 import { warehouseTransferService } from '../../services/warehouseTransferService';
 import { outwardStockService } from '../../services/outwardStockService';
+import { transportChallanService } from '../../services/transportChallanService';
 
 const formatDate = (dateString: string) => {
   if (!dateString) return "N/A";
@@ -105,14 +106,9 @@ export default function DispatchManagement() {
   }, []);
 
   useEffect(() => {
-    const stored = localStorage.getItem('pharma_erp_dispatches');
-    if (stored) {
-      try {
-        setDispatches(JSON.parse(stored));
-      } catch (e) {
-        setDispatches([]);
-      }
-    }
+    transportChallanService.loadDispatches().then((data) => {
+      setDispatches(data);
+    });
     
     const whs = warehouseService.getAll();
     setWarehouses(whs.filter((w: any) => w.status === 'Active'));
@@ -393,16 +389,22 @@ export default function DispatchManagement() {
       createdDate: formatDate(new Date().toISOString().split('T')[0])
     };
 
-    const updatedDispatches = [newDispatchObj, ...dispatches];
-    setDispatches(updatedDispatches);
-    localStorage.setItem('pharma_erp_dispatches', JSON.stringify(updatedDispatches));
-    
     const wh = warehouses.find((w: any) => w.name === newWarehouse);
     if (wh) {
       newProducts.forEach(p => {
-        inventoryService.updateAvailableQty(p.batchNo, wh.id, -p.dispatchQty);
+        inventoryService.updateAvailableQty(p.batchNo, wh.id, -p.dispatchQty).catch(() => {});
       });
     }
+
+    transportChallanService.createDispatch(newDispatchObj)
+      .then(() => {
+        transportChallanService.loadDispatches().then((data) => {
+          setDispatches(data);
+        });
+      })
+      .catch((err: any) => {
+        alert(err.message || "Failed to save dispatch");
+      });
 
     try {
         activityLogService.addLog({

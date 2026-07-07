@@ -51,7 +51,9 @@ export default function DeliveryTracking() {
   };
 
   useEffect(() => {
-    setData(transportChallanService.getAllDeliveryRecords());
+    transportChallanService.loadChallans().then(() => {
+      setData(transportChallanService.getAllDeliveryRecords());
+    });
 
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -208,10 +210,16 @@ export default function DeliveryTracking() {
       podFileUrl: fileUrl,
       podFileName: podFile.name,
       podFileType: podFile.type,
-      podRemarks: podRemarks
-    });
-
-    setData(transportChallanService.getAllDeliveryRecords());
+      podRemarks
+    })
+      .then(() => {
+        transportChallanService.loadChallans().then(() => {
+          setData(transportChallanService.getAllDeliveryRecords());
+        });
+      })
+      .catch((err: any) => {
+        alert(err.message || "Failed to upload POD");
+      });
 
     setShowUploadModal(false);
     setUploadRecord(null);

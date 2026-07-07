@@ -1,3 +1,6 @@
+import { apiRequest } from './apiClient';
+import { batchService } from './batchService';
+
 export interface InventoryRecord {
   id: string;
 
@@ -10,7 +13,6 @@ export interface InventoryRecord {
   ptr: number;
 
   // Warehouse Information
-
   warehouseId: string;
   warehouseCode: string;
   warehouseName: string;
@@ -26,51 +28,106 @@ export interface InventoryRecord {
   lastUpdated: string;
 }
 
-const STORAGE_KEY = "inventoryRecords";
+let inventoryCache: InventoryRecord[] = [];
+
+function mapToUi(inv: any): InventoryRecord {
+  return {
+    id: String(inv.id),
+    productCode: inv.batch && inv.batch.product ? inv.batch.product.code : "",
+    productName: inv.batch && inv.batch.product ? inv.batch.product.name : "",
+    batchNo: inv.batch ? (inv.batch.batchNumber || inv.batch.batchNo || "") : "",
+    ptr: inv.batch && inv.batch.product ? Number(inv.batch.product.ptr || 0) : 0,
+    warehouseId: String(inv.warehouseId),
+    warehouseCode: inv.warehouse ? inv.warehouse.code : "",
+    warehouseName: inv.warehouse ? inv.warehouse.name : "",
+    availableQty: Number(inv.quantity),
+    reservedQty: 0,
+    damagedQty: 0,
+    blockedQty: 0,
+    expiredQty: 0,
+    lastUpdated: inv.updatedAt || new Date().toISOString(),
+  };
+}
+
+// Load initial inventory from localStorage on initialization as a fallback
+try {
+  const data = localStorage.getItem("inventoryRecords");
+  if (data) {
+    inventoryCache = JSON.parse(data);
+  }
+} catch (err) {
+  console.error("Failed to parse cached inventory:", err);
+}
 
 export const inventoryService = {
+  // Synchronous method for backward compatibility
   getAll(): InventoryRecord[] {
-    const data = localStorage.getItem(STORAGE_KEY);
+    return inventoryCache;
+  },
 
-    if (!data) {
-      return [];
-    }
-
+  // Asynchronous method to load inventory from database and refresh cache
+  async loadInventory(): Promise<InventoryRecord[]> {
     try {
-      return JSON.parse(data) as InventoryRecord[];
-    } catch {
-      return [];
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/inventory');
+      if (response.success && Array.isArray(response.data)) {
+        inventoryCache = response.data.map(mapToUi);
+        localStorage.setItem("inventoryRecords", JSON.stringify(inventoryCache));
+      }
+    } catch (err) {
+      console.error("Failed to fetch inventory from backend, using cache:", err);
     }
+    return inventoryCache;
   },
 
-  saveAll(records: InventoryRecord[]) {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+  async addRecord(record: InventoryRecord): Promise<InventoryRecord> {
+    const batches = batchService.getAll();
+    const matchedBatch = batches.find(b => b.batchNo === record.batchNo && b.productCode === record.productCode);
+    if (!matchedBatch) {
+      throw new Error(`Batch ${record.batchNo} for product ${record.productCode} does not exist`);
+    }
+    
+    const response = await apiRequest<{ success: boolean; data: any }>('/inventory', {
+      method: 'POST',
+      bodyData: {
+        batchId: Number(matchedBatch.id),
+        warehouseId: Number(record.warehouseId),
+        quantity: Number(record.availableQty),
+      },
+    });
+    if (!response.success || !response.data) {
+      throw new Error('Failed to create inventory record');
+    }
+    const created = mapToUi(response.data);
+    inventoryCache = [created, ...inventoryCache];
+    localStorage.setItem("inventoryRecords", JSON.stringify(inventoryCache));
+    return created;
   },
 
-  addRecord(record: InventoryRecord) {
-    const records = this.getAll();
-
-    records.unshift(record);
-
-    this.saveAll(records);
+  async updateRecord(id: string, updatedRecord: InventoryRecord): Promise<InventoryRecord> {
+    const response = await apiRequest<{ success: boolean; data: any }>(`/inventory/${id}`, {
+      method: 'PUT',
+      bodyData: {
+        quantity: Number(updatedRecord.availableQty),
+      },
+    });
+    if (!response.success || !response.data) {
+      throw new Error('Failed to update inventory record');
+    }
+    const updated = mapToUi(response.data);
+    inventoryCache = inventoryCache.map(i => i.id === id ? updated : i);
+    localStorage.setItem("inventoryRecords", JSON.stringify(inventoryCache));
+    return updated;
   },
 
-  updateRecord(id: string, updatedRecord: InventoryRecord) {
-    const records = this.getAll();
-
-    const updated = records.map((record) =>
-      record.id === id ? updatedRecord : record,
-    );
-
-    this.saveAll(updated);
-  },
-
-  deleteRecord(id: string) {
-    const records = this.getAll();
-
-    const filtered = records.filter((record) => record.id !== id);
-
-    this.saveAll(filtered);
+  async deleteRecord(id: string): Promise<boolean> {
+    const response = await apiRequest<{ success: boolean }>(`/inventory/${id}`, {
+      method: 'DELETE',
+    });
+    if (response.success) {
+      inventoryCache = inventoryCache.filter(i => i.id !== id);
+      localStorage.setItem("inventoryRecords", JSON.stringify(inventoryCache));
+    }
+    return response.success;
   },
 
   getByBatch(batchNo: string) {
@@ -87,25 +144,21 @@ export const inventoryService = {
         record.batchNo === batchNo && record.warehouseId === warehouseId,
     );
   },
+  
   getByProduct(productCode: string) {
     return this.getAll().filter((record) => record.productCode === productCode);
   },
 
-  updateAvailableQty(batchNo: string, warehouseId: string, qty: number) {
-    const records = this.getAll();
-
-    const updated = records.map((record) => {
-      if (record.batchNo === batchNo && record.warehouseId === warehouseId) {
-        return {
-          ...record,
-          availableQty: qty,
-          lastUpdated: new Date().toISOString(),
-        };
-      }
-
-      return record;
-    });
-
-    this.saveAll(updated);
+  async updateAvailableQty(batchNo: string, warehouseId: string, qty: number): Promise<void> {
+    const matched = this.getByBatchAndWarehouse(batchNo, warehouseId);
+    if (matched) {
+      const updatedRecord = { ...matched, availableQty: qty };
+      await this.updateRecord(matched.id, updatedRecord);
+    }
   },
+
+  saveAll(records: InventoryRecord[]) {
+    inventoryCache = records;
+    localStorage.setItem("inventoryRecords", JSON.stringify(records));
+  }
 };

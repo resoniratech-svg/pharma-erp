@@ -1,3 +1,6 @@
+import { apiRequest } from './apiClient';
+import { productService } from './productService';
+
 export interface BatchRecord {
   id: string;
 
@@ -26,33 +29,125 @@ export interface BatchRecord {
   // Batch Status
   status: string;
 
-   createdBy?: string;
+  createdBy?: string;
   createdDate?: string;
   lastUpdatedBy?: string;
   lastUpdatedDate?: string;
 }
 
-const STORAGE_KEY = "batchRecords";
+let batchCache: BatchRecord[] = [];
+
+function mapToUi(b: any): BatchRecord {
+  return {
+    id: String(b.id),
+    productId: String(b.productId),
+    productCode: b.product ? b.product.code : (b.productCode || ""),
+    productName: b.product ? b.product.name : (b.productName || ""),
+    hsnCode: b.product ? b.product.hsnCode : (b.hsnCode || ""),
+    barcode: b.product ? b.product.barcode : (b.barcode || ""),
+    unit: b.unit || "Pack",
+    manufacturer: b.product ? b.product.manufacturer : (b.manufacturer || ""),
+    batchNo: b.batchNumber || b.batchNo || "",
+    mfgDate: b.manufacturingDate || b.mfgDate || new Date().toISOString(),
+    expDate: b.expiryDate || b.expDate || new Date().toISOString(),
+    ptr: b.product ? Number(b.product.ptr || 0) : Number(b.ptr || 0),
+    mrp: b.product ? Number(b.product.mrp || 0) : Number(b.mrp || 0),
+    availableQty: Number(b.quantity || b.availableQty || 0),
+    receivedQty: Number(b.receivedQty || 0),
+    status: b.status || "Active",
+    createdBy: b.createdBy || "System",
+    createdDate: b.createdAt || b.createdDate || new Date().toISOString(),
+  };
+}
+
+// Load initial batches from localStorage on initialization as a fallback
+try {
+  const data = localStorage.getItem("batchRecords");
+  if (data) {
+    batchCache = JSON.parse(data);
+  }
+} catch (err) {
+  console.error("Failed to parse cached batches:", err);
+}
 
 export const batchService = {
+  // Synchronous method for backward compatibility
   getAll(): BatchRecord[] {
-    const data = localStorage.getItem(STORAGE_KEY);
+    return batchCache;
+  },
 
-    if (!data) {
-      return [];
-    }
-
+  // Asynchronous method to load batches from database and refresh cache
+  async loadBatches(): Promise<BatchRecord[]> {
     try {
-      return JSON.parse(data) as BatchRecord[];
-    } catch {
-      return [];
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/batches');
+      if (response.success && Array.isArray(response.data)) {
+        batchCache = response.data.map(mapToUi);
+        localStorage.setItem("batchRecords", JSON.stringify(batchCache));
+      }
+    } catch (err) {
+      console.error("Failed to fetch batches from backend, using cache:", err);
     }
+    return batchCache;
+  },
+
+  async addBatch(record: Omit<BatchRecord, 'id'>): Promise<BatchRecord> {
+    const products = productService.getProducts();
+    const matchedProduct = products.find(p => p.code === record.productCode);
+    if (!matchedProduct) {
+      throw new Error(`Product ${record.productCode} does not exist`);
+    }
+    const response = await apiRequest<{ success: boolean; data: any }>('/batches', {
+      method: 'POST',
+      bodyData: {
+        batchNumber: record.batchNo,
+        productId: Number(matchedProduct.id),
+        manufacturingDate: record.mfgDate,
+        expiryDate: record.expDate,
+        quantity: Number(record.availableQty),
+      },
+    });
+    if (!response.success || !response.data) {
+      throw new Error('Failed to create batch');
+    }
+    const created = mapToUi(response.data);
+    batchCache = [created, ...batchCache];
+    localStorage.setItem("batchRecords", JSON.stringify(batchCache));
+    return created;
+  },
+
+  async updateBatch(id: string, record: Partial<BatchRecord>): Promise<BatchRecord> {
+    const response = await apiRequest<{ success: boolean; data: any }>(`/batches/${id}`, {
+      method: 'PUT',
+      bodyData: {
+        batchNumber: record.batchNo,
+        manufacturingDate: record.mfgDate,
+        expiryDate: record.expDate,
+        quantity: record.availableQty !== undefined ? Number(record.availableQty) : undefined,
+        status: record.status,
+      },
+    });
+    if (!response.success || !response.data) {
+      throw new Error('Failed to update batch');
+    }
+    const updated = mapToUi(response.data);
+    batchCache = batchCache.map(b => b.id === id ? updated : b);
+    localStorage.setItem("batchRecords", JSON.stringify(batchCache));
+    return updated;
+  },
+
+  async deleteBatch(id: string): Promise<boolean> {
+    const response = await apiRequest<{ success: boolean }>(`/batches/${id}`, {
+      method: 'DELETE',
+    });
+    if (response.success) {
+      batchCache = batchCache.filter(b => b.id !== id);
+      localStorage.setItem("batchRecords", JSON.stringify(batchCache));
+    }
+    return response.success;
   },
 
   saveAll(records: BatchRecord[]) {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(records)
-    );
+    batchCache = records;
+    localStorage.setItem("batchRecords", JSON.stringify(records));
   },
 };

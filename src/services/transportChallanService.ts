@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient';
+
 export interface ChallanProduct {
   productName: string;
   batchNo: string;
@@ -94,40 +96,242 @@ export interface DeliveryRecord {
 const STORAGE_KEY = 'pharma_erp_challans';
 const DISPATCH_STORAGE_KEY = 'pharma_erp_dispatches';
 
+interface DbDispatch {
+  id: number;
+  dispatchNo: string | null;
+  dispatchType: string | null;
+  orderId: string | null;
+  customerName: string | null;
+  sourceWarehouse: string | null;
+  totalItems: number | null;
+  totalQuantity: number | null;
+  status: string;
+  transporter: string | null;
+  lrNumber: string | null;
+  vehicleNumber: string | null;
+  driverName: string | null;
+  driverMobile: string | null;
+  remarks: string | null;
+  createdBy: string | null;
+  createdDate: string | null;
+  products: any;
+}
+
+interface DbChallan {
+  id: number;
+  dispatchNo: string | null;
+  challanNo: string | null;
+  challanDate: string | null;
+  dispatchDate: string | null;
+  orderNo: string | null;
+  customer: string | null;
+  sourceWarehouse: string | null;
+  transporterName: string | null;
+  vehicleNumber: string | null;
+  driverName: string | null;
+  driverMobile: string | null;
+  totalItems: number | null;
+  totalQty: number | null;
+  status: string | null;
+  products: any;
+  createdBy: string | null;
+  createdDate: string | null;
+  podStatus: string | null;
+  podUploadedBy: string | null;
+  podUploadedDate: string | null;
+  podReceivedBy: string | null;
+  podDesignation: string | null;
+  podFileUrl: string | null;
+  podFileName: string | null;
+  podFileType: string | null;
+  podRemarks: string | null;
+  actualDeliveryDate: string | null;
+}
+
+function mapDispatchToUi(db: DbDispatch): any {
+  return {
+    id: String(db.id),
+    dispatchId: db.dispatchNo || `DSP-${db.id}`,
+    date: db.createdDate || new Date().toISOString().split('T')[0],
+    dispatchType: db.dispatchType || 'Outward Stock',
+    orderId: db.orderId || '',
+    client: db.customerName || '',
+    sourceWarehouse: db.sourceWarehouse || '',
+    totalItems: db.totalItems || 0,
+    totalQuantity: db.totalQuantity || 0,
+    status: db.status || 'Ready to Ship',
+    products: db.products || [],
+    transporter: db.transporter || '',
+    lrNumber: db.lrNumber || '',
+    vehicleNumber: db.vehicleNumber || '',
+    driverName: db.driverName || '',
+    driverMobile: db.driverMobile || '',
+    remarks: db.remarks || '',
+    createdBy: db.createdBy || '',
+    createdDate: db.createdDate || ''
+  };
+}
+
+function mapChallanToUi(db: DbChallan): Challan {
+  return {
+    id: String(db.id),
+    challanNo: db.challanNo || `CHL-${db.id}`,
+    challanDate: db.challanDate || '',
+    dispatchNo: db.dispatchNo || '',
+    dispatchDate: db.dispatchDate || '',
+    orderNo: db.orderNo || '',
+    customer: db.customer || '',
+    sourceWarehouse: db.sourceWarehouse || '',
+    transporter: db.transporterName || '',
+    vehicleNo: db.vehicleNumber || '',
+    driverName: db.driverName || '',
+    driverMobile: db.driverMobile || '',
+    totalItems: db.totalItems || 0,
+    totalQty: db.totalQty || 0,
+    status: (db.status || 'Generated') as any,
+    products: db.products || [],
+    createdBy: db.createdBy || '',
+    createdDate: db.createdDate || '',
+    podStatus: (db.podStatus || 'Pending Upload') as any,
+    podUploadedBy: db.podUploadedBy || '',
+    podUploadedDate: db.podUploadedDate || '',
+    podReceivedBy: db.podReceivedBy || '',
+    podDesignation: db.podDesignation || '',
+    podFileUrl: db.podFileUrl || '',
+    podFileName: db.podFileName || '',
+    podFileType: db.podFileType || '',
+    podRemarks: db.podRemarks || '',
+    actualDeliveryDate: db.actualDeliveryDate || ''
+  };
+}
+
+let challanCache: Challan[] = [];
+let dispatchCache: any[] = [];
+
 export const transportChallanService = {
-  getAllChallans: (): Challan[] => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      return [];
+  async loadDispatches(): Promise<any[]> {
+    const response = await apiRequest<{ success: boolean; data: DbDispatch[] }>('/dispatches');
+    if (response.success && response.data) {
+      dispatchCache = response.data.map(mapDispatchToUi);
+      localStorage.setItem(DISPATCH_STORAGE_KEY, JSON.stringify(dispatchCache));
     }
+    return dispatchCache;
+  },
+
+  async createDispatch(dispatch: any): Promise<any> {
+    const response = await apiRequest<{ success: boolean; data: DbDispatch }>('/dispatches', {
+      method: 'POST',
+      bodyData: {
+        dispatchNo: dispatch.dispatchId,
+        dispatchType: dispatch.dispatchType,
+        orderId: dispatch.orderId,
+        customerName: dispatch.client,
+        sourceWarehouse: dispatch.sourceWarehouse,
+        totalItems: dispatch.totalItems,
+        totalQuantity: dispatch.totalQuantity,
+        status: dispatch.status,
+        transporter: dispatch.transporter,
+        lrNumber: dispatch.lrNumber,
+        vehicleNumber: dispatch.vehicleNumber,
+        driverName: dispatch.driverName,
+        driverMobile: dispatch.driverMobile,
+        remarks: dispatch.remarks,
+        createdBy: dispatch.createdBy,
+        createdDate: dispatch.createdDate,
+        products: dispatch.products
+      }
+    });
+    if (!response.success || !response.data) {
+      throw new Error('Failed to create dispatch');
+    }
+    const created = mapDispatchToUi(response.data);
+    dispatchCache = [created, ...dispatchCache];
+    localStorage.setItem(DISPATCH_STORAGE_KEY, JSON.stringify(dispatchCache));
+    return created;
+  },
+
+  async loadChallans(): Promise<Challan[]> {
+    const response = await apiRequest<{ success: boolean; data: DbChallan[] }>('/transport-challans');
+    if (response.success && response.data) {
+      challanCache = response.data.map(mapChallanToUi);
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(challanCache));
+    }
+    return challanCache;
+  },
+
+  async createChallan(challan: Challan): Promise<Challan> {
+    const response = await apiRequest<{ success: boolean; data: DbChallan }>('/transport-challans', {
+      method: 'POST',
+      bodyData: {
+        challanNo: challan.challanNo,
+        challanNumber: challan.challanNo,
+        challanDate: challan.challanDate,
+        dispatchNo: challan.dispatchNo,
+        dispatchDate: challan.dispatchDate,
+        orderNo: challan.orderNo,
+        customer: challan.customer,
+        sourceWarehouse: challan.sourceWarehouse,
+        transporterName: challan.transporter,
+        vehicleNumber: challan.vehicleNo,
+        driverName: challan.driverName,
+        driverMobile: challan.driverMobile,
+        totalItems: challan.totalItems,
+        totalQty: challan.totalQty,
+        status: challan.status,
+        products: challan.products,
+        createdBy: challan.createdBy,
+        createdDate: challan.createdDate,
+        podStatus: challan.podStatus || 'Pending Upload'
+      }
+    });
+    if (!response.success || !response.data) {
+      throw new Error('Failed to create transport challan');
+    }
+    const created = mapChallanToUi(response.data);
+    challanCache = [created, ...challanCache];
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(challanCache));
+    return created;
+  },
+
+  async updateChallan(id: string, updatedData: Partial<Challan>): Promise<Challan> {
+    const response = await apiRequest<{ success: boolean; data: DbChallan }>(`/transport-challans/${id}`, {
+      method: 'PUT',
+      bodyData: {
+        status: updatedData.status,
+        podStatus: updatedData.podStatus,
+        podUploadedBy: updatedData.podUploadedBy,
+        podUploadedDate: updatedData.podUploadedDate,
+        podReceivedBy: updatedData.podReceivedBy,
+        podDesignation: updatedData.podDesignation,
+        podFileUrl: updatedData.podFileUrl,
+        podFileName: updatedData.podFileName,
+        podFileType: updatedData.podFileType,
+        podRemarks: updatedData.podRemarks,
+        actualDeliveryDate: updatedData.actualDeliveryDate
+      }
+    });
+    if (!response.success || !response.data) {
+      throw new Error('Failed to update transport challan');
+    }
+    const updated = mapChallanToUi(response.data);
+    challanCache = challanCache.map(c => c.id === id ? updated : c);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(challanCache));
+    return updated;
+  },
+
+  getAllChallans: (): Challan[] => {
+    if (challanCache.length === 0) {
+      try {
+        const stored = localStorage.getItem(STORAGE_KEY);
+        challanCache = stored ? JSON.parse(stored) : [];
+      } catch (e) {}
+    }
+    return challanCache;
   },
 
   getChallanById: (id: string): Challan | undefined => {
     const challans = transportChallanService.getAllChallans();
     return challans.find(c => c.id === id);
-  },
-
-  createChallan: (challan: Challan): Challan[] => {
-    const challans = transportChallanService.getAllChallans();
-    const updated = [challan, ...challans];
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    return updated;
-  },
-
-  updateChallan: (id: string, updatedData: Partial<Challan>): Challan[] => {
-    const challans = transportChallanService.getAllChallans();
-    const updated = challans.map(c => c.id === id ? { ...c, ...updatedData } : c);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    return updated;
-  },
-
-  deleteChallan: (id: string): Challan[] => {
-    const challans = transportChallanService.getAllChallans();
-    const updated = challans.filter(c => c.id !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
-    return updated;
   },
 
   generateNextChallanNumber: (): string => {
@@ -136,12 +340,13 @@ export const transportChallanService = {
   },
 
   getAllDispatches: (): any[] => {
-    try {
-      const stored = localStorage.getItem(DISPATCH_STORAGE_KEY);
-      return stored ? JSON.parse(stored) : [];
-    } catch (e) {
-      return [];
+    if (dispatchCache.length === 0) {
+      try {
+        const stored = localStorage.getItem(DISPATCH_STORAGE_KEY);
+        dispatchCache = stored ? JSON.parse(stored) : [];
+      } catch (e) {}
     }
+    return dispatchCache;
   },
 
   getCurrentUser: (): any => {
