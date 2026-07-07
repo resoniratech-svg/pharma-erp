@@ -172,7 +172,8 @@ const updateProduct = async (req, res) => {
 
 const deleteProduct = async (req, res) => {
   try {
-    const product = await productService.getProductById(Number(req.params.id));
+    const productId = Number(req.params.id);
+    const product = await productService.getProductById(productId);
 
     if (!product) {
       return res.status(404).json({
@@ -181,7 +182,45 @@ const deleteProduct = async (req, res) => {
       });
     }
 
-    await productService.deleteProduct(Number(req.params.id));
+    // 1. Check if there are active batches linked to this product
+    const linkedBatches = await prisma.batch.findMany({
+      where: { productId },
+      select: { batchNumber: true }
+    });
+
+    if (linkedBatches.length > 0) {
+      const batchList = linkedBatches.map(b => b.batchNumber).join(", ");
+      return res.status(400).json({
+        success: false,
+        message: `Cannot delete product because it is linked with the batch(es): ${batchList}. Please delete the batch(es) first if you want to delete this product.`,
+      });
+    }
+
+    // 2. Check if it is used in invoices
+    const linkedInvoices = await prisma.invoiceItem.findFirst({
+      where: { productId }
+    });
+
+    if (linkedInvoices) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete product because it is referenced in sales billing invoices. Please mark the product as Inactive or Discontinued instead to preserve historical ledger records.",
+      });
+    }
+
+    // 3. Check if it is used in retailer orders
+    const linkedOrders = await prisma.retailerOrderItem.findFirst({
+      where: { productId }
+    });
+
+    if (linkedOrders) {
+      return res.status(400).json({
+        success: false,
+        message: "Cannot delete product because it is referenced in retailer orders. Please mark the product as Inactive or Discontinued instead.",
+      });
+    }
+
+    await productService.deleteProduct(productId);
 
     res.status(200).json({
       success: true,

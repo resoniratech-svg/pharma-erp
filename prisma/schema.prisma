@@ -211,7 +211,7 @@ model Product {
 model Batch {
   id Int @id @default(autoincrement())
 
-  batchNumber String @unique
+  batchNumber String
 
   productId Int
   product   Product @relation(fields: [productId], references: [id])
@@ -297,21 +297,36 @@ model WarehouseTransfer {
 model Dispatch {
   id Int @id @default(autoincrement())
 
-  batchId Int
-  batch   Batch @relation(fields: [batchId], references: [id])
+  batchId Int?
+  batch   Batch? @relation(fields: [batchId], references: [id])
 
-  warehouseId Int
-  warehouse   Warehouse @relation(fields: [warehouseId], references: [id])
+  warehouseId Int?
+  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
 
-  customerName String
+  customerName String?
 
-  quantity Int
+  quantity Int?
 
   dispatchDate DateTime @default(now())
 
   status String @default("PENDING")
 
   remarks String?
+
+  dispatchNo      String?
+  dispatchType    String?
+  orderId         String?
+  sourceWarehouse String?
+  totalItems      Int?
+  totalQuantity   Int?
+  transporter     String?
+  lrNumber        String?
+  vehicleNumber   String?
+  driverName      String?
+  driverMobile    String?
+  createdBy       String?
+  createdDate     String?
+  products        Json?
 
   transportChallans TransportChallan[]
 
@@ -321,19 +336,43 @@ model Dispatch {
 model TransportChallan {
   id Int @id @default(autoincrement())
 
-  dispatchId Int
+  dispatchId Int?
 
-  dispatch Dispatch @relation(fields: [dispatchId], references: [id])
+  dispatch Dispatch? @relation(fields: [dispatchId], references: [id])
 
-  transporterName String
+  transporterName String?
 
-  vehicleNumber String
+  vehicleNumber String?
 
   driverName String?
 
   driverMobile String?
 
-  challanNumber String @unique
+  challanNumber String? @unique
+
+  dispatchNo          String?
+  challanNo           String?
+  challanDate         String?
+  dispatchDate        String?
+  orderNo             String?
+  customer            String?
+  sourceWarehouse     String?
+  totalItems          Int?
+  totalQty            Int?
+  status              String?
+  products            Json?
+  createdBy           String?
+  createdDate         String?
+  podStatus           String?
+  podUploadedBy       String?
+  podUploadedDate     String?
+  podReceivedBy       String?
+  podDesignation      String?
+  podFileUrl          String?
+  podFileName         String?
+  podFileType         String?
+  podRemarks          String?
+  actualDeliveryDate  String?
 
   lrTrackings LRTracking[]
 
