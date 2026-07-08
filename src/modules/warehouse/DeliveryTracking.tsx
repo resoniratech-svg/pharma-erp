@@ -194,10 +194,13 @@ export default function DeliveryTracking() {
       return;
     }
     
-    const fileUrl = URL.createObjectURL(podFile);
-    const now = new Date();
-    const formattedNow = `${now.getDate().toString().padStart(2, '0')}-Oct-2026 ${now.getHours() % 12 || 12}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
-    const dateOnly = `${now.getDate().toString().padStart(2, '0')}-Oct-2026`;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const fileUrl = e.target?.result as string;
+      const now = new Date();
+      const formattedNow = `${now.getDate().toString().padStart(2, '0')}-Oct-2026 ${now.getHours() % 12 || 12}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+      
+
 
     transportChallanService.updateChallan(uploadRecord.id, {
       status: 'Delivered',
@@ -221,14 +224,37 @@ export default function DeliveryTracking() {
         alert(err.message || "Failed to upload POD");
       });
 
-    setShowUploadModal(false);
-    setUploadRecord(null);
-    setPodFile(null);
+
+      setShowUploadModal(false);
+      setUploadRecord(null);
+      setPodFile(null);
+    };
+    reader.readAsDataURL(podFile);
   };
 
   const handleViewPOD = (record: DeliveryRecord) => {
     if (record.podFileUrl) {
-      window.open(record.podFileUrl, '_blank');
+      if (record.podFileUrl.startsWith('data:')) {
+        try {
+          const arr = record.podFileUrl.split(',');
+          const mime = arr[0].match(/:(.*?);/)?.[1];
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+          }
+          const blob = new Blob([u8arr], { type: mime });
+          const blobUrl = URL.createObjectURL(blob);
+          window.open(blobUrl, '_blank');
+        } catch (e) {
+          alert("Failed to read the document file.");
+        }
+      } else if (record.podFileUrl.startsWith('blob:')) {
+        alert("This legacy file is no longer available. Please re-upload the POD.");
+      } else {
+        window.open(record.podFileUrl, '_blank');
+      }
     } else {
       alert("No file attached for viewing.");
     }

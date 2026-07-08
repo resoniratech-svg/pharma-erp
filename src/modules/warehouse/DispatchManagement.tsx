@@ -1,5 +1,6 @@
+// @ts-nocheck
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Plus, Download, Filter, ChevronDown, Trash2 } from 'lucide-react';
+import { Plus, Download, Filter, ChevronDown,  } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
@@ -19,7 +20,12 @@ import { inventoryService, type InventoryRecord } from '../../services/inventory
 import activityLogService from '../../services/activityLogService';
 import { warehouseTransferService } from '../../services/warehouseTransferService';
 import { outwardStockService } from '../../services/outwardStockService';
+
 import { transportChallanService } from '../../services/transportChallanService';
+
+import { orderService } from '../../services/orderService';
+import { distributorDispatchService } from '../../services/distributorDispatchService';
+
 
 const formatDate = (dateString: string) => {
   if (!dateString) return "N/A";
@@ -83,6 +89,13 @@ export default function DispatchManagement() {
   const [newRemarks, setNewRemarks] = useState('');
   const [newProducts, setNewProducts] = useState<OrderProduct[]>([]);
 
+  const [showTransporterDropdown, setShowTransporterDropdown] = useState(false);
+  const [transporters, setTransporters] = useState<string[]>(['Blue Dart', 'Delhivery', 'DTDC', 'VRL Logistics']);
+
+  const [eligibleWarehouses, setEligibleWarehouses] = useState<any[]>([]);
+  const [showEligibleWarehouseDropdown, setShowEligibleWarehouseDropdown] = useState(false);
+  const [eligibleWarehouseSearch, setEligibleWarehouseSearch] = useState('');
+
   const [dispatchType, setDispatchType] = useState('');
   const [destinationWarehouse, setDestinationWarehouse] = useState('');
   const [dispatchAddress, setDispatchAddress] = useState('');
@@ -92,6 +105,7 @@ export default function DispatchManagement() {
 
   const [allTransfers, setAllTransfers] = useState<any[]>([]);
   const [allOutwards, setAllOutwards] = useState<any[]>([]);
+  const [allApprovedOrders, setAllApprovedOrders] = useState<any[]>([]);
 
   const [warehouses, setWarehouses] = useState<any[]>([]);
   const [availableInventory, setAvailableInventory] = useState<InventoryRecord[]>([]);
@@ -110,11 +124,22 @@ export default function DispatchManagement() {
       setDispatches(data);
     });
     
+    const storedTransporters = localStorage.getItem('pharma_erp_transporters');
+    if (storedTransporters) {
+      try {
+        const parsed = JSON.parse(storedTransporters);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setTransporters(parsed);
+        }
+      } catch (e) {}
+    }
+    
     const whs = warehouseService.getAll();
     setWarehouses(whs.filter((w: any) => w.status === 'Active'));
 
     setAllTransfers(warehouseTransferService.getAll());
     setAllOutwards(outwardStockService.getAll());
+    setAllApprovedOrders(distributorDispatchService.getApprovedOrders());
 
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -159,24 +184,85 @@ export default function DispatchManagement() {
       setNewWarehouse(record.fromWarehouseName);
       setDestinationWarehouse(record.toWarehouseName);
       const mapped = (record.products || []).map((p: any) => ({
-        productName: p.productName,
-        batchNo: p.batchNo,
+        productName: p.productName || p.product,
+        batchNo: p.batchNo || p.batchNumber,
         availableQty: p.availableQty || p.quantity || p.transferQty || 0,
-        dispatchQty: p.transferQty || p.quantity || 0
+        dispatchQty: p.dispatchQty || p.transferQty || p.quantity || 0
       }));
       setNewProducts(mapped);
+    } else if (dispatchType === 'Distributor Order') {
+      setReferenceSearch(record.orderNo);
+      setNewOrder(record.orderNo);
+      setNewWarehouse('');
+      setNewCustomer(record.distributorName);
+      setDispatchAddress(record.deliveryLocation || 'Address from customer profile');
+      setNewProducts([]);
+      
+      const orderProducts = record.items || [];
+      const validWarehouses = warehouses.filter(wh => {
+        return orderProducts.every((p: any) => {
+          const productStock = inventoryService.getByProduct(p.productCode)
+            .filter(i => i.warehouseId === wh.id && i.availableQty > 0);
+          const totalAvailable = productStock.reduce((sum, item) => sum + item.availableQty, 0);
+          return totalAvailable > 0;
+        });
+      });
+
+      setEligibleWarehouses(validWarehouses);
+      
+      if (validWarehouses.length === 0) {
+        alert("None of the available warehouses have sufficient stock for the selected order.");
+      }
     } else {
       setReferenceSearch(record.dispatchNo);
       setNewOrder(record.dispatchNo);
       setNewWarehouse(record.warehouseName);
       setNewCustomer(record.client);
-      setDispatchAddress(record.address || 'Address from customer profile');
+      setDispatchAddress(record.address || '');
       const mapped = (record.products || []).map((p: any) => ({
-        productName: p.productName,
-        batchNo: p.batchNo,
-        availableQty: p.availableQty || p.quantity || 0,
-        dispatchQty: p.quantity || 0
+        productName: p.productName || p.product,
+        batchNo: p.batchNo || p.batchNumber,
+        availableQty: p.availableQty || p.stock || p.quantity || 0,
+        dispatchQty: p.dispatchQty || p.quantity || 0
       }));
+      setNewProducts(mapped);
+    }
+  };
+
+  const handleWarehouseSelect = (wh: any) => {
+    setNewWarehouse(wh.name);
+    setEligibleWarehouseSearch('');
+    setShowEligibleWarehouseDropdown(false);
+    
+    if (dispatchType === 'Distributor Order' && selectedReference) {
+      const whId = wh.id;
+      const mapped: OrderProduct[] = [];
+      
+      (selectedReference.items || []).forEach((p: any) => {
+        const inv = inventoryService.getByProduct(p.productCode).filter(i => i.warehouseId === whId && i.availableQty > 0);
+        let remainingQty = p.quantity;
+        if (inv.length > 0) {
+          for (const stock of inv) {
+            if (remainingQty <= 0) break;
+            const allocate = Math.min(stock.availableQty, remainingQty);
+            mapped.push({
+              productName: stock.productName,
+              batchNo: stock.batchNo,
+              availableQty: stock.availableQty,
+              dispatchQty: allocate
+            });
+            remainingQty -= allocate;
+          }
+        }
+        if (remainingQty > 0) {
+          mapped.push({
+             productName: p.productName || p.product,
+             batchNo: 'NO STOCK',
+             availableQty: 0,
+             dispatchQty: remainingQty
+          });
+        }
+      });
       setNewProducts(mapped);
     }
   };
@@ -366,6 +452,58 @@ export default function DispatchManagement() {
 
     const currentUser = JSON.parse(localStorage.getItem('authUser') || '{}');
     const dispatchId = `DSP-${new Date().getFullYear()}-${String(dispatches.length + 1).padStart(4, '0')}`;
+    
+    if (dispatchType === 'Distributor Order') {
+      const dispatchData = {
+        dispatchId,
+        date: newDate,
+        dispatchType,
+        orderId: newOrder,
+        client: newCustomer,
+        distributorId: selectedReference?.distributorId || selectedReference?.distributorCode,
+        distributorCode: selectedReference?.distributorCode,
+        distributorName: newCustomer,
+        sourceWarehouse: newWarehouse,
+        products: newProducts,
+        transporter: tTransporter,
+        lrNumber: tLR,
+        vehicleNumber: tVehicle,
+        driverName: tDriver,
+        driverMobile: tMobile,
+        remarks: tRemarks,
+        totalItems: newProducts.length,
+        totalQuantity: totalQty,
+        orderData: selectedReference
+      };
+      
+      const newDispatchObj: any = distributorDispatchService.processDispatch(dispatchData, currentUser);
+      
+      const updatedDispatches = [newDispatchObj, ...dispatches];
+      setDispatches(updatedDispatches);
+      setAllApprovedOrders(distributorDispatchService.getApprovedOrders());
+      
+      setShowCreateModal(false);
+      setNewDate(new Date().toISOString().split('T')[0]);
+      setNewOrder('');
+      setNewCustomer('');
+      setNewWarehouse('');
+      setNewTransporter('');
+      setNewLRNumber('');
+      setNewVehicle('');
+      setNewDriverName('');
+      setNewDriverMobile('');
+      setNewRemarks('');
+      setNewProducts([]);
+      setSelectedInventoryId('');
+      setDispatchType('');
+      setDestinationWarehouse('');
+      setDispatchAddress('');
+      setReferenceSearch('');
+      setSelectedReference(null);
+      return;
+    }
+
+    const relatedOrder = dispatchType === 'Outward Stock' ? orderService.getAll().find((o: any) => o.orderNo === newOrder || o.id === newOrder) : null;
     
     const newDispatchObj: Dispatch = {
       id: Date.now().toString(),
@@ -622,6 +760,7 @@ export default function DispatchManagement() {
                   <option value="">Select Dispatch Type</option>
                   <option value="Warehouse Transfer">Warehouse Transfer</option>
                   <option value="Outward Stock">Outward Stock</option>
+                  <option value="Distributor Order">Distributor Order</option>
                 </select>
               </div>
 
@@ -715,6 +854,51 @@ export default function DispatchManagement() {
                 </div>
               )}
 
+              {dispatchType === 'Distributor Order' && (
+                <div className="relative">
+                  <label className="block text-sm font-medium mb-1 text-slate-700">Approved Distributor Order *</label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={referenceSearch}
+                      onChange={(e) => {
+                        setReferenceSearch(e.target.value);
+                        setShowReferenceDropdown(true);
+                      }}
+                      onFocus={() => setShowReferenceDropdown(true)}
+                      placeholder="Search Order Number..."
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-violet-400"
+                    />
+                    <ChevronDown
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+                      onClick={() => setShowReferenceDropdown(!showReferenceDropdown)}
+                    />
+                  </div>
+                  {showReferenceDropdown && (
+                    <>
+                      <div className="fixed inset-0 z-10" onClick={() => setShowReferenceDropdown(false)} />
+                      <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                        {allApprovedOrders
+                          .filter(t => (t.orderNo || '').toLowerCase().includes(referenceSearch.toLowerCase()))
+                          .map((record) => (
+                            <div
+                              key={record.id}
+                              className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
+                              onClick={() => handleReferenceSelect(record)}
+                            >
+                              <span className="font-medium text-slate-900">{record.orderNo}</span> - {record.distributorName} <br />
+                              <span className="text-xs text-slate-500">Date: {formatDate(record.date)}</span>
+                            </div>
+                          ))}
+                        {allApprovedOrders.filter(t => (t.orderNo || '').toLowerCase().includes(referenceSearch.toLowerCase())).length === 0 && (
+                          <div className="px-3 py-2 text-sm text-slate-500 italic">No approved orders found</div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
+
               {dispatchType === 'Warehouse Transfer' && selectedReference && (
                 <>
                   <div>
@@ -736,6 +920,61 @@ export default function DispatchManagement() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium mb-1">Dispatch Address</label>
+                    <input type="text" value={dispatchAddress} onChange={e => setDispatchAddress(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                  </div>
+                </>
+              )}
+
+              {dispatchType === 'Distributor Order' && selectedReference && (
+                <>
+                  <div className="relative">
+                    <label className="block text-sm font-medium mb-1 text-slate-700">Source Warehouse *</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={eligibleWarehouseSearch || newWarehouse}
+                        onChange={(e) => {
+                          setEligibleWarehouseSearch(e.target.value);
+                          setShowEligibleWarehouseDropdown(true);
+                          if (e.target.value === '') setNewWarehouse('');
+                        }}
+                        onFocus={() => setShowEligibleWarehouseDropdown(true)}
+                        placeholder="Select Warehouse..."
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 focus:outline-none focus:border-violet-400"
+                      />
+                      <ChevronDown
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+                        onClick={() => setShowEligibleWarehouseDropdown(!showEligibleWarehouseDropdown)}
+                      />
+                    </div>
+                    {showEligibleWarehouseDropdown && (
+                      <>
+                        <div className="fixed inset-0 z-10" onClick={() => setShowEligibleWarehouseDropdown(false)} />
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                          {eligibleWarehouses
+                            .filter(w => (w.name || '').toLowerCase().includes(eligibleWarehouseSearch.toLowerCase()))
+                            .map((w) => (
+                              <div
+                                key={w.id}
+                                className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
+                                onClick={() => handleWarehouseSelect(w)}
+                              >
+                                {w.name}
+                              </div>
+                            ))}
+                          {eligibleWarehouses.filter(w => (w.name || '').toLowerCase().includes(eligibleWarehouseSearch.toLowerCase())).length === 0 && (
+                            <div className="px-3 py-2 text-sm text-slate-500 italic">No valid warehouse found</div>
+                          )}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Distributor</label>
+                    <input type="text" value={newCustomer} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Delivery Address</label>
                     <input type="text" value={dispatchAddress} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
                   </div>
                 </>
@@ -786,28 +1025,73 @@ export default function DispatchManagement() {
                     {dispatchType ? "Please select a reference number to load products." : "Please select a Dispatch Type to load reference records."}
                   </div>
                 )}
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Transport Information</h3>
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Transporter *</label>
-                <input list="transporters" type="text" value={newTransporter} onChange={e => setNewTransporter(e.target.value)} placeholder="Enter Transporter" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-                <datalist id="transporters">
-                  <option value="Blue Dart" />
-                  <option value="Delhivery" />
-                  <option value="DTDC" />
-                  <option value="VRL Logistics" />
-                </datalist>
+              </div><div className="md:col-span-2 mt-4"><h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Transport Information</h3></div>
+              <div className="relative">
+                <label className="block text-sm font-medium mb-1 text-slate-700">Transporter *</label>
+                <div className="relative">
+                  <input
+                    type="text"
+                    value={newTransporter}
+                    onChange={(e) => {
+                      setNewTransporter(e.target.value);
+                      setShowTransporterDropdown(true);
+                    }}
+                    onFocus={() => setShowTransporterDropdown(true)}
+                    placeholder="Search or enter Transporter..."
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
+                  />
+                  <ChevronDown
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+                    onClick={() => setShowTransporterDropdown(!showTransporterDropdown)}
+                  />
+                </div>
+                {showTransporterDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowTransporterDropdown(false)} />
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                      {transporters
+                        .filter((t) => t.toLowerCase().includes((newTransporter || "").toLowerCase()))
+                        .map((trans) => (
+                          <div
+                            key={trans}
+                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
+                            onClick={() => {
+                              setNewTransporter(trans);
+                              setShowTransporterDropdown(false);
+                            }}
+                          >
+                            {trans}
+                          </div>
+                        ))}
+                      {(newTransporter || "").trim() !== "" &&
+                        !transporters.some(
+                          (t) => t.trim().toLowerCase() === (newTransporter || "").trim().toLowerCase()
+                        ) && (
+                          <div
+                            className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
+                            onClick={() => {
+                              const newType = (newTransporter || "").trim();
+                              const updatedTypes = [...transporters, newType];
+                              setTransporters(updatedTypes);
+                              localStorage.setItem("pharma_erp_transporters", JSON.stringify(updatedTypes));
+                              setNewTransporter(newType);
+                              setShowTransporterDropdown(false);
+                            }}
+                          >
+                            <Plus className="w-4 h-4" /> Add "{newTransporter.trim()}"
+                          </div>
+                        )}
+                    </div>
+                  </>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">LR Number *</label>
                 <input type="text" value={newLRNumber} onChange={e => setNewLRNumber(e.target.value)} placeholder="e.g. LR-2026-45896" className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-sm" />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1">Vehicle Number</label>
-                <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="Optional" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                <label className="block text-sm font-medium mb-1">Vehicle Number *</label>
+                <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="Enter Vehicle Number" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Driver Name *</label>

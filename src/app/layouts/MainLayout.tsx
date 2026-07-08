@@ -9,7 +9,7 @@ import {
   Users,
   Bell,
   Settings,
-  Search,
+  
   Menu,
   X,
   ChevronRight,
@@ -117,7 +117,9 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Distributor/Stockist Portal',
     icon: Users,
     subItems: [
+      { label: 'Distributor Master', path: '/workspace/distributors/master' },
       { label: 'Product Catalog Access', path: '/workspace/distributors/product-catalog' },
+      { label: 'Distributor Orders', path: '/workspace/distributors/distributor-orders' },
       { label: 'Order Placement', path: '/workspace/distributors/orders' },
       { label: 'Outstanding Tracking', path: '/workspace/distributors/outstanding' },
       { label: 'Ledger Access', path: '/workspace/distributors/ledgers' },
@@ -131,6 +133,7 @@ const NAV_ITEMS: NavItem[] = [
     label: 'Retailer Ordering System',
     icon: ShoppingCart, // Changed icon to represent retail better
     subItems: [
+      { label: 'Retailer Master', path: '/workspace/retailers/master' },
       { label: 'Product Browsing', path: '/workspace/retailers/catalog' },
       { label: 'Offer Visibility', path: '/workspace/retailers/offers' },
       { label: 'Scheme Visibility', path: '/workspace/retailers/scheme-visibility' },
@@ -436,6 +439,12 @@ export function MainLayout() {
             const item = { ...rawItem };
             if ((activeRole === ROLE_WAREHOUSE_MANAGER || activeRole === ROLE_ACCOUNTANT || activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER || activeRole === ROLE_MEDICAL_REPRESENTATIVE || activeRole === ROLE_TRANSPORT_STAFF) && item.label === 'Settings') {
               item.subItems = item.subItems?.filter(sub => sub.label === 'Profile Settings');
+            }
+            if (activeRole !== ROLE_SUPER_ADMIN && item.label === 'Distributor/Stockist Portal') {
+              item.subItems = item.subItems?.filter(sub => sub.label !== 'Distributor Orders' && sub.label !== 'Distributor Master');
+            }
+            if (activeRole !== ROLE_SUPER_ADMIN && item.label === 'Retailer Ordering System') {
+              item.subItems = item.subItems?.filter(sub => sub.label !== 'Retailer Master');
             }
 
             const hasSubItems = !!item.subItems && item.subItems.length > 0;

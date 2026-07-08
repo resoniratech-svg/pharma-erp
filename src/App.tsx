@@ -188,16 +188,7 @@ const recentOrders = [
   { id: 'ORD-8904', client: 'City Clinic', status: 'Shipped', amount: '₹12,400', date: 'Oct 10, 2026' },
 ];
 
-const quickActions = [
-  { label: 'Create Sales Order', icon: ShoppingCart, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-  { label: 'Create Purchase Order', icon: Package, color: 'text-violet-600', bg: 'bg-violet-50' },
-  { label: 'Add Product', icon: PlusCircle, color: 'text-blue-600', bg: 'bg-blue-50' },
-  { label: 'Create Invoice', icon: FileText, color: 'text-amber-600', bg: 'bg-amber-50' },
-  { label: 'Record Payment', icon: IndianRupee, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-  { label: 'Bank Reconciliation', icon: Building, color: 'text-indigo-600', bg: 'bg-indigo-50' },
-  { label: 'View Outstanding', icon: FileClock, color: 'text-rose-600', bg: 'bg-rose-50' },
-  { label: 'View Critical Alerts', icon: AlertCircle, color: 'text-red-600', bg: 'bg-red-50' },
-];
+
 
 const criticalAlertsData = [
   { id: 'ALT-001', type: 'Payment Overdue', reference: 'INV-2026-089', priority: 'Critical', date: 'Oct 12, 2026', status: 'Pending' },

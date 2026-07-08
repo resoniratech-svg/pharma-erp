@@ -18,6 +18,11 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 
+// Import existing production services
+import { inventoryService, type InventoryRecord } from '../../services/inventoryService';
+import { batchService, type BatchRecord } from '../../services/batchService';
+import { schemeService } from '../../services/schemeService';
+
 interface CatalogItem {
   id: string;
   productCode: string;
@@ -37,38 +42,8 @@ interface CatalogItem {
   schemeValidTo: string;
   schemeDescription: string;
   status: 'Available' | 'Low Stock' | 'Out Of Stock';
+  _batchInfo?: { activeBatches: string[], nextExpiry: string | null };
 }
-
-const fallbackCatalogItems: CatalogItem[] = [
-  { 
-    id: '1', productCode: 'PRD-001', productName: 'Amoxicillin 500mg', company: 'PharmaCorp', category: 'Antibiotics', 
-    packType: '10x10 Tablets', mrp: 150.00, ptr: 110.00, pts: 95.00, 
-    availableStock: 5000, reservedStock: 200, reorderLevel: 1000, 
-    schemeAvailable: '10+1 Free', schemeType: 'Quantity Bonus', schemeValidFrom: '01-Oct-2026', schemeValidTo: '31-Dec-2026', schemeDescription: 'Buy 10 packs, get 1 pack free.',
-    status: 'Available' 
-  },
-  { 
-    id: '2', productCode: 'PRD-002', productName: 'Paracetamol 650mg', company: 'HealthPlus', category: 'Analgesics', 
-    packType: '15x10 Tablets', mrp: 60.00, ptr: 45.00, pts: 38.00, 
-    availableStock: 250, reservedStock: 50, reorderLevel: 500, 
-    schemeAvailable: 'No Scheme', schemeType: '-', schemeValidFrom: '-', schemeValidTo: '-', schemeDescription: '-',
-    status: 'Low Stock' 
-  },
-  { 
-    id: '3', productCode: 'PRD-003', productName: 'Vitamin C 1000mg', company: 'VitaLife', category: 'Vitamins', 
-    packType: '20 Tablets Tube', mrp: 250.00, ptr: 180.00, pts: 150.00, 
-    availableStock: 1200, reservedStock: 100, reorderLevel: 300, 
-    schemeAvailable: '5% Off', schemeType: 'Discount', schemeValidFrom: '15-Sep-2026', schemeValidTo: '15-Nov-2026', schemeDescription: 'Flat 5% discount on invoice value.',
-    status: 'Available' 
-  },
-  { 
-    id: '4', productCode: 'PRD-004', productName: 'Cough Syrup 100ml', company: 'MediCare', category: 'Respiratory', 
-    packType: '100ml Bottle', mrp: 85.00, ptr: 65.00, pts: 55.00, 
-    availableStock: 0, reservedStock: 0, reorderLevel: 100, 
-    schemeAvailable: 'No Scheme', schemeType: '-', schemeValidFrom: '-', schemeValidTo: '-', schemeDescription: '-',
-    status: 'Out Of Stock' 
-  }
-];
 
 const formatCurrency = (amount: number) => `₹ ${amount.toFixed(2)}`;
 
@@ -82,28 +57,70 @@ export default function ProductCatalog() {
 
   const [selectedProduct, setSelectedProduct] = useState<CatalogItem | null>(null);
 
-  // Sync catalog dynamically with newly created products from ProductMaster
+  // Sync catalog dynamically with production integrations
   useEffect(() => {
     const rawProducts = localStorage.getItem("pharma_erp_products");
     if (rawProducts) {
       try {
         const parsedProducts = JSON.parse(rawProducts);
         
-        // Map ProductMaster structure cleanly into Catalog format
-        const mappedCatalog: CatalogItem[] = parsedProducts.map((p: any) => {
-          const availStock = p.totalUnits ? Number(p.totalUnits) : 100; // default safe fallback fallback stock allocation
+        // Product Visibility: Filter out inactive, missing ID, or non-saleable products
+        const activeProducts = parsedProducts.filter((p: any) => 
+          p.id && (p.status === 'Active' || p.status === 'Published')
+        );
+
+        // Pre-fetch related production data using existing services and methods
+        const allInventory = inventoryService.getAll();
+        const allBatches = batchService.getAll();
+        const allSchemes = schemeService.getAll();
+
+        const mappedCatalog: CatalogItem[] = activeProducts.map((p: any) => {
+          // --- Inventory Integration ---
+          // Using InventoryRecord interface properties from inventoryService.ts
+          const productInventory = allInventory.filter((inv: InventoryRecord) => inv.productCode === p.code);
+          let availStock = 0;
+          let reservedStock = 0;
+          productInventory.forEach((inv: InventoryRecord) => {
+            availStock += (Number(inv.availableQty) || 0);
+            reservedStock += (Number(inv.reservedQty) || 0);
+          });
+          
+          // --- Batch Integration ---
+          // Using BatchRecord interface properties from batchService.ts
+          const productBatches = allBatches.filter((b: BatchRecord) => b.productCode === p.code && b.status === 'Active');
+          const validBatches = productBatches.filter((b: BatchRecord) => {
+             if (!b.expDate) return true;
+             return new Date(b.expDate) >= new Date();
+          });
+          const activeBatchesList = validBatches.map((b: BatchRecord) => b.batchNo);
+          const sortedBatches = validBatches
+            .filter((b: BatchRecord) => b.expDate)
+            .sort((a: BatchRecord, b: BatchRecord) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
+          const nextExpiry = sortedBatches.length > 0 ? sortedBatches[0].expDate : null;
+          
+          // --- Scheme Integration ---
+          // Based on Scheme interface structure mapped in the project
+          const productSchemes = allSchemes.filter((s: any) => {
+            if (s.applicableTo === 'Product' && typeof s.applicableSelection === 'string' && s.applicableSelection.includes(p.code)) return true;
+            if (s.applicableTo === 'Category' && typeof s.applicableSelection === 'string' && s.applicableSelection.includes(p.category)) return true;
+            if (s.applicableTo === 'All Products') return true;
+            return false;
+          });
+          const activeScheme = productSchemes.find((s: any) => s.status === 'Active');
+
+          // Define Reorder Level from Product Master (fallback to 50 if missing)
           const reorderLvl = p.reorderLevel ? Number(p.reorderLevel) : 50;
 
-          // Compute operational availability flags status dynamically
+          // Compute Product Status dynamically from actual Inventory Data
           let derivedStatus: 'Available' | 'Low Stock' | 'Out Of Stock' = 'Available';
-          if (availStock === 0) {
+          if (availStock <= 0) {
             derivedStatus = 'Out Of Stock';
           } else if (availStock <= reorderLvl) {
             derivedStatus = 'Low Stock';
           }
 
           return {
-            id: p.id || Math.random().toString(),
+            id: p.id,
             productCode: p.code || 'N/A',
             productName: p.name || 'Unnamed Product',
             company: p.manufacturer || 'General Pharma',
@@ -113,24 +130,25 @@ export default function ProductCatalog() {
             ptr: p.ptr ? Number(p.ptr) : 0,
             pts: p.pts ? Number(p.pts) : 0,
             availableStock: availStock,
-            reservedStock: 0,
+            reservedStock: reservedStock,
             reorderLevel: reorderLvl,
-            schemeAvailable: p.scheme || 'No Scheme',
-            schemeType: p.scheme && p.scheme !== 'No Scheme' ? 'Promotional Offer' : '-',
-            schemeValidFrom: 'Current',
-            schemeValidTo: 'Open',
-            schemeDescription: p.scheme || '-',
-            status: derivedStatus
+            schemeAvailable: activeScheme ? (activeScheme.name || 'Scheme Available') : 'No Scheme',
+            schemeType: activeScheme ? (activeScheme.type || '-') : '-',
+            schemeValidFrom: activeScheme ? (activeScheme.validFrom || '-') : '-',
+            schemeValidTo: activeScheme ? (activeScheme.validTo || '-') : '-',
+            schemeDescription: activeScheme ? (activeScheme.remarks || activeScheme.name) : '-',
+            status: derivedStatus,
+            _batchInfo: { activeBatches: activeBatchesList, nextExpiry }
           };
         });
 
         setData(mappedCatalog);
       } catch (err) {
         console.error("Failed to parse master product listings", err);
-        setData(fallbackCatalogItems);
+        setData([]);
       }
     } else {
-      setData(fallbackCatalogItems);
+      setData([]);
     }
   }, []);
 

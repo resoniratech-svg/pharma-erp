@@ -1,5 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { Plus, Download, Filter, Eye, ChevronDown } from 'lucide-react';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { Download, Filter, Eye, ChevronDown } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -13,12 +13,10 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
-import { ROLE_SUPER_ADMIN } from '../../constants/roles';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// Import the shared schemeService just like in SchemeManagement
 import { schemeService } from "../../services/schemeService";
 
 interface Scheme {
@@ -34,106 +32,104 @@ interface Scheme {
   product?: string;
   category?: string;
   brand?: string;
+  remarks?: string;
 }
 
-const fallbackMockData: Scheme[] = [
-  { 
-    id: '1', 
-    schemeCode: 'SCH-OCT-10', 
-    schemeName: 'Buy 10 Get 1 Free (Amoxicillin)', 
-    schemeType: 'Quantity Scheme',
-    applicableTo: 'All Distributors',
-    validFrom: '2026-10-01',
-    validTo: '2026-10-31', 
-    status: 'Active',
-    benefit: 'Buy 10 Get 1 Free',
-    product: 'Amoxicillin 250mg',
-    category: 'Antibiotics',
-    brand: 'Amoxil'
-  },
-  { 
-    id: '2', 
-    schemeCode: 'SCH-FEST-5', 
-    schemeName: 'Diwali 5% Additional CD', 
-    schemeType: 'Cash Discount (CD)',
-    applicableTo: 'Gold Tier',
-    validFrom: '2026-10-15',
-    validTo: '2026-11-05', 
-    status: 'Upcoming',
-    benefit: 'Additional 5% CD',
-    category: 'All Products'
-  },
-  { 
-    id: '3', 
-    schemeCode: 'SCH-SEP-2', 
-    schemeName: 'Quarter End Q2 Target Bonus', 
-    schemeType: 'Target Scheme',
-    applicableTo: 'All Distributors',
-    validFrom: '2026-09-15',
-    validTo: '2026-09-30', 
-    status: 'Expired',
-    benefit: 'Quarter Target Bonus',
-    category: 'All Products'
-  },
-];
+const getDDMMYYYY = (dateStr: string) => {
+  if (!dateStr || dateStr === '-') return '-';
+  if (dateStr.includes('-')) {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) return dateStr;
+      if (parts[0].length === 4) {
+        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+      }
+    }
+  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+};
+
+const calculateSchemeStatus = (validFrom: string, validTo: string): 'Active' | 'Upcoming' | 'Expired' => {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  const parseDate = (dStr: string) => {
+    if (!dStr) return new Date(NaN);
+    if (dStr.includes('-')) {
+      const parts = dStr.split('-');
+      if (parts.length === 3) {
+        if (parts[2].length === 4) {
+          return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        } else if (parts[0].length === 4) {
+          return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+        }
+      }
+    }
+    return new Date(dStr);
+  };
+
+  const from = parseDate(validFrom);
+  const to = parseDate(validTo);
+
+  if (!isNaN(to.getTime()) && now > to) return 'Expired';
+  if (!isNaN(from.getTime()) && now < from) return 'Upcoming';
+  return 'Active';
+};
 
 export default function Schemes() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
-
   const [schemesList, setSchemesList] = useState<Scheme[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [schemeTypeFilter, setSchemeTypeFilter] = useState('');
   const [viewScheme, setViewScheme] = useState<Scheme | null>(null);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
-  
-  // Create Scheme Modal State (Admin Only)
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newScheme, setNewScheme] = useState({
-    schemeCode: 'SCH-AUTO-GEN',
-    schemeName: '',
-    schemeType: 'Quantity Scheme',
-    applicableTo: 'All Distributors',
-    validFrom: '',
-    validTo: '',
-    productCategory: '',
-    product: '',
-    brand: '',
-    buyQuantity: '',
-    freeQuantity: '',
-    discountPercentage: '',
-    bonusProduct: '',
-    bonusQuantity: '',
-    targetValue: '',
-    bonusAmount: '',
-    remarks: ''
-  });
 
-  // Load dynamically from schemeService on mount
+  const loggedInDistributor = useMemo(() => {
+    const raw = localStorage.getItem('pharma_erp_distributors');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.length > 0) {
+          const dist = parsed[0];
+          return {
+            name: dist.name || dist.distributorName || 'Unknown',
+            code: dist.code || dist.distributorCode || dist.id || 'DIST-001',
+            tier: dist.tier || 'Gold Tier',
+            category: dist.category || 'Retailer',
+            region: dist.region || 'West'
+          };
+        }
+      } catch (e) {}
+    }
+    return { name: 'Metro Pharma Distributors', code: 'DIST-001', tier: 'Gold Tier', category: 'Retailer', region: 'West' };
+  }, []);
+
   useEffect(() => {
     const savedData = schemeService.getAll();
     if (savedData && savedData.length > 0) {
-      // Map properties to adapt differences between fields (name vs schemeName, etc.)
       const normalizedData = savedData.map((item: any) => ({
         id: item.id || Date.now().toString(),
         schemeCode: item.schemeCode || '',
         schemeName: item.name || item.schemeName || '',
         schemeType: item.type || item.schemeType || 'Quantity Scheme',
         applicableTo: item.applicableTo || 'All Distributors',
-        validFrom: item.validFrom || '',
-        validTo: item.validTo || '',
-        status: item.status || 'Active',
+        validFrom: getDDMMYYYY(item.validFrom || ''),
+        validTo: getDDMMYYYY(item.validTo || ''),
+        status: calculateSchemeStatus(item.validFrom || '', item.validTo || ''),
         benefit: item.benefit || `${item.benefitType || ''} ${item.benefitValue || ''}`.trim() || `Buy ${item.minQuantity || 10} Get ${item.freeQuantity || 1} Free`,
         product: item.applicableSelection || item.product || '',
         category: item.category || '',
-        brand: item.brand || ''
+        brand: item.brand || '',
+        remarks: item.remarks || ''
       }));
       setSchemesList(normalizedData);
     } else {
-      setSchemesList(fallbackMockData);
-      schemeService.saveAll(fallbackMockData);
+      setSchemesList([]);
     }
-  }, [showCreateModal]); // Refresh state when modal closes/submits
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -145,41 +141,32 @@ export default function Schemes() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const handlePublishScheme = () => {
-    if (!newScheme.schemeName || !newScheme.validFrom || !newScheme.validTo) {
-      alert("Please fill out the mandatory fields.");
-      return;
-    }
-
-    const createdRecord: any = {
-      id: Date.now().toString(),
-      schemeCode: `SCH-${Math.floor(1000 + Math.random() * 9000)}`,
-      name: newScheme.schemeName,
-      type: newScheme.schemeType,
-      applicableTo: newScheme.applicableTo,
-      applicableSelection: newScheme.product || newScheme.brand || newScheme.productCategory || 'All Products',
-      benefitType: newScheme.schemeType,
-      benefitValue: newScheme.discountPercentage || newScheme.freeQuantity || 'Configured',
-      minQuantity: newScheme.buyQuantity || '',
-      freeQuantity: newScheme.freeQuantity || '',
-      validFrom: newScheme.validFrom,
-      validTo: newScheme.validTo,
-      remarks: newScheme.remarks,
-      status: 'Active'
-    };
-
-    const currentSaved = schemeService.getAll();
-    const updatedCollection = [createdRecord, ...currentSaved];
-    schemeService.saveAll(updatedCollection);
+  const isApplicable = (applicableTo: string) => {
+    if (!applicableTo) return true;
+    const lower = applicableTo.toLowerCase().trim();
     
-    setShowCreateModal(false);
+    // Scheme Management currently stores product applicability in applicableTo
+    if (['all products', 'product', 'category', 'brand'].includes(lower)) return true;
+    
+    if (lower === 'all distributors' || lower === 'all') return true;
+    if (lower.includes(loggedInDistributor.name.toLowerCase())) return true;
+    if (lower.includes(loggedInDistributor.code.toLowerCase())) return true;
+    if (lower.includes(loggedInDistributor.tier.toLowerCase())) return true;
+    if (lower.includes(loggedInDistributor.category.toLowerCase())) return true;
+    if (lower.includes(loggedInDistributor.region.toLowerCase())) return true;
+    return false;
   };
 
-  const filteredData = schemesList.filter((item) => {
+  const visibleSchemes = schemesList.filter(item => 
+    ['Active', 'Upcoming', 'Expired'].includes(item.status) && isApplicable(item.applicableTo)
+  );
+
+  const filteredData = visibleSchemes.filter((item) => {
     const searchLower = search.toLowerCase();
     const matchSearch = item.schemeCode.toLowerCase().includes(searchLower) || item.schemeName.toLowerCase().includes(searchLower);
     const matchStatus = statusFilter ? item.status === statusFilter : true;
-    return matchSearch && matchStatus;
+    const matchType = schemeTypeFilter ? item.schemeType === schemeTypeFilter : true;
+    return matchSearch && matchStatus && matchType;
   });
 
   const getStatusVariant = (status: string) => {
@@ -194,31 +181,25 @@ export default function Schemes() {
     }
   };
 
-  // ----- EXPORT LOGIC -----
   const getExportData = () => {
-    if (activeRole === ROLE_SUPER_ADMIN) {
-      return filteredData.map(item => ({
-        'Scheme Code': item.schemeCode,
-        'Scheme Name': item.schemeName,
-        'Scheme Type': item.schemeType,
-        'Applicable To': item.applicableTo,
-        'Valid From': item.validFrom,
-        'Valid To': item.validTo,
-        'Status': item.status
-      }));
-    } else {
-      return filteredData.map(item => ({
-        'Scheme Code': item.schemeCode,
-        'Scheme Name': item.schemeName,
-        'Benefit': item.benefit,
-        'Validity': `${item.validFrom} - ${item.validTo}`,
-        'Status': item.status
-      }));
-    }
+    return filteredData.map(item => ({
+      'Scheme Code': item.schemeCode,
+      'Scheme Name': item.schemeName,
+      'Scheme Type': item.schemeType,
+      'Applicable Product/Category': item.product || item.category || 'All Products',
+      'Benefit': item.benefit,
+      'Valid From': item.validFrom,
+      'Valid To': item.validTo,
+      'Status': item.status
+    }));
   };
 
   const handleExportExcel = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportDropdown(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Schemes");
@@ -228,6 +209,10 @@ export default function Schemes() {
 
   const handleExportCSV = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportDropdown(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -244,6 +229,10 @@ export default function Schemes() {
 
   const handleExportPDF = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportDropdown(false);
+      return;
+    }
     const doc = new jsPDF();
     const headers = Object.keys(data[0] || {});
     const body = data.map(obj => headers.map(header => (obj as any)[header]));
@@ -261,12 +250,12 @@ export default function Schemes() {
     setShowExportDropdown(false);
   };
 
-  // ----- COLUMNS -----
-  const adminColumns: Column<Scheme>[] = [
+  const columns: Column<Scheme>[] = [
     { key: 'schemeCode', label: 'Scheme Code', render: (row) => <span className="font-semibold text-violet-700">{row.schemeCode}</span> },
     { key: 'schemeName', label: 'Scheme Name', render: (row) => <span className="font-medium text-slate-800">{row.schemeName}</span> },
     { key: 'schemeType', label: 'Scheme Type', render: (row) => <span className="text-slate-600">{row.schemeType}</span> },
-    { key: 'applicableTo', label: 'Applicable To', render: (row) => <span className="text-slate-600">{row.applicableTo}</span> },
+    { key: 'product', label: 'Applicable Product/Category', render: (row) => <span className="text-slate-600">{row.product || row.category || 'All Products'}</span> },
+    { key: 'benefit', label: 'Benefit', render: (row) => <span className="text-slate-700 font-medium">{row.benefit}</span> },
     { key: 'validFrom', label: 'Valid From', render: (row) => <span className="text-slate-600">{row.validFrom}</span> },
     { key: 'validTo', label: 'Valid To', render: (row) => <span className="text-slate-600">{row.validTo}</span> },
     {
@@ -287,23 +276,11 @@ export default function Schemes() {
     }
   ];
 
-  const distributorColumns: Column<Scheme>[] = [
-    { key: 'schemeCode', label: 'Scheme Code', render: (row) => <span className="font-semibold text-violet-700">{row.schemeCode}</span> },
-    { key: 'schemeName', label: 'Scheme Name', render: (row) => <span className="font-medium text-slate-800">{row.schemeName}</span> },
-    { key: 'benefit', label: 'Benefit', render: (row) => <span className="text-slate-700 font-medium">{row.benefit}</span> },
-    { key: 'validFrom', label: 'Validity', render: (row) => <span className="text-slate-600">{row.validFrom} &rarr; {row.validTo}</span> },
-    {
-      key: 'status',
-      label: 'Status',
-      render: (row) => <Badge variant={getStatusVariant(row.status) as any}>{row.status}</Badge>,
-    }
-  ];
-
   return (
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Scheme Visibility"
-        subtitle={activeRole === ROLE_SUPER_ADMIN ? "Manage trade offers, cash discounts (CD), and bonus schemes globally." : "View active and upcoming schemes applicable to your account."}
+        subtitle="View active and upcoming schemes applicable to your account."
         actions={
           <div className="flex items-center gap-2">
             <div className="relative" ref={dropdownRef}>
@@ -331,12 +308,6 @@ export default function Schemes() {
                 </div>
               )}
             </div>
-
-            {activeRole === ROLE_SUPER_ADMIN && (
-              <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreateModal(true)}>
-                Create Scheme
-              </ActionButton>
-            )}
           </div>
         }
       />
@@ -355,206 +326,39 @@ export default function Schemes() {
         <SelectFilter
           value={statusFilter}
           onChange={setStatusFilter}
-          options={activeRole === ROLE_SUPER_ADMIN ? [
-            { label: 'Draft', value: 'Draft' },
-            { label: 'Active', value: 'Active' },
-            { label: 'Upcoming', value: 'Upcoming' },
-            { label: 'Expired', value: 'Expired' },
-            { label: 'Inactive', value: 'Inactive' },
-          ] : [
+          options={[
+            { label: 'All Status', value: '' },
             { label: 'Active', value: 'Active' },
             { label: 'Upcoming', value: 'Upcoming' },
             { label: 'Expired', value: 'Expired' },
           ]}
           placeholder="All Status"
         />
+        <SelectFilter
+          value={schemeTypeFilter}
+          onChange={setSchemeTypeFilter}
+          options={[
+            { label: 'All Types', value: '' },
+            { label: 'Quantity Scheme', value: 'Quantity Scheme' },
+            { label: 'Cash Discount (CD)', value: 'Cash Discount (CD)' },
+            { label: 'Target Scheme', value: 'Target Scheme' },
+            { label: 'Bonus Scheme', value: 'Bonus Scheme' },
+          ]}
+          placeholder="All Types"
+        />
       </FilterBar>
 
       <TableCard>
         <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
-          {activeRole === ROLE_SUPER_ADMIN ? (
-            <DataTable
-              columns={adminColumns}
-              data={filteredData}
-              onRowClick={setViewScheme}
-              emptyMessage="No schemes found."
-            />
-          ) : (
-            <DataTable
-              columns={distributorColumns}
-              data={filteredData}
-              onRowClick={setViewScheme}
-              emptyMessage="No schemes found."
-            />
-          )}
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            onRowClick={setViewScheme}
+            emptyMessage="No Active Schemes Available"
+          />
         </div>
       </TableCard>
 
-      {/* Admin Create Scheme Modal */}
-      {showCreateModal && activeRole === ROLE_SUPER_ADMIN && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">
-                Create Scheme
-              </h2>
-              <button
-                onClick={() => setShowCreateModal(false)}
-                className="text-slate-500 hover:text-slate-800"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="md:col-span-2 mt-2 first:mt-0">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">A. Scheme Information</h3>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Scheme Code (Auto Generated)</label>
-                <input disabled value={newScheme.schemeCode} className="w-full border border-slate-200 bg-slate-50 rounded-lg px-3 py-2 text-slate-500" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Scheme Name</label>
-                <input value={newScheme.schemeName} onChange={e => setNewScheme({...newScheme, schemeName: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="e.g. Diwali Bonus 10%" />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Scheme Type</label>
-                <select className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white" value={newScheme.schemeType} onChange={e => setNewScheme({...newScheme, schemeType: e.target.value})}>
-                  <option value="Quantity Scheme">Quantity Scheme</option>
-                  <option value="Cash Discount Scheme">Cash Discount Scheme</option>
-                  <option value="Bonus Scheme">Bonus Scheme</option>
-                  <option value="Target Scheme">Target Scheme</option>
-                </select>
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">B. Product Applicability</h3>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Product Category</label>
-                <input value={newScheme.productCategory} onChange={e => setNewScheme({...newScheme, productCategory: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="e.g. Antibiotics" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Brand</label>
-                <input value={newScheme.brand} onChange={e => setNewScheme({...newScheme, brand: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="e.g. Amoxil" />
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Product (Optional)</label>
-                <input value={newScheme.product} onChange={e => setNewScheme({...newScheme, product: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" placeholder="Select specific product..." />
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">C. Benefit Configuration</h3>
-              </div>
-
-              {newScheme.schemeType === 'Quantity Scheme' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Buy Quantity</label>
-                    <input type="number" value={newScheme.buyQuantity} onChange={e => setNewScheme({...newScheme, buyQuantity: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Free Quantity</label>
-                    <input type="number" value={newScheme.freeQuantity} onChange={e => setNewScheme({...newScheme, freeQuantity: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-                  </div>
-                </>
-              )}
-
-              {newScheme.schemeType === 'Cash Discount Scheme' && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-medium mb-1">Discount Percentage (%)</label>
-                  <input type="number" value={newScheme.discountPercentage} onChange={e => setNewScheme({...newScheme, discountPercentage: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-                </div>
-              )}
-
-              {newScheme.schemeType === 'Bonus Scheme' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Bonus Product</label>
-                    <input value={newScheme.bonusProduct} onChange={e => setNewScheme({...newScheme, bonusProduct: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Bonus Quantity</label>
-                    <input type="number" value={newScheme.bonusQuantity} onChange={e => setNewScheme({...newScheme, bonusQuantity: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-                  </div>
-                </>
-              )}
-
-              {newScheme.schemeType === 'Target Scheme' && (
-                <>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Target Value</label>
-                    <input type="number" value={newScheme.targetValue} onChange={e => setNewScheme({...newScheme, targetValue: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Bonus Amount</label>
-                    <input type="number" value={newScheme.bonusAmount} onChange={e => setNewScheme({...newScheme, bonusAmount: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-                  </div>
-                </>
-              )}
-
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">D. Eligibility</h3>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Applicable To</label>
-                <select className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white" value={newScheme.applicableTo} onChange={e => setNewScheme({...newScheme, applicableTo: e.target.value})}>
-                  <option value="All Distributors">All Distributors</option>
-                  <option value="Gold Tier">Gold Tier</option>
-                  <option value="Silver Tier">Silver Tier</option>
-                  <option value="Specific Distributor">Specific Distributor</option>
-                </select>
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">E. Validity</h3>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Valid From</label>
-                <input type="date" value={newScheme.validFrom} onChange={e => setNewScheme({...newScheme, validFrom: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Valid To</label>
-                <input type="date" value={newScheme.validTo} onChange={e => setNewScheme({...newScheme, validTo: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-
-              <div className="md:col-span-2 mt-4">
-                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">F. Remarks</h3>
-              </div>
-
-              <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Internal Notes</label>
-                <input value={newScheme.remarks} onChange={e => setNewScheme({...newScheme, remarks: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-
-            </div>
-
-            <div className="mt-8 pt-4 border-t border-slate-100 flex items-center justify-end gap-3">
-              <ActionButton variant="ghost" onClick={() => setShowCreateModal(false)}>
-                Cancel
-              </ActionButton>
-              <ActionButton variant="secondary" onClick={() => setShowCreateModal(false)}>
-                Save Draft
-              </ActionButton>
-              <ActionButton onClick={handlePublishScheme}>
-                Publish Scheme
-              </ActionButton>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* View Drawer */}
       <Drawer
         open={viewScheme !== null}
         onClose={() => setViewScheme(null)}
@@ -562,78 +366,49 @@ export default function Schemes() {
       >
         {viewScheme && (
           <div className="space-y-6 pb-20">
-            {activeRole === ROLE_SUPER_ADMIN ? (
-              <>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Scheme Information</h3>
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <DrawerField label="Scheme Code" value={<span className="font-semibold">{viewScheme.schemeCode}</span>} />
-                    <DrawerField label="Scheme Name" value={viewScheme.schemeName} />
-                    <DrawerField label="Scheme Type" value={viewScheme.schemeType} />
-                  </div>
-                </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Scheme Information</h3>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <DrawerField label="Scheme Code" value={<span className="font-semibold">{viewScheme.schemeCode}</span>} />
+                <DrawerField label="Scheme Name" value={<span className="font-semibold text-slate-900">{viewScheme.schemeName}</span>} />
+                <DrawerField label="Scheme Type" value={viewScheme.schemeType} />
+              </div>
+            </div>
 
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Applicability</h3>
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <DrawerField label="Product" value={viewScheme.product || 'All Applicable'} />
-                    <DrawerField label="Category" value={viewScheme.category || '-'} />
-                    <DrawerField label="Brand" value={viewScheme.brand || '-'} />
-                    <DrawerField label="Applicable To" value={<span className="font-medium text-slate-800">{viewScheme.applicableTo}</span>} />
-                  </div>
-                </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Applicability</h3>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <DrawerField label="Product" value={viewScheme.product || 'All Applicable'} />
+                <DrawerField label="Category" value={viewScheme.category || '-'} />
+                <DrawerField label="Brand" value={viewScheme.brand || '-'} />
+                <DrawerField label="Applicable To" value={<span className="font-medium text-slate-800">{viewScheme.applicableTo}</span>} />
+              </div>
+            </div>
 
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Benefit Details</h3>
-                  <div className="bg-violet-50 rounded-xl p-4 border border-violet-100">
-                    <DrawerField label="Benefit Configuration" value={<span className="text-violet-800 font-semibold">{viewScheme.benefit}</span>} />
-                  </div>
-                </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Benefit Details</h3>
+              <div className="bg-violet-50 rounded-xl p-4 border border-violet-100 text-center py-6">
+                <div className="text-sm text-violet-600 font-medium mb-1">Benefit</div>
+                <div className="text-xl text-violet-900 font-bold">{viewScheme.benefit}</div>
+              </div>
+            </div>
 
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Validity & Status</h3>
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <DrawerField label="Valid From" value={viewScheme.validFrom} />
-                    <DrawerField label="Valid To" value={viewScheme.validTo} />
-                    <DrawerField label="Current Status" value={<Badge variant={getStatusVariant(viewScheme.status) as any}>{viewScheme.status}</Badge>} />
-                  </div>
-                </div>
-              </>
-            ) : (
-              <>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Scheme Information</h3>
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <DrawerField label="Scheme Name" value={<span className="font-semibold text-slate-900">{viewScheme.schemeName}</span>} />
-                    <DrawerField label="Scheme Code" value={viewScheme.schemeCode} />
-                  </div>
-                </div>
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Validity</h3>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <DrawerField label="Valid From" value={viewScheme.validFrom} />
+                <DrawerField label="Valid To" value={viewScheme.validTo} />
+                <DrawerField label="Status" value={<Badge variant={getStatusVariant(viewScheme.status) as any}>{viewScheme.status}</Badge>} />
+              </div>
+            </div>
 
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Benefit Details</h3>
-                  <div className="bg-violet-50 rounded-xl p-4 border border-violet-100 text-center py-6">
-                    <div className="text-sm text-violet-600 font-medium mb-1">Your Benefit</div>
-                    <div className="text-xl text-violet-900 font-bold">{viewScheme.benefit}</div>
-                  </div>
+            {viewScheme.remarks && (
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Remarks</h3>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                  <p className="text-sm text-slate-700">{viewScheme.remarks}</p>
                 </div>
-
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Applicable Products</h3>
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <DrawerField label="Product" value={viewScheme.product || 'All Applicable'} />
-                    <DrawerField label="Category" value={viewScheme.category || '-'} />
-                  </div>
-                </div>
-
-                <div>
-                  <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Validity & Status</h3>
-                  <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                    <DrawerField label="Valid From" value={viewScheme.validFrom} />
-                    <DrawerField label="Valid To" value={viewScheme.validTo} />
-                    <DrawerField label="Status" value={<Badge variant={getStatusVariant(viewScheme.status) as any}>{viewScheme.status}</Badge>} />
-                  </div>
-                </div>
-              </>
+              </div>
             )}
           </div>
         )}

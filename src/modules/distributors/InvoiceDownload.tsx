@@ -13,6 +13,7 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
+import { ROLE_SUPER_ADMIN, ROLE_DISTRIBUTOR } from '../../constants/roles';
 
 type InvoiceStatus = 'Paid' | 'Unpaid' | 'Partially Paid' | 'Overdue';
 
@@ -33,6 +34,7 @@ interface Invoice {
   retailer?: string;
   retailerCode?: string;
   supplierName?: string;
+  distributorCode?: string;
   billingAddress: string;
   gstNumber: string;
   date: string;
@@ -51,89 +53,107 @@ const formatCurrency = (amount: number) => {
   return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(amount);
 };
 
-export default function InvoiceDownload() {
-  const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    const saved = localStorage.getItem('pharma_erp_invoices');
-    let parsed: Invoice[] = saved ? JSON.parse(saved) : [];
-    
-    // Inject mock purchase invoices if none exist
-    if (!parsed.some(inv => inv.invoiceType === 'Purchase')) {
-      parsed.push({
-        id: 'mock-purch-1',
-        invoiceNo: 'PUR-INV-001',
-        orderNo: 'PO-001',
-        supplierName: 'PharmaCorp Manufacturer',
-        billingAddress: '123 Pharma St, Mumbai',
-        gstNumber: '27AABBCC1234D1Z5',
-        date: '2023-10-01',
-        dueDate: '2023-10-15',
-        amount: 11200,
-        subtotal: 10000,
-        gstAmount: 1200,
-        paidAmount: 11200,
-        outstandingAmount: 0,
-        status: 'Paid',
-        invoiceType: 'Purchase',
-        items: [
-          { id: '1', productName: 'Amoxicillin 500mg', productCode: 'PRD-001', quantity: 100, unitPrice: 100, gstPct: 12, lineAmount: 10000 }
-        ]
-      });
+const getDDMMYYYY = (dateStr: string) => {
+  if (!dateStr || dateStr === '-') return '-';
+  if (dateStr.includes('-')) {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) { // DD-MM-YYYY
+        return dateStr;
+      } else if (parts[0].length === 4) { // YYYY-MM-DD
+        const d = parts[2].padStart(2, '0');
+        const m = parts[1].padStart(2, '0');
+        const y = parts[0];
+        return `${d}-${m}-${y}`;
+      }
     }
+  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  const day = String(d.getDate()).padStart(2, '0');
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  return `${day}-${month}-${d.getFullYear()}`;
+};
 
-    return parsed.map(inv => ({
-      ...inv,
-      invoiceType: inv.invoiceType || 'Sales'
-    }));
-  });
+const calculateStatus = (paid: number, amount: number, dueDateStr: string): InvoiceStatus => {
+  if (paid >= amount && amount > 0) return 'Paid';
+  if (paid > 0) return 'Partially Paid';
+  
+  let isOverdue = false;
+  if (dueDateStr && dueDateStr !== '-') {
+    const parts = dueDateStr.split('-');
+    let due = new Date(NaN);
+    if (parts.length === 3) {
+      if (parts[2].length === 4) { 
+        due = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      } else if (parts[0].length === 4) { 
+        due = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      }
+    }
+    if (isNaN(due.getTime())) {
+      due = new Date(dueDateStr);
+    }
+    if (!isNaN(due.getTime()) && due < new Date()) {
+      isOverdue = true;
+    }
+  }
+  return isOverdue ? 'Overdue' : 'Unpaid';
+};
 
+export default function InvoiceDownload() {
+  const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
+  const loggedInDistributor = useMemo(() => {
+    const raw = localStorage.getItem('pharma_erp_distributors');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.length > 0) {
+          return {
+            name: parsed[0].name || parsed[0].distributorName || 'Unknown',
+            code: parsed[0].code || parsed[0].distributorCode || parsed[0].id || 'DIST-001'
+          };
+        }
+      } catch (e) {}
+    }
+    return { name: 'Metro Pharma Distributors', code: 'DIST-001' };
+  }, []);
+
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [invoiceDateFilter, setInvoiceDateFilter] = useState('');
+  const [dueDateFilter, setDueDateFilter] = useState('');
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
   const [activeTab, setActiveTab] = useState<'Purchase' | 'Sales'>('Purchase');
 
   useEffect(() => {
-    const syncWithStorage = () => {
-      const saved = localStorage.getItem('pharma_erp_invoices');
-      let parsed: Invoice[] = saved ? JSON.parse(saved) : [];
-      
-      if (!parsed.some(inv => inv.invoiceType === 'Purchase')) {
-        parsed.push({
-          id: 'mock-purch-1',
-          invoiceNo: 'PUR-INV-001',
-          orderNo: 'PO-001',
-          supplierName: 'PharmaCorp Manufacturer',
-          billingAddress: '123 Pharma St, Mumbai',
-          gstNumber: '27AABBCC1234D1Z5',
-          date: '2023-10-01',
-          dueDate: '2023-10-15',
-          amount: 11200,
-          subtotal: 10000,
-          gstAmount: 1200,
-          paidAmount: 11200,
-          outstandingAmount: 0,
-          status: 'Paid',
-          invoiceType: 'Purchase',
-          items: [
-            { id: '1', productName: 'Amoxicillin 500mg', productCode: 'PRD-001', quantity: 100, unitPrice: 100, gstPct: 12, lineAmount: 10000 }
-          ]
-        });
-      }
-
-      setInvoices(parsed.map(inv => ({
+    const saved = localStorage.getItem('pharma_erp_invoices');
+    let parsed: Invoice[] = saved ? JSON.parse(saved) : [];
+    
+    setInvoices(parsed.map(inv => {
+      const amt = inv.amount || 0;
+      const paid = inv.paidAmount || 0;
+      const outst = inv.outstandingAmount ?? Math.max(0, amt - paid);
+      return {
         ...inv,
-        invoiceType: inv.invoiceType || 'Sales'
-      })));
-    };
-    window.addEventListener('storage', syncWithStorage);
-    const poller = setInterval(syncWithStorage, 2000);
-    return () => {
-      window.removeEventListener('storage', syncWithStorage);
-      clearInterval(poller);
-    };
+        invoiceType: inv.invoiceType || 'Sales',
+        date: getDDMMYYYY(inv.date),
+        dueDate: getDDMMYYYY(inv.dueDate),
+        status: calculateStatus(paid, amt, inv.dueDate),
+        outstandingAmount: outst
+      };
+    }));
   }, []);
 
   const filteredData = useMemo(() => {
     return invoices.filter((item) => {
+      // Distributor filtering
+      if (activeRole === ROLE_DISTRIBUTOR) {
+        if (item.distributorCode && item.distributorCode !== loggedInDistributor.code) {
+          return false;
+        }
+      }
+
       if (item.invoiceType !== activeTab) return false;
 
       let matchSearch = false;
@@ -147,9 +167,18 @@ export default function InvoiceDownload() {
       }
 
       const matchStatus = statusFilter ? item.status === statusFilter : true;
-      return matchSearch && matchStatus;
+      
+      const matchInvDate = invoiceDateFilter 
+        ? item.date === getDDMMYYYY(invoiceDateFilter) 
+        : true;
+        
+      const matchDueDate = dueDateFilter 
+        ? item.dueDate === getDDMMYYYY(dueDateFilter) 
+        : true;
+
+      return matchSearch && matchStatus && matchInvDate && matchDueDate;
     });
-  }, [invoices, search, statusFilter, activeTab]);
+  }, [invoices, search, statusFilter, invoiceDateFilter, dueDateFilter, activeTab, activeRole, loggedInDistributor.code]);
 
   const generatePDF = (invoice: Invoice | null) => {
     if (!invoice) return;
@@ -161,13 +190,20 @@ export default function InvoiceDownload() {
       doc.setFontSize(10);
       doc.text(`Invoice Serial No: ${invoice.invoiceNo}`, 14, 30);
       doc.text(`Supplier: ${invoice.supplierName || 'N/A'}`, 14, 36);
-      doc.text(`Total Payable Value: ${formatCurrency(invoice.amount)}`, 14, 42);
+      doc.text(`Invoice Date: ${invoice.date}`, 14, 42);
+      doc.text(`Due Date: ${invoice.dueDate}`, 14, 48);
+      doc.text(`Total Payable Value: ${formatCurrency(invoice.amount)}`, 14, 54);
+      doc.text(`Payment Status: ${invoice.status}`, 14, 60);
     } else {
       doc.text("SALES TAX INVOICE", 14, 20);
       doc.setFontSize(10);
       doc.text(`Invoice Serial No: ${invoice.invoiceNo}`, 14, 30);
       doc.text(`Order Reference Track: ${invoice.orderNo}`, 14, 36);
-      doc.text(`Total Payable Value: ${formatCurrency(invoice.amount)}`, 14, 42);
+      doc.text(`Retailer: ${(invoice as any).retailer || 'N/A'}`, 14, 42);
+      doc.text(`Invoice Date: ${invoice.date}`, 14, 48);
+      doc.text(`Due Date: ${invoice.dueDate}`, 14, 54);
+      doc.text(`Total Payable Value: ${formatCurrency(invoice.amount)}`, 14, 60);
+      doc.text(`Payment Status: ${invoice.status}`, 14, 66);
     }
     
     doc.save(`Invoice-${invoice.invoiceNo}.pdf`);
@@ -257,6 +293,20 @@ export default function InvoiceDownload() {
           ]}
           placeholder="Filters"
         />
+        <input 
+          type="date" 
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          value={invoiceDateFilter}
+          onChange={(e) => setInvoiceDateFilter(e.target.value)}
+          title="Invoice Date"
+        />
+        <input 
+          type="date" 
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          value={dueDateFilter}
+          onChange={(e) => setDueDateFilter(e.target.value)}
+          title="Due Date"
+        />
       </FilterBar>
 
       <TableCard>
@@ -278,6 +328,10 @@ export default function InvoiceDownload() {
                 <DrawerField label="Invoice Date" value={viewInvoice.date} />
                 <DrawerField label="Due Date" value={viewInvoice.dueDate} />
                 <DrawerField label="Payment Status" value={viewInvoice.status} />
+                <DrawerField 
+                  label="Price Basis" 
+                  value={viewInvoice.invoiceType === 'Purchase' ? 'PTS (Price to Stockist)' : 'PTR (Price to Retailer)'} 
+                />
               </div>
             </div>
 
@@ -330,7 +384,9 @@ export default function InvoiceDownload() {
                       <th className="p-2 font-medium">Product</th>
                       <th className="p-2 font-medium">Code</th>
                       <th className="p-2 font-medium text-right">Qty</th>
-                      <th className="p-2 font-medium text-right">Unit Price</th>
+                      <th className="p-2 font-medium text-right">
+                        {viewInvoice.invoiceType === 'Purchase' ? 'PTS' : 'PTR'}
+                      </th>
                       <th className="p-2 font-medium text-right">GST %</th>
                       <th className="p-2 font-medium text-right">Line Amount</th>
                     </tr>

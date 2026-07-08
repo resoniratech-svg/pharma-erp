@@ -17,6 +17,7 @@ export interface UserRecord {
   department: string;
   roleId: string;
   avatarUrl?: string;
+  linkedDistributorCode?: string;
 }
 
 export const USERS: UserRecord[] = [
@@ -59,6 +60,7 @@ export const USERS: UserRecord[] = [
     employeeCode: 'DST-450',
     department: 'Distribution Channel',
     roleId: ROLE_DISTRIBUTOR,
+    linkedDistributorCode: 'DIST-001',
   },
   {
     id: 'usr_005',

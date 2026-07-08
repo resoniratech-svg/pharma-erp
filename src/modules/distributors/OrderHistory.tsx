@@ -14,10 +14,10 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
-import { ROLE_SUPER_ADMIN } from '../../constants/roles';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { orderService } from '../../services/orderService';
 
 interface OrderItem {
   product: string;
@@ -55,120 +55,95 @@ interface OrderHistoryItem {
   items: OrderItem[];
 }
 
-const fallbackMockData: OrderHistoryItem[] = [
-  { 
-    id: '1', 
-    orderNo: 'ORD-2026-001', 
-    distributor: 'Metro Pharma Distributors',
-    orderDate: '24-Oct-2026', 
-    orderValue: 45000, 
-    dispatchStatus: 'Delivered', 
-    paymentStatus: 'Paid', 
-    deliveryDate: '26-Oct-2026', 
-    orderStatus: 'Fulfilled',
-    deliveryAddress: '123 Health Avenue, Medical District, Mumbai',
-    grossAmount: 46000,
-    schemeDiscount: 6520,
-    taxAmount: 5520,
-    netAmount: 45000,
-    dispatchNo: 'DSP-99881',
-    lrNumber: 'LR-MAH-00123',
-    vehicleDetails: 'MH-01-AB-1234',
-    expectedDeliveryDate: '26-Oct-2026',
-    invoiceNo: 'INV-26-9912',
-    outstandingAmount: 0,
-    items: [
-      { product: 'Paracetamol 500mg', qty: 1000, ptr: 15, amount: 15000 },
-      { product: 'Amoxicillin 250mg', qty: 500, ptr: 30, amount: 15000 }
-    ]
-  },
-  { 
-    id: '2', 
-    orderNo: 'ORD-2026-002', 
-    distributor: 'Carewell Agencies',
-    orderDate: '26-Oct-2026', 
-    orderValue: 12500, 
-    dispatchStatus: 'In Transit', 
-    paymentStatus: 'Unpaid', 
-    deliveryDate: 'TBD', 
-    orderStatus: 'Approved',
-    deliveryAddress: '45 Carewell Plaza, Pune',
-    grossAmount: 11000,
-    schemeDiscount: 0,
-    taxAmount: 1500,
-    netAmount: 12500,
-    dispatchNo: 'DSP-99882',
-    lrNumber: 'LR-PUN-00445',
-    vehicleDetails: 'MH-12-CD-5678',
-    expectedDeliveryDate: '28-Oct-2026',
-    invoiceNo: 'INV-26-9913',
-    outstandingAmount: 12500,
-    items: [
-      { product: 'Cetirizine 10mg', qty: 2000, ptr: 5.5, amount: 11000 }
-    ]
+const getDDMMYYYY = (dateStr: string) => {
+  if (!dateStr || dateStr === '-' || dateStr === 'TBD' || dateStr === 'N/A' || dateStr === 'Not Dispatched') return dateStr;
+  if (dateStr.includes('-')) {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) return dateStr;
+      if (parts[0].length === 4) {
+        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+      }
+    }
   }
-];
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+};
 
 export default function OrderHistory() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
-  const loggedInDistributorName = 'Metro Pharma Distributors'; // Mock logged in context
-
   const [orders, setOrders] = useState<OrderHistoryItem[]>([]);
   const [search, setSearch] = useState('');
   const [orderStatusFilter, setOrderStatusFilter] = useState('');
   const [dispatchStatusFilter, setDispatchStatusFilter] = useState('');
   const [paymentStatusFilter, setPaymentStatusFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
+  
   const [viewOrder, setViewOrder] = useState<OrderHistoryItem | null>(null);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Syncing with localStorage updates seamlessly
-  useEffect(() => {
-    const rawOrders = localStorage.getItem('pharma_erp_orders');
-    if (rawOrders) {
+  const loggedInDistributor = useMemo(() => {
+    const raw = localStorage.getItem('pharma_erp_distributors');
+    if (raw) {
       try {
-        const parsed = JSON.parse(rawOrders);
-        const mappedOrders: OrderHistoryItem[] = parsed.map((o: any) => {
-          // Normalize dispatch and payment mapping statuses safely
-          let derivedDispatch: any = o.dispatchStatus || 'Pending';
-          if (o.status === 'Fulfilled') derivedDispatch = 'Delivered';
-          
+        const parsed = JSON.parse(raw);
+        if (parsed.length > 0) {
           return {
-            id: o.id || Math.random().toString(),
-            orderNo: o.orderNo || 'N/A',
-            distributor: o.distributorName || 'General Distributor',
-            orderDate: o.date || new Date().toLocaleDateString(),
-            orderValue: o.netAmount || o.totalAmount || 0,
-            dispatchStatus: derivedDispatch,
-            paymentStatus: o.paymentStatus || 'Unpaid',
-            deliveryDate: o.deliveryDate || 'TBD',
-            orderStatus: o.status || 'Submitted',
-            deliveryAddress: o.deliveryLocation || 'Main Warehouse Depot',
-            grossAmount: o.grossAmount || o.totalAmount || 0,
-            schemeDiscount: o.schemeDiscount || 0,
-            taxAmount: o.taxAmount || 0,
-            netAmount: o.netAmount || o.totalAmount || 0,
-            dispatchNo: o.dispatchNo || 'Not Dispatched',
-            lrNumber: o.lrNumber || 'N/A',
-            vehicleDetails: o.vehicleDetails || 'N/A',
-            expectedDeliveryDate: o.expectedDeliveryDate || 'TBD',
-            invoiceNo: o.invoiceNo || 'Not Generated',
-            outstandingAmount: o.paymentStatus === 'Paid' ? 0 : (o.netAmount || o.totalAmount || 0),
-            items: Array.isArray(o.items) ? o.items.map((i: any) => ({
-              product: i.productName || 'Unknown Product',
-              qty: Number(i.quantity || 0),
-              ptr: Number(i.ptr || 0),
-              amount: Number(i.amount || 0)
-            })) : []
+            name: parsed[0].name || parsed[0].distributorName || 'Unknown',
+            code: parsed[0].code || parsed[0].distributorCode || parsed[0].id || 'DIST-001'
           };
-        });
-        setOrders([...mappedOrders, ...fallbackMockData]);
-      } catch (e) {
-        console.error("Error formatting local storage history, using system definitions.", e);
-        setOrders(fallbackMockData);
-      }
-    } else {
-      setOrders(fallbackMockData);
+        }
+      } catch (e) {}
+    }
+    return { name: 'Metro Pharma Distributors', code: 'DIST-001' };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const allOrders = orderService.getAll();
+      const mappedOrders: OrderHistoryItem[] = allOrders.map((o: any) => {
+        let derivedDispatch: any = o.dispatchStatus || 'Pending';
+        if (!o.dispatchStatus) {
+          if (o.status === 'Fulfilled') derivedDispatch = 'Delivered';
+          else if (o.status === 'Approved') derivedDispatch = 'Processing';
+          else if (o.status === 'Rejected' || o.status === 'Cancelled') derivedDispatch = 'Pending';
+        }
+        
+        return {
+          id: o.id || o.orderNo,
+          orderNo: o.orderNo || 'N/A',
+          distributor: o.distributorName || o.distributor || 'General Distributor',
+          orderDate: getDDMMYYYY(o.date || o.orderDate || new Date().toISOString().split('T')[0]),
+          orderValue: Number(o.netAmount || o.totalAmount || o.orderValue || 0),
+          dispatchStatus: derivedDispatch,
+          paymentStatus: o.paymentStatus || 'Unpaid',
+          deliveryDate: getDDMMYYYY(o.deliveryDate || 'TBD'),
+          orderStatus: o.status || o.orderStatus || 'Submitted',
+          deliveryAddress: o.deliveryLocation || o.deliveryAddress || 'Main Warehouse Depot',
+          grossAmount: Number(o.grossAmount || o.totalAmount || 0),
+          schemeDiscount: Number(o.schemeDiscount || 0),
+          taxAmount: Number(o.taxAmount || 0),
+          netAmount: Number(o.netAmount || o.totalAmount || 0),
+          dispatchNo: o.dispatchNo || 'Not Dispatched',
+          lrNumber: o.lrNumber || 'N/A',
+          vehicleDetails: o.vehicleDetails || 'N/A',
+          expectedDeliveryDate: getDDMMYYYY(o.expectedDeliveryDate || 'TBD'),
+          invoiceNo: o.invoiceNo || 'Not Generated',
+          outstandingAmount: Number(o.outstandingAmount !== undefined ? o.outstandingAmount : (o.paymentStatus === 'Paid' ? 0 : (o.netAmount || o.totalAmount || 0))),
+          items: Array.isArray(o.items) ? o.items.map((i: any) => ({
+            product: i.productName || i.product || 'Unknown Product',
+            qty: Number(i.quantity || i.qty || 0),
+            ptr: Number(i.ptr || i.unitPrice || i.price || 0),
+            amount: Number(i.amount || i.lineAmount || i.total || 0)
+          })) : []
+        };
+      });
+      setOrders(mappedOrders);
+    } catch (e) {
+      console.error("Error formatting local storage history", e);
+      setOrders([]);
     }
   }, []);
 
@@ -184,28 +159,38 @@ export default function OrderHistory() {
 
   const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN')}`;
 
-  const roleFilteredData = useMemo(() => {
-    return activeRole === ROLE_SUPER_ADMIN 
-      ? orders 
-      : orders.filter(item => item.distributor === loggedInDistributorName);
-  }, [orders, activeRole]);
-
   const filteredData = useMemo(() => {
-    return roleFilteredData.filter((item) => {
+    const distributorOrders = orders.filter(item => 
+      item.distributor === loggedInDistributor.name || 
+      item.distributor === loggedInDistributor.code
+    );
+    
+    return distributorOrders.filter((item) => {
       const searchLower = search.toLowerCase();
-      const matchSearch = activeRole === ROLE_SUPER_ADMIN
-        ? item.orderNo.toLowerCase().includes(searchLower) || item.distributor.toLowerCase().includes(searchLower)
-        : item.orderNo.toLowerCase().includes(searchLower);
+      const matchSearch = 
+        item.orderNo.toLowerCase().includes(searchLower) ||
+        item.invoiceNo.toLowerCase().includes(searchLower) ||
+        item.items.some(i => i.product.toLowerCase().includes(searchLower));
 
       const matchOrderStatus = orderStatusFilter ? item.orderStatus === orderStatusFilter : true;
       const matchDispatchStatus = dispatchStatusFilter ? item.dispatchStatus === dispatchStatusFilter : true;
       const matchPaymentStatus = paymentStatusFilter ? item.paymentStatus === paymentStatusFilter : true;
       
-      return matchSearch && matchOrderStatus && matchDispatchStatus && matchPaymentStatus;
+      let matchDate = true;
+      if (fromDate || toDate) {
+        // Simple string comparison works for YYYY-MM-DD if we parse the DD-MM-YYYY
+        const orderDateParts = item.orderDate.split('-');
+        if (orderDateParts.length === 3) {
+          const isoDate = `${orderDateParts[2]}-${orderDateParts[1]}-${orderDateParts[0]}`;
+          if (fromDate && isoDate < fromDate) matchDate = false;
+          if (toDate && isoDate > toDate) matchDate = false;
+        }
+      }
+      
+      return matchSearch && matchOrderStatus && matchDispatchStatus && matchPaymentStatus && matchDate;
     });
-  }, [roleFilteredData, search, orderStatusFilter, dispatchStatusFilter, paymentStatusFilter, activeRole]);
+  }, [orders, search, orderStatusFilter, dispatchStatusFilter, paymentStatusFilter, fromDate, toDate, loggedInDistributor]);
 
-  // Calculate Metrics based on visible filtered dataset
   const metrics = useMemo(() => {
     return {
       totalOrders: filteredData.length,
@@ -246,34 +231,24 @@ export default function OrderHistory() {
     }
   };
 
-  // ----- EXPORT LOGIC -----
   const getExportData = () => {
-    if (activeRole === ROLE_SUPER_ADMIN) {
-      return filteredData.map(item => ({
-        'Order No': item.orderNo,
-        'Distributor': item.distributor,
-        'Order Date': item.orderDate,
-        'Order Value': formatCurrency(item.orderValue),
-        'Dispatch Status': item.dispatchStatus,
-        'Payment Status': item.paymentStatus,
-        'Delivery Date': item.deliveryDate,
-        'Order Status': item.orderStatus
-      }));
-    } else {
-      return filteredData.map(item => ({
-        'Order No': item.orderNo,
-        'Order Date': item.orderDate,
-        'Order Value': formatCurrency(item.orderValue),
-        'Dispatch Status': item.dispatchStatus,
-        'Payment Status': item.paymentStatus,
-        'Delivery Date': item.deliveryDate,
-        'Order Status': item.orderStatus
-      }));
-    }
+    return filteredData.map(item => ({
+      'Order No': item.orderNo,
+      'Order Date': item.orderDate,
+      'Order Value': formatCurrency(item.orderValue),
+      'Dispatch Status': item.dispatchStatus,
+      'Payment Status': item.paymentStatus,
+      'Delivery Date': item.deliveryDate,
+      'Order Status': item.orderStatus
+    }));
   };
 
   const handleExportExcel = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportDropdown(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Order_History");
@@ -283,6 +258,10 @@ export default function OrderHistory() {
 
   const handleExportCSV = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportDropdown(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -299,6 +278,10 @@ export default function OrderHistory() {
 
   const handleExportPDF = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportDropdown(false);
+      return;
+    }
     const doc = new jsPDF('landscape');
     const headers = Object.keys(data[0] || {});
     const body = data.map(obj => headers.map(header => (obj as any)[header]));
@@ -316,29 +299,7 @@ export default function OrderHistory() {
     setShowExportDropdown(false);
   };
 
-  const adminColumns: Column<OrderHistoryItem>[] = [
-    { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-slate-900">{row.orderNo}</span> },
-    { key: 'distributor', label: 'Distributor', render: (row) => <span className="text-slate-800">{row.distributor}</span> },
-    { key: 'orderDate', label: 'Order Date', render: (row) => <span className="text-slate-600">{row.orderDate}</span> },
-    { key: 'orderValue', label: 'Order Value', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.orderValue)}</span> },
-    { key: 'dispatchStatus', label: 'Dispatch Status', render: (row) => <Badge variant={getDispatchStatusVariant(row.dispatchStatus) as any}>{row.dispatchStatus}</Badge> },
-    { key: 'paymentStatus', label: 'Payment Status', render: (row) => <Badge variant={getPaymentStatusVariant(row.paymentStatus) as any}>{row.paymentStatus}</Badge> },
-    { key: 'deliveryDate', label: 'Delivery Date', render: (row) => <span className="text-slate-600">{row.deliveryDate}</span> },
-    { key: 'orderStatus', label: 'Order Status', render: (row) => <Badge variant={getOrderStatusVariant(row.orderStatus) as any}>{row.orderStatus}</Badge> },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View">
-            <Eye className="w-4 h-4" />
-          </button>
-        </div>
-      )
-    }
-  ];
-
-  const distributorColumns: Column<OrderHistoryItem>[] = [
+  const columns: Column<OrderHistoryItem>[] = [
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-slate-900">{row.orderNo}</span> },
     { key: 'orderDate', label: 'Order Date', render: (row) => <span className="text-slate-600">{row.orderDate}</span> },
     { key: 'orderValue', label: 'Order Value', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.orderValue)}</span> },
@@ -363,7 +324,7 @@ export default function OrderHistory() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Order History"
-        subtitle={activeRole === ROLE_SUPER_ADMIN ? "Track and review all previously placed distributor orders." : "Track and review your entire order history."}
+        subtitle="Track and review your entire order history."
         actions={
           <div className="relative" ref={dropdownRef}>
             <ActionButton 
@@ -396,7 +357,7 @@ export default function OrderHistory() {
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <SummaryCard
-          title={activeRole === ROLE_SUPER_ADMIN ? "Total Orders" : "My Orders"}
+          title="My Orders"
           value={metrics.totalOrders.toString()}
           subtitle="Matching visible scope"
           icon={<ShoppingCart className="w-6 h-6" />}
@@ -420,7 +381,7 @@ export default function OrderHistory() {
           bgClass="bg-amber-50"
         />
         <SummaryCard
-          title={activeRole === ROLE_SUPER_ADMIN ? "Total Order Value" : "Total Purchase Value"}
+          title="Total Purchase Value"
           value={formatCurrency(metrics.totalValue)}
           subtitle="Visible data value"
           icon={<IndianRupee className="w-6 h-6" />}
@@ -433,17 +394,35 @@ export default function OrderHistory() {
         <SearchInput 
           value={search} 
           onChange={setSearch} 
-          placeholder={activeRole === ROLE_SUPER_ADMIN ? "Search by order no or distributor..." : "Search by order no..."} 
+          placeholder="Search order, invoice or product..." 
         />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
           <span className="text-sm font-medium text-slate-600">Filters:</span>
         </div>
+        
+        <input 
+          type="date" 
+          value={fromDate}
+          onChange={(e) => setFromDate(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
+          title="From Date"
+        />
+        <span className="text-slate-400">-</span>
+        <input 
+          type="date" 
+          value={toDate}
+          onChange={(e) => setToDate(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
+          title="To Date"
+        />
+
         <SelectFilter
           value={orderStatusFilter}
           onChange={setOrderStatusFilter}
           options={[
+            { label: 'All Orders', value: '' },
             { label: 'Draft', value: 'Draft' },
             { label: 'Submitted', value: 'Submitted' },
             { label: 'Approved', value: 'Approved' },
@@ -457,6 +436,7 @@ export default function OrderHistory() {
           value={dispatchStatusFilter}
           onChange={setDispatchStatusFilter}
           options={[
+            { label: 'All Dispatches', value: '' },
             { label: 'Pending', value: 'Pending' },
             { label: 'Processing', value: 'Processing' },
             { label: 'Packed', value: 'Packed' },
@@ -470,6 +450,7 @@ export default function OrderHistory() {
           value={paymentStatusFilter}
           onChange={setPaymentStatusFilter}
           options={[
+            { label: 'All Payments', value: '' },
             { label: 'Unpaid', value: 'Unpaid' },
             { label: 'Partially Paid', value: 'Partially Paid' },
             { label: 'Paid', value: 'Paid' },
@@ -482,7 +463,7 @@ export default function OrderHistory() {
       <TableCard>
         <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
           <DataTable
-            columns={activeRole === ROLE_SUPER_ADMIN ? adminColumns : distributorColumns}
+            columns={columns}
             data={filteredData}
             onRowClick={setViewOrder}
             emptyMessage="No order history found."
@@ -504,9 +485,6 @@ export default function OrderHistory() {
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <DrawerField label="Order No" value={<span className="font-semibold">{viewOrder.orderNo}</span>} />
                 <DrawerField label="Order Date" value={viewOrder.orderDate} />
-                {activeRole === ROLE_SUPER_ADMIN && (
-                  <DrawerField label="Distributor" value={<span className="font-medium text-slate-800">{viewOrder.distributor}</span>} />
-                )}
                 <DrawerField label="Delivery Address" value={viewOrder.deliveryAddress} />
               </div>
             </div>
@@ -565,20 +543,10 @@ export default function OrderHistory() {
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Dispatch Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                {activeRole === ROLE_SUPER_ADMIN ? (
-                  <>
-                    <DrawerField label="Dispatch No" value={viewOrder.dispatchNo} />
-                    <DrawerField label="LR Number" value={viewOrder.lrNumber} />
-                    <DrawerField label="Vehicle Details" value={viewOrder.vehicleDetails} />
-                    <DrawerField label="Dispatch Status" value={<Badge variant={getDispatchStatusVariant(viewOrder.dispatchStatus) as any}>{viewOrder.dispatchStatus}</Badge>} />
-                  </>
-                ) : (
-                  <>
-                    <DrawerField label="Dispatch Status" value={<Badge variant={getDispatchStatusVariant(viewOrder.dispatchStatus) as any}>{viewOrder.dispatchStatus}</Badge>} />
-                    <DrawerField label="LR Number" value={viewOrder.lrNumber} />
-                    <DrawerField label="Expected Delivery" value={viewOrder.expectedDeliveryDate} />
-                  </>
-                )}
+                <DrawerField label="Dispatch Status" value={<Badge variant={getDispatchStatusVariant(viewOrder.dispatchStatus) as any}>{viewOrder.dispatchStatus}</Badge>} />
+                <DrawerField label="Dispatch No" value={viewOrder.dispatchNo} />
+                <DrawerField label="LR Number" value={viewOrder.lrNumber} />
+                <DrawerField label="Expected Delivery" value={viewOrder.expectedDeliveryDate} />
               </div>
             </div>
 
@@ -587,10 +555,8 @@ export default function OrderHistory() {
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Payment Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <DrawerField label="Invoice No" value={viewOrder.invoiceNo} />
-                {activeRole === ROLE_SUPER_ADMIN && (
-                  <DrawerField label="Outstanding" value={<span className={viewOrder.outstandingAmount > 0 ? "text-rose-600 font-semibold" : "text-emerald-600 font-semibold"} >{formatCurrency(viewOrder.outstandingAmount)}</span>} />
-                )}
                 <DrawerField label="Payment Status" value={<Badge variant={getPaymentStatusVariant(viewOrder.paymentStatus) as any}>{viewOrder.paymentStatus}</Badge>} />
+                <DrawerField label="Outstanding Amount" value={<span className="font-semibold text-rose-600">{formatCurrency(viewOrder.outstandingAmount)}</span>} />
               </div>
             </div>
             

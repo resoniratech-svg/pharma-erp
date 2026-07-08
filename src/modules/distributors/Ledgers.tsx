@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Download, Filter, Eye, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -21,7 +21,7 @@ import { type Column } from './components/shared';
 import { ROLE_SUPER_ADMIN, ROLE_DISTRIBUTOR } from '../../constants/roles';
 
 interface LedgerEntry {
-  id: string;
+  id?: string;
   date: string;
   distributor: string;
   distributorCode: string;
@@ -30,36 +30,225 @@ interface LedgerEntry {
   type: 'Invoice' | 'Payment' | 'Credit Note' | 'Debit Note';
   debitAmount: number;
   creditAmount: number;
+  openingBalanceAmount?: number;
+  openingBalanceType?: 'Dr' | 'Cr';
   balanceAmount: number;
   balanceType: 'Dr' | 'Cr';
+  remarks?: string;
 }
 
-const mockData: LedgerEntry[] = [
-  { id: '1', date: '15-Oct-2026', distributor: 'Metro Pharma Distributors', distributorCode: 'DIST-001', contactPerson: 'Rahul Sharma', refNo: 'INV-2026-991', type: 'Invoice', debitAmount: 150000, creditAmount: 0, balanceAmount: 360000, balanceType: 'Dr' },
-  { id: '2', date: '14-Oct-2026', distributor: 'Metro Pharma Distributors', distributorCode: 'DIST-001', contactPerson: 'Rahul Sharma', refNo: 'RCPT-1002', type: 'Payment', debitAmount: 0, creditAmount: 50000, balanceAmount: 210000, balanceType: 'Dr' },
-  { id: '3', date: '10-Oct-2026', distributor: 'Global Health Supply', distributorCode: 'DIST-002', contactPerson: 'Amit Patel', refNo: 'CN-2026-04', type: 'Credit Note', debitAmount: 0, creditAmount: 12000, balanceAmount: 43000, balanceType: 'Dr' },
-];
+const formatCurrency = (amount: number) => {
+  if (amount === 0) return '-';
+  return `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
+const getDDMMYYYY = (date: Date) => {
+  if (isNaN(date.getTime())) return '-';
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}-${m}-${y}`;
+};
+
+const parseDateString = (dateStr: string) => {
+  if (!dateStr || dateStr === '-') return new Date(NaN);
+  if (dateStr.includes('-')) {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) { // DD-MM-YYYY
+        return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      } else if (parts[0].length === 4) { // YYYY-MM-DD
+        return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      }
+    }
+  }
+  return new Date(dateStr);
+};
 
 export default function Ledgers() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
-  const loggedInDistributorName = 'Metro Pharma Distributors';
+
+  const loggedInDistributor = useMemo(() => {
+    const raw = localStorage.getItem('pharma_erp_distributors');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.length > 0) {
+          return {
+            name: parsed[0].name || parsed[0].distributorName || 'Unknown',
+            code: parsed[0].code || parsed[0].distributorCode || parsed[0].id || 'DIST-001'
+          };
+        }
+      } catch (e) {}
+    }
+    return { name: 'Metro Pharma Distributors', code: 'DIST-001' };
+  }, []);
+
+  const [ledgerEntries, setLedgerEntries] = useState<LedgerEntry[]>([]);
+
+  useEffect(() => {
+    // 1. Gather raw transactions
+    interface RawTransaction {
+      id: string;
+      date: string;
+      distributor: string;
+      distributorCode: string;
+      contactPerson: string;
+      refNo: string;
+      type: 'Invoice' | 'Payment' | 'Credit Note' | 'Debit Note';
+      debitAmount: number;
+      creditAmount: number;
+      remarks?: string;
+    }
+    const transactions: RawTransaction[] = [];
+
+    // Check if an explicit pre-calculated ledger exists
+    const rawLedger = localStorage.getItem('pharma_erp_ledger');
+    if (rawLedger) {
+      try {
+        const parsed = JSON.parse(rawLedger);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          parsed.forEach((t: any) => transactions.push(t));
+        }
+      } catch (e) {}
+    }
+
+    if (transactions.length === 0) {
+      // Build from integration points if no explicit ledger exists
+      const outData = localStorage.getItem('pharma_erp_outstanding_records');
+      if (outData) {
+        try {
+          const records: any[] = JSON.parse(outData);
+          records.forEach(rec => {
+            if (rec.invoices) {
+              rec.invoices.forEach((inv: any) => {
+                transactions.push({
+                  id: inv.id || inv.invoiceNo,
+                  date: inv.date,
+                  distributor: rec.distributorName,
+                  distributorCode: rec.distributorCode,
+                  contactPerson: rec.contactPerson || '',
+                  refNo: inv.invoiceNo,
+                  type: 'Invoice',
+                  debitAmount: inv.amount,
+                  creditAmount: 0,
+                  remarks: 'Sales Invoice'
+                });
+              });
+            }
+          });
+        } catch (e) {}
+      }
+
+      const payData = localStorage.getItem('pharma_erp_payments');
+      if (payData) {
+        try {
+          const payments: any[] = JSON.parse(payData);
+          payments.forEach(pay => {
+            transactions.push({
+              id: pay.id || pay.receiptNo || pay.refNo,
+              date: pay.date,
+              distributor: pay.distributorName || pay.distributor,
+              distributorCode: pay.distributorCode,
+              contactPerson: pay.contactPerson || '',
+              refNo: pay.receiptNo || pay.refNo,
+              type: 'Payment',
+              debitAmount: 0,
+              creditAmount: pay.amount || pay.creditAmount,
+              remarks: pay.remarks || 'Payment Received'
+            });
+          });
+        } catch (e) {}
+      }
+
+      const cnData = localStorage.getItem('pharma_erp_credit_notes');
+      if (cnData) {
+        try {
+          const notes: any[] = JSON.parse(cnData);
+          notes.forEach(note => {
+            transactions.push({
+              id: note.id || note.noteNo || note.refNo,
+              date: note.date,
+              distributor: note.distributorName || note.distributor,
+              distributorCode: note.distributorCode,
+              contactPerson: note.contactPerson || '',
+              refNo: note.noteNo || note.refNo,
+              type: 'Credit Note',
+              debitAmount: 0,
+              creditAmount: note.amount || note.creditAmount,
+              remarks: note.remarks || 'Credit Note'
+            });
+          });
+        } catch (e) {}
+      }
+
+      const dnData = localStorage.getItem('pharma_erp_debit_notes');
+      if (dnData) {
+        try {
+          const notes: any[] = JSON.parse(dnData);
+          notes.forEach(note => {
+            transactions.push({
+              id: note.id || note.noteNo || note.refNo,
+              date: note.date,
+              distributor: note.distributorName || note.distributor,
+              distributorCode: note.distributorCode,
+              contactPerson: note.contactPerson || '',
+              refNo: note.noteNo || note.refNo,
+              type: 'Debit Note',
+              debitAmount: note.amount || note.debitAmount,
+              creditAmount: 0,
+              remarks: note.remarks || 'Debit Note'
+            });
+          });
+        } catch (e) {}
+      }
+    }
+
+    // 2. Sort chronologically to correctly calculate running balance
+    transactions.sort((a, b) => parseDateString(a.date).getTime() - parseDateString(b.date).getTime());
+
+    // 3. Calculate running balance per distributor
+    const grouped: Record<string, RawTransaction[]> = {};
+    transactions.forEach(t => {
+      if (!grouped[t.distributorCode]) grouped[t.distributorCode] = [];
+      grouped[t.distributorCode].push(t);
+    });
+
+    const computedLedger: LedgerEntry[] = [];
+    Object.keys(grouped).forEach(distCode => {
+      let runningBalance = 0; // Opening Balance defaults to 0
+      grouped[distCode].forEach(t => {
+        const openingBal = runningBalance;
+        runningBalance += (t.debitAmount - t.creditAmount);
+        computedLedger.push({
+          ...t,
+          date: getDDMMYYYY(parseDateString(t.date)), // standardize date format
+          openingBalanceAmount: Math.abs(openingBal),
+          openingBalanceType: openingBal >= 0 ? 'Dr' : 'Cr',
+          balanceAmount: Math.abs(runningBalance),
+          balanceType: runningBalance >= 0 ? 'Dr' : 'Cr'
+        });
+      });
+    });
+
+    // 4. Sort computed ledger reverse chronologically for display
+    computedLedger.sort((a, b) => parseDateString(b.date).getTime() - parseDateString(a.date).getTime());
+
+    setLedgerEntries(computedLedger);
+  }, []);
 
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
+  const [dateRange, setDateRange] = useState('');
   const [viewEntry, setViewEntry] = useState<LedgerEntry | null>(null);
   
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
-  const formatCurrency = (amount: number) => {
-    if (amount === 0) return '-';
-    return `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
-
   // 1. Role-Based Data Filtering
   const roleFilteredData = activeRole === ROLE_DISTRIBUTOR 
-    ? mockData.filter(d => d.distributor === loggedInDistributorName)
-    : mockData;
+    ? ledgerEntries.filter(d => d.distributorCode === loggedInDistributor.code)
+    : ledgerEntries;
 
   // 2. Search & Filter
   const filteredData = roleFilteredData.filter((item) => {
@@ -69,11 +258,13 @@ export default function Ledgers() {
       : item.refNo.toLowerCase().includes(searchLower);
       
     const matchType = typeFilter ? item.type === typeFilter : true;
-    return matchSearch && matchType;
+    const matchDate = dateRange ? item.date === getDDMMYYYY(new Date(dateRange)) : true;
+    
+    return matchSearch && matchType && matchDate;
   });
 
   // 3. Dynamic Export Functionality
-  const getFormattedDate = () => new Date().toISOString().split('T')[0];
+  const getFormattedDate = () => getDDMMYYYY(new Date());
 
   const handleExportExcel = () => {
     const exportData = filteredData.map(row => {
@@ -136,7 +327,7 @@ export default function Ledgers() {
     doc.setFontSize(16);
     doc.text('Statement of Account', 14, 15);
     doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 22);
+    doc.text(`Generated on: ${getFormattedDate()}`, 14, 22);
 
     const head = activeRole === ROLE_SUPER_ADMIN
       ? [['Date', 'Distributor', 'Voucher No', 'Type', 'Debit', 'Credit', 'Balance']]
@@ -168,17 +359,27 @@ export default function Ledgers() {
     setShowExportMenu(false);
   };
 
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setShowExportMenu(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   // 4. Role-Based Table Columns
   const adminColumns: Column<LedgerEntry>[] = [
     { key: 'date', label: 'Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
     { key: 'distributor', label: 'Distributor', render: (row) => <span className="font-semibold text-slate-900">{row.distributor}</span> },
     { key: 'refNo', label: 'Voucher No', render: (row) => <span className="font-semibold text-slate-900">{row.refNo}</span> },
     { key: 'type', label: 'Transaction Type', render: (row) => <span className="text-slate-600">{row.type}</span> },
-    { key: 'debit', label: 'Debit Amount', render: (row) => <span className="text-slate-800 font-medium">{formatCurrency(row.debitAmount)}</span> },
-    { key: 'credit', label: 'Credit Amount', render: (row) => <span className="text-slate-800 font-medium">{formatCurrency(row.creditAmount)}</span> },
-    { key: 'balance', label: 'Running Balance', render: (row) => <span className="font-bold text-violet-700">₹ {row.balanceAmount.toLocaleString('en-IN')} {row.balanceType}</span> },
+    { key: 'debitAmount', label: 'Debit Amount', render: (row) => <span className="text-slate-800 font-medium">{formatCurrency(row.debitAmount)}</span> },
+    { key: 'creditAmount', label: 'Credit Amount', render: (row) => <span className="text-slate-800 font-medium">{formatCurrency(row.creditAmount)}</span> },
+    { key: 'balanceAmount', label: 'Running Balance', render: (row) => <span className="font-bold text-violet-700">₹ {row.balanceAmount.toLocaleString('en-IN')} {row.balanceType}</span> },
     {
-      key: 'actions',
+      key: 'id',
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
@@ -194,9 +395,20 @@ export default function Ledgers() {
     { key: 'date', label: 'Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
     { key: 'refNo', label: 'Voucher No', render: (row) => <span className="font-semibold text-slate-900">{row.refNo}</span> },
     { key: 'type', label: 'Transaction Type', render: (row) => <span className="text-slate-600">{row.type}</span> },
-    { key: 'debit', label: 'Debit Amount', render: (row) => <span className="text-slate-800 font-medium">{formatCurrency(row.debitAmount)}</span> },
-    { key: 'credit', label: 'Credit Amount', render: (row) => <span className="text-slate-800 font-medium">{formatCurrency(row.creditAmount)}</span> },
-    { key: 'balance', label: 'Running Balance', render: (row) => <span className="font-bold text-violet-700">₹ {row.balanceAmount.toLocaleString('en-IN')} {row.balanceType}</span> },
+    { key: 'debitAmount', label: 'Debit Amount', render: (row) => <span className="text-slate-800 font-medium">{formatCurrency(row.debitAmount)}</span> },
+    { key: 'creditAmount', label: 'Credit Amount', render: (row) => <span className="text-slate-800 font-medium">{formatCurrency(row.creditAmount)}</span> },
+    { key: 'balanceAmount', label: 'Running Balance', render: (row) => <span className="font-bold text-violet-700">₹ {row.balanceAmount.toLocaleString('en-IN')} {row.balanceType}</span> },
+    {
+      key: 'id',
+      label: 'Actions',
+      render: (row) => (
+        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+          <button onClick={() => setViewEntry(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View">
+            <Eye className="w-4 h-4" />
+          </button>
+        </div>
+      )
+    }
   ];
 
   return (
@@ -249,6 +461,12 @@ export default function Ledgers() {
           ]}
           placeholder="All Types"
         />
+        <input 
+          type="date" 
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          value={dateRange}
+          onChange={(e) => setDateRange(e.target.value)}
+        />
       </FilterBar>
 
       <TableCard>
@@ -269,7 +487,7 @@ export default function Ledgers() {
         </div>
       </TableCard>
 
-      {/* --- View Drawer (Admin Only) --- */}
+      {/* --- View Drawer --- */}
       <Drawer open={!!viewEntry} onClose={() => setViewEntry(null)} title="Transaction Details">
         {viewEntry && (
           <div className="space-y-6">
@@ -282,18 +500,21 @@ export default function Ledgers() {
               </div>
             </div>
 
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Distributor Information</h3>
-              <div className="space-y-2">
-                <DrawerField label="Distributor Name" value={viewEntry.distributor} />
-                <DrawerField label="Distributor Code" value={viewEntry.distributorCode} />
-                <DrawerField label="Contact Person" value={viewEntry.contactPerson} />
+            {activeRole === ROLE_SUPER_ADMIN && (
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Distributor Information</h3>
+                <div className="space-y-2">
+                  <DrawerField label="Distributor Name" value={viewEntry.distributor} />
+                  <DrawerField label="Distributor Code" value={viewEntry.distributorCode} />
+                  <DrawerField label="Contact Person" value={viewEntry.contactPerson} />
+                </div>
               </div>
-            </div>
+            )}
 
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Financial Information</h3>
               <div className="space-y-2">
+                <DrawerField label="Opening Balance" value={<span>₹ {viewEntry.openingBalanceAmount?.toLocaleString('en-IN') || '0'} {viewEntry.openingBalanceType || 'Dr'}</span>} />
                 <DrawerField label="Debit Amount" value={formatCurrency(viewEntry.debitAmount)} />
                 <DrawerField label="Credit Amount" value={formatCurrency(viewEntry.creditAmount)} />
                 <DrawerField label="Running Balance" value={<span className="font-bold text-violet-700">₹ {viewEntry.balanceAmount.toLocaleString('en-IN')} {viewEntry.balanceType}</span>} />
@@ -302,11 +523,12 @@ export default function Ledgers() {
 
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Reference Information</h3>
-              <div className="space-y-2">
+              <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
                 {viewEntry.type === 'Invoice' && <DrawerField label="Invoice No" value={viewEntry.refNo} />}
                 {viewEntry.type === 'Payment' && <DrawerField label="Receipt No" value={viewEntry.refNo} />}
                 {viewEntry.type === 'Credit Note' && <DrawerField label="Credit Note No" value={viewEntry.refNo} />}
                 {viewEntry.type === 'Debit Note' && <DrawerField label="Debit Note No" value={viewEntry.refNo} />}
+                <DrawerField label="Narration / Remarks" value={viewEntry.remarks || '-'} />
               </div>
             </div>
             

@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generatePurchaseOrderPdf } from '../../documents/generators/pdfGenerator';
+import { inventoryService } from '../../services/inventoryService';
 
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
@@ -12,7 +13,7 @@ import {
 import { type Column, type BadgeVariant } from './components/shared';
 
 // --- Types ---
-type OrderStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'Processing' | 'Partially Fulfilled' | 'Fulfilled' | 'Cancelled';
+type OrderStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected' | 'Processing' | 'Partially Fulfilled' | 'Fulfilled' | 'Cancelled';
 
 interface OrderItem {
   productCode: string;
@@ -42,6 +43,8 @@ interface Product {
   productCode: string;
   productName: string;
   packType: string;
+  manufacturer: string;
+  composition: string;
   mrp: number;
   ptr: number;
   availableStock: number;
@@ -51,7 +54,7 @@ interface Product {
 const initialOrders: Order[] = [
   {
     id: '1', orderNo: 'ORD-2026-1001', distributorName: 'Metro Pharma Distributors', distributorCode: 'DIST-001',
-    date: '15-Oct-2026', expectedDeliveryDate: '18-Oct-2026', status: 'Submitted',
+    date: '15-10-2026', expectedDeliveryDate: '18-10-2026', status: 'Pending',
     deliveryLocation: 'Mumbai Central', warehouse: 'West Zone Hub', remarks: 'Urgent delivery required',
     items: [
       { productCode: 'PRD-001', productName: 'Amoxicillin 500mg', packType: '10x10 Tablets', ptr: 110, quantity: 50, scheme: '10+1 Free', amount: 5500 },
@@ -60,7 +63,7 @@ const initialOrders: Order[] = [
   },
   {
     id: '2', orderNo: 'ORD-2026-1002', distributorName: 'Metro Pharma Distributors', distributorCode: 'DIST-001',
-    date: '16-Oct-2026', expectedDeliveryDate: '19-Oct-2026', status: 'Draft',
+    date: '16-10-2026', expectedDeliveryDate: '19-10-2026', status: 'Draft',
     deliveryLocation: 'Mumbai Central', warehouse: 'West Zone Hub', remarks: '',
     items: [
       { productCode: 'PRD-002', productName: 'Paracetamol 650mg', packType: '15x10 Tablets', ptr: 45, quantity: 100, scheme: 'No Scheme', amount: 4500 }
@@ -68,7 +71,7 @@ const initialOrders: Order[] = [
   },
   {
     id: '3', orderNo: 'ORD-2026-1003', distributorName: 'Global Health Supply', distributorCode: 'DIST-002',
-    date: '10-Oct-2026', expectedDeliveryDate: '14-Oct-2026', status: 'Approved',
+    date: '10-10-2026', expectedDeliveryDate: '14-10-2026', status: 'Approved',
     deliveryLocation: 'Delhi North', warehouse: 'North Zone Hub', remarks: '',
     items: [
       { productCode: 'PRD-005', productName: 'Ibuprofen 400mg', packType: '10x10 Tablets', ptr: 75, quantity: 200, scheme: 'No Scheme', amount: 15000 }
@@ -76,7 +79,7 @@ const initialOrders: Order[] = [
   },
   {
     id: '4', orderNo: 'ORD-2026-1004', distributorName: 'Carewell Agencies', distributorCode: 'DIST-003',
-    date: '05-Oct-2026', expectedDeliveryDate: '08-Oct-2026', status: 'Fulfilled',
+    date: '05-10-2026', expectedDeliveryDate: '08-10-2026', status: 'Fulfilled',
     deliveryLocation: 'Bangalore South', warehouse: 'South Zone Hub', remarks: '',
     items: [
       { productCode: 'PRD-001', productName: 'Amoxicillin 500mg', packType: '10x10 Tablets', ptr: 110, quantity: 100, scheme: '10+1 Free', amount: 11000 }
@@ -86,10 +89,42 @@ const initialOrders: Order[] = [
 
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const getDDMMYYYY = (date: Date) => {
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}-${m}-${y}`;
+};
+
+const formatDateForInput = (ddmmyyyy: string) => {
+  if (!ddmmyyyy || ddmmyyyy === 'Pending') return '';
+  const parts = ddmmyyyy.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return '';
+};
+
+const formatDateForDisplay = (yyyymmdd: string) => {
+  if (!yyyymmdd) return 'Pending';
+  const parts = yyyymmdd.split('-');
+  if (parts.length === 3) {
+    return `${parts[2]}-${parts[1]}-${parts[0]}`;
+  }
+  return 'Pending';
+};
+
+const isBeforeToday = (dateString: string) => {
+  if (!dateString) return false;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const selectedDate = new Date(dateString);
+  return selectedDate < today;
+};
+
 export default function Orders() {
   const loggedInDistributor = { name: 'Metro Pharma Distributors', code: 'DIST-001' };
 
-  // Sync state initialization with localStorage to keep data after refresh
   const [orders, setOrders] = useState<Order[]>(() => {
     const savedOrders = localStorage.getItem("pharma_erp_orders");
     return savedOrders ? JSON.parse(savedOrders) : initialOrders;
@@ -100,55 +135,114 @@ export default function Orders() {
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const productSearchRef = useRef<HTMLInputElement>(null);
 
-  // Modals/Drawers
   const [viewOrder, setViewOrder] = useState<Order | null>(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [deleteOrder, setDeleteOrder] = useState<Order | null>(null);
 
-  // Create/Edit Form State
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
   const [newOrderItems, setNewOrderItems] = useState<OrderItem[]>([]);
   const [deliveryLocation, setDeliveryLocation] = useState('');
-  const [expectedDate, setExpectedDate] = useState('');
+  const [expectedDate, setExpectedDate] = useState(''); 
   const [remarks, setRemarks] = useState('');
   
   const [productSearch, setProductSearch] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
-  const [orderQuantity, setOrderQuantity] = useState(1);
+  const [orderQuantity, setOrderQuantity] = useState<number | string>(1);
 
-  // --- Live Dynamic Products Loading ---
   const [products, setProducts] = useState<Product[]>([]);
+
+  // Validation States
+  const [deliveryDateError, setDeliveryDateError] = useState('');
+  const [addressError, setAddressError] = useState('');
+  const [remarksError, setRemarksError] = useState('');
+  const [productError, setProductError] = useState('');
+  const [quantityError, setQuantityError] = useState('');
+
+  const resetForm = () => {
+    setIsCreateOpen(false);
+    setEditingOrderId(null);
+    setNewOrderItems([]);
+    setDeliveryLocation('');
+    setExpectedDate('');
+    setRemarks('');
+    setSelectedProduct(null);
+    setProductSearch('');
+    setDeliveryDateError('');
+    setAddressError('');
+    setRemarksError('');
+    setProductError('');
+    setQuantityError('');
+  };
+
+  // Close modal on Escape
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isCreateOpen) {
+        resetForm();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isCreateOpen]);
 
   useEffect(() => {
     const sharedData = localStorage.getItem("pharma_erp_products");
     if (sharedData) {
       try {
         const parsedProducts = JSON.parse(sharedData);
-        const mappedProducts = parsedProducts.map((p: any) => ({
-          productCode: p.code || p.productCode,
-          productName: p.name || p.productName,
-          packType: p.packingType || p.packType || "Standard Pack",
-          mrp: Number(p.mrp) || 0,
-          ptr: Number(p.ptr) || 0,
-          availableStock: Number(p.totalUnits) || 1000, 
-          schemeAvailable: p.scheme && p.scheme !== "No Scheme" ? p.scheme : "No Scheme"
-        }));
+        const mappedProducts = parsedProducts.map((p: any) => {
+          const productCode = p.code || p.productCode;
+          const inventoryRecords = inventoryService.getByProduct(productCode);
+          const actualStock = inventoryRecords.reduce((sum, record) => sum + (record.availableQty || 0), 0);
+
+          return {
+            productCode: productCode,
+            productName: p.name || p.productName,
+            manufacturer: p.manufacturer || p.company || 'Unknown',
+            composition: p.composition || p.ingredients || '',
+            packType: p.packingType || p.packType || "Standard Pack",
+            mrp: Number(p.mrp) || 0,
+            ptr: Number(p.ptr) || 0,
+            availableStock: actualStock,
+            schemeAvailable: p.scheme && p.scheme !== "No Scheme" ? p.scheme : "No Scheme"
+          };
+        });
         setProducts(mappedProducts);
       } catch (e) {
         console.error("Failed to sync shared product catalog master", e);
       }
     } else {
-      setProducts([
-        { productCode: 'PRD-001', productName: 'Amoxicillin 500mg', packType: '10x10 Tablets', mrp: 150.00, ptr: 110.00, availableStock: 5000, schemeAvailable: '10+1 Free' },
-        { productCode: 'PRD-002', productName: 'Paracetamol 650mg', packType: '15x10 Tablets', mrp: 60.00, ptr: 45.00, availableStock: 250, schemeAvailable: 'No Scheme' },
-        { productCode: 'PRD-003', productName: 'Vitamin C 1000mg', packType: '20 Tablets Tube', mrp: 250.00, ptr: 180.00, availableStock: 1200, schemeAvailable: '5% Off' },
-        { productCode: 'PRD-005', productName: 'Ibuprofen 400mg', packType: '10x10 Tablets', mrp: 95.00, ptr: 75.00, availableStock: 800, schemeAvailable: 'No Scheme' },
-      ]);
+      const defaultProducts = [
+        { productCode: 'PRD-001', productName: 'Amoxicillin 500mg', manufacturer: 'PharmaCorp', composition: 'Amoxicillin', packType: '10x10 Tablets', mrp: 150.00, ptr: 110.00, availableStock: 0, schemeAvailable: '10+1 Free' },
+        { productCode: 'PRD-002', productName: 'Paracetamol 650mg', manufacturer: 'HealthPlus', composition: 'Paracetamol', packType: '15x10 Tablets', mrp: 60.00, ptr: 45.00, availableStock: 0, schemeAvailable: 'No Scheme' },
+        { productCode: 'PRD-003', productName: 'Vitamin C 1000mg', manufacturer: 'VitaLife', composition: 'Ascorbic Acid', packType: '20 Tablets Tube', mrp: 250.00, ptr: 180.00, availableStock: 0, schemeAvailable: '5% Off' },
+        { productCode: 'PRD-005', productName: 'Ibuprofen 400mg', manufacturer: 'MediCare', composition: 'Ibuprofen', packType: '10x10 Tablets', mrp: 95.00, ptr: 75.00, availableStock: 0, schemeAvailable: 'No Scheme' },
+      ];
+      
+      setProducts(defaultProducts.map(p => {
+        const inventoryRecords = inventoryService.getByProduct(p.productCode);
+        const actualStock = inventoryRecords.reduce((sum, record) => sum + (record.availableQty || 0), 0);
+        return { ...p, availableStock: actualStock };
+      }));
     }
   }, [isCreateOpen]);
 
-  // --- Pipeline Sync to update Outstanding System Data ---
+  // Helper function to calculate invoice aging
+const calculateAgingDays = (invoiceDate: string) => {
+  const [day, month, year] = invoiceDate.split("-").map(Number);
+  const invoice = new Date(year, month - 1, day);
+  const today = new Date();
+
+  invoice.setHours(0, 0, 0, 0);
+  today.setHours(0, 0, 0, 0);
+
+  const diff = today.getTime() - invoice.getTime();
+
+  return Math.max(0, Math.floor(diff / (1000 * 60 * 60 * 24)));
+};
+
   const syncWithOutstandingLedger = (allOrders: Order[]) => {
     const savedDistributorsRaw = localStorage.getItem('pharma_erp_distributors');
     if (!savedDistributorsRaw) return;
@@ -177,7 +271,7 @@ export default function Orders() {
             date: ord.date,
             amount: netTotal,
             dueDate: ord.expectedDeliveryDate && ord.expectedDeliveryDate !== 'Pending' ? ord.expectedDeliveryDate : ord.date,
-            agingDays: Math.floor(Math.random() * 12) + 1,
+            agingDays: calculateAgingDays(ord.date),
             status: (ord.status === 'Fulfilled' ? 'Paid' : 'Unpaid') as 'Paid' | 'Unpaid'
           };
         });
@@ -229,7 +323,6 @@ export default function Orders() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // --- Visibility & Filtering ---
   const visibleOrders = useMemo(() => {
     const base = orders.filter(o => o.distributorCode === loggedInDistributor.code);
     return base.filter(item => {
@@ -238,15 +331,6 @@ export default function Orders() {
       return matchSearch && matchStatus;
     });
   }, [orders, search, statusFilter, loggedInDistributor.code]);
-
-  // --- Export Logic ---
-  const getFormattedDate = () => {
-    const d = new Date();
-    const yyyy = d.getFullYear();
-    const mm = String(d.getMonth() + 1).padStart(2, '0');
-    const dd = String(d.getDate()).padStart(2, '0');
-    return `${yyyy}${mm}${dd}`;
-  };
 
   const handleExportExcel = () => {
     const exportData = visibleOrders.map(row => ({
@@ -260,7 +344,7 @@ export default function Orders() {
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Orders');
-    XLSX.writeFile(workbook, `orders_${getFormattedDate()}.xlsx`);
+    XLSX.writeFile(workbook, `orders_${getDDMMYYYY(new Date()).replace(/-/g, '')}.xlsx`);
     setShowExportMenu(false);
   };
 
@@ -280,7 +364,7 @@ export default function Orders() {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `orders_${getFormattedDate()}.csv`;
+    link.download = `orders_${getDDMMYYYY(new Date()).replace(/-/g, '')}.csv`;
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -293,7 +377,7 @@ export default function Orders() {
     doc.setFontSize(16);
     doc.text('Orders Export', 14, 15);
     doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 22);
+    doc.text(`Generated on: ${getDDMMYYYY(new Date())}`, 14, 22);
 
     autoTable(doc, {
       startY: 30,
@@ -309,7 +393,7 @@ export default function Orders() {
       theme: 'grid',
       headStyles: { fillColor: [139, 92, 246] }
     });
-    doc.save(`orders_${getFormattedDate()}.pdf`);
+    doc.save(`orders_${getDDMMYYYY(new Date()).replace(/-/g, '')}.pdf`);
     setShowExportMenu(false);
   };
 
@@ -317,7 +401,7 @@ export default function Orders() {
     setEditingOrderId(order.id);
     setNewOrderItems(order.items);
     setDeliveryLocation(order.deliveryLocation);
-    setExpectedDate(order.expectedDeliveryDate);
+    setExpectedDate(formatDateForInput(order.expectedDeliveryDate));
     setRemarks(order.remarks);
     setIsCreateOpen(true);
   };
@@ -338,12 +422,117 @@ export default function Orders() {
 
   const handleRemoveProduct = (index: number) => {
     setNewOrderItems(newOrderItems.filter((_, i) => i !== index));
+    if (newOrderItems.length === 1) {
+      setProductError('');
+    }
+  };
+
+  const handleAddProduct = () => {
+    if (!selectedProduct) {
+      if (productSearch) {
+        setProductError('Please select a product from the search results.');
+      }
+      return;
+    }
+    
+    const qtyNum = typeof orderQuantity === 'string' ? parseInt(orderQuantity, 10) : orderQuantity;
+    
+    if (!qtyNum || isNaN(qtyNum) || qtyNum <= 0) {
+      setQuantityError('Quantity must be greater than zero.');
+      return;
+    }
+    
+    if (qtyNum > selectedProduct.availableStock) {
+      setQuantityError(`Quantity cannot exceed available stock (${selectedProduct.availableStock}).`);
+      return;
+    }
+    
+    setQuantityError('');
+    setProductError('');
+
+    const amount = selectedProduct.ptr * qtyNum;
+    const existingIndex = newOrderItems.findIndex(i => i.productCode === selectedProduct.productCode);
+
+    if (existingIndex >= 0) {
+      const updatedItems = [...newOrderItems];
+      const newQty = updatedItems[existingIndex].quantity + qtyNum;
+      updatedItems[existingIndex] = {
+        ...updatedItems[existingIndex],
+        quantity: newQty,
+        amount: newQty * selectedProduct.ptr
+      };
+      setNewOrderItems(updatedItems);
+    } else {
+      setNewOrderItems([...newOrderItems, {
+        productCode: selectedProduct.productCode,
+        productName: selectedProduct.productName,
+        packType: selectedProduct.packType,
+        ptr: selectedProduct.ptr,
+        scheme: selectedProduct.schemeAvailable,
+        quantity: qtyNum,
+        amount: amount
+      }]);
+    }
+    
+    setSelectedProduct(null);
+    setProductSearch('');
+    setOrderQuantity(1);
+    
+    setTimeout(() => {
+      productSearchRef.current?.focus();
+    }, 0);
+  };
+
+  const validateForm = () => {
+    let isValid = true;
+    
+    if (!expectedDate) {
+      setDeliveryDateError('Expected Delivery Date is required.');
+      isValid = false;
+    } else if (isBeforeToday(expectedDate)) {
+      setDeliveryDateError('Expected Delivery Date cannot be in the past.');
+      isValid = false;
+    } else {
+      setDeliveryDateError('');
+    }
+
+    const trimmedAddress = deliveryLocation.trim();
+    if (!trimmedAddress) {
+      setAddressError('Delivery Address is required.');
+      isValid = false;
+    } else if (trimmedAddress.length < 3) {
+      setAddressError('Delivery Address must be at least 3 characters.');
+      isValid = false;
+    } else if (trimmedAddress.length > 200) {
+      setAddressError('Delivery Address cannot exceed 200 characters.');
+      isValid = false;
+    } else {
+      setAddressError('');
+    }
+
+    const trimmedRemarks = remarks.trim();
+    if (trimmedRemarks.length > 250) {
+      setRemarksError('Remarks cannot exceed 250 characters.');
+      isValid = false;
+    } else {
+      setRemarksError('');
+    }
+
+    if (newOrderItems.length === 0) {
+      setProductError('At least one product must be added to the order.');
+      isValid = false;
+    } else {
+      setProductError('');
+    }
+
+    return isValid;
   };
 
   const handleSaveOrder = (status: OrderStatus) => {
+    if (!validateForm()) return;
+    
     let updatedOrders: Order[] = [];
     
-    // Dynamically retrieve real distributor parameters from the registration database
     const savedDistributorsRaw = localStorage.getItem('pharma_erp_distributors');
     let dynamicDistName = loggedInDistributor.name;
     let dynamicDistCode = loggedInDistributor.code;
@@ -360,28 +549,34 @@ export default function Orders() {
       }
     }
     
+    const finalAddress = deliveryLocation.trim();
+    const finalRemarks = remarks.trim();
+
     if (editingOrderId) {
       updatedOrders = orders.map(o => o.id === editingOrderId ? {
         ...o,
         status,
-        expectedDeliveryDate: expectedDate || o.expectedDeliveryDate,
-        deliveryLocation,
+        expectedDeliveryDate: formatDateForDisplay(expectedDate) || o.expectedDeliveryDate,
+        deliveryLocation: finalAddress,
         warehouse: o.warehouse || '',
-        remarks,
+        remarks: finalRemarks,
         items: newOrderItems
       } : o);
     } else {
+      const timestamp = Date.now().toString();
+      const uniqueOrderNo = `ORD-${new Date().getFullYear()}-${timestamp.slice(-6)}`;
+      
       const newOrder: Order = {
-        id: Math.random().toString(36).substring(7),
-        orderNo: `ORD-2026-${Math.floor(1000 + Math.random() * 9000)}`,
+        id: timestamp,
+        orderNo: uniqueOrderNo,
         distributorName: dynamicDistName,
         distributorCode: dynamicDistCode,
-        date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
-        expectedDeliveryDate: expectedDate || 'Pending',
+        date: getDDMMYYYY(new Date()),
+        expectedDeliveryDate: formatDateForDisplay(expectedDate) || 'Pending',
         status: status,
-        deliveryLocation,
+        deliveryLocation: finalAddress,
         warehouse: '',
-        remarks,
+        remarks: finalRemarks,
         items: newOrderItems
       };
       updatedOrders = [newOrder, ...orders];
@@ -393,13 +588,7 @@ export default function Orders() {
     
     setStatusFilter('');
     setSearch('');
-    
-    setIsCreateOpen(false);
-    setNewOrderItems([]);
-    setDeliveryLocation('');
-    setExpectedDate('');
-    setRemarks('');
-    setEditingOrderId(null);
+    resetForm();
   };
 
   const calcSummary = (items: OrderItem[]) => {
@@ -418,8 +607,10 @@ export default function Orders() {
 
   const filteredProducts = products.filter(p => 
     p.productName.toLowerCase().includes(productSearch.toLowerCase()) || 
-    p.productCode.toLowerCase().includes(productSearch.toLowerCase())
-  );
+    p.productCode.toLowerCase().includes(productSearch.toLowerCase()) ||
+    p.manufacturer.toLowerCase().includes(productSearch.toLowerCase()) ||
+    p.composition.toLowerCase().includes(productSearch.toLowerCase())
+  ).sort((a, b) => a.productName.localeCompare(b.productName));
 
   const columns: Column<Order>[] = [
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-slate-900">{row.orderNo}</span> },
@@ -437,7 +628,7 @@ export default function Orders() {
       render: (row) => {
         let variant: BadgeVariant = 'neutral';
         if (['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled'].includes(row.status)) variant = 'success';
-        if (row.status === 'Submitted') variant = 'info';
+        if (row.status === 'Pending') variant = 'info';
         if (row.status === 'Draft') variant = 'warning';
         if (['Rejected', 'Cancelled'].includes(row.status)) variant = 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
@@ -456,7 +647,6 @@ export default function Orders() {
             onClick={() => row.status === 'Draft' ? handleEditOrder(row) : null}
             className={`p-1 transition-colors ${row.status === 'Draft' ? 'text-slate-400 hover:text-blue-600' : 'text-slate-200 cursor-not-allowed'}`} 
             title="Edit"
-            
           >
             <Edit className="w-4 h-4" />
           </button>
@@ -465,7 +655,6 @@ export default function Orders() {
             onClick={() => row.status === 'Draft' ? setDeleteOrder(row) : null} 
             className={`p-1 transition-colors ${row.status === 'Draft' ? 'text-slate-400 hover:text-red-600' : 'text-slate-200 cursor-not-allowed'}`} 
             title="Delete"
-            
           >
             <Trash2 className="w-4 h-4" />
           </button>
@@ -507,15 +696,8 @@ export default function Orders() {
               )}
             </div>
 
-            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => {
-              setEditingOrderId(null);
-              setNewOrderItems([]);
-              setDeliveryLocation('');
-              setExpectedDate('');
-              setRemarks('');
-              setIsCreateOpen(true);
-            }}>
-              Create Order manually
+            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateOpen(true)}>
+              Create Order
             </ActionButton>
           </div>
         }
@@ -533,7 +715,7 @@ export default function Orders() {
           onChange={setStatusFilter}
           options={[
             { label: 'Draft', value: 'Draft' },
-            { label: 'Submitted', value: 'Submitted' },
+            { label: 'Pending', value: 'Pending' },
             { label: 'Approved', value: 'Approved' },
             { label: 'Processing', value: 'Processing' },
             { label: 'Partially Fulfilled', value: 'Partially Fulfilled' },
@@ -565,7 +747,7 @@ export default function Orders() {
                 <DrawerField label="Order Date" value={viewOrder.date} />
                 <DrawerField label="Expected Delivery" value={viewOrder.expectedDeliveryDate} />
                 <DrawerField label="Status" value={
-                  <Badge variant={['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled'].includes(viewOrder.status) ? 'success' : viewOrder.status === 'Submitted' ? 'info' : viewOrder.status === 'Draft' ? 'warning' : 'danger'}>
+                  <Badge variant={['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled'].includes(viewOrder.status) ? 'success' : viewOrder.status === 'Pending' ? 'info' : viewOrder.status === 'Draft' ? 'warning' : 'danger'}>
                     {viewOrder.status}
                   </Badge>
                 } />
@@ -633,7 +815,7 @@ export default function Orders() {
                     setViewOrder(null);
                     handleEditOrder(viewOrder);
                   }}>Edit Order</ActionButton>
-                  <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Submitted')}>Submit Order</ActionButton>
+                  <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Pending')}>Submit Order</ActionButton>
                 </>
               ) : (
                 <ActionButton variant="secondary" onClick={() => setViewOrder(null)}>Close</ActionButton>
@@ -645,15 +827,15 @@ export default function Orders() {
 
       {/* --- Create Order Modal --- */}
       {isCreateOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={resetForm}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]" onClick={e => e.stopPropagation()}>
             
             <div className="flex items-center justify-between mb-6">
               <h2 className="text-xl font-bold text-slate-900">
-                {editingOrderId ? 'Edit Order' : 'Create Order Manually'}
+                {editingOrderId ? 'Edit Order' : 'Create Order'}
               </h2>
               <button
-                onClick={() => { setIsCreateOpen(false); setEditingOrderId(null); }}
+                onClick={resetForm}
                 className="text-slate-500 hover:text-slate-800"
               >
                 ✕
@@ -670,19 +852,48 @@ export default function Orders() {
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Order Date</label>
-                <input type="text" value={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                <input type="text" value={getDDMMYYYY(new Date())} disabled className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Expected Delivery Date *</label>
-                <input type="date" value={expectedDate} onChange={e => setExpectedDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400" />
+                <input 
+                  type="date" 
+                  value={expectedDate} 
+                  onChange={e => {
+                    setExpectedDate(e.target.value);
+                    if (deliveryDateError) setDeliveryDateError('');
+                  }} 
+                  className={`w-full border ${deliveryDateError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-violet-400'} rounded-lg px-3 py-2 focus:outline-none`} 
+                />
+                {deliveryDateError && <p className="text-red-500 text-xs mt-1">{deliveryDateError}</p>}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Delivery Address *</label>
-                <input type="text" value={deliveryLocation} onChange={e => setDeliveryLocation(e.target.value)} placeholder="Enter delivery address" className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400" />
+                <input 
+                  type="text" 
+                  value={deliveryLocation} 
+                  onChange={e => {
+                    setDeliveryLocation(e.target.value);
+                    if (addressError) setAddressError('');
+                  }} 
+                  placeholder="Enter delivery address" 
+                  className={`w-full border ${addressError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-violet-400'} rounded-lg px-3 py-2 focus:outline-none`} 
+                />
+                {addressError && <p className="text-red-500 text-xs mt-1">{addressError}</p>}
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Remarks</label>
-                <input type="text" value={remarks} onChange={e => setRemarks(e.target.value)} placeholder="Optional delivery instructions" className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-violet-400" />
+                <input 
+                  type="text" 
+                  value={remarks} 
+                  onChange={e => {
+                    setRemarks(e.target.value);
+                    if (remarksError) setRemarksError('');
+                  }} 
+                  placeholder="Optional delivery instructions" 
+                  className={`w-full border ${remarksError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-violet-400'} rounded-lg px-3 py-2 focus:outline-none`} 
+                />
+                {remarksError && <p className="text-red-500 text-xs mt-1">{remarksError}</p>}
               </div>
 
               <div className="md:col-span-2 mt-4 relative">
@@ -693,22 +904,51 @@ export default function Orders() {
                     <Search className="h-4 w-4 text-slate-400" />
                   </div>
                   <input
+                    ref={productSearchRef}
                     type="text"
                     value={productSearch}
-                    onChange={(e) => { setProductSearch(e.target.value); setSelectedProduct(null); }}
-                    placeholder="Search products by name or code..."
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (!selectedProduct && productSearch) {
+                          setProductError('Please select a product from the search results.');
+                        } else if (selectedProduct) {
+                          handleAddProduct();
+                        }
+                      }
+                    }}
+                    onChange={(e) => { 
+                      setProductSearch(e.target.value); 
+                      setSelectedProduct(null); 
+                      if (productError) setProductError('');
+                    }}
+                    placeholder="Search products by name, code, manufacturer, or composition..."
                     className="w-full border border-slate-200 rounded-lg pl-10 pr-3 py-2 focus:outline-none focus:border-violet-400"
                   />
                   {productSearch && !selectedProduct && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setProductSearch('')} />
-                      <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                      <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-80 flex flex-col overflow-y-auto">
                         {filteredProducts.map(p => (
-                          <div key={p.productCode} onClick={() => { setSelectedProduct(p); setProductSearch(''); }} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded flex justify-between">
-                            <span>{p.productName} ({p.productCode})</span>
-                            <span className="text-xs text-slate-400">PTR: {formatCurrency(p.ptr)}</span>
+                          <div key={p.productCode} onClick={() => { setSelectedProduct(p); setProductSearch(''); setProductError(''); }} className="px-4 py-3 text-sm hover:bg-slate-50 cursor-pointer border-b last:border-0 flex flex-col">
+                            <div className="flex justify-between font-medium text-slate-900">
+                              <span>{p.productName} ({p.productCode})</span>
+                              <span>{formatCurrency(p.ptr)}</span>
+                            </div>
+                            <div className="flex justify-between text-xs text-slate-500 mt-1">
+                              <span>{p.manufacturer} • {p.packType}</span>
+                              <span>Stock: {p.availableStock}</span>
+                            </div>
+                            {p.schemeAvailable !== 'No Scheme' && (
+                              <div className="text-xs text-emerald-600 mt-1 font-medium">{p.schemeAvailable}</div>
+                            )}
                           </div>
                         ))}
+                        {filteredProducts.length === 0 && (
+                          <div className="px-4 py-3 text-sm text-slate-500 text-center">
+                            No products found matching your search.
+                          </div>
+                        )}
                       </div>
                     </>
                   )}
@@ -718,49 +958,57 @@ export default function Orders() {
 
             {/* --- Product Adder Sub-Form Layout --- */}
             {selectedProduct && (
-              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 grid grid-cols-1 md:grid-cols-3 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
-                <div className="md:col-span-3 font-semibold text-slate-900">{selectedProduct.productName} ({selectedProduct.productCode})</div>
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 mb-6 grid grid-cols-1 md:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-200">
+                <div className="md:col-span-4 font-semibold text-slate-900 border-b border-slate-200 pb-2 mb-2">
+                  {selectedProduct.productName} ({selectedProduct.productCode})
+                  <div className="text-xs font-normal text-slate-500 mt-1">{selectedProduct.manufacturer} | {selectedProduct.packType}</div>
+                </div>
+                
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">PTR Rate</label>
-                  <div className="font-medium">{formatCurrency(selectedProduct.ptr)}</div>
+                  <div className="font-medium text-slate-900">{formatCurrency(selectedProduct.ptr)}</div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">Available Stock</label>
-                  <div className="font-medium text-slate-700">{selectedProduct.availableStock} Units</div>
+                  <div className="font-medium text-slate-900">{selectedProduct.availableStock} Units</div>
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">Active Scheme</label>
                   <div className="font-medium text-emerald-600">{selectedProduct.schemeAvailable}</div>
                 </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Line Amount</label>
+                  <div className="font-medium text-violet-600">
+                    {formatCurrency(selectedProduct.ptr * (typeof orderQuantity === 'number' ? orderQuantity : 1))}
+                  </div>
+                </div>
+
                 <div className="md:col-span-2">
-                  <label className="block text-xs font-medium text-slate-500 mb-1">Order Quantity</label>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Order Quantity *</label>
                   <input 
                     type="number" 
                     min="1" 
-                    value={orderQuantity} 
-                    onChange={e => setOrderQuantity(Math.max(1, parseInt(e.target.value) || 1))} 
-                    className="w-full border border-slate-200 rounded-lg px-3 py-1.5 bg-white" 
-                  />
-                </div>
-                <div className="flex items-end">
-                  <ActionButton 
-                    onClick={() => {
-                      const amount = selectedProduct.ptr * orderQuantity;
-                      setNewOrderItems([...newOrderItems, {
-                        productCode: selectedProduct.productCode,
-                        productName: selectedProduct.productName,
-                        packType: selectedProduct.packType,
-                        ptr: selectedProduct.ptr,
-                        scheme: selectedProduct.schemeAvailable,
-                        quantity: orderQuantity,
-                        amount: amount
-                      }]);
-                      setSelectedProduct(null);
-                      setOrderQuantity(1);
+                    value={orderQuantity}
+                    onKeyDown={(e) => {
+                      if (['-', '+', '.', 'e', 'E'].includes(e.key)) {
+                        e.preventDefault();
+                      }
                     }}
-                    className="w-full justify-center"
+                    onChange={e => {
+                      const val = e.target.value.replace(/[^0-9]/g, '');
+                      setOrderQuantity(val ? parseInt(val, 10) : '');
+                      if (quantityError) setQuantityError('');
+                    }} 
+                    className={`w-full border ${quantityError ? 'border-red-400 focus:border-red-500' : 'border-slate-300 focus:border-violet-500'} rounded-lg px-3 py-2 bg-white focus:outline-none`} 
+                  />
+                  {quantityError && <p className="text-red-500 text-xs mt-1">{quantityError}</p>}
+                </div>
+                <div className="md:col-span-2 flex items-end">
+                  <ActionButton 
+                    onClick={handleAddProduct}
+                    className="w-full justify-center py-2"
                   >
-                    Add Product Line
+                    Add Product to Order
                   </ActionButton>
                 </div>
               </div>
@@ -795,6 +1043,8 @@ export default function Orders() {
                 </table>
               </div>
             )}
+            
+            {productError && <p className="text-red-500 text-sm font-medium mb-4 text-center">{productError}</p>}
 
             {/* Summary calculations footer section */}
             <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex flex-col gap-2 mb-6">
@@ -817,13 +1067,13 @@ export default function Orders() {
             </div>
 
             <div className="flex justify-end gap-3">
-              <ActionButton variant="secondary" onClick={() => { setIsCreateOpen(false); setEditingOrderId(null); }}>
+              <ActionButton variant="secondary" onClick={resetForm}>
                 Cancel
               </ActionButton>
               <ActionButton variant="secondary" onClick={() => handleSaveOrder('Draft')} >
                 Save Draft
               </ActionButton>
-              <ActionButton onClick={() => handleSaveOrder('Submitted')} >
+              <ActionButton onClick={() => handleSaveOrder('Pending')} >
                 Submit Order
               </ActionButton>
             </div>

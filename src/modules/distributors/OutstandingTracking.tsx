@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
-import { Download, Eye, DollarSign, Filter, ChevronDown, FileText } from 'lucide-react';
+import { Download, Eye,  Filter, ChevronDown, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -38,45 +38,90 @@ interface OutstandingRecord {
   status: 'Clear' | 'Overdue';
   lastPaymentDate: string;
   invoices: Invoice[];
+  paymentType?: string;
+  creditDays?: number;
+  paymentTerms?: string;
 }
-
-const initialOutstandingRecords: OutstandingRecord[] = [
-  {
-    id: '1',
-    distributorName: 'Metro Pharma Distributors',
-    distributorCode: 'DIST-001',
-    contactPerson: 'Rajesh Sharma',
-    mobile: '+91 98765 43210',
-    gstin: '27AAAAA1111A1Z1',
-    creditLimit: 500000,
-    usedCredit: 33192,
-    availableCredit: 466808,
-    totalOutstanding: 33192,
-    overdueAmount: 8000,
-    maxAging: 37,
-    status: 'Clear',
-    lastPaymentDate: '12-Oct-2026',
-    invoices: [
-      { invoiceNo: 'INV-2026-1001', date: '15-Oct-2026', amount: 10192, paidAmount: 0, dueDate: '18-Oct-2026', agingDays: 9, status: 'Unpaid' },
-      { invoiceNo: 'INV-2026-1002', date: '16-Oct-2026', amount: 5040, paidAmount: 5040, dueDate: '19-Oct-2026', agingDays: 8, status: 'Paid' },
-      { invoiceNo: 'INV-2026-1003', date: '01-Oct-2026', amount: 20000, paidAmount: 5000, dueDate: '05-Oct-2026', agingDays: 22, status: 'Partially Paid' },
-      { invoiceNo: 'INV-2026-1004', date: '15-Sep-2026', amount: 8000, paidAmount: 0, dueDate: '20-Sep-2026', agingDays: 37, status: 'Overdue' }
-    ]
-  }
-];
 
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
-export default function OutstandingTracking() {
-  const loggedInDistributorCode = 'DIST-001';
+const getDDMMYYYY = (date: Date) => {
+  if (isNaN(date.getTime())) return '-';
+  const d = String(date.getDate()).padStart(2, '0');
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const y = date.getFullYear();
+  return `${d}-${m}-${y}`;
+};
 
-  const [records, setRecords] = useState<OutstandingRecord[]>(() => {
-    const trackingData = localStorage.getItem('pharma_erp_outstanding_records');
-    return trackingData ? JSON.parse(trackingData) : initialOutstandingRecords;
-  });
+const parseDateString = (dateStr: string) => {
+  if (!dateStr || dateStr === '-') return new Date(NaN);
+  if (dateStr.includes('-')) {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) { // DD-MM-YYYY
+        return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+      } else if (parts[0].length === 4) { // YYYY-MM-DD
+        return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      }
+    }
+  }
+  return new Date(dateStr);
+};
+
+const calculateAging = (dateStr: string) => {
+  const invoiceDate = parseDateString(dateStr);
+  if (isNaN(invoiceDate.getTime())) return 0;
+  const diffTime = new Date().getTime() - invoiceDate.getTime();
+  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+  return Math.max(0, diffDays);
+};
+
+const getOutstandingAmount = (inv: Invoice) => {
+  const paid = inv.paidAmount || 0;
+  return Math.max(0, inv.amount - paid);
+};
+
+const getPaidAmount = (inv: Invoice) => {
+  return inv.paidAmount || 0;
+};
+
+const getInvoiceStatus = (inv: Invoice): Invoice['status'] => {
+  const outstanding = getOutstandingAmount(inv);
+  if (outstanding <= 0) return 'Paid';
+  
+  const dueDate = parseDateString(inv.dueDate);
+  if (!isNaN(dueDate.getTime())) {
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    dueDate.setHours(0, 0, 0, 0);
+    if (now > dueDate) {
+      return 'Overdue';
+    }
+  }
+  
+  if ((inv.paidAmount || 0) > 0) return 'Partially Paid';
+  
+  return 'Unpaid';
+};
+
+export default function OutstandingTracking() {
+  const loggedInDistributorCode = useMemo(() => {
+    const raw = localStorage.getItem('pharma_erp_distributors');
+    if (raw) {
+      try {
+        const parsed = JSON.parse(raw);
+        if (parsed.length > 0) return parsed[0].code || parsed[0].distributorCode || parsed[0].id;
+      } catch (e) {}
+    }
+    return 'DIST-001';
+  }, []);
+
+  const [records, setRecords] = useState<OutstandingRecord[]>([]);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [dateRange, setDateRange] = useState('');
+  const [agingFilter, setAgingFilter] = useState('');
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
@@ -87,8 +132,6 @@ export default function OutstandingTracking() {
     const trackingData = localStorage.getItem('pharma_erp_outstanding_records');
     if (trackingData) {
       setRecords(JSON.parse(trackingData));
-    } else {
-      localStorage.setItem('pharma_erp_outstanding_records', JSON.stringify(initialOutstandingRecords));
     }
   }, []);
 
@@ -104,23 +147,78 @@ export default function OutstandingTracking() {
 
   // --- Identify My Record ---
   const myRecord = useMemo(() => {
-    return records.find(r => r.distributorCode === loggedInDistributorCode) || {
-      creditLimit: 0,
-      availableCredit: 0,
-      totalOutstanding: 0,
-      overdueAmount: 0,
-      invoices: []
-    } as unknown as OutstandingRecord;
-  }, [records]);
+    let rec = records.find(r => r.distributorCode === loggedInDistributorCode);
+    
+    if (!rec) {
+      return {
+        distributorName: 'Unknown Distributor',
+        creditLimit: 0,
+        availableCredit: 0,
+        usedCredit: 0,
+        totalOutstanding: 0,
+        overdueAmount: 0,
+        invoices: [],
+        lastPaymentDate: '-',
+        paymentType: 'Credit',
+        creditDays: 30,
+        paymentTerms: 'Standard'
+      } as unknown as OutstandingRecord;
+    }
+
+    const invoices: Invoice[] = (rec.invoices || []).map(inv => {
+      const status = getInvoiceStatus(inv);
+      const agingDays = (status === 'Paid') ? 0 : calculateAging(inv.date);
+      
+      const fmtDate = getDDMMYYYY(parseDateString(inv.date));
+      const fmtDueDate = getDDMMYYYY(parseDateString(inv.dueDate));
+      
+      return {
+        ...inv,
+        date: fmtDate,
+        dueDate: fmtDueDate,
+        agingDays,
+        status
+      };
+    });
+
+    const totalOutstanding = invoices.reduce((sum, inv) => sum + getOutstandingAmount(inv), 0);
+    const overdueAmount = invoices.filter(inv => inv.status === 'Overdue').reduce((sum, inv) => sum + getOutstandingAmount(inv), 0);
+    const usedCredit = totalOutstanding;
+    const availableCredit = Math.max(0, rec.creditLimit - usedCredit);
+    const lastPaymentDate = rec.lastPaymentDate && rec.lastPaymentDate !== '-' ? getDDMMYYYY(parseDateString(rec.lastPaymentDate)) : '-';
+
+    return {
+      ...rec,
+      lastPaymentDate,
+      invoices,
+      totalOutstanding,
+      overdueAmount,
+      usedCredit,
+      availableCredit,
+      status: totalOutstanding > rec.creditLimit ? 'Overdue' : 'Clear',
+      paymentType: rec.paymentType || 'Credit',
+      creditDays: rec.creditDays || 30,
+      paymentTerms: rec.paymentTerms || 'Standard'
+    } as OutstandingRecord;
+  }, [records, loggedInDistributorCode]);
 
   // --- Filtering ---
   const visibleInvoices = useMemo(() => {
     return myRecord.invoices.filter(inv => {
       const matchSearch = inv.invoiceNo.toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter ? inv.status === statusFilter : true;
-      return matchSearch && matchStatus;
+      const matchDate = dateRange ? inv.date === getDDMMYYYY(new Date(dateRange)) : true;
+      
+      let matchAging = true;
+      if (agingFilter) {
+        if (agingFilter === '0-30') matchAging = inv.agingDays <= 30;
+        else if (agingFilter === '31-60') matchAging = inv.agingDays > 30 && inv.agingDays <= 60;
+        else if (agingFilter === '60+') matchAging = inv.agingDays > 60;
+      }
+      
+      return matchSearch && matchStatus && matchDate && matchAging;
     });
-  }, [myRecord, search, statusFilter]);
+  }, [myRecord, search, statusFilter, dateRange, agingFilter]);
 
   // --- Export Protocols Engine ---
   const handleExportExcel = () => {
@@ -129,13 +227,15 @@ export default function OutstandingTracking() {
       'Invoice Date': inv.date,
       'Due Date': inv.dueDate,
       'Amount': inv.amount,
+      'Paid Amount': getPaidAmount(inv),
+      'Outstanding': getOutstandingAmount(inv),
       'Aging Days': inv.status === 'Paid' ? 0 : inv.agingDays,
       'Status': inv.status
     }));
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Invoices');
-    XLSX.writeFile(wb, `My_Invoices_${new Date().toISOString().slice(0,10)}.xlsx`);
+    XLSX.writeFile(wb, `My_Invoices_${getDDMMYYYY(new Date())}.xlsx`);
     setShowExportMenu(false);
   };
 
@@ -144,32 +244,48 @@ export default function OutstandingTracking() {
     doc.setFontSize(16);
     doc.text('Outstanding Balances & Invoices', 14, 15);
     doc.setFontSize(10);
-    doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 21);
+    doc.text(`Generated: ${getDDMMYYYY(new Date())}`, 14, 21);
+    doc.text(`Distributor: ${myRecord.distributorName}`, 14, 27);
 
     autoTable(doc, {
-      startY: 28,
-      head: [['Invoice No', 'Date', 'Due Date', 'Amount', 'Aging Days', 'Status']],
+      startY: 32,
+      head: [['Invoice No', 'Date', 'Due Date', 'Outstanding', 'Aging Days', 'Status']],
       body: visibleInvoices.map(inv => [
-        inv.invoiceNo, inv.date, inv.dueDate, formatCurrency(inv.amount),
+        inv.invoiceNo, inv.date, inv.dueDate, formatCurrency(getOutstandingAmount(inv)),
         inv.status === 'Paid' ? '-' : inv.agingDays, inv.status
       ]),
       theme: 'grid',
       headStyles: { fillColor: [124, 58, 237] }
     });
-    doc.save(`My_Invoices.pdf`);
+    doc.save(`My_Invoices_${getDDMMYYYY(new Date())}.pdf`);
     setShowExportMenu(false);
   };
 
-  const getOutstandingAmount = (inv: Invoice) => {
-    if (inv.status === 'Paid') return 0;
-    if (inv.paidAmount !== undefined) return inv.amount - inv.paidAmount;
-    return inv.amount; // Assume fully unpaid if no paidAmount specified and status is not Paid
-  };
-
-  const getPaidAmount = (inv: Invoice) => {
-    if (inv.status === 'Paid') return inv.amount;
-    if (inv.paidAmount !== undefined) return inv.paidAmount;
-    return 0; // Assume 0 paid if not specified
+  const handleDownloadInvoice = (inv: Invoice) => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('INVOICE', 14, 22);
+    
+    doc.setFontSize(10);
+    doc.text(`Invoice No: ${inv.invoiceNo}`, 14, 32);
+    doc.text(`Date: ${inv.date}`, 14, 38);
+    doc.text(`Due Date: ${inv.dueDate}`, 14, 44);
+    doc.text(`Status: ${inv.status}`, 14, 50);
+    
+    doc.text(`Distributor: ${myRecord.distributorName}`, 120, 32);
+    
+    autoTable(doc, {
+      startY: 60,
+      head: [['Description', 'Amount']],
+      body: [
+        ['Total Invoice Amount', formatCurrency(inv.amount)],
+        ['Paid Amount', formatCurrency(getPaidAmount(inv))],
+        ['Outstanding Amount', formatCurrency(getOutstandingAmount(inv))]
+      ],
+      theme: 'grid'
+    });
+    
+    doc.save(`${inv.invoiceNo}.pdf`);
   };
 
   // --- Grid Column Models ---
@@ -199,7 +315,7 @@ export default function OutstandingTracking() {
           <button onClick={() => setSelectedInvoice(row)} className="text-slate-400 hover:text-violet-600 p-1 transition-colors" title="View Invoice">
             <Eye className="w-4 h-4" />
           </button>
-          <button className="text-slate-400 hover:text-slate-900 transition-colors p-1" title="Download Invoice">
+          <button onClick={() => handleDownloadInvoice(row)} className="text-slate-400 hover:text-slate-900 transition-colors p-1" title="Download Invoice">
             <FileText className="w-4 h-4" />
           </button>
         </div>
@@ -241,7 +357,7 @@ export default function OutstandingTracking() {
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Total Outstanding</span>
             <span className="text-2xl font-black text-slate-900">{formatCurrency(myRecord.totalOutstanding || 0)}</span>
           </div>
-          <div className="p-3 bg-violet-50 text-violet-600 rounded-xl"><DollarSign className="w-6 h-6" /></div>
+          {/* <div className="p-3 bg-violet-50 text-violet-600 rounded-xl"><DollarSign className="w-6 h-6" /></div> */}
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">
@@ -249,7 +365,7 @@ export default function OutstandingTracking() {
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Overdue Amount</span>
             <span className={`text-2xl font-black ${(myRecord.overdueAmount || 0) > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{formatCurrency(myRecord.overdueAmount || 0)}</span>
           </div>
-          <div className="p-3 bg-rose-50 text-rose-600 rounded-xl"><DollarSign className="w-6 h-6" /></div>
+          {/* <div className="p-3 bg-rose-50 text-rose-600 rounded-xl"><DollarSign className="w-6 h-6" /></div> */}
         </div>
       </div>
 
@@ -258,7 +374,7 @@ export default function OutstandingTracking() {
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
-          <span className="text-sm font-medium text-slate-600">Status:</span>
+          <span className="text-sm font-medium text-slate-600">Filters:</span>
         </div>
         <SelectFilter
           value={statusFilter}
@@ -269,7 +385,23 @@ export default function OutstandingTracking() {
             { label: 'Unpaid', value: 'Unpaid' },
             { label: 'Overdue', value: 'Overdue' }
           ]}
-          placeholder="All Invoices"
+          placeholder="Status"
+        />
+        <SelectFilter
+          value={agingFilter}
+          onChange={setAgingFilter}
+          options={[
+            { label: '0-30 Days', value: '0-30' },
+            { label: '31-60 Days', value: '31-60' },
+            { label: '60+ Days', value: '60+' }
+          ]}
+          placeholder="Aging"
+        />
+        <input 
+          type="date" 
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none focus:ring-2 focus:ring-violet-500"
+          value={dateRange}
+          onChange={(e) => setDateRange(e.target.value)}
         />
       </FilterBar>
 
@@ -336,6 +468,10 @@ export default function OutstandingTracking() {
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Payment Information</h3>
               <div className="space-y-2 bg-slate-50 p-4 rounded-xl border border-slate-100">
+                <DrawerField label="Payment Terms" value={myRecord.paymentTerms || 'Standard'} />
+                <DrawerField label="Credit Days" value={myRecord.creditDays ? `${myRecord.creditDays} Days` : '30 Days'} />
+                <DrawerField label="Payment Type" value={myRecord.paymentType || 'Credit'} />
+                <DrawerField label="Last Payment Date" value={myRecord.lastPaymentDate || '-'} />
                 <DrawerField label="Aging Days" value={selectedInvoice.status === 'Paid' ? '-' : `${selectedInvoice.agingDays} Days`} />
               </div>
             </div>

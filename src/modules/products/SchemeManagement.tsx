@@ -213,6 +213,20 @@ export default function SchemeManagement() {
     return selection;
   };
 
+  const generateNextSchemeCode = (schemes: Scheme[]) => {
+    let max = 0;
+    schemes.forEach((s) => {
+      if (s.schemeCode && s.schemeCode.startsWith("SCH-")) {
+        const numStr = s.schemeCode.substring(4);
+        const num = parseInt(numStr, 10);
+        if (!isNaN(num) && num > max) {
+          max = num;
+        }
+      }
+    });
+    return `SCH-${String(max + 1).padStart(6, "0")}`;
+  };
+
   const columns: Column<Scheme>[] = [
     { key: 'schemeCode', label: 'Scheme Code', render: (row) => <span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">{row.schemeCode}</span> },
     { key: 'name', label: 'Scheme Name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
@@ -322,9 +336,12 @@ export default function SchemeManagement() {
     setShowBrandDropdown(false);
     setBenefitTypeSearch("");
     setShowBenefitTypeDropdown(false);
+
+    const nextCode = generateNextSchemeCode(data);
+
     setNewScheme({
       id: '',
-      schemeCode: '',
+      schemeCode: nextCode,
       name: '',
       type: 'Quantity Discount',
       applicableTo: 'All Products',
@@ -389,7 +406,7 @@ export default function SchemeManagement() {
   };
 
   const handleSaveScheme = () => {
-    const trimmedCode = newScheme.schemeCode.trim();
+    let trimmedCode = newScheme.schemeCode.trim();
     if (!trimmedCode) {
       alert("Error: Scheme Code cannot be empty or only spaces.");
       return;
@@ -443,10 +460,20 @@ export default function SchemeManagement() {
       }
     }
 
-    const isDuplicateCode = data.some(item => item.schemeCode.trim().toLowerCase() === trimmedCode.toLowerCase() && item.id !== newScheme.id);
-    if (isDuplicateCode) {
-      alert(`Error: A promotional scheme with code "${trimmedCode}" already exists.`);
-      return;
+    let finalCode = trimmedCode;
+    if (!isEditingModal) {
+      let isDuplicateCode = data.some(item => item.schemeCode === finalCode);
+      while (isDuplicateCode) {
+        finalCode = generateNextSchemeCode(data);
+        isDuplicateCode = data.some(item => item.schemeCode === finalCode);
+      }
+      trimmedCode = finalCode;
+    } else {
+      const isDuplicateCode = data.some(item => item.schemeCode.trim().toLowerCase() === trimmedCode.toLowerCase() && item.id !== newScheme.id);
+      if (isDuplicateCode) {
+        alert(`Error: A promotional scheme with code "${trimmedCode}" already exists.`);
+        return;
+      }
     }
 
     const isDuplicateName = data.some(
@@ -815,8 +842,9 @@ export default function SchemeManagement() {
                     onChange={(e) =>
                       setNewScheme({ ...newScheme, schemeCode: e.target.value })
                     }
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-slate-900 focus:outline-none focus:border-violet-400 bg-white"
-                    placeholder="e.g. SCH-10+1"
+                    readOnly
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-slate-900 focus:outline-none focus:border-violet-400 bg-slate-50 cursor-not-allowed"
+                    placeholder="e.g. SCH-000001"
                   />
                 </div>
                 <div>

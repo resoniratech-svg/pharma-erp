@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Download, Filter, Eye, Map, FileText, ChevronDown } from 'lucide-react';
 import {
   PageHeader,
@@ -13,12 +13,13 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
-import { ROLE_SUPER_ADMIN } from '../../constants/roles';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generateLRPdf } from '../../documents/generators/generateLRPdf';
 import { generatePODPdf } from '../../documents/generators/generatePODPdf';
+import { dispatchService } from '../../services/dispatchService';
+import authService from '../../services/authService';
 
 interface Milestone {
   status: string;
@@ -31,6 +32,9 @@ interface DispatchItem {
   id: string;
   dispatchNo: string;
   orderNo: string;
+  distributorId?: string;
+  distributorCode?: string;
+  distributorName?: string;
   distributor: string;
   dispatchDate: string;
   transporter: string;
@@ -45,91 +49,108 @@ interface DispatchItem {
   milestones: Milestone[];
 }
 
-const mockData: DispatchItem[] = [
-  { 
-    id: '1', 
-    dispatchNo: 'DSP-26-99881',
-    orderNo: 'ORD-2026-001', 
-    distributor: 'Metro Pharma Distributors', 
-    dispatchDate: '25-Oct-2026',
-    transporter: 'VRL Logistics', 
-    vehicleNo: 'MH-01-AB-1234',
-    lrNo: 'LR-MAH-00123', 
-    expectedDeliveryDate: '26-Oct-2026',
-    actualDeliveryDate: '26-Oct-2026',
-    dispatchStatus: 'Delivered',
-    podStatus: 'Verified',
-    driverName: 'Ramesh Singh',
-    driverMobile: '+91 98765 43210',
-    milestones: [
-      { status: 'Packed', date: '24-Oct-2026 14:30', location: 'Central Warehouse, Mumbai', completed: true },
-      { status: 'Dispatched', date: '25-Oct-2026 09:15', location: 'Central Warehouse, Mumbai', completed: true },
-      { status: 'In Transit', date: '25-Oct-2026 18:45', location: 'Navi Mumbai Hub', completed: true },
-      { status: 'Out For Delivery', date: '26-Oct-2026 08:30', location: 'Andheri Delivery Center', completed: true },
-      { status: 'Delivered', date: '26-Oct-2026 14:10', location: 'Metro Pharma Distributors', completed: true }
-    ]
-  },
-  { 
-    id: '2', 
-    dispatchNo: 'DSP-26-99882',
-    orderNo: 'ORD-2026-002', 
-    distributor: 'Carewell Agencies', 
-    dispatchDate: '26-Oct-2026',
-    transporter: 'Gati', 
-    vehicleNo: 'MH-12-CD-5678',
-    lrNo: 'LR-PUN-00445', 
-    expectedDeliveryDate: '28-Oct-2026',
-    actualDeliveryDate: 'TBD',
-    dispatchStatus: 'In Transit',
-    podStatus: 'Pending POD',
-    driverName: 'Abdul Shaikh',
-    driverMobile: '+91 91234 56780',
-    milestones: [
-      { status: 'Packed', date: '25-Oct-2026 16:00', location: 'Central Warehouse, Mumbai', completed: true },
-      { status: 'Dispatched', date: '26-Oct-2026 10:00', location: 'Central Warehouse, Mumbai', completed: true },
-      { status: 'In Transit', date: '27-Oct-2026 06:20', location: 'Pune Highway Checkpoint', completed: true },
-      { status: 'Out For Delivery', date: 'Pending', location: 'Pending', completed: false },
-      { status: 'Delivered', date: 'Pending', location: 'Pending', completed: false }
-    ]
-  },
-  { 
-    id: '3', 
-    dispatchNo: 'DSP-26-99883',
-    orderNo: 'ORD-2026-003', 
-    distributor: 'Global Health Supply', 
-    dispatchDate: 'TBD',
-    transporter: 'Delhivery', 
-    vehicleNo: 'Pending Assignment',
-    lrNo: 'Pending', 
-    expectedDeliveryDate: '30-Oct-2026',
-    actualDeliveryDate: 'TBD',
-    dispatchStatus: 'Packed',
-    podStatus: 'Pending POD',
-    driverName: 'Pending',
-    driverMobile: 'Pending',
-    milestones: [
-      { status: 'Packed', date: '27-Oct-2026 11:30', location: 'Central Warehouse, Mumbai', completed: true },
-      { status: 'Dispatched', date: 'Pending', location: 'Pending', completed: false },
-      { status: 'In Transit', date: 'Pending', location: 'Pending', completed: false },
-      { status: 'Out For Delivery', date: 'Pending', location: 'Pending', completed: false },
-      { status: 'Delivered', date: 'Pending', location: 'Pending', completed: false }
-    ]
-  },
-];
+const getDDMMYYYY = (dateStr: string) => {
+  if (!dateStr || dateStr === '-' || dateStr === 'TBD' || dateStr === 'N/A' || dateStr === 'Pending') return dateStr;
+  if (dateStr.includes('-')) {
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      if (parts[2].length === 4) return dateStr;
+      if (parts[0].length === 4) {
+        return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
+      }
+    }
+  }
+  const d = new Date(dateStr);
+  if (isNaN(d.getTime())) return dateStr;
+  return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+};
 
 export default function DispatchTracking() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
-  const loggedInDistributorName = 'Metro Pharma Distributors'; // Mock logged in context
-
+  const [dispatches, setDispatches] = useState<DispatchItem[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [podFilter, setPodFilter] = useState('');
   const [transporterFilter, setTransporterFilter] = useState('');
+  const [fromDate, setFromDate] = useState('');
+  const [toDate, setToDate] = useState('');
   
   const [viewDispatch, setViewDispatch] = useState<DispatchItem | null>(null);
   const [trackDispatch, setTrackDispatch] = useState<DispatchItem | null>(null);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const loggedInDistributor = useMemo(() => {
+    const user = authService.getCurrentUser();
+    
+    // Identity flow: Authenticated User -> linkedDistributorCode
+    const linkedCode = user?.linkedDistributorCode;
+    
+    if (!linkedCode) {
+      // No linked distributor identity found. Do NOT invent a fallback.
+      return { name: '', code: '' };
+    }
+
+    // Resolve through Distributor Master
+    const savedDistributorsRaw = localStorage.getItem('pharma_erp_distributors');
+    if (savedDistributorsRaw) {
+      try {
+        const parsedDists = JSON.parse(savedDistributorsRaw);
+        // Find the single source of truth record in Distributor Master
+        const masterRecord = parsedDists.find((d: any) => 
+          d.code === linkedCode || 
+          d.distributorCode === linkedCode || 
+          d.id === linkedCode
+        );
+
+        if (masterRecord) {
+          return {
+            name: masterRecord.name || masterRecord.distributorName || '',
+            code: masterRecord.code || masterRecord.distributorCode || masterRecord.id || linkedCode
+          };
+        }
+      } catch (e) {
+        // Silently handle parse errors
+      }
+    }
+
+    // If Distributor Master record is missing, use the code as minimum identity
+    return { name: '', code: linkedCode };
+  }, []);
+
+  useEffect(() => {
+    try {
+      const allDispatches = dispatchService.getAll().filter((d: any) => d.dispatchType === 'Distributor Order');
+      const mappedDispatches: DispatchItem[] = allDispatches.map((d: any) => ({
+        id: d.id || d.dispatchId || d.dispatchNo,
+        dispatchNo: d.dispatchNo || d.dispatchId || 'N/A',
+        orderNo: d.orderNo || d.orderId || 'N/A',
+        distributorId: d.distributorId,
+        distributorCode: d.distributorCode,
+        distributorName: d.distributorName || d.client,
+        distributor: d.distributor || d.client || d.distributorName,
+        dispatchDate: getDDMMYYYY(d.dispatchDate || d.date),
+        transporter: d.transporter || 'N/A',
+        vehicleNo: d.vehicleNo || d.vehicleNumber || 'N/A',
+        lrNo: d.lrNo || d.lrNumber || 'N/A',
+        expectedDeliveryDate: getDDMMYYYY(d.expectedDeliveryDate || d.orderData?.expectedDeliveryDate || 'TBD'),
+        actualDeliveryDate: getDDMMYYYY(d.actualDeliveryDate || 'TBD'),
+        dispatchStatus: d.dispatchStatus || d.status,
+        podStatus: d.podStatus || 'Pending POD',
+        driverName: d.driverName || 'Pending',
+        driverMobile: d.driverMobile || 'Pending',
+        milestones: Array.isArray(d.milestones) ? d.milestones.map((m: any) => ({
+          status: m.status || 'Unknown',
+          date: m.date && m.date !== 'Pending' ? getDDMMYYYY(m.date) : 'Pending',
+          location: m.location || 'Pending',
+          completed: !!m.completed
+        })) : []
+      }));
+      setDispatches(mappedDispatches);
+    } catch (e) {
+      console.error("Error formatting local storage dispatch records", e);
+      setDispatches([]);
+    }
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -141,22 +162,45 @@ export default function DispatchTracking() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const roleFilteredData = activeRole === ROLE_SUPER_ADMIN 
-    ? mockData 
-    : mockData.filter(item => item.distributor === loggedInDistributorName);
+  const filteredData = useMemo(() => {
+    // Strict matching: If no distributor identity is resolved, show 0 records.
+    if (!loggedInDistributor.code) {
+      return [];
+    }
 
-  const filteredData = roleFilteredData.filter((item) => {
-    const searchLower = search.toLowerCase();
-    const matchSearch = activeRole === ROLE_SUPER_ADMIN
-      ? item.dispatchNo.toLowerCase().includes(searchLower) || item.orderNo.toLowerCase().includes(searchLower) || item.distributor.toLowerCase().includes(searchLower) || item.lrNo.toLowerCase().includes(searchLower)
-      : item.dispatchNo.toLowerCase().includes(searchLower) || item.orderNo.toLowerCase().includes(searchLower) || item.lrNo.toLowerCase().includes(searchLower);
-
-    const matchStatus = statusFilter ? item.dispatchStatus === statusFilter : true;
-    const matchPod = podFilter ? item.podStatus === podFilter : true;
-    const matchTransporter = transporterFilter ? item.transporter === transporterFilter : true;
+    const distributorDispatches = dispatches.filter(item => 
+      (item.distributorCode && item.distributorCode === loggedInDistributor.code) ||
+      (item.distributorId && item.distributorId === loggedInDistributor.code) ||
+      item.distributorName === loggedInDistributor.name ||
+      item.distributor === loggedInDistributor.name ||
+      item.distributor === loggedInDistributor.code
+    );
     
-    return matchSearch && matchStatus && matchPod && matchTransporter;
-  });
+    return distributorDispatches.filter((item) => {
+      const searchLower = search.toLowerCase();
+      const matchSearch = 
+        item.dispatchNo.toLowerCase().includes(searchLower) || 
+        item.orderNo.toLowerCase().includes(searchLower) || 
+        item.lrNo.toLowerCase().includes(searchLower) ||
+        item.transporter.toLowerCase().includes(searchLower);
+
+      const matchStatus = statusFilter ? item.dispatchStatus === statusFilter : true;
+      const matchPod = podFilter ? item.podStatus === podFilter : true;
+      const matchTransporter = transporterFilter ? item.transporter === transporterFilter : true;
+      
+      let matchDate = true;
+      if (fromDate || toDate) {
+        const dispatchDateParts = item.dispatchDate.split('-');
+        if (dispatchDateParts.length === 3) {
+          const isoDate = `${dispatchDateParts[2]}-${dispatchDateParts[1]}-${dispatchDateParts[0]}`;
+          if (fromDate && isoDate < fromDate) matchDate = false;
+          if (toDate && isoDate > toDate) matchDate = false;
+        }
+      }
+      
+      return matchSearch && matchStatus && matchPod && matchTransporter && matchDate;
+    });
+  }, [dispatches, search, statusFilter, podFilter, transporterFilter, fromDate, toDate, loggedInDistributor]);
 
   const getDispatchStatusVariant = (status: string) => {
     switch (status) {
@@ -179,34 +223,23 @@ export default function DispatchTracking() {
 
   // ----- EXPORT LOGIC -----
   const getExportData = () => {
-    if (activeRole === ROLE_SUPER_ADMIN) {
-      return filteredData.map(item => ({
-        'Dispatch No': item.dispatchNo,
-        'Order No': item.orderNo,
-        'Distributor': item.distributor,
-        'Dispatch Date': item.dispatchDate,
-        'Transporter': item.transporter,
-        'Vehicle No': item.vehicleNo,
-        'LR No': item.lrNo,
-        'Expected Delivery Date': item.expectedDeliveryDate,
-        'Dispatch Status': item.dispatchStatus,
-        'POD Status': item.podStatus
-      }));
-    } else {
-      return filteredData.map(item => ({
-        'Dispatch No': item.dispatchNo,
-        'Order No': item.orderNo,
-        'Dispatch Date': item.dispatchDate,
-        'Transporter': item.transporter,
-        'LR No': item.lrNo,
-        'Expected Delivery Date': item.expectedDeliveryDate,
-        'Dispatch Status': item.dispatchStatus
-      }));
-    }
+    return filteredData.map(item => ({
+      'Dispatch No': item.dispatchNo,
+      'Order No': item.orderNo,
+      'Dispatch Date': item.dispatchDate,
+      'Transporter': item.transporter,
+      'LR No': item.lrNo,
+      'Expected Delivery Date': item.expectedDeliveryDate,
+      'Dispatch Status': item.dispatchStatus
+    }));
   };
 
   const handleExportExcel = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportDropdown(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Dispatch_Tracking");
@@ -216,6 +249,10 @@ export default function DispatchTracking() {
 
   const handleExportCSV = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportDropdown(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -232,6 +269,10 @@ export default function DispatchTracking() {
 
   const handleExportPDF = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportDropdown(false);
+      return;
+    }
     const doc = new jsPDF('landscape');
     const headers = Object.keys(data[0] || {});
     const body = data.map(obj => headers.map(header => (obj as any)[header]));
@@ -255,15 +296,13 @@ export default function DispatchTracking() {
   };
 
   // ----- COLUMNS -----
-  const adminColumns: Column<DispatchItem>[] = [
+  const columns: Column<DispatchItem>[] = [
     { key: 'dispatchNo', label: 'Dispatch No', render: (row) => <span className="font-semibold text-slate-900">{row.dispatchNo}</span> },
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="text-slate-600">{row.orderNo}</span> },
-    { key: 'distributor', label: 'Distributor', render: (row) => <span className="text-slate-800">{row.distributor}</span> },
     { key: 'dispatchDate', label: 'Dispatch Date', render: (row) => <span className="text-slate-600">{row.dispatchDate}</span> },
     { key: 'transporter', label: 'Transporter', render: (row) => <span className="text-slate-600">{row.transporter}</span> },
-    { key: 'vehicleNo', label: 'Vehicle No', render: (row) => <span className="text-slate-600">{row.vehicleNo}</span> },
-    { key: 'lrNo', label: 'LR No', render: (row) => <span className="font-medium text-slate-800">{row.lrNo}</span> },
-    { key: 'expectedDeliveryDate', label: 'Expected Delivery Date', render: (row) => <span className="text-slate-600">{row.expectedDeliveryDate}</span> },
+    { key: 'lrNo', label: 'LR Number', render: (row) => <span className="font-medium text-slate-800">{row.lrNo}</span> },
+    { key: 'expectedDeliveryDate', label: 'Expected Delivery', render: (row) => <span className="text-slate-600">{row.expectedDeliveryDate}</span> },
     { key: 'dispatchStatus', label: 'Dispatch Status', render: (row) => <Badge variant={getDispatchStatusVariant(row.dispatchStatus) as any}>{row.dispatchStatus}</Badge> },
     { key: 'podStatus', label: 'POD Status', render: (row) => <Badge variant={getPodStatusVariant(row.podStatus) as any}>{row.podStatus}</Badge> },
     {
@@ -277,50 +316,6 @@ export default function DispatchTracking() {
           <button onClick={() => setTrackDispatch(row)} className="text-slate-400 hover:text-blue-600 transition-colors p-1" title="Track Shipment">
             <Map className="w-4 h-4" />
           </button>
-          {row.lrNo !== 'Pending' && (
-            <button onClick={() => handleDownloadLR(row)} className="text-slate-400 hover:text-emerald-600 transition-colors p-1" title="Download LR">
-              <FileText className="w-4 h-4" />
-            </button>
-          )}
-          {row.podStatus !== 'Pending POD' && (
-            <button onClick={() => generatePODPdf(row)} className="text-slate-400 hover:text-emerald-600 transition-colors p-1" title="Download POD">
-              <Download className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      )
-    }
-  ];
-
-  const distributorColumns: Column<DispatchItem>[] = [
-    { key: 'dispatchNo', label: 'Dispatch No', render: (row) => <span className="font-semibold text-slate-900">{row.dispatchNo}</span> },
-    { key: 'orderNo', label: 'Order No', render: (row) => <span className="text-slate-600">{row.orderNo}</span> },
-    { key: 'dispatchDate', label: 'Dispatch Date', render: (row) => <span className="text-slate-600">{row.dispatchDate}</span> },
-    { key: 'transporter', label: 'Transporter', render: (row) => <span className="text-slate-600">{row.transporter}</span> },
-    { key: 'lrNo', label: 'LR No', render: (row) => <span className="font-medium text-slate-800">{row.lrNo}</span> },
-    { key: 'expectedDeliveryDate', label: 'Expected Delivery Date', render: (row) => <span className="text-slate-600">{row.expectedDeliveryDate}</span> },
-    { key: 'dispatchStatus', label: 'Dispatch Status', render: (row) => <Badge variant={getDispatchStatusVariant(row.dispatchStatus) as any}>{row.dispatchStatus}</Badge> },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewDispatch(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
-            <Eye className="w-4 h-4" />
-          </button>
-          <button onClick={() => setTrackDispatch(row)} className="text-slate-400 hover:text-blue-600 transition-colors p-1" title="Track Shipment">
-            <Map className="w-4 h-4" />
-          </button>
-          {row.lrNo !== 'Pending' && (
-            <button onClick={() => handleDownloadLR(row)} className="text-slate-400 hover:text-emerald-600 transition-colors p-1" title="Download LR">
-              <FileText className="w-4 h-4" />
-            </button>
-          )}
-          {row.podStatus !== 'Pending POD' && (
-            <button onClick={() => generatePODPdf(row)} className="text-slate-400 hover:text-emerald-600 transition-colors p-1" title="Download POD">
-              <Download className="w-4 h-4" />
-            </button>
-          )}
         </div>
       )
     }
@@ -330,7 +325,7 @@ export default function DispatchTracking() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Dispatch & LR Tracking"
-        subtitle={activeRole === ROLE_SUPER_ADMIN ? "Track distributor shipments and monitor proof of delivery." : "Track your shipments and monitor expected deliveries."}
+        subtitle="Track your shipments and monitor expected deliveries."
         actions={
           <div className="relative" ref={dropdownRef}>
             <ActionButton 
@@ -364,17 +359,35 @@ export default function DispatchTracking() {
         <SearchInput 
           value={search} 
           onChange={setSearch} 
-          placeholder={activeRole === ROLE_SUPER_ADMIN ? "Search dispatch, order, LR or distributor..." : "Search dispatch, order or LR..."} 
+          placeholder="Search dispatch, order or LR..." 
         />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
           <span className="text-sm font-medium text-slate-600">Filters:</span>
         </div>
+
+        <input 
+          type="date" 
+          value={fromDate}
+          onChange={(e) => setFromDate(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
+          title="From Date"
+        />
+        <span className="text-slate-400">-</span>
+        <input 
+          type="date" 
+          value={toDate}
+          onChange={(e) => setToDate(e.target.value)}
+          className="text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
+          title="To Date"
+        />
+
         <SelectFilter
           value={statusFilter}
           onChange={setStatusFilter}
           options={[
+            { label: 'All Statuses', value: '' },
             { label: 'Pending Dispatch', value: 'Pending Dispatch' },
             { label: 'Packed', value: 'Packed' },
             { label: 'Dispatched', value: 'Dispatched' },
@@ -386,22 +399,22 @@ export default function DispatchTracking() {
           ]}
           placeholder="Dispatch Status"
         />
-        {activeRole === ROLE_SUPER_ADMIN && (
-          <SelectFilter
-            value={podFilter}
-            onChange={setPodFilter}
-            options={[
-              { label: 'Pending POD', value: 'Pending POD' },
-              { label: 'Uploaded', value: 'Uploaded' },
-              { label: 'Verified', value: 'Verified' },
-            ]}
-            placeholder="POD Status"
-          />
-        )}
+        <SelectFilter
+          value={podFilter}
+          onChange={setPodFilter}
+          options={[
+            { label: 'All PODs', value: '' },
+            { label: 'Pending POD', value: 'Pending POD' },
+            { label: 'Uploaded', value: 'Uploaded' },
+            { label: 'Verified', value: 'Verified' },
+          ]}
+          placeholder="POD Status"
+        />
         <SelectFilter
           value={transporterFilter}
           onChange={setTransporterFilter}
           options={[
+            { label: 'All Transporters', value: '' },
             { label: 'VRL Logistics', value: 'VRL Logistics' },
             { label: 'Gati', value: 'Gati' },
             { label: 'Delhivery', value: 'Delhivery' },
@@ -414,19 +427,11 @@ export default function DispatchTracking() {
 
       <TableCard>
         <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
-          {activeRole === ROLE_SUPER_ADMIN ? (
-            <DataTable
-              columns={adminColumns}
-              data={filteredData}
-              emptyMessage="No dispatch records found."
-            />
-          ) : (
-            <DataTable
-              columns={distributorColumns}
-              data={filteredData}
-              emptyMessage="No dispatch records found."
-            />
-          )}
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            emptyMessage="No dispatch records found."
+          />
         </div>
       </TableCard>
 
@@ -438,15 +443,12 @@ export default function DispatchTracking() {
       >
         {viewDispatch && (
           <div className="space-y-6 pb-20">
-            {/* Shipment Information */}
+            {/* Dispatch Information */}
             <div>
-              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Shipment Information</h3>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Dispatch Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <DrawerField label="Dispatch No" value={<span className="font-semibold">{viewDispatch.dispatchNo}</span>} />
                 <DrawerField label="Order No" value={viewDispatch.orderNo} />
-                {activeRole === ROLE_SUPER_ADMIN && (
-                  <DrawerField label="Distributor" value={<span className="font-medium text-slate-800">{viewDispatch.distributor}</span>} />
-                )}
                 <DrawerField label="Dispatch Date" value={viewDispatch.dispatchDate} />
               </div>
             </div>
@@ -457,13 +459,9 @@ export default function DispatchTracking() {
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <DrawerField label="Transporter" value={viewDispatch.transporter} />
                 <DrawerField label="LR Number" value={viewDispatch.lrNo} />
-                {activeRole === ROLE_SUPER_ADMIN && (
-                  <>
-                    <DrawerField label="Vehicle No" value={viewDispatch.vehicleNo} />
-                    <DrawerField label="Driver Name" value={viewDispatch.driverName} />
-                    <DrawerField label="Driver Mobile" value={viewDispatch.driverMobile} />
-                  </>
-                )}
+                <DrawerField label="Vehicle No" value={viewDispatch.vehicleNo} />
+                <DrawerField label="Driver Name" value={viewDispatch.driverName} />
+                <DrawerField label="Driver Mobile" value={viewDispatch.driverMobile} />
               </div>
             </div>
 
@@ -471,44 +469,37 @@ export default function DispatchTracking() {
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Delivery Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                {activeRole === ROLE_SUPER_ADMIN && (
-                  <DrawerField label="Dispatch Date" value={viewDispatch.dispatchDate} />
-                )}
                 <DrawerField label="Expected Delivery" value={viewDispatch.expectedDeliveryDate} />
-                {activeRole === ROLE_SUPER_ADMIN ? (
-                  <DrawerField label="Actual Delivery" value={viewDispatch.actualDeliveryDate} />
-                ) : (
-                  <DrawerField label="Current Status" value={<Badge variant={getDispatchStatusVariant(viewDispatch.dispatchStatus) as any}>{viewDispatch.dispatchStatus}</Badge>} />
-                )}
+                <DrawerField label="Current Status" value={<Badge variant={getDispatchStatusVariant(viewDispatch.dispatchStatus) as any}>{viewDispatch.dispatchStatus}</Badge>} />
               </div>
             </div>
 
-            {/* Status Timeline (Admin Only inside drawer - Distributor handles in Track modal) */}
-            {activeRole === ROLE_SUPER_ADMIN && (
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Status Timeline</h3>
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                  <div className="flex flex-col space-y-4">
-                    {viewDispatch.milestones.map((ms, idx) => (
-                      <div key={idx} className="flex items-start gap-3">
-                        <div className={`mt-0.5 w-2.5 h-2.5 rounded-full ${ms.completed ? 'bg-emerald-500' : 'bg-slate-300'}`} />
-                        <div>
-                          <p className={`text-sm font-medium ${ms.completed ? 'text-slate-800' : 'text-slate-400'}`}>{ms.status}</p>
-                          {ms.completed && <p className="text-xs text-slate-500">{ms.date}</p>}
-                        </div>
+            {/* Status Timeline */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Status Timeline</h3>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <div className="flex flex-col space-y-4">
+                  {viewDispatch.milestones.length > 0 ? viewDispatch.milestones.map((ms, idx) => (
+                    <div key={idx} className="flex items-start gap-3">
+                      <div className={`mt-0.5 w-2.5 h-2.5 rounded-full ${ms.completed ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                      <div>
+                        <p className={`text-sm font-medium ${ms.completed ? 'text-slate-800' : 'text-slate-400'}`}>{ms.status}</p>
+                        {ms.completed && <p className="text-xs text-slate-500">{ms.date}</p>}
                       </div>
-                    ))}
-                  </div>
+                    </div>
+                  )) : (
+                    <div className="text-sm text-slate-500">No timeline events available.</div>
+                  )}
                 </div>
               </div>
-            )}
+            </div>
 
             {/* POD Information */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">POD Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <DrawerField label="POD Status" value={<Badge variant={getPodStatusVariant(viewDispatch.podStatus) as any}>{viewDispatch.podStatus}</Badge>} />
-                {activeRole === ROLE_SUPER_ADMIN && viewDispatch.podStatus !== 'Pending POD' && (
+                {viewDispatch.podStatus !== 'Pending POD' && (
                   <DrawerField label="POD Upload Date" value={viewDispatch.actualDeliveryDate} />
                 )}
                 {viewDispatch.podStatus !== 'Pending POD' && (
@@ -566,7 +557,7 @@ export default function DispatchTracking() {
 
             <h3 className="font-bold text-slate-900 mb-4">Tracking History</h3>
             <div className="relative pl-4 border-l-2 border-slate-200 ml-2 space-y-6">
-              {trackDispatch.milestones.map((ms, idx) => (
+              {trackDispatch.milestones.length > 0 ? trackDispatch.milestones.map((ms, idx) => (
                 <div key={idx} className="relative">
                   <div className={`absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white ${ms.completed ? 'bg-violet-600' : 'bg-slate-300'}`} />
                   <div className="pl-2">
@@ -575,7 +566,9 @@ export default function DispatchTracking() {
                     {ms.completed && <p className="text-xs text-slate-400 mt-1">{ms.date}</p>}
                   </div>
                 </div>
-              ))}
+              )) : (
+                <div className="text-sm text-slate-500">Tracking information currently unavailable.</div>
+              )}
             </div>
 
             <div className="mt-8 pt-4 border-t border-slate-100 flex justify-end">

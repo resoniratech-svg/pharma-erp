@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router';
+﻿import { createBrowserRouter } from 'react-router';
 import { MainLayout } from '../layouts/MainLayout';
 import App from '../../App';
 import LandingPage from '../../pages/LandingPage';
@@ -40,8 +40,10 @@ import DeliveryTracking from '../../modules/warehouse/DeliveryTracking';
 import DispatchReports from '../../modules/warehouse/DispatchReports';
 
 // Distributors Module
+import DistributorMaster from '../../modules/distributors/DistributorMaster';
 import DistributorList from '../../modules/distributors/DistributorList';
 import DistributorProductCatalog from '../../modules/distributors/ProductCatalog';
+import AdminDistributorOrders from '../../modules/distributors/DistributorOrders';
 import DistributorOrders from '../../modules/distributors/Orders';
 import DistributorRetailerOrders from '../../modules/distributors/RetailerOrders';
 import OrderHistory from '../../modules/distributors/OrderHistory';
@@ -52,6 +54,7 @@ import DistributorSchemes from '../../modules/distributors/Schemes';
 import DispatchTracking from '../../modules/distributors/DispatchTracking';
 
 // Retailers Module
+import RetailerMaster from '../../modules/retailers/RetailerMaster';
 import RetailerList from '../../modules/retailers/RetailerList';
 import ProductCatalog from '../../modules/retailers/ProductCatalog';
 import RetailerOffers from '../../modules/retailers/Offers';
@@ -264,8 +267,10 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute moduleLabel="Distributor/Stockist Portal" />,
         children: [
+          { path: 'master', element: <DistributorMaster /> },
           { path: 'list', element: <DistributorList /> },
           { path: 'product-catalog', element: <DistributorProductCatalog /> },
+          { path: 'distributor-orders', element: <AdminDistributorOrders /> },
           { path: 'orders', element: <DistributorOrders /> },
           { path: 'retailer-orders', element: <DistributorRetailerOrders /> },
           { path: 'order-history', element: <OrderHistory /> },
@@ -285,6 +290,7 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute moduleLabel="Retailer Ordering System" />,
         children: [
+          { path: 'master', element: <RetailerMaster /> },
           { path: 'list', element: <RetailerList /> },
           { path: 'catalog', element: <ProductCatalog /> },
           { path: 'offers', element: <RetailerOffers /> },

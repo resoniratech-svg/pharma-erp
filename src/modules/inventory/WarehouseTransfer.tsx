@@ -557,7 +557,7 @@ export default function WarehouseTransfer() {
     if (stock.availableQty <= 0) return false;
     const batchInfo = batches.find(b => b.productCode === stock.productCode && b.batchNo === stock.batchNo);
     if (!batchInfo) return false;
-    if (batchInfo.status !== "Active") return false;
+    if (batchInfo.status === "Inactive" || batchInfo.status === "Expired") return false;
     if (getExpiryStatus(batchInfo.expDate) === "Expired") return false;
     return true;
   });
@@ -567,6 +567,8 @@ export default function WarehouseTransfer() {
       (item, index, arr) =>
         arr.findIndex((x) => x.productCode === item.productCode) === index,
     );
+
+
 
   return (
     <div className="animate-in fade-in duration-500">

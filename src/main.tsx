@@ -5,6 +5,11 @@ import { router } from './app/router';
 import { AppProvider } from './app/providers/AppProvider';
 import './styles/index.css';
 
+import { seedInvoices } from './utils/seedInvoices';
+
+// Initialize development sample data if needed
+seedInvoices();
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <AppProvider>
@@ -12,3 +17,4 @@ createRoot(document.getElementById('root')!).render(
     </AppProvider>
   </StrictMode>
 );
+

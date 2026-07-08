@@ -199,9 +199,18 @@ export default function BatchManagement() {
   };
 
   const handleSaveBatch = () => {
-    const trimmedBatchNo = newBatch.batchNo?.trim() || "";
+    let trimmedBatchNo = newBatch.batchNo?.trim() || "";
+    
+    if (!isEditingModal) {
+      let isDuplicateBatchNo = batches.some(b => b.batchNo === trimmedBatchNo);
+      while(isDuplicateBatchNo) {
+        trimmedBatchNo = (batchService as any).generateNextBatchNumber();
+        isDuplicateBatchNo = batches.some(b => b.batchNo === trimmedBatchNo);
+      }
+    }
+    
     if (!trimmedBatchNo) {
-      alert("Error: Batch Number cannot be empty or only spaces.");
+      alert("Error: Batch Number cannot be empty.");
       return;
     }
 
@@ -244,16 +253,18 @@ export default function BatchManagement() {
       return;
     }
 
-    const duplicateBatch = batches.find(
-      (batch) =>
-        batch.batchNo.trim().toLowerCase() === trimmedBatchNo.toLowerCase() && 
-        batch.productCode === newBatch.productCode &&
-        batch.id !== newBatch.id
-    );
+    if (isEditingModal) {
+      const duplicateBatch = batches.find(
+        (batch) =>
+          batch.batchNo.trim().toLowerCase() === trimmedBatchNo.toLowerCase() && 
+          batch.productCode === newBatch.productCode &&
+          batch.id !== newBatch.id
+      );
 
-    if (duplicateBatch) {
-      alert(`Error: Batch Number "${trimmedBatchNo}" already exists for this product.`);
-      return;
+      if (duplicateBatch) {
+        alert(`Error: Batch Number "${trimmedBatchNo}" already exists for this product.`);
+        return;
+      }
     }
 
     const resolvedStatus = newBatch.status === 'Inactive' ? 'Inactive' : (getExpiryStatus(newBatch.expDate || "") as Batch["status"]);
@@ -385,8 +396,12 @@ export default function BatchManagement() {
     setIsEditingModal(false);
     setProductSearch("");
     setShowProductDropdown(false);
+    
+    // Always use the centralized service to generate the next unique batch number
+    const nextBatchNo = (batchService as any).generateNextBatchNumber();
+
     setNewBatch({
-      batchNo: "",
+      batchNo: nextBatchNo,
       productName: "",
       productCode: "",
       hsnCode: "",
@@ -620,12 +635,8 @@ export default function BatchManagement() {
                   <input
                     maxLength={20}
                     value={newBatch.batchNo}
-                    onChange={(e) =>
-                      !isEditingModal &&
-                      setNewBatch({ ...newBatch, batchNo: e.target.value })
-                    }
-                    readOnly={isEditingModal}
-                    className={`w-full border border-slate-200 rounded-lg px-3 py-2 ${isEditingModal ? "bg-slate-50 text-slate-500 cursor-not-allowed" : "text-slate-900 focus:outline-none focus:border-violet-400"}`}
+                    readOnly
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500 cursor-not-allowed font-mono"
                   />
                 </div>
 

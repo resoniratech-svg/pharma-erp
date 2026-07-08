@@ -150,4 +150,19 @@ export const batchService = {
     batchCache = records;
     localStorage.setItem("batchRecords", JSON.stringify(records));
   },
+
+  generateNextBatchNumber(): string {
+    const records = this.getAll();
+    let max = 0;
+    records.forEach((r) => {
+      if (r.batchNo && r.batchNo.startsWith("BAT-")) {
+        const numStr = r.batchNo.substring(4);
+        const num = parseInt(numStr, 10);
+        if (!isNaN(num) && num > max) {
+          max = num;
+        }
+      }
+    });
+    return `BAT-${String(max + 1).padStart(6, "0")}`;
+  },
 };

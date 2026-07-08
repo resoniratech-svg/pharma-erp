@@ -209,8 +209,6 @@ export default function InwardStock() {
     date: new Date().toISOString().split('T')[0],
     supplier: '',
     location: '',
-    invoiceNumber: '',
-    invoiceDate: '',
     status: 'Completed' as Inward['status'],
     remarks: '',
   });
@@ -372,8 +370,6 @@ export default function InwardStock() {
       date: new Date().toISOString().split('T')[0],
       supplier: '',
       location: '',
-      invoiceNumber: '',
-      invoiceDate: '',
       status: 'Completed',
       remarks: '',
     });
@@ -382,7 +378,7 @@ export default function InwardStock() {
   };
 
   const closeCreateModal = () => {
-    const isDirty = formProducts.length > 0 || formData.supplier !== '' || formData.location !== '' || formData.invoiceNumber !== '';
+    const isDirty = formProducts.length > 0 || formData.supplier !== '' || formData.location !== '';
     if (isDirty) {
       if (window.confirm("You have unsaved changes. Are you sure you want to close?")) {
         setShowCreateModal(false);
@@ -495,11 +491,10 @@ export default function InwardStock() {
     const supplier = formData.supplier.trim();
     const location = formData.location.trim();
     const date = formData.date;
-    const invoiceNumber = (formData.invoiceNumber || "").trim();
     const remarks = (formData.remarks || "").trim();
 
-    if (!supplier || !location || !date || !invoiceNumber) {
-      alert("Please fill all mandatory fields (Supplier, Location, Date, Invoice Number).");
+    if (!supplier || !location || !date) {
+      alert("Please fill all mandatory fields (Supplier, Location, Date).");
       return;
     }
 
@@ -564,8 +559,6 @@ export default function InwardStock() {
       warehouseName:
         warehouseService.getAll().find((w) => w.id === location)
           ?.name ?? "",
-      invoiceNumber: invoiceNumber,
-      invoiceDate: formData.invoiceDate,
       itemsCount: autoCalculatedMetrics.totalItems,
       totalQuantity: autoCalculatedMetrics.totalQuantity,
       totalValue: autoCalculatedMetrics.totalValue,
@@ -699,8 +692,6 @@ export default function InwardStock() {
       date: new Date().toISOString().split("T")[0],
       supplier: "",
       location: "",
-      invoiceNumber: "",
-      invoiceDate: "",
       status: "Completed",
       remarks: "",
     });
@@ -885,39 +876,7 @@ export default function InwardStock() {
                       ))}
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Invoice / GRN Number *
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.invoiceNumber}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          invoiceNumber: e.target.value,
-                        })
-                      }
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                      placeholder="Enter invoice number"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Invoice Date (Optional)
-                    </label>
-                    <input
-                      type="date"
-                      value={formData.invoiceDate}
-                      onChange={(e) =>
-                        setFormData({
-                          ...formData,
-                          invoiceDate: e.target.value,
-                        })
-                      }
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
-                    />
-                  </div>
+
                 </div>
               </section>
 
