@@ -32,7 +32,8 @@
             "imageWidth": 250
           }
         }
-      ]
+      ],
+      "@react-native-community/datetimepicker"
     ],
     "experiments": {
       "reactCompiler": false

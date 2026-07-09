@@ -216,16 +216,20 @@ const TourPlanningScreen = () => {
           objective: p.objective || 'Field Work',
           planType: p.planType || 'MTP',
           status: p.status || 'Pending Approval',
-          docCount: String(p.doctorIds?.length || 0),
-          chemistCount: String(p.chemistIds?.length || 0),
-          doctorsList: (p.doctorIds || []).map((id: number) => {
-            const doc = doctors.find((d: any) => d.id === id);
-            return doc ? doc.name || doc.doctorName : `Doctor #${id}`;
-          }).join(', '),
-          chemistsList: (p.chemistIds || []).map((id: number) => {
-            const chem = chemists.find((c: any) => c.id === id);
-            return chem ? chem.name || chem.chemistName : `Chemist #${id}`;
-          }).join(', '),
+          docCount: String(p.tourPlanDoctors?.length || p.doctorIds?.length || 0),
+          chemistCount: String(p.tourPlanChemists?.length || p.chemistIds?.length || 0),
+          doctorsList: p.tourPlanDoctors && p.tourPlanDoctors.length > 0 
+            ? p.tourPlanDoctors.map((td: any) => td.doctor?.name || `Doctor #${td.doctorId}`).join(', ')
+            : (p.doctorIds || []).map((id: number) => {
+                const doc = doctors.find((d: any) => d.id === id);
+                return doc ? doc.name || doc.doctorName : `Doctor #${id}`;
+              }).join(', '),
+          chemistsList: p.tourPlanChemists && p.tourPlanChemists.length > 0
+            ? p.tourPlanChemists.map((tc: any) => tc.chemist?.name || `Chemist #${tc.chemistId}`).join(', ')
+            : (p.chemistIds || []).map((id: number) => {
+                const chem = chemists.find((c: any) => c.id === id);
+                return chem ? chem.name || chem.chemistName : `Chemist #${id}`;
+              }).join(', '),
         }));
         setPlans(mappedPlans);
         await AsyncStorage.setItem('@tour_plans', JSON.stringify(mappedPlans));
