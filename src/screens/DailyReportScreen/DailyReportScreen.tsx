@@ -68,8 +68,12 @@ const DailyReportScreen = () => {
   const [checkInTime, setCheckInTime] = useState('');
   const [upcomingFollowUps, setUpcomingFollowUps] = useState(0);
   const [endTime, setEndTime] = useState('');
-  const [todayTourTerritory, setTodayTourTerritory] = useState('Field Work (Ad-hoc)');
+  const [todayTourTerritory, setTodayTourTerritory] = useState('No Tour Planned');
   const [totalKmTravelled, setTotalKmTravelled] = useState(0);
+
+  // MR identity (loaded from AsyncStorage for PDF/Share)
+  const [mrName, setMrName] = useState('');
+  const [mrEmployeeId, setMrEmployeeId] = useState('');
 
   // Form states
   const [remarks, setRemarks] = useState('');
@@ -259,7 +263,7 @@ const DailyReportScreen = () => {
       setTotalSales(chemistSalesSum + ordersSalesSum);
 
       // 3.5 Get Tour Plan / Beat for Today (with fallback)
-      let todayTour = 'Field Work (Ad-hoc)';
+      let todayTour = 'No Tour Planned';
       try {
         const allTourPlans = await getTourPlansByMr();
         const activeTour = Array.isArray(allTourPlans) ? allTourPlans.find((plan: any) => 
@@ -267,11 +271,19 @@ const DailyReportScreen = () => {
         ) : null;
         if (activeTour && activeTour.territory) {
           todayTour = activeTour.territory;
+        } else if (activeTour) {
+          todayTour = 'Field Work (Ad-hoc)';
         }
       } catch (err) {
         console.log('Failed to fetch tour plans for DailyReport:', err);
       }
       setTodayTourTerritory(todayTour);
+
+      // Load MR identity for PDF/Share
+      const storedName = await AsyncStorage.getItem('@user_name');
+      const storedId = await AsyncStorage.getItem('@employee_id');
+      setMrName(storedName || 'Medical Representative');
+      setMrEmployeeId(storedId || 'N/A');
 
       // 4. Get Attendance Status from API (with AsyncStorage fallback)
       let logsList: any[] = [];
@@ -500,52 +512,58 @@ const DailyReportScreen = () => {
   };
 
   const handleGenerateReport = async () => {
+    // ── Guard: prevent double-click / re-submit ──
+    if (isSubmitting) return;
     if (reportGenerated) {
       customAlert('Already Submitted', 'You have already submitted your daily report for today.');
       return;
     }
     if (attendanceStatus === 'Absent') {
-      customAlert('Warning', 'You cannot submit a daily report if you have not marked your attendance today.');
+      customAlert('⚠️ Attendance Required', 'You cannot submit a daily report without marking your attendance today.');
       return;
     }
 
     const cleanRemarks = remarks.trim();
     if (!cleanRemarks) {
-      customAlert('Error', 'Please enter daily activity remarks before submitting.');
+      customAlert('⚠️ Remarks Required', 'Please enter daily activity remarks before submitting.');
       return;
     }
-
     if (cleanRemarks.length < 20) {
-      customAlert('Error', 'Daily activity remarks must be at least 20 characters long.');
+      customAlert('⚠️ Too Short', 'Daily activity remarks must be at least 20 characters long.');
       return;
     }
-
     if (cleanRemarks.length > 500) {
-      customAlert('Error', 'Daily activity remarks cannot exceed 500 characters.');
+      customAlert('⚠️ Too Long', 'Daily activity remarks cannot exceed 500 characters.');
       return;
     }
-
-    // Reject repeated character sequences (e.g. aaaaa, 11111, .....)
+    // Must contain at least one letter (rejects aaaaa, 11111, ....., $$$)
+    if (!/[a-zA-Z]/.test(cleanRemarks)) {
+      customAlert('⚠️ Invalid Remarks', 'Please enter meaningful remarks. Remarks must contain actual words.');
+      return;
+    }
+    // Reject simple repeated sequences
     const simplifiedRemarks = cleanRemarks.replace(/\s/g, '').toLowerCase();
-    if (/^(.)\1+$/.test(simplifiedRemarks) || /^(abc|xyz|test|spam|remarks|qwert|12345|xxxxx)+$/.test(simplifiedRemarks)) {
-      customAlert('Error', 'Please write a meaningful description of today\'s activities.');
+    if (/^(.)\1{9,}$/.test(simplifiedRemarks) || /^(abc|xyz|test|spam|remarks|qwert|12345|xxxxx)+$/.test(simplifiedRemarks)) {
+      customAlert('⚠️ Invalid Remarks', 'Please write a meaningful description of today\'s activities.');
       return;
     }
 
     const cleanCompetitor = competitorActivity.trim();
+    // If user filled competitor activity, enforce minimum 10 chars
+    if (cleanCompetitor && cleanCompetitor.length < 10) {
+      customAlert('⚠️ Competitor Activity', 'If entering competitor activity, please provide at least 10 characters of detail. Leave blank if no activity to report.');
+      return;
+    }
     if (cleanCompetitor && cleanCompetitor.length > 500) {
-      customAlert('Error', 'Competitor activity notes cannot exceed 500 characters.');
+      customAlert('⚠️ Too Long', 'Competitor activity notes cannot exceed 500 characters.');
       return;
     }
 
-    // Write cleaned/trimmed values back to state so PDF & Share use clean strings consistently
     setRemarks(cleanRemarks);
     setCompetitorActivity(cleanCompetitor);
-
     setIsSubmitting(true);
 
     const avgOrderValue = orderCount > 0 ? totalSales / orderCount : 0;
-
     const reportData = {
       date: new Date().toDateString(),
       doctorVisits: docCount,
@@ -560,40 +578,63 @@ const DailyReportScreen = () => {
       upcomingFollowUps: upcomingFollowUps,
       remarks: cleanRemarks,
       competitorActivity: cleanCompetitor,
+      territory: todayTourTerritory,
       status: 'Pending Approval',
       submittedAt: new Date().toLocaleTimeString(),
     };
 
     try {
       const reportDate = new Date().toISOString();
-
+      // Expanded payload — backend can ignore extra fields if not ready
       await createDailyReport(
         reportDate,
         docCount,
         chemistCount,
-        0, // samplesDistributed
-        totalSales, // ordersCollected
-        cleanRemarks
+        0,              // samplesDistributed
+        totalSales,
+        cleanRemarks,
+        cleanCompetitor,
+        attendanceStatus,
+        checkInTime,
+        endTime,
+        totalKmTravelled,
+        upcomingFollowUps,
+        todayTourTerritory
       );
 
-      console.log('Daily Report Saved Successfully');
-      // Save submission state to storage
       await AsyncStorage.setItem('@daily_report_submitted', new Date().toDateString());
       await AsyncStorage.setItem('@daily_report_data', JSON.stringify(reportData));
-      
       setReportGenerated(true);
       setApprovalStatus('Pending Approval');
       customAlert('🎉 Report Submitted!', 'Your daily work report has been successfully compiled and sent to your manager.');
-    } catch (error) {
-      customAlert('Error', 'Failed to submit the report.');
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 401) {
+        customAlert('❌ Unauthorized', 'Your session has expired. Please log in again.');
+      } else if (status === 409) {
+        customAlert('❌ Duplicate', 'A report for today has already been submitted.');
+      } else if (status >= 500) {
+        customAlert('❌ Server Error', 'The server is unavailable. Please try again later.');
+      } else {
+        customAlert('❌ Submission Failed', 'Failed to submit the report. Please check your connection and try again.');
+      }
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  // Real PDF Generation logic
+  // ── PDF Export (blocked before report is generated) ──
   const handleExportPDF = async () => {
+    if (!reportGenerated) {
+      customAlert('⚠️ Report Not Submitted', 'Please submit today\'s daily report before exporting as PDF.');
+      return;
+    }
     try {
+      const generatedAt = new Date().toLocaleString();
+      const workingHours = checkInTime && endTime && endTime !== 'Active' && endTime !== 'Working...'
+        ? `${formatTime12h(checkInTime)} – ${formatTime12h(endTime)}${calculateDuration(checkInTime, endTime)}`
+        : checkInTime ? `Check-in: ${formatTime12h(checkInTime)} (Still Working)` : 'N/A';
+
       const htmlContent = `
         <html>
           <head>
@@ -601,106 +642,83 @@ const DailyReportScreen = () => {
               body { font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 40px; color: #333; }
               .header { text-align: center; border-bottom: 2px solid #43A047; padding-bottom: 20px; margin-bottom: 30px; }
               h1 { color: #2E7D32; margin: 0; font-size: 28px; }
-              .subtitle { color: #666; font-size: 16px; margin-top: 5px; }
+              .subtitle { color: #666; font-size: 14px; margin-top: 5px; }
+              .meta { font-size: 12px; color: #888; margin-top: 4px; }
               .row { display: flex; justify-content: space-between; padding: 12px 0; border-bottom: 1px solid #eee; }
               .label { font-weight: bold; color: #555; }
               .value { font-weight: bold; color: #000; }
-              .section { margin-top: 30px; background-color: #f9f9f9; padding: 15px; border-radius: 8px; }
+              .section { margin-top: 20px; background-color: #f9f9f9; padding: 15px; border-radius: 8px; }
+              .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #aaa; }
             </style>
           </head>
           <body>
             <div class="header">
-              <h1>Daily Work Report</h1>
-              <div class="subtitle">Generated on ${new Date().toDateString()}</div>
-            </div>
-            
-            <div class="row">
-              <span class="label">Attendance Status:</span>
-              <span class="value" style="color: ${attendanceStatus === 'Present' ? '#2E7D32' : '#C62828'}">${attendanceStatus}</span>
-            </div>
-            <div class="row">
-              <span class="label">Daily Tour Beat:</span>
-              <span class="value">${todayTourTerritory}</span>
-            </div>
-            <div class="row">
-              <span class="label">Distance Travelled:</span>
-              <span class="value">${totalKmTravelled > 0 ? `${totalKmTravelled} km` : 'Distance not available'}</span>
-            </div>
-            <div class="row">
-              <span class="label">Doctor Visits:</span>
-              <span class="value">${docCount}</span>
-            </div>
-            <div class="row">
-              <span class="label">Chemist Visits:</span>
-              <span class="value">${chemistCount}</span>
-            </div>
-            <div class="row">
-              <span class="label">Orders Booked:</span>
-              <span class="value">${orderCount}</span>
-            </div>
-            <div class="row">
-              <span class="label">Total Sales:</span>
-              <span class="value" style="color: #0D47A1; font-size: 18px;">Rs. ${totalSales.toLocaleString('en-IN')}</span>
+              <h1>📋 Daily Work Report</h1>
+              <div class="subtitle">Report Date: ${new Date().toDateString()}</div>
+              <div class="meta">MR: ${mrName} &nbsp;|&nbsp; Employee ID: ${mrEmployeeId}</div>
+              <div class="meta">Generated: ${generatedAt} &nbsp;|&nbsp; Status: ${approvalStatus}</div>
             </div>
 
-            <div class="section">
-              <span class="label">Remarks:</span><br/>
-              <p>${remarks || 'No remarks provided for today.'}</p>
-            </div>
-            
-            <div class="section">
-              <span class="label">Competitor Activity:</span><br/>
-              <p>${competitorActivity || 'No competitor activity reported.'}</p>
-            </div>
+            <div class="row"><span class="label">Territory / Beat:</span><span class="value">${todayTourTerritory}</span></div>
+            <div class="row"><span class="label">Attendance Status:</span><span class="value" style="color: ${attendanceStatus === 'Present' ? '#2E7D32' : '#C62828'}">${attendanceStatus}</span></div>
+            <div class="row"><span class="label">Working Hours:</span><span class="value">${workingHours}</span></div>
+            <div class="row"><span class="label">Distance Travelled:</span><span class="value">${totalKmTravelled > 0 ? `${totalKmTravelled} km` : 'GPS data not available'}</span></div>
+            <div class="row"><span class="label">Doctor Visits:</span><span class="value">${docCount}</span></div>
+            <div class="row"><span class="label">Doctor Follow-Ups Scheduled:</span><span class="value">${upcomingFollowUps}</span></div>
+            <div class="row"><span class="label">Chemist Visits:</span><span class="value">${chemistCount}</span></div>
+            <div class="row"><span class="label">Orders Booked:</span><span class="value">${orderCount}</span></div>
+            <div class="row"><span class="label">Total Sales:</span><span class="value" style="color: #0D47A1; font-size: 18px;">Rs. ${totalSales.toLocaleString('en-IN')}</span></div>
+            <div class="row"><span class="label">Approval Status:</span><span class="value">${approvalStatus}</span></div>
+
+            <div class="section"><span class="label">Daily Activity Remarks:</span><br/><p>${remarks || 'No remarks provided for today.'}</p></div>
+            <div class="section"><span class="label">Competitor Activity:</span><br/><p>${competitorActivity || 'No competitor activity reported.'}</p></div>
+
+            <div class="footer">Pharma ERP — MJ Healthcare | Auto-generated on ${generatedAt}</div>
           </body>
         </html>
       `;
 
       if (Platform.OS === 'web') {
-        // On web, open a new window to print the HTML content natively
         const printWindow = window.open('', '_blank');
         if (printWindow) {
           printWindow.document.write(htmlContent);
           printWindow.document.close();
-          // Let Edge/Chrome render the HTML before triggering the print dialog
-          setTimeout(() => {
-            printWindow.print();
-          }, 300);
+          setTimeout(() => { printWindow.print(); }, 300);
         } else {
           customAlert('Popups Blocked', 'Please allow popups to export the PDF report.');
         }
       } else {
-        // On mobile, save as PDF and open share dialog
         const { uri } = await Print.printToFileAsync({ html: htmlContent });
-        await Sharing.shareAsync(uri, { 
-          UTI: '.pdf', 
-          mimeType: 'application/pdf',
-          dialogTitle: 'Share Daily Report PDF'
-        });
+        await Sharing.shareAsync(uri, { UTI: '.pdf', mimeType: 'application/pdf', dialogTitle: 'Share Daily Report PDF' });
       }
     } catch (error) {
-      customAlert('Error', 'Failed to generate PDF document.');
+      customAlert('❌ Error', 'Failed to generate PDF document.');
     }
   };
 
   const handleShareReport = async () => {
     try {
-      const shareMessage = `📋 *Daily Work Report - ${new Date().toDateString()}*\n\n`
+      const workingHours = checkInTime && endTime
+        ? `${formatTime12h(checkInTime)} – ${formatTime12h(endTime)}${calculateDuration(checkInTime, endTime)}`
+        : checkInTime ? `Check-in: ${formatTime12h(checkInTime)} (Still Working)` : 'N/A';
+
+      const shareMessage =
+        `📋 *Daily Work Report — ${new Date().toDateString()}*\n`
+        + `👤 MR: ${mrName} (${mrEmployeeId})\n\n`
         + `📍 Attendance: ${attendanceStatus}\n`
-        + `🗺️ Tour Beat: ${todayTourTerritory}\n`
-        + `🚗 Distance: ${totalKmTravelled > 0 ? `${totalKmTravelled} km` : 'Distance not available'}\n`
+        + `⏰ Working Hours: ${workingHours}\n`
+        + `🗺️ Territory / Beat: ${todayTourTerritory}\n`
+        + `🚗 Distance Travelled: ${totalKmTravelled > 0 ? `${totalKmTravelled} km` : 'N/A'}\n\n`
         + `🩺 Doctors Visited: ${docCount}\n`
         + `💊 Chemists Visited: ${chemistCount}\n`
         + `📦 Orders Booked: ${orderCount}\n`
-        + `💰 Total Sales: ₹${totalSales}\n\n`
+        + `💰 Total Sales: ₹${totalSales.toLocaleString('en-IN')}\n\n`
         + `📝 Remarks: ${remarks || 'None'}\n`
-        + `🏢 Competitor Activity: ${competitorActivity || 'None'}`;
-        
+        + `🏢 Competitor Activity: ${competitorActivity || 'None'}\n`
+        + `📊 Approval Status: ${approvalStatus}`;
+
       import('react-native').then(({ Share }) => {
-        Share.share({
-          message: shareMessage,
-          title: 'Daily Report'
-        }).catch(() => {
+        Share.share({ message: shareMessage, title: 'Daily Work Report' }).catch(() => {
           customAlert('Error', 'Failed to open share menu');
         });
       });
@@ -804,8 +822,11 @@ const DailyReportScreen = () => {
           <View style={styles.row}>
             <Text style={styles.label}>⏰ Working Hours:</Text>
             <Text style={styles.value}>
-               {formatTime12h(checkInTime)} - {formatTime12h(endTime) || 'Active'}
-               <Text style={{ color: '#059669', fontWeight: 'bold' }}>{calculateDuration(checkInTime, endTime)}</Text>
+               {formatTime12h(checkInTime)}{' – '}
+               {endTime && endTime !== 'Active' ? formatTime12h(endTime) : 'Working...'}
+               <Text style={{ color: '#059669', fontWeight: 'bold' }}>
+                 {endTime && endTime !== 'Active' ? calculateDuration(checkInTime, endTime) : ''}
+               </Text>
             </Text>
           </View>
         )}
@@ -889,18 +910,20 @@ const DailyReportScreen = () => {
           />
         )}
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[
-            styles.submitButton, 
-            { backgroundColor: (reportGenerated || isSubmitting) ? '#9E9E9E' : '#43A047' }
-          ]} 
+            styles.submitButton,
+            { backgroundColor: (reportGenerated || isSubmitting || attendanceStatus === 'Absent') ? '#9E9E9E' : '#43A047' }
+          ]}
           onPress={handleGenerateReport}
-          disabled={reportGenerated || isSubmitting}
+          disabled={reportGenerated || isSubmitting || attendanceStatus === 'Absent'}
         >
           {isSubmitting ? (
             <ActivityIndicator color="#fff" />
           ) : (
-            <Text style={styles.submitText}>SUBMIT DAILY REPORT</Text>
+            <Text style={styles.submitText}>
+              {attendanceStatus === 'Absent' ? '⚠️ MARK ATTENDANCE FIRST' : 'SUBMIT DAILY REPORT'}
+            </Text>
           )}
         </TouchableOpacity>
       </View>

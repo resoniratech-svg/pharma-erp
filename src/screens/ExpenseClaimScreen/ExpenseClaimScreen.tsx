@@ -784,12 +784,9 @@ const ExpenseClaimScreen = () => {
   const scrollViewRef = React.useRef<ScrollView>(null);
 
   // Summaries
-  const [totals, setTotals] = useState({
-    claimed: 0,
-    approved: 0,
-    pending: 0,
-  });
+  const [totals, setTotals] = useState({ claimed: 0, approved: 0, pending: 0 });
   const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);  // ← prevents double-submit
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -817,16 +814,25 @@ const ExpenseClaimScreen = () => {
       if (serverClaims && serverClaims.length > 0) {
         const parsed = serverClaims.map((c: any, idx: number) => ({
           id: c.id || Date.now() + idx,
-          date: c.date ? new Date(c.date).toLocaleDateString('en-GB').replace(/\//g, '-') : c.expenseDate || 'N/A',
-          category: c.type || c.category || 'Miscellaneous',
+          // Support multiple backend field names for date
+          date: c.expenseDate || c.expense_date
+            ? new Date(c.expenseDate || c.expense_date).toLocaleDateString('en-GB').replace(/\//g, '-')
+            : c.date
+            ? new Date(c.date).toLocaleDateString('en-GB').replace(/\//g, '-')
+            : c.createdAt
+            ? new Date(c.createdAt).toLocaleDateString('en-GB').replace(/\//g, '-')
+            : 'N/A',
+          // Support multiple backend field names for category
+          category: c.type || c.category || c.expenseType || c.expense_type || 'Miscellaneous',
           amount: Number(c.amount) || 0,
           remarks: c.description || c.remarks || '',
           receiptRef: c.billUrl || c.receiptUrl || 'N/A',
           status: c.status || 'Pending Approval',
-          kmTravelled: c.kmTravelled
+          kmTravelled: c.kmTravelled || c.km_travelled,
         }));
         setClaims(parsed);
         calculateTotals(parsed);
+        // Cache for offline use
         await AsyncStorage.setItem('@expense_claims', JSON.stringify(parsed));
       } else {
         const stored = await AsyncStorage.getItem('@expense_claims');
@@ -913,93 +919,99 @@ const ExpenseClaimScreen = () => {
   };
 
   const handleAddClaim = async () => {
-    const parsedAmount = parseFloat(amount);
-    if (isNaN(parsedAmount) || parsedAmount <= 0) {
-      customAlert('Invalid Input', 'Please enter a valid expense claim amount.');
+    if (isSaving) return; // ← prevent double-tap
+
+    // ── Date Validation ──
+    const parts = selectedDate.split('-');
+    if (parts.length !== 3) {
+      customAlert('⚠️ Invalid Date', 'Please select a valid expense date.');
+      return;
+    }
+    const expenseDateObj = new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+    if (isNaN(expenseDateObj.getTime())) {
+      customAlert('⚠️ Invalid Date', 'The selected date is not valid. Please choose again.');
+      return;
+    }
+    if (expenseDateObj > new Date()) {
+      customAlert('⚠️ Future Date', 'Expense date cannot be a future date.');
       return;
     }
 
+    // ── Amount Validation ──
+    const parsedAmount = parseFloat(amount);
+    if (isNaN(parsedAmount) || parsedAmount <= 0) {
+      customAlert('⚠️ Invalid Amount', 'Please enter a valid expense claim amount greater than ₹0.');
+      return;
+    }
+    if (parsedAmount > 50000) {
+      customAlert('⚠️ Amount Too High', 'A single expense claim cannot exceed ₹50,000. Please contact your manager for higher amounts.');
+      return;
+    }
+
+    // ── Remarks Validation ──
+    const cleanRemarks = remarks.trim();
+    if (!cleanRemarks || cleanRemarks.length < 10) {
+      customAlert('⚠️ Remarks Required', 'Please provide at least 10 characters of remarks describing the expense purpose.');
+      return;
+    }
+    if (!/[a-zA-Z]/.test(cleanRemarks)) {
+      customAlert('⚠️ Invalid Remarks', 'Remarks must contain meaningful text, not just numbers or symbols.');
+      return;
+    }
+
+    // ── Receipt mandatory for Hotel/Toll ──
+    if ((category === 'Hotel / Lodging' || category === 'Toll / Parking') && !receiptRef.trim()) {
+      customAlert('⚠️ Receipt Required', `A receipt reference is mandatory for ${category} claims. Please enter the receipt filename or reference number.`);
+      return;
+    }
+
+    // ── Duplicate check for same date + category ──
+    const duplicate = claims.find(
+      c => c.date === selectedDate && c.category === category && c.status !== 'Rejected'
+    );
+    if (duplicate) {
+      customAlert('⚠️ Duplicate Claim', `You have already submitted a ${category} claim for ${selectedDate}. Please check your history.`);
+      return;
+    }
+
+    setIsSaving(true);
     try {
+      const isoDate = expenseDateObj.toISOString();
 
- const parts =
-  selectedDate.split('-');
+      await createExpense(
+        category,
+        parsedAmount,
+        isoDate,
+        cleanRemarks,
+        receiptRef.trim() || 'N/A'
+      );
 
-const isoDate =
-  new Date(
-    Number(parts[2]),
-    Number(parts[1]) - 1,
-    Number(parts[0])
-  ).toISOString();
+      // Reload from backend — backend is now the source of truth
+      await loadClaims();
 
-  await createExpense(
-    category,
-    parsedAmount,
-    isoDate,
-    remarks,
-    receiptRef
-  );
-
-  console.log(
-    'Expense Saved Successfully'
-  );
-
-} catch (error) {
-
-  console.log(
-    'Expense API Error:',
-    error
-  );
-
-  customAlert(
-    'Error',
-    'Failed to save expense'
-  );
-
-  return;
-}
-
-    const newClaim: ExpenseClaim = {
-      id: Date.now(),
-      date: selectedDate,
-      category,
-      amount: parsedAmount,
-      kmTravelled: kmTravelled ? parseFloat(kmTravelled) : undefined,
-      receiptRef: receiptRef.trim() || 'N/A',
-      remarks: remarks.trim() || 'No additional remarks.',
-      status: 'Pending Approval',
-    };
-
-    const updated = [newClaim, ...claims];
-    setClaims(updated);
-    calculateTotals(updated);
-    await AsyncStorage.setItem('@expense_claims', JSON.stringify(updated));
-
-    // Reset Form Fields
-    setAmount('');
-    setKmTravelled('');
-    setReceiptRef('');
-    setRemarks('');
-    customAlert('Success', 'Expense claim submitted successfully for manager approval.');
-  };
-
-  // Demonstration helper: cycles claim status
-  const cycleClaimStatus = async (id: number) => {
-    const updated = claims.map((item) => {
-      if (item.id === id) {
-        const nextStatus: ExpenseClaim['status'] =
-          item.status === 'Pending Approval'
-            ? 'Approved'
-            : item.status === 'Approved'
-            ? 'Rejected'
-            : 'Pending Approval';
-        return { ...item, status: nextStatus };
+      // Reset form completely
+      setAmount('');
+      setKmTravelled('');
+      setReceiptRef('');
+      setRemarks('');
+      setCategory('Travel Allowance (TA)');
+      customAlert('✅ Success', 'Expense claim submitted successfully for manager approval.');
+    } catch (err: any) {
+      const status = err?.response?.status;
+      if (status === 401) {
+        customAlert('❌ Unauthorized', 'Your session has expired. Please log in again.');
+      } else if (status === 409) {
+        customAlert('❌ Duplicate', 'This expense has already been submitted.');
+      } else if (status === 422) {
+        customAlert('❌ Validation Failed', 'Server rejected the data. Please check all fields and try again.');
+      } else if (status >= 500) {
+        customAlert('❌ Server Error', 'The server is unavailable. Please try again later.');
+      } else {
+        customAlert('❌ Failed to Save', 'Could not submit expense claim. Please check your internet connection.');
       }
-      return item;
-    });
-
-    setClaims(updated);
-    calculateTotals(updated);
-    await AsyncStorage.setItem('@expense_claims', JSON.stringify(updated));
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const customAlert = (title: string, message: string) => {
@@ -1210,8 +1222,18 @@ const isoDate =
                   }}
                 />
 
-                <TouchableOpacity style={styles.submitBtn} onPress={handleAddClaim}>
-                  <Text style={styles.submitBtnText}>Submit Expense Claim</Text>
+                <TouchableOpacity
+                  style={[
+                    styles.submitBtn,
+                    isSaving && { opacity: 0.6 },
+                  ]}
+                  onPress={handleAddClaim}
+                  disabled={isSaving}
+                >
+                  {isSaving
+                    ? <ActivityIndicator color="#fff" />
+                    : <Text style={styles.submitBtnText}>📎 Submit Expense Claim</Text>
+                  }
                 </TouchableOpacity>
               </View>
 
@@ -1248,15 +1270,13 @@ const isoDate =
                         )}
 
                         <View style={styles.statusRow}>
-                          <Text style={styles.demoTip}>💡 Tap status to cycle for demo:</Text>
-                          <TouchableOpacity
+                          <View
                             style={[styles.statusBadge, { backgroundColor: statusBg }]}
-                            onPress={() => cycleClaimStatus(claim.id)}
                           >
                             <Text style={[styles.statusText, { color: statusColor }]}>
                               {claim.status}
                             </Text>
-                          </TouchableOpacity>
+                          </View>
                         </View>
                       </View>
                     );
