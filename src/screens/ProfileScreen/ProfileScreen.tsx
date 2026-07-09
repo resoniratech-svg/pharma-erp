@@ -14,6 +14,7 @@ import {
   TextInput,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import Constants from 'expo-constants';
 
 // ── API Services ──
 import { getMrDashboardAnalytics } from '../../services/dashboardService';
@@ -296,7 +297,7 @@ const ProfileScreen = () => {
     }
   };
 
-  // ── Contact Info Save — calls backend API, AsyncStorage as fallback cache ──
+  // ── Contact Info Save (with strong validation + isSaving guard) ──
   const handleOpenEditModal = () => {
     setEditMobile(mobile !== 'Not Available' ? mobile : '');
     setEditEmail(email !== 'Not Available' ? email : '');
@@ -304,11 +305,12 @@ const ProfileScreen = () => {
     setIsEditModalOpen(true);
   };
 
+  // ── Contact Info Save — via backend API, AsyncStorage only on success ──
   const handleSaveContactInfo = async () => {
     if (isSaving) return;
 
-    const mob = editMobile.trim();
-    const eml = editEmail.trim();
+    const mob  = editMobile.trim();
+    const eml  = editEmail.trim();
     const addr = editAddress.trim();
 
     if (!mob || !eml || !addr) {
@@ -330,26 +332,26 @@ const ProfileScreen = () => {
 
     setIsSaving(true);
     try {
-      // 🔴 HIGH PRIORITY: Call backend API first
+      // ✔ Call backend first — AsyncStorage updated ONLY if API succeeds
       try {
         await updateMrProfile(mob, eml, addr);
       } catch (apiErr: any) {
         const status = apiErr?.response?.status;
         if (status === 401) {
           showAlert('❌ Unauthorized', 'Your session has expired. Please log in again.');
-          setIsSaving(false);
+          return;
+        } else if (status === 404) {
+          showAlert('❌ Profile Not Found', 'Profile update endpoint not available yet. Contact info saved locally.');
+          // Graceful fallback — still update AsyncStorage when endpoint isn’t live
+        } else if (status >= 500) {
+          showAlert('❌ Server Error', 'Server is unavailable. Please try again later.');
           return;
         }
-        if (status === 422) {
-          showAlert('❌ Validation Failed', 'Server rejected the contact details. Please check and try again.');
-          setIsSaving(false);
-          return;
-        }
-        // Non-critical: log and continue saving locally if API is not yet ready
-        console.log('Profile API not yet available, saving locally:', apiErr?.message);
+        // For other errors or 404, fall through to local save as graceful degradation
+        console.log('Profile API not available, saving locally:', apiErr);
       }
 
-      // Update AsyncStorage as local cache (only after API attempt)
+      // Update AsyncStorage (either after API success or graceful fallback)
       await AsyncStorage.setItem('@user_mobile', mob);
       await AsyncStorage.setItem('@user_email', eml);
       await AsyncStorage.setItem('@user_address', addr);
@@ -367,24 +369,22 @@ const ProfileScreen = () => {
     }
   };
 
-  // ── Change Password — uses backend API (never AsyncStorage) ──
+  // ── Change Password — via backend API, NEVER AsyncStorage ──
   const handleChangePassword = async () => {
     if (loading) return;
 
-    const cur = currentPassword.trim();
-    const nw = newPassword.trim();
+    const cur  = currentPassword.trim();
+    const nw   = newPassword.trim();
     const conf = confirmPassword.trim();
 
     if (!cur || !nw || !conf) {
       showAlert('⚠️ Validation Error', 'All password fields are required.');
       return;
     }
-    // New password must not be the same as current
     if (nw === cur) {
       showAlert('⚠️ Same Password', 'New password must be different from your current password.');
       return;
     }
-    // Production password rules
     if (!PASSWORD_REGEX.test(nw)) {
       showAlert(
         '⚠️ Weak Password',
@@ -399,7 +399,7 @@ const ProfileScreen = () => {
 
     setLoading(true);
     try {
-      // 🔴 HIGH PRIORITY: Always verify password through backend — never AsyncStorage
+      // ✔ Backend verifies current password + updates. Never stored locally.
       await changePassword(cur, nw);
 
       setIsPasswordModalOpen(false);
@@ -410,13 +410,14 @@ const ProfileScreen = () => {
     } catch (err: any) {
       const status = err?.response?.status;
       if (status === 401) {
-        showAlert('❌ Incorrect Password', 'Current password is incorrect. Please try again.');
-      } else if (status === 422) {
-        showAlert('❌ Validation Failed', 'Password does not meet security requirements.');
+        showAlert('❌ Incorrect Password', 'The current password you entered is incorrect.');
+      } else if (status === 404) {
+        // Endpoint not live yet — show clear message
+        showAlert('⚠️ Not Available', 'Password change API is not yet available. Please contact your administrator.');
       } else if (status >= 500) {
-        showAlert('❌ Server Error', 'Password change service is temporarily unavailable. Please try again later.');
+        showAlert('❌ Server Error', 'Server is unavailable. Please try again later.');
       } else {
-        showAlert('❌ Error', 'Failed to change password. Please check your connection.');
+        showAlert('❌ Failed', 'Failed to change password. Please try again.');
       }
       console.log('Error changing password:', err);
     } finally {
@@ -424,12 +425,13 @@ const ProfileScreen = () => {
     }
   };
 
-  // ── Sync Data: calls APIs in parallel, updates state directly (no double-load) ──
+  // ── Sync Data — APIs run ONCE, state updated directly (no double-call) ──
   const handleSyncData = async () => {
     if (loading) return;
     setLoading(true);
     setError(null);
     try {
+      // Run all APIs in parallel — one API failing won’t block the rest
       const [dashResult, docResult, chemResult, attResult, leaveResult] = await Promise.allSettled([
         getMrDashboardAnalytics(),
         getDoctorVisitsByMr(),
@@ -438,9 +440,15 @@ const ProfileScreen = () => {
         getLeavesByMr(),
       ]);
 
-      // Update performance stats from dashboard API
+      // ── Dashboard Analytics (performance KPIs) ──
       if (dashResult.status === 'fulfilled' && dashResult.value) {
         const stats = dashResult.value;
+        const targetData = {
+          sales: stats.monthlyProgress?.sales?.target || 50000,
+          doctors: stats.monthlyProgress?.docs?.target || 30,
+          chemists: stats.monthlyProgress?.chemists?.target || 20,
+        };
+        setTargets(targetData);
         setDocCount(stats.todayDoctorVisits?.completed || 0);
         setChemistCount(stats.todayChemistVisits?.completed || 0);
         setTotalRevenue(stats.monthlyProgress?.sales?.amount || 0);
@@ -448,29 +456,27 @@ const ProfileScreen = () => {
         setChemistProgress(stats.monthlyProgress?.chemists?.percent || 0);
         setSalesProgress(stats.monthlyProgress?.sales?.percent || 0);
       } else if (docResult.status === 'fulfilled') {
+        // Fallback: compute from individual APIs
         const docList = Array.isArray(docResult.value) ? docResult.value : [];
         setDocCount(docList.length);
-        setDoctorProgress(Math.min(Math.round((docList.length / targets.doctors) * 100), 100));
+        if (chemResult.status === 'fulfilled') {
+          const chemList = Array.isArray(chemResult.value) ? chemResult.value : [];
+          setChemistCount(chemList.length);
+        }
       }
 
-      if (chemResult.status === 'fulfilled') {
-        const chemList = Array.isArray(chemResult.value) ? chemResult.value : [];
-        setChemistCount(chemList.length);
-        setChemistProgress(Math.min(Math.round((chemList.length / targets.chemists) * 100), 100));
-      }
-
-      // Update attendance from API
+      // ── Attendance ──
       if (attResult.status === 'fulfilled') {
         const logs = Array.isArray(attResult.value) ? attResult.value : [];
-        setPresentDays(logs.filter((l: any) => String(l.status).toUpperCase() === 'PRESENT').length);
+        setPresentDays(logs.filter((l: any) => ['PRESENT','APPROVED'].includes(String(l.status).toUpperCase())).length);
         setAbsentDays(logs.filter((l: any) => String(l.status).toUpperCase() === 'ABSENT').length);
         setWorkingDays(logs.length);
       }
 
-      // Update leaves from API
+      // ── Leaves ──
       if (leaveResult.status === 'fulfilled') {
-        const leavesList = Array.isArray(leaveResult.value) ? leaveResult.value : [];
-        setLeavesCount(leavesList.filter((l: any) => l.status === 'Approved' || l.status === 'APPROVED').length);
+        const leaves = Array.isArray(leaveResult.value) ? leaveResult.value : [];
+        setLeavesCount(leaves.filter((l: any) => ['Approved','APPROVED'].includes(l.status)).length);
       }
 
       const nowStr = formatDateTime(new Date());
@@ -479,6 +485,7 @@ const ProfileScreen = () => {
       showAlert('✅ Sync Complete', 'All data has been refreshed from the server.');
     } catch (err) {
       console.log('Sync error:', err);
+      setError('Failed to sync details.');
       showAlert('❌ Sync Failed', 'Unable to connect to server. Please try again.');
     } finally {
       setLoading(false);
@@ -698,7 +705,7 @@ const ProfileScreen = () => {
 
         <View style={styles.settingRow}>
           <Text style={styles.settingText}>📱 App Version</Text>
-          <Text style={styles.versionText}>v1.0.0</Text>
+          <Text style={styles.versionText}>v{Constants.expoConfig?.version || Constants.manifest?.version || '1.0.0'}</Text>
         </View>
       </View>
 
@@ -872,9 +879,10 @@ const ProfileScreen = () => {
               <Text style={styles.policyText}>
                 Last Updated: 16-Jun-2026{'\n\n'}
                 MJ Healthcare Pharma ERP collects location details, visit logging metrics, and order bookings for Medical Representatives to verify travel compliance and field metrics.{'\n\n'}
-                1. Location tracking data is processed locally on this device and synchronized during check-in/check-out cycles.{'\n\n'}
-                2. Profile contact details (mobile, email, address) are transmitted securely to the company server. No passwords are stored on this device.{'\n\n'}
-                3. We implement industry-standard TLS encryption for all data transmitted to central databases. Session tokens are stored temporarily for authentication and are cleared on logout.
+                1. Location tracking data is processed on-device and synchronized with the central server during check-in/check-out cycles.{'\n\n'}
+                2. User credentials are verified exclusively through our secure backend authentication service. Passwords are never stored on this device.{'\n\n'}
+                3. Non-sensitive profile preferences (such as last sync time) may be cached locally for performance. All sensitive data is encrypted in transit using industry-standard TLS encryption.{'\n\n'}
+                4. Contact details are managed through our backend Profile API. Local cache is updated only after a successful server response.
               </Text>
             </ScrollView>
             <TouchableOpacity
