@@ -31,3 +31,14 @@ export const createTourPlan = async (
 
   return response.data;
 };
+
+export const getTourPlansByMr = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const mrId = await AsyncStorage.getItem('@mrId');
+  const response = await api.get(`/tour-plans/mr/${mrId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.data || response.data;
+};

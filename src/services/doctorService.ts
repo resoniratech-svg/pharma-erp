@@ -46,6 +46,31 @@ export const createDoctorVisit = async (
   return response.data;
 };
 
+export const createDoctor = async (
+  name: string,
+  specialization: string,
+  hospital: string,
+  mobile: string
+) => {
+  const token = await AsyncStorage.getItem('@token');
+  const doctorCode = `DOC${Date.now()}`;
+  const response = await api.post(
+    '/doctors',
+    {
+      doctorCode,
+      name,
+      specialization,
+      hospital,
+      mobile,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  return response.data.data || response.data;
+};
 export const getDoctors = async () => {
   const token = await AsyncStorage.getItem('@token');
 
@@ -58,5 +83,47 @@ export const getDoctors = async () => {
     }
   );
 
+  return response.data;
+};
+
+export const getDoctorVisitsByMr = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const mrId = await AsyncStorage.getItem('@mrId');
+  const response = await api.get(`/doctor-visits/mr/${mrId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.data || response.data;
+};
+
+export const updateDoctorVisit = async (
+  visitId: string | number,
+  doctorId: number,
+  remarks: string,
+  productsDiscussed: string,
+  samplesGiven: number,
+  latitude?: number,
+  longitude?: number
+) => {
+  const token = await AsyncStorage.getItem('@token');
+  const mrId = await AsyncStorage.getItem('@mrId');
+  const response = await api.put(
+    `/doctor-visits/${visitId}`,
+    {
+      mrId: Number(mrId),
+      doctorId: Number(doctorId),
+      remarks,
+      productsDiscussed,
+      samplesGiven,
+      latitude,
+      longitude,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
   return response.data;
 };

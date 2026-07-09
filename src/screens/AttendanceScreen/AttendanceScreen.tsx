@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
+import { getAttendanceLogs } from '../../services/attendanceService';
 import {
   ActivityIndicator,
   Image,
@@ -18,6 +19,33 @@ const safeJsonParse = (data: string | null, fallback: any) => {
   } catch (err) {
     console.log('safeJsonParse error in AttendanceScreen:', err);
     return fallback;
+  }
+};
+
+const calculateDuration = (start: string, end: string) => {
+  if (!start || !end || start === 'N/A' || end === 'N/A' || end === 'Active') return '';
+  try {
+    const parseTime = (timeStr: string) => {
+      const parts = timeStr.trim().toLowerCase().split(' ');
+      let [hours, minutes] = parts[0].split(':').map(Number);
+      if (parts[1]) {
+        if (hours === 12) {
+          hours = parts[1] === 'am' ? 0 : 12;
+        } else if (parts[1] === 'pm') {
+          hours += 12;
+        }
+      }
+      return (hours || 0) * 60 + (minutes || 0);
+    };
+    const startMins = parseTime(start);
+    const endMins = parseTime(end);
+    let diff = endMins - startMins;
+    if (diff < 0) diff += 24 * 60;
+    const hrs = Math.floor(diff / 60);
+    const mins = diff % 60;
+    return `${hrs}h ${mins}m`;
+  } catch (e) {
+    return '';
   }
 };
 
@@ -56,8 +84,33 @@ const AttendanceScreen = () => {
       if (storedName) setUserName(storedName);
       if (storedRole) setDesignation(storedRole);
 
-      const storedLogs = await AsyncStorage.getItem('@attendance_logs');
-      setLogs(safeJsonParse(storedLogs, []));
+      let serverLogs = [];
+      try {
+        serverLogs = await getAttendanceLogs();
+      } catch (err) {
+        console.log('Failed to fetch attendance logs from backend:', err);
+      }
+
+      if (serverLogs && serverLogs.length > 0) {
+        const mappedLogs = serverLogs.map((log: any, idx: number) => {
+          const durationStr = calculateDuration(log.checkIn || log.checkInTime, log.checkOut || log.checkOutTime);
+          return {
+            id: log.id || `att-log-${idx}`,
+            date: log.date || 'N/A',
+            status: log.status || 'Present',
+            checkInTime: log.checkIn || log.checkInTime || 'N/A',
+            checkInAddress: log.checkInAddress || log.address || 'Field Location',
+            checkOutTime: log.checkOut || log.checkOutTime || 'Active',
+            checkOutAddress: log.checkOutAddress || 'Field Location',
+            duration: durationStr || 'N/A'
+          };
+        });
+        setLogs(mappedLogs);
+        await AsyncStorage.setItem('@attendance_logs', JSON.stringify(mappedLogs));
+      } else {
+        const storedLogs = await AsyncStorage.getItem('@attendance_logs');
+        setLogs(safeJsonParse(storedLogs, []));
+      }
 
       const todayStr = new Date().toISOString().split('T')[0];
       let isCheckInValid = false;

@@ -3,6 +3,7 @@ import { api } from './api';
 
 export const createChemist = async (
   chemistName: string,
+  shopName: string,
   mobile: string,
   address: string
 ) => {
@@ -18,7 +19,7 @@ export const createChemist = async (
       '/chemists',
       {
         chemistCode,
-        name: chemistName,
+        name: shopName || chemistName,
         mobile,
         address,
       },
@@ -30,11 +31,12 @@ export const createChemist = async (
       }
     );
 
-  return response.data.data;
+  return response.data.data || response.data;
 };
 
 export const findChemistByMobile = async (
-  mobile: string
+  mobile: string,
+  shopName?: string
 ) => {
 
   const token =
@@ -52,13 +54,13 @@ export const findChemistByMobile = async (
       }
     );
 
-  const chemists =
-    response.data.data;
+  const chemists = response.data.data || response.data || [];
+  const chemistsArray = Array.isArray(chemists) ? chemists : [];
 
   const existingChemist =
-    chemists.find(
+    chemistsArray.find(
       (c: any) =>
-        c.mobile === mobile
+        String(c.mobile).trim() === String(mobile).trim()
     );
 
   return existingChemist || null;
@@ -99,6 +101,9 @@ console.log('LONGITUDE:', longitude);
     }
   );
 
+  console.log("POST RESPONSE");
+  console.log(response.data);
+
   return response.data;
 };
 
@@ -118,5 +123,70 @@ export const getChemists = async () => {
       }
     );
 
+  return response.data;
+};
+
+export const getChemistVisitsByMr = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const mrId = await AsyncStorage.getItem('@mrId');
+  const response = await api.get(`/chemist-visits/mr/${mrId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.data || response.data;
+};
+
+export const updateChemistVisit = async (
+  visitId: string | number,
+  chemistId: number,
+  remarks: string,
+  productsDiscussed: string,
+  orderValue: number,
+  latitude?: number,
+  longitude?: number
+) => {
+  const token = await AsyncStorage.getItem('@token');
+  const mrId = await AsyncStorage.getItem('@mrId');
+  const response = await api.put(
+    `/chemist-visits/${visitId}`,
+    {
+      mrId: Number(mrId),
+      chemistId: Number(chemistId),
+      remarks,
+      productsDiscussed,
+      orderValue,
+      latitude,
+      longitude,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  return response.data;
+};
+
+export const updateChemist = async (
+  id: number | string,
+  name: string,
+  mobile: string,
+  address: string
+) => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.put(
+    `/chemists/${id}`,
+    {
+      name,
+      mobile,
+      address,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
   return response.data;
 };

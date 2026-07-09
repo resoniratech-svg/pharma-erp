@@ -75,25 +75,45 @@ const LeaveRequestScreen = () => {
   }, []);
 
   const loadLeaveData = async () => {
-  try {
-    const history = await getLeavesByMr();
+    try {
+      const history = await getLeavesByMr();
 
-    console.log('LEAVES FROM API =>', history);
+      console.log('LEAVES FROM API =>', history);
 
-    setHistory(history);
+      setHistory(history || []);
 
-    const storedBalances = await AsyncStorage.getItem('@leave_balances');
-    setBalances(
-      safeJsonParse(storedBalances, {
-        casual: 8,
-        sick: 5,
-        earned: 12,
-      })
-    );
-  } catch (e) {
-    console.log('Failed to load leave data:', e);
-  }
-};
+      // Calculate leave balances dynamically from the live leave request list
+      let casualUsed = 0;
+      let sickUsed = 0;
+      let earnedUsed = 0;
+
+      (history || []).forEach((req: any) => {
+        if (req.status === 'Approved' || req.status === 'Pending Approval') {
+          const from = new Date(req.fromDate || req.startDate);
+          const to = new Date(req.toDate || req.endDate);
+          const diffTime = Math.abs(to.getTime() - from.getTime());
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+
+          const type = (req.leaveType || '').toLowerCase().trim();
+          if (type.includes('casual')) {
+            casualUsed += diffDays;
+          } else if (type.includes('sick')) {
+            sickUsed += diffDays;
+          } else if (type.includes('earned')) {
+            earnedUsed += diffDays;
+          }
+        }
+      });
+
+      setBalances({
+        casual: Math.max(0, 8 - casualUsed),
+        sick: Math.max(0, 5 - sickUsed),
+        earned: Math.max(0, 12 - earnedUsed),
+      });
+    } catch (e) {
+      console.log('Failed to load leave data:', e);
+    }
+  };
 
   // Helper: Format date string from YYYY-MM-DD to DD-MM-YYYY for display
   const formatDateDisplay = (dateStr?: string): string => {

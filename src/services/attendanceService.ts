@@ -49,3 +49,14 @@ export const checkOutAttendance = async (
 
   return response.data;
 };
+
+export const getAttendanceLogs = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const mrId = await AsyncStorage.getItem('@mrId');
+  const response = await api.get(`/attendance/mr/${mrId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.data || response.data;
+};

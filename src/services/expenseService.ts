@@ -31,3 +31,14 @@ export const createExpense = async (
 
   return response.data;
 };
+
+export const getExpensesByMr = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const mrId = await AsyncStorage.getItem('@mrId');
+  const response = await api.get(`/expenses/mr/${mrId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.data || response.data;
+};

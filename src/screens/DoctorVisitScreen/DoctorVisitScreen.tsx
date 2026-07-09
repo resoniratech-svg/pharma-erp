@@ -18,7 +18,10 @@ import { Picker } from '@react-native-picker/picker';
 import * as Location from 'expo-location';
 import {
   createDoctorVisit,
-  getDoctors
+  getDoctors,
+  getDoctorVisitsByMr,
+  createDoctor,
+  updateDoctorVisit
 } from '../../services/doctorService';
 import { createFollowUp } from '../../services/followUpService'; 
 
@@ -70,27 +73,31 @@ const DatePickerField = ({
   label,
   value,
   onChange,
+  editable = true,
 }: {
   label: string;
   value: string;
   onChange: (date: string) => void;
+  editable?: boolean;
 }) => {
   const [showPicker, setShowPicker] = useState(false);
   const dateObj = value ? new Date(value) : new Date();
 
   if (Platform.OS === 'web') {
     return (
-      <View style={{ marginBottom: 12 }}>
+      <View style={{ marginBottom: 12, opacity: editable ? 1 : 0.6 }}>
         <Text style={styles.label}>{label}</Text>
         {/* @ts-ignore */}
         <input
           type="date"
           value={value}
-          onChange={(e: any) => onChange(e.target.value)}
+          onChange={(e: any) => editable && onChange(e.target.value)}
+          disabled={!editable}
           style={{
             borderWidth: 1, border: '1px solid #ddd', borderRadius: 8, padding: '12px',
-            fontSize: 14, backgroundColor: '#fafafa', width: '100%', boxSizing: 'border-box',
+            fontSize: 14, backgroundColor: editable ? '#fafafa' : '#e2e8f0', width: '100%', boxSizing: 'border-box',
             fontFamily: 'inherit', color: value ? '#222' : '#999',
+            cursor: editable ? 'default' : 'not-allowed',
           }}
         />
       </View>
@@ -98,18 +105,19 @@ const DatePickerField = ({
   }
 
   return (
-    <View style={{ marginBottom: 12 }}>
+    <View style={{ marginBottom: 12, opacity: editable ? 1 : 0.6 }}>
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity
-        style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-        onPress={() => setShowPicker(true)}
+        style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, !editable && { backgroundColor: '#e2e8f0' }]}
+        onPress={() => editable && setShowPicker(true)}
+        disabled={!editable}
       >
         <Text style={{ fontSize: 14, color: value ? '#222' : '#999' }}>
           {value || 'Select date...'}
         </Text>
         <Text style={{ fontSize: 16 }}>📅</Text>
       </TouchableOpacity>
-      {showPicker && (
+      {showPicker && editable && (
         <DateTimePicker
           value={dateObj}
           mode="date"
@@ -130,10 +138,12 @@ const TimePickerField = ({
   label,
   value,
   onChange,
+  editable = true,
 }: {
   label: string;
   value: string;
   onChange: (time: string) => void;
+  editable?: boolean;
 }) => {
   const [showPicker, setShowPicker] = useState(false);
 
@@ -148,17 +158,19 @@ const TimePickerField = ({
 
   if (Platform.OS === 'web') {
     return (
-      <View style={{ marginBottom: 12 }}>
+      <View style={{ marginBottom: 12, opacity: editable ? 1 : 0.6 }}>
         <Text style={styles.label}>{label}</Text>
         {/* @ts-ignore */}
         <input
           type="time"
           value={value}
-          onChange={(e: any) => onChange(e.target.value)}
+          onChange={(e: any) => editable && onChange(e.target.value)}
+          disabled={!editable}
           style={{
             border: '1px solid #ddd', borderRadius: 8, padding: '12px',
-            fontSize: 14, backgroundColor: '#fafafa', width: '100%', boxSizing: 'border-box',
+            fontSize: 14, backgroundColor: editable ? '#fafafa' : '#e2e8f0', width: '100%', boxSizing: 'border-box',
             fontFamily: 'inherit', color: value ? '#222' : '#999',
+            cursor: editable ? 'default' : 'not-allowed',
           }}
         />
       </View>
@@ -166,18 +178,19 @@ const TimePickerField = ({
   }
 
   return (
-    <View style={{ marginBottom: 12 }}>
+    <View style={{ marginBottom: 12, opacity: editable ? 1 : 0.6 }}>
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity
-        style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-        onPress={() => setShowPicker(true)}
+        style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, !editable && { backgroundColor: '#e2e8f0' }]}
+        onPress={() => editable && setShowPicker(true)}
+        disabled={!editable}
       >
         <Text style={{ fontSize: 14, color: value ? '#222' : '#999' }}>
           {value || 'Select time...'}
         </Text>
         <Text style={{ fontSize: 16 }}>🕐</Text>
       </TouchableOpacity>
-      {showPicker && (
+      {showPicker && editable && (
         <DateTimePicker
           value={buildTimeDate(value)}
           mode="time"
@@ -249,6 +262,7 @@ const DoctorVisitScreen = () => {
   const [doctors, setDoctors] = useState<any[]>([]);
   const [doctorId, setDoctorId] = useState<number | null>(null);
   const [doctorSource, setDoctorSource] = useState<'Existing' | 'New'>('Existing');
+  const [rawVisits, setRawVisits] = useState<any[]>([]);
   
   // Dynamic tracking state variables for MR ID
   const [mrId, setMrId] = useState<number | null>(null);
@@ -267,7 +281,9 @@ const DoctorVisitScreen = () => {
   const [prescriptionPotential, setPrescriptionPotential] = useState<DoctorVisit['prescriptionPotential']>('Medium');
   const [nextFollowUp, setNextFollowUp] = useState('');
   const [remarks, setRemarks] = useState('');
-  const [status, setStatus] = useState<DoctorVisit['status']>('Scheduled');
+  const [status, setStatus] = useState<DoctorVisit['status']>('Completed');
+  const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
+  const [editedVisitIds, setEditedVisitIds] = useState<string[]>([]);
 
   const scrollViewRef = React.useRef<ScrollView>(null);
 
@@ -288,17 +304,53 @@ const DoctorVisitScreen = () => {
   }, []);
 
   useEffect(() => {
-    loadVisits();
-    loadDoctors(); 
+    const init = async () => {
+      await loadDoctors();
+      await loadVisits();
+      try {
+        const stored = await AsyncStorage.getItem('@edited_visit_ids');
+        if (stored) {
+          setEditedVisitIds(JSON.parse(stored));
+        }
+      } catch (e) {
+        console.log('Failed to load edited visits list:', e);
+      }
+    };
+    init();
     setVisitDate(formatDate(new Date()));
     setVisitTime(formatTime(new Date()));
   }, []);
 
+  // const loadVisits = async () => {
+  //   setLoading(true); setError(null);
+  //   try {
+  //     const storedVisits = await AsyncStorage.getItem('@doctor_visits');
+  //     setVisits(safeJsonParse(storedVisits, []));
+  //   } catch (err) {
+  //     console.log('Failed to load:', err);
+  //     setError('Failed to load doctor visits.');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
+
   const loadVisits = async () => {
     setLoading(true); setError(null);
     try {
-      const storedVisits = await AsyncStorage.getItem('@doctor_visits');
-      setVisits(safeJsonParse(storedVisits, []));
+      let serverVisits = [];
+      try {
+        serverVisits = await getDoctorVisitsByMr();
+      } catch (err) {
+        console.log('Failed to fetch doctor visits from backend:', err);
+      }
+
+      if (serverVisits && serverVisits.length > 0) {
+        setRawVisits(serverVisits);
+        await AsyncStorage.setItem('@doctor_visits', JSON.stringify(serverVisits));
+      } else {
+        const storedVisits = await AsyncStorage.getItem('@doctor_visits');
+        setRawVisits(safeJsonParse(storedVisits, []));
+      }
     } catch (err) {
       console.log('Failed to load:', err);
       setError('Failed to load doctor visits.');
@@ -306,6 +358,46 @@ const DoctorVisitScreen = () => {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (rawVisits && rawVisits.length > 0) {
+      const mapped: DoctorVisit[] = rawVisits.map((item: any, idx: number) => {
+        const doctor = doctors.find((d: any) => d.id === Number(item.doctorId));
+        
+        let dateStr = '';
+        let timeStr = '';
+        if (item.visitDate) {
+          try {
+            const d = new Date(item.visitDate);
+            dateStr = d.toISOString().split('T')[0];
+            timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } catch (e) {}
+        }
+        return {
+          id: item.id?.toString() || `server-${idx}`,
+          doctorName: item.doctorName || (doctor ? doctor.name : `Doctor #${item.doctorId}`),
+          specialty: doctor ? doctor.specialization || doctor.specialty || 'General Practitioner' : 'General Practitioner',
+          clinic: doctor ? doctor.hospital || doctor.clinic || 'Clinic Address' : (item.remarks || 'Clinic Address'),
+          mobile: doctor ? doctor.mobile || doctor.phone || '' : '',
+          visitDate: dateStr || item.visitDate,
+          visitTime: timeStr,
+          visitType: item.visitType || 'Routine Visit',
+          doctorClass: doctor ? doctor.classCategory || doctor.category || 'B' : 'B',
+          productsDiscussed: item.productsDiscussed || '',
+          samplesGiven: String(item.samplesGiven || 0),
+          prescriptionPotential: doctor ? doctor.prescriptionPotential || 'Medium' : 'Medium',
+          nextFollowUp: item.nextFollowUp || '',
+          remarks: item.remarks || '',
+          latitude: item.latitude,
+          longitude: item.longitude,
+          status: item.status || 'Completed',
+        };
+      });
+      setVisits(mapped);
+    } else {
+      setVisits([]);
+    }
+  }, [rawVisits, doctors]);
 
   const loadDoctors = async () => {
     try {
@@ -322,17 +414,72 @@ const DoctorVisitScreen = () => {
       customAlert('Error', 'Please select a Doctor from the dropdown.'); 
       return; 
     }
-    if (!doctorName.trim()) { 
-      customAlert('Error', 'Please enter Doctor Name'); 
-      return; 
-    }
-    if (!clinic.trim()) { 
-      customAlert('Error', 'Please enter Clinic / Hospital'); 
-      return; 
-    }
-    if (mobile.trim() && mobile.length !== 10) {
-      customAlert('Error', 'Mobile number must be exactly 10 digits.');
+    
+    // 1. Doctor Name (min 3, max 100)
+    if (!doctorName.trim() || doctorName.trim().length < 3 || doctorName.trim().length > 100) {
+      customAlert('Error', 'Doctor Name must be between 3 and 100 characters.');
       return;
+    }
+
+    // 2. Clinic / Hospital Name (max 150)
+    if (!clinic.trim() || clinic.trim().length > 150) {
+      customAlert('Error', 'Clinic / Hospital Name must be between 1 and 150 characters.');
+      return;
+    }
+
+    // 3. Mobile (starts with 6, 7, 8, 9 and exactly 10 digits)
+    const mobileRegex = /^[6-9]\d{9}$/;
+    if (mobile.trim() && !mobileRegex.test(mobile.trim())) {
+      customAlert('Error', 'Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.');
+      return;
+    }
+
+    // 4. Visit Date (cannot be in the future) - only validate on new visits
+    if (!editingVisitId) {
+      const today = new Date();
+      today.setHours(23, 59, 59, 999);
+      if (new Date(visitDate) > today) {
+        customAlert('Error', 'Visit Date cannot be in the future.');
+        return;
+      }
+    }
+
+    // 5. Next Follow Up Date (must be after Visit Date)
+    if (nextFollowUp && new Date(nextFollowUp) <= new Date(visitDate)) {
+      customAlert('Error', 'Next Follow Up Date must be after the Visit Date.');
+      return;
+    }
+
+    // 6. Samples Given (must be 0 or a positive number)
+    const samplesVal = Number(samplesGiven);
+    if (samplesGiven && (isNaN(samplesVal) || samplesVal < 0)) {
+      customAlert('Error', 'Samples Given must be 0 or a positive number.');
+      return;
+    }
+
+    // 7. Products Discussed (max 250 characters)
+    if (productsDiscussed.trim().length > 250) {
+      customAlert('Error', 'Products Discussed cannot exceed 250 characters.');
+      return;
+    }
+
+    // 8. Remarks (max 500 characters)
+    if (remarks.trim().length > 500) {
+      customAlert('Error', 'Remarks cannot exceed 500 characters.');
+      return;
+    }
+
+    // 9. Prevent Duplicate Visits (same doctor on the same date) - only on new visits
+    if (!editingVisitId) {
+      const isDuplicate = visits.some(
+        (v) =>
+          v.doctorName.toLowerCase() === doctorName.trim().toLowerCase() &&
+          v.visitDate === visitDate
+      );
+      if (isDuplicate) {
+        customAlert('Warning', 'A visit for this doctor on the selected date is already logged.');
+        return;
+      }
     }
 
     // ─── REPLACED GPS BLOCK (WEB & MOBILE ACCURATE) ───
@@ -391,95 +538,176 @@ const DoctorVisitScreen = () => {
     console.log('LATITUDE:', currentLat);
     console.log('LONGITUDE:', currentLon);
 
-    // Backend submission step (Only for existing doctors in backend master)
-    if (doctorSource === 'Existing' && doctorId) {
+    // Backend submission step
+    let finalDoctorId = doctorId;
+    if (doctorSource === 'New' && !editingVisitId) {
       try {
-        const result = await createDoctorVisit(
-          doctorId,
-          remarks,
-          productsDiscussed,
-          Number(samplesGiven || 0),
-          currentLat,
-          currentLon
+        const newDoc = await createDoctor(
+          doctorName,
+          specialty || 'General Practitioner',
+          clinic,
+          mobile
         );
-        console.log('Doctor Visit Saved to Backend:', result);
-
-        if (nextFollowUp) {
-          await createFollowUp({
-            mrId: Number(mrId),
-            doctorId: Number(doctorId),
-            title: 'Doctor Follow Up',
-            remarks: remarks || 'Doctor follow-up scheduled',
-            followUpDate: new Date(nextFollowUp),
-          });
-          console.log('Follow-up schedule created successfully on server.');
-        }
+        console.log('New Doctor Saved to Backend:', newDoc);
+        finalDoctorId = newDoc.id || newDoc.data?.id;
       } catch (error) {
-        console.log('Doctor Visit API Error:', error);
-        customAlert('Error', 'Failed to save Doctor Visit to server.');
+        console.log('Create Doctor API Error:', error);
+        customAlert('Error', 'Failed to save new Doctor profile to server.');
         setIsSubmitting(false);
         return;
       }
-    } else {
-      console.log('Manual/New doctor visit - logging locally to AsyncStorage only');
     }
 
-    const newVisit: DoctorVisit = {
-      id: Date.now().toString(),
-      doctorName,
-      specialty: specialty || 'General Practitioner',
-      clinic,
-      mobile,
-      visitDate,
-      visitTime,
-      visitType,
-      doctorClass,
-      productsDiscussed,
-      samplesGiven,
-      prescriptionPotential,
-      nextFollowUp,
-      latitude: currentLat,
-      longitude: currentLon,
-      distanceVerified: distVerified,
-      remarks,
-      status,
-    };
+    if (editingVisitId) {
+      // Edit mode: call PUT API
+      try {
+        const numericId = Number(editingVisitId);
+        if (!isNaN(numericId)) {
+          // Find if we had mapped doctor ID originally from visits
+          const origVisit = visits.find(v => v.id === editingVisitId);
+          let apiDocId = finalDoctorId;
+          if (!apiDocId && origVisit) {
+            // Find doctor ID from master list
+            const matchedDoc = doctors.find(d => d.name === origVisit.doctorName);
+            if (matchedDoc) {
+              apiDocId = matchedDoc.id;
+            }
+          }
+          const result = await updateDoctorVisit(
+            numericId,
+            apiDocId || 0,
+            remarks,
+            productsDiscussed,
+            Number(samplesGiven || 0),
+            currentLat,
+            currentLon
+          );
+          console.log('Doctor Visit Updated on Backend:', result);
+        }
+      } catch (error) {
+        console.log('Doctor Visit API Error:', error);
+        customAlert('Error', 'Failed to update Doctor Visit on server.');
+        setIsSubmitting(false);
+        return;
+      }
 
-    const updatedVisits = [newVisit, ...visits];
-    setVisits(updatedVisits);
+      const updatedRawVisits = rawVisits.map((v) => {
+        if (v.id?.toString() === editingVisitId?.toString()) {
+          return {
+            ...v,
+            doctorId: finalDoctorId || v.doctorId,
+            doctorName,
+            remarks,
+            productsDiscussed,
+            samplesGiven: Number(samplesGiven || 0),
+            visitType,
+            nextFollowUp,
+          };
+        }
+        return v;
+      });
+      setRawVisits(updatedRawVisits);
 
-    try {
-      await AsyncStorage.setItem('@doctor_visits', JSON.stringify(updatedVisits));
+      try {
+        await AsyncStorage.setItem('@doctor_visits', JSON.stringify(updatedRawVisits));
+        
+        // Track edited state locally
+        const newEditedIds = [...editedVisitIds, editingVisitId];
+        setEditedVisitIds(newEditedIds);
+        await AsyncStorage.setItem('@edited_visit_ids', JSON.stringify(newEditedIds));
+      } catch (err) {
+        customAlert('Error', 'Failed to save visit data locally.');
+      }
 
-      // ✅ Instantly append a local notification if a follow-up is scheduled
-      if (nextFollowUp) {
+      const alertName = doctorName.toLowerCase().trim().startsWith('dr.') ? doctorName : `Dr. ${doctorName}`;
+      customAlert('✅ Visit Updated!', `${alertName} visit updated successfully.`);
+
+      // Reset editing state
+      setEditingVisitId(null);
+    } else {
+      // Create mode
+      if (finalDoctorId) {
         try {
-          const notifsData = await AsyncStorage.getItem('@notifications');
-          const notifsList = notifsData ? JSON.parse(notifsData) : [];
-          notifsList.unshift({
-            id: `dyn-doc-notif-${Date.now()}`,
-            type: 'followup',
-            title: `📅 Follow-up Scheduled`,
-            message: `Follow-up with Dr. ${doctorName} scheduled for ${nextFollowUp}.`,
-            time: 'Just now',
-            unread: true,
-          });
-          await AsyncStorage.setItem('@notifications', JSON.stringify(notifsList.slice(0, 50)));
-        } catch (e) {
-          console.log('Failed to save follow-up notification:', e);
+          const result = await createDoctorVisit(
+            finalDoctorId,
+            remarks,
+            productsDiscussed,
+            Number(samplesGiven || 0),
+            currentLat,
+            currentLon
+          );
+          console.log('Doctor Visit Saved to Backend:', result);
+
+          if (nextFollowUp) {
+            await createFollowUp({
+              mrId: Number(mrId),
+              doctorId: Number(finalDoctorId),
+              title: 'Doctor Follow Up',
+              remarks: remarks || 'Doctor follow-up scheduled',
+              followUpDate: new Date(nextFollowUp),
+            });
+            console.log('Follow-up schedule created successfully on server.');
+          }
+        } catch (error) {
+          console.log('Doctor Visit API Error:', error);
+          customAlert('Error', 'Failed to save Doctor Visit to server.');
+          setIsSubmitting(false);
+          return;
         }
       }
 
-      customAlert('✅ Visit Saved!', `Dr. ${doctorName} visit logged successfully.`);
-    } catch (err) {
-      customAlert('Error', 'Failed to save visit data locally.');
+      const newRawVisit = {
+        id: Date.now(),
+        doctorId: finalDoctorId,
+        doctorName: doctorName,
+        remarks: remarks,
+        productsDiscussed: productsDiscussed,
+        samplesGiven: Number(samplesGiven || 0),
+        visitDate: new Date(`${visitDate}T${visitTime}`).toISOString(),
+        visitType: visitType,
+        status: status,
+        latitude: currentLat,
+        longitude: currentLon,
+      };
+
+      const updatedRawVisits = [newRawVisit, ...rawVisits];
+      setRawVisits(updatedRawVisits);
+
+      try {
+        await AsyncStorage.setItem('@doctor_visits', JSON.stringify(updatedRawVisits));
+
+        // ✅ Instantly append a local notification if a follow-up is scheduled
+        if (nextFollowUp) {
+          try {
+            const notifsData = await AsyncStorage.getItem('@notifications');
+            const notifsList = notifsData ? JSON.parse(notifsData) : [];
+            notifsList.unshift({
+              id: `dyn-doc-notif-${Date.now()}`,
+              type: 'followup',
+              title: `📅 Follow-up Scheduled`,
+              message: `Follow-up with Dr. ${doctorName} scheduled for ${nextFollowUp}.`,
+              time: 'Just now',
+              unread: true,
+            });
+            await AsyncStorage.setItem('@notifications', JSON.stringify(notifsList.slice(0, 50)));
+          } catch (e) {
+            console.log('Failed to save follow-up notification:', e);
+          }
+        }
+        await loadDoctors(); // Refresh dropdown master list so new doctor appears immediately
+      } catch (err) {
+        customAlert('Error', 'Failed to save visit data locally.');
+      }
+
+      const alertName = doctorName.toLowerCase().trim().startsWith('dr.') ? doctorName : `Dr. ${doctorName}`;
+      customAlert('✅ Visit Saved!', `${alertName} visit logged successfully.`);
     }
 
     // Reset form, keep date/time
     setDoctorId(null); setDoctorName(''); setSpecialty(''); setClinic(''); setMobile('');
     setVisitType('Routine Visit'); setDoctorClass('B'); setProductsDiscussed('');
     setSamplesGiven(''); setPrescriptionPotential('Medium'); setNextFollowUp('');
-    setRemarks(''); setStatus('Scheduled'); setDoctorSource('Existing');
+        setRemarks(''); setStatus('Completed'); setDoctorSource('Existing');
     setIsSubmitting(false);
   };
 
@@ -518,21 +746,23 @@ const DoctorVisitScreen = () => {
         <Text style={styles.title}>🩺 Doctor Visit</Text>
 
         <View style={styles.form}>
-          <ToggleRow
-            label="Doctor Source"
-            options={['Existing Doctor', 'New Doctor']}
-            selected={doctorSource === 'Existing' ? 'Existing Doctor' : 'New Doctor'}
-            onSelect={(val) => {
-              setDoctorSource(val === 'Existing Doctor' ? 'Existing' : 'New');
-              setDoctorId(null);
-              setDoctorName('');
-              setSpecialty('');
-              setClinic('');
-              setMobile('');
-            }}
-          />
+          {editingVisitId === null && (
+            <ToggleRow
+              label="Doctor Source"
+              options={['Existing Doctor', 'New Doctor']}
+              selected={doctorSource === 'Existing' ? 'Existing Doctor' : 'New Doctor'}
+              onSelect={(val) => {
+                setDoctorSource(val === 'Existing Doctor' ? 'Existing' : 'New');
+                setDoctorId(null);
+                setDoctorName('');
+                setSpecialty('');
+                setClinic('');
+                setMobile('');
+              }}
+            />
+          )}
 
-          {doctorSource === 'Existing' && (
+          {(doctorSource === 'Existing' && editingVisitId === null) && (
             <>
               <Text style={styles.label}>Select Doctor *</Text>
               <View
@@ -544,9 +774,9 @@ const DoctorVisitScreen = () => {
                 }}
               >
                 <Picker
-                  selectedValue={doctorId}
+                  selectedValue={doctorId?.toString() ?? ""}
                   onValueChange={(itemValue) => {
-                    if (itemValue === null || !itemValue) {
+                    if (!itemValue || itemValue === "") {
                       setDoctorId(null);
                       setDoctorName('');
                       setSpecialty('');
@@ -559,15 +789,15 @@ const DoctorVisitScreen = () => {
                     const selectedDoctor = doctors.find((d) => d.id === doctorIdNum);
                     if (selectedDoctor) {
                       setDoctorName(selectedDoctor.name || '');
-                      setSpecialty(selectedDoctor.specialization || '');
-                      setClinic(selectedDoctor.hospital || '');
+                      setSpecialty(selectedDoctor.specialization || selectedDoctor.specialty || '');
+                      setClinic(selectedDoctor.hospital || selectedDoctor.clinic || '');
                       setMobile(selectedDoctor.mobile || '');
                     }
                   }}
                 >
-                  <Picker.Item label="-- Select Existing Doctor --" value={null} />
+                  <Picker.Item label="-- Select Existing Doctor --" value="" />
                   {doctors.map((doctor) => (
-                    <Picker.Item key={doctor.id} label={doctor.name} value={doctor.id} />
+                    <Picker.Item key={doctor.id} label={doctor.name} value={doctor.id.toString()} />
                   ))}
                 </Picker>
               </View>
@@ -578,7 +808,7 @@ const DoctorVisitScreen = () => {
           <TextInput 
             style={[
               styles.input,
-              (doctorSource === 'Existing' && doctorId !== null) && {
+              (editingVisitId === null && doctorSource === 'Existing' && doctorId !== null) && {
                 backgroundColor: '#F1F5F9',
                 color: '#64748B',
               },
@@ -586,14 +816,14 @@ const DoctorVisitScreen = () => {
             placeholder="Enter doctor's name"
             value={doctorName} 
             onChangeText={setDoctorName} 
-            editable={doctorSource === 'New' || doctorId === null}
+            editable={editingVisitId !== null || doctorSource === 'New' || doctorId === null}
           />
 
           <Text style={styles.label}>Specialty</Text>
           <TextInput 
             style={[
               styles.input,
-              (doctorSource === 'Existing' && doctorId !== null) && {
+              (editingVisitId === null && doctorSource === 'Existing' && doctorId !== null) && {
                 backgroundColor: '#F1F5F9',
                 color: '#64748B',
               },
@@ -601,14 +831,14 @@ const DoctorVisitScreen = () => {
             placeholder="e.g. Cardiologist"
             value={specialty} 
             onChangeText={setSpecialty} 
-            editable={doctorSource === 'New' || doctorId === null}
+            editable={editingVisitId !== null || doctorSource === 'New' || doctorId === null}
           />
 
           <Text style={styles.label}>Clinic / Hospital Name *</Text>
           <TextInput 
             style={[
               styles.input,
-              (doctorSource === 'Existing' && doctorId !== null) && {
+              (editingVisitId === null && doctorSource === 'Existing' && doctorId !== null) && {
                 backgroundColor: '#F1F5F9',
                 color: '#64748B',
               },
@@ -616,14 +846,14 @@ const DoctorVisitScreen = () => {
             placeholder="e.g. City General Hospital"
             value={clinic} 
             onChangeText={setClinic} 
-            editable={doctorSource === 'New' || doctorId === null}
+            editable={editingVisitId !== null || doctorSource === 'New' || doctorId === null}
           />
 
           <Text style={styles.label}>Mobile Number</Text>
           <TextInput 
             style={[
               styles.input,
-              (doctorSource === 'Existing' && doctorId !== null) && {
+              (editingVisitId === null && doctorSource === 'Existing' && doctorId !== null) && {
                 backgroundColor: '#F1F5F9',
                 color: '#64748B',
               },
@@ -633,11 +863,11 @@ const DoctorVisitScreen = () => {
             onChangeText={(text) => setMobile(text.replace(/[^0-9]/g, '').slice(0, 10))}
             keyboardType="numeric" 
             maxLength={10} 
-            editable={doctorSource === 'New' || doctorId === null}
+            editable={editingVisitId !== null || doctorSource === 'New' || doctorId === null}
           />
 
-          <DatePickerField label="Visit Date *" value={visitDate} onChange={setVisitDate} />
-          <TimePickerField label="Visit Time" value={visitTime} onChange={setVisitTime} />
+          <DatePickerField label="Visit Date *" value={visitDate} onChange={setVisitDate} editable={false} />
+          <TimePickerField label="Visit Time" value={visitTime} onChange={setVisitTime} editable={editingVisitId === null} />
 
           <ToggleRow
             label="Visit Type"
@@ -676,20 +906,36 @@ const DoctorVisitScreen = () => {
             multiline numberOfLines={3}
           />
 
-          <ToggleRow
+          {/* <ToggleRow
             label="Status"
             options={['Scheduled', 'Completed', 'Missed']}
             selected={status} onSelect={setStatus}
             colors={['#3B82F6', '#10B981', '#EF4444']}
-          />
+          /> */}
+           {/* Status is automatically set to Completed upon submission */}
 
           <TouchableOpacity style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]} onPress={handleSubmit} disabled={isSubmitting}>
             {isSubmitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitText}>LOG DOCTOR VISIT</Text>
+              <Text style={styles.submitText}>{editingVisitId ? "UPDATE DOCTOR VISIT" : "LOG DOCTOR VISIT"}</Text>
             )}
           </TouchableOpacity>
+
+          {editingVisitId && (
+            <TouchableOpacity 
+              style={[styles.submitButton, { backgroundColor: '#64748B', marginTop: 8 }]} 
+              onPress={() => {
+                setEditingVisitId(null);
+                setDoctorId(null); setDoctorName(''); setSpecialty(''); setClinic(''); setMobile('');
+                setVisitType('Routine Visit'); setDoctorClass('B'); setProductsDiscussed('');
+                setSamplesGiven(''); setPrescriptionPotential('Medium'); setNextFollowUp('');
+                setRemarks(''); setStatus('Completed'); setDoctorSource('Existing');
+              }}
+            >
+              <Text style={styles.submitText}>CANCEL EDIT</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Visit History */}
@@ -711,7 +957,9 @@ const DoctorVisitScreen = () => {
           visits.map((visit) => (
             <View key={visit.id} style={styles.visitCard}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text style={styles.visitDoctor}>Dr. {visit.doctorName}</Text>
+                <Text style={styles.visitDoctor}>
+                  {visit.doctorName.toLowerCase().trim().startsWith('dr.') ? visit.doctorName : `Dr. ${visit.doctorName}`}
+                </Text>
                 <View style={{ backgroundColor: '#EEF2FF', paddingHorizontal: 6, paddingVertical: 2, borderRadius: 4 }}>
                   <Text style={{ fontSize: 10, color: '#4F46E5', fontWeight: 'bold' }}>Class {visit.doctorClass}</Text>
                 </View>
@@ -720,13 +968,56 @@ const DoctorVisitScreen = () => {
               <Text style={styles.visitInfo}>📅 {visit.visitDate}  •  🕐 {visit.visitTime}</Text>
               <Text style={styles.visitInfo}>🔖 {visit.visitType}  •  rx: {visit.prescriptionPotential}</Text>
               {visit.productsDiscussed ? <Text style={styles.visitInfo}>💊 {visit.productsDiscussed}</Text> : null}
-              {visit.status === 'Completed' ? (
-                <Text style={[styles.visitInfo, { color: '#10B981', fontWeight: 'bold' }]}>✓ Completed</Text>
-              ) : visit.status === 'Scheduled' ? (
-                <Text style={[styles.visitInfo, { color: '#3B82F6', fontWeight: 'bold' }]}>⏳ Scheduled</Text>
-              ) : (
-                <Text style={[styles.visitInfo, { color: '#EF4444', fontWeight: 'bold' }]}>❌ Missed</Text>
-              )}
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                {visit.status === 'Completed' ? (
+                  <Text style={[styles.visitInfo, { color: '#10B981', fontWeight: 'bold', marginTop: 0 }]}>✓ Completed</Text>
+                ) : visit.status === 'Scheduled' ? (
+                  <Text style={[styles.visitInfo, { color: '#3B82F6', fontWeight: 'bold', marginTop: 0 }]}>⏳ Scheduled</Text>
+                ) : (
+                  <Text style={[styles.visitInfo, { color: '#EF4444', fontWeight: 'bold', marginTop: 0 }]}>❌ Missed</Text>
+                )}
+
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                  {editedVisitIds.includes(visit.id) && (
+                    <Text style={{ fontSize: 11, color: '#64748B', fontStyle: 'italic', fontWeight: '600' }}>Edited</Text>
+                  )}
+                  <TouchableOpacity
+                    style={{
+                      paddingHorizontal: 12,
+                      paddingVertical: 6,
+                      backgroundColor: '#E2E8F0',
+                      borderRadius: 6,
+                    }}
+                    onPress={() => {
+                      setEditingVisitId(visit.id);
+                      const matchedDoc = doctors.find((d: any) => d.name === visit.doctorName);
+                      if (matchedDoc) {
+                        setDoctorSource('Existing');
+                        setDoctorId(matchedDoc.id);
+                      } else {
+                        setDoctorSource('New');
+                        setDoctorId(null);
+                      }
+                      setDoctorName(visit.doctorName);
+                      setSpecialty(visit.specialty);
+                      setClinic(visit.clinic);
+                      setMobile(visit.mobile || '');
+                      setVisitDate(visit.visitDate);
+                      setVisitTime(visit.visitTime);
+                      setVisitType(visit.visitType);
+                      setDoctorClass(visit.doctorClass);
+                      setProductsDiscussed(visit.productsDiscussed);
+                      setSamplesGiven(visit.samplesGiven);
+                      setPrescriptionPotential(visit.prescriptionPotential);
+                      setNextFollowUp(visit.nextFollowUp || '');
+                      setRemarks(visit.remarks || '');
+                      scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                    }}
+                  >
+                    <Text style={{ fontSize: 12, color: '#475569', fontWeight: 'bold' }}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
             </View>
           ))
         )}

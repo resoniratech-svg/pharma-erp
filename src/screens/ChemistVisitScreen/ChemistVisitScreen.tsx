@@ -1,7 +1,11 @@
 import { 
   createChemistVisit, 
   findChemistByMobile, 
-  createChemist 
+  createChemist,
+  getChemists,
+  getChemistVisitsByMr,
+  updateChemistVisit,
+  updateChemist
 } from '../../services/chemistService'; 
 import { createFollowUp } from '../../services/followUpService'; 
 import React, { useState, useEffect } from 'react';
@@ -30,6 +34,7 @@ const safeJsonParse = (data: string | null, fallback: any) => {
 
 interface ChemistVisit {
   id: string;
+  chemistId?: number | string;
   chemistName: string;
   shopName: string;
   mobile?: string;
@@ -66,34 +71,41 @@ const DatePickerField = ({
   label,
   value,
   onChange,
+  editable = true,
+  minDate,
 }: {
   label: string;
   value: string;
   onChange: (date: string) => void;
+  editable?: boolean;
+  minDate?: string;
 }) => {
   const [showPicker, setShowPicker] = useState(false);
   const dateObj = value ? new Date(value) : new Date();
 
   if (Platform.OS === 'web') {
     return (
-      <View style={{ marginBottom: 4 }}>
+      <View style={{ marginBottom: 4, opacity: editable ? 1 : 0.6 }}>
         <Text style={styles.label}>{label}</Text>
         {/* @ts-ignore */}
         <input
           type="date"
           value={value}
-          onChange={(e: any) => onChange(e.target.value)}
+          onChange={(e: any) => editable && onChange(e.target.value)}
+          disabled={!editable}
+          min={minDate}
           style={{
             borderWidth: 1,
             border: '1px solid #ddd',
             borderRadius: 8,
             padding: '12px',
             fontSize: 14,
-            backgroundColor: '#fafafa',
+            backgroundColor: editable ? '#fafafa' : '#e2e8f0',
             width: '100%',
             boxSizing: 'border-box',
             fontFamily: 'inherit',
             color: value ? '#222' : '#999',
+            cursor: editable ? 'default' : 'not-allowed',
           }}
         />
       </View>
@@ -101,11 +113,12 @@ const DatePickerField = ({
   }
 
   return (
-    <View style={{ marginBottom: 4 }}>
+    <View style={{ marginBottom: 4, opacity: editable ? 1 : 0.6 }}>
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity
-        style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-        onPress={() => setShowPicker(true)}
+        style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, !editable && { backgroundColor: '#e2e8f0' }]}
+        onPress={() => editable && setShowPicker(true)}
+        disabled={!editable}
       >
         <Text style={{ fontSize: 14, color: value ? '#222' : '#999' }}>
           {value || 'Select date...'}
@@ -113,10 +126,11 @@ const DatePickerField = ({
         <Text style={{ fontSize: 16 }}>📅</Text>
       </TouchableOpacity>
 
-      {showPicker && (
+      {showPicker && editable && (
         <DateTimePicker
           value={dateObj}
           mode="date"
+          minimumDate={minDate ? new Date(minDate) : undefined}
           display={Platform.OS === 'ios' ? 'inline' : 'default'}
           onChange={(_event: any, selectedDate?: Date) => {
             setShowPicker(Platform.OS === 'ios');
@@ -275,6 +289,10 @@ const ChemistVisitScreen = () => {
 
   const [mrId, setMrId] = useState<number | null>(null);
   const [visits, setVisits] = useState<ChemistVisit[]>([]);
+  const [chemists, setChemists] = useState<any[]>([]);
+  const [rawVisits, setRawVisits] = useState<any[]>([]);
+  const [editingVisitId, setEditingVisitId] = useState<string | null>(null);
+  const [editedVisitIds, setEditedVisitIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -285,18 +303,57 @@ const ChemistVisitScreen = () => {
     else { Alert.alert(title, message); }
   };
 
+  const confirmPromise = (title: string, message: string): Promise<boolean> => {
+    return new Promise((resolve) => {
+      if (Platform.OS === 'web') {
+        const ok = window.confirm(`${title}\n\n${message}`);
+        resolve(ok);
+      } else {
+        Alert.alert(
+          title,
+          message,
+          [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'OK', onPress: () => resolve(true) },
+          ],
+          { cancelable: false }
+        );
+      }
+    });
+  };
+
   useEffect(() => {
     const loadMrId = async () => {
       const storedMrId = await AsyncStorage.getItem('@mrId');
       if (storedMrId) {
         setMrId(Number(storedMrId));
       }
+      try {
+        const storedEdited = await AsyncStorage.getItem('@edited_chemist_visit_ids');
+        if (storedEdited) {
+          setEditedVisitIds(JSON.parse(storedEdited));
+        }
+      } catch (e) {}
     };
     loadMrId();
   }, []);
 
+  const loadChemists = async () => {
+    try {
+      const response = await getChemists();
+      const chemistsData = response.data || response;
+      setChemists(Array.isArray(chemistsData) ? chemistsData : (chemistsData.data || []));
+    } catch (e) {
+      console.log('Failed to load chemists:', e);
+    }
+  };
+
   useEffect(() => {
-    loadVisits();
+    const init = async () => {
+      await loadChemists();
+      await loadVisits();
+    };
+    init();
     const today = new Date();
     setVisitDate(formatDate(today));
     setVisitTime(formatTime(today));
@@ -305,20 +362,183 @@ const ChemistVisitScreen = () => {
   const loadVisits = async () => {
     setLoading(true); setError(null);
     try {
-      const storedVisits = await AsyncStorage.getItem('@chemist_visits');
-      setVisits(safeJsonParse(storedVisits, []));
+      let serverVisits = [];
+      try {
+        serverVisits = await getChemistVisitsByMr();
+        console.log("SERVER VISITS");
+        console.log(serverVisits);
+        console.log("COUNT =", serverVisits.length);
+      } catch (err) {
+        console.log('Failed to fetch chemist visits from backend:', err);
+      }
+
+      if (serverVisits && serverVisits.length > 0) {
+        setRawVisits(serverVisits);
+        await AsyncStorage.setItem('@chemist_visits', JSON.stringify(serverVisits));
+      } else {
+        const storedVisits = await AsyncStorage.getItem('@chemist_visits');
+        setRawVisits(safeJsonParse(storedVisits, []));
+      }
     } catch (err) {
       console.log('Failed to load chemist visits:', err);
-      setError("Failed to load today's orders.");
+      setError("Failed to load today's visits.");
       customAlert('Error', 'Failed to load chemist visits.');
     } finally { setLoading(false); }
   };
 
+  useEffect(() => {
+    if (rawVisits && rawVisits.length > 0) {
+      const mapped: ChemistVisit[] = rawVisits.map((item: any, idx: number) => {
+        const chemist = chemists.find((c: any) => c.id === Number(item.chemistId));
+        
+        let dateStr = '';
+        let timeStr = '';
+        if (item.visitDate || item.createdAt) {
+          try {
+            const d = new Date(item.visitDate || item.createdAt);
+            dateStr = d.toISOString().split('T')[0];
+            timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } catch (e) {}
+        }
+        return {
+          id: item.id?.toString() || `server-${idx}`,
+          chemistId: item.chemistId,
+          chemistName: chemist ? chemist.name : (item.chemistName || 'Chemist Name'),
+          shopName: chemist ? chemist.shopName || chemist.name : (item.chemistName || 'Shop Name'),
+          mobile: chemist ? chemist.mobile : '',
+          location: chemist ? chemist.address || chemist.location || '' : (item.location || ''),
+          visitDate: dateStr || item.visitDate || formatDate(new Date()),
+          visitTime: timeStr || item.visitTime || formatTime(new Date()),
+          latitude: item.latitude,
+          longitude: item.longitude,
+          distanceVerified: item.distanceVerified || 'Pending Verification',
+          stockCheck: item.stockCheck || 'Pending',
+          pobAmount: Number(item.orderValue || item.pobAmount || 0),
+          medicine: item.productsDiscussed || item.medicine || '',
+          quantity: item.quantity || '',
+          nextFollowUp: item.followUpDate || item.nextFollowUp || '',
+          remarks: item.remarks || '',
+          status: item.status || 'Completed',
+        };
+      });
+      setVisits(mapped);
+    } else {
+      setVisits([]);
+    }
+  }, [rawVisits, chemists]);
+
+  const handleEdit = (visit: ChemistVisit) => {
+    setEditingVisitId(visit.id);
+    setChemistName(visit.chemistName);
+    setShopName(visit.shopName);
+    setMobile(visit.mobile || '');
+    setLocation(visit.location);
+    setVisitDate(visit.visitDate);
+    setVisitTime(visit.visitTime);
+    setStockCheck(visit.stockCheck);
+    setMedicine(visit.medicine || '');
+    setQuantity(visit.quantity || '');
+    setPobAmount(visit.pobAmount > 0 ? String(visit.pobAmount) : '');
+    setNextFollowUp(visit.nextFollowUp || '');
+    setRemarks(visit.remarks || '');
+    setStatus(visit.status);
+    
+    if (scrollViewRef.current) {
+      scrollViewRef.current.scrollTo({ y: 0, animated: true });
+    }
+  };
+
   const handleSubmit = async () => {
-    if (!chemistName.trim()) { customAlert('Error', 'Please enter chemist name'); return; }
-    if (!shopName.trim()) { customAlert('Error', 'Please enter shop name'); return; }
-    if (mobile.trim() && mobile.length !== 10) {
-      customAlert('Error', 'Mobile number must be exactly 10 digits.'); return;
+    const isEdit = !!editingVisitId;
+
+    // Validation 1: Chemist Name (Required + alphabetic, space, dot only)
+    if (!chemistName.trim()) {
+      customAlert('Error', 'Please enter chemist name.');
+      return;
+    }
+    const nameRegex = /^[A-Za-z\s\.]+$/;
+    if (!nameRegex.test(chemistName.trim())) {
+      customAlert('Error', 'Chemist Name can only contain letters, spaces, and dots.');
+      return;
+    }
+
+    // Validation 2: Shop Name (Required + allowed symbols)
+    if (!shopName.trim()) {
+      customAlert('Error', 'Please enter shop/pharmacy name.');
+      return;
+    }
+    const shopNameRegex = /^[A-Za-z0-9\s\.\-\/\&]+$/;
+    if (!shopNameRegex.test(shopName.trim())) {
+      customAlert('Error', 'Shop Name can only contain letters, numbers, spaces, and standard symbols (., -, /, &).');
+      return;
+    }
+
+    // Validation 3: Mobile number (Required + starts with 6,7,8,9 and exactly 10 digits)
+    if (!mobile.trim()) {
+      customAlert('Error', 'Please enter mobile number.');
+      return;
+    }
+    const mobileRegex = /^[6-9]\d{9}$/;
+    if (!mobileRegex.test(mobile.trim())) {
+      customAlert('Error', 'Mobile number must be exactly 10 digits and start with 6, 7, 8, or 9.');
+      return;
+    }
+
+    // Validation 4: Location/Area (Required)
+    if (!location.trim()) {
+      customAlert('Error', 'Please enter area/location.');
+      return;
+    }
+
+    // Validation 5: Visit Date (Required)
+    if (!visitDate) {
+      customAlert('Error', 'Please select visit date.');
+      return;
+    }
+
+    // Validation 6: Visit Time (Required)
+    if (!visitTime) {
+      customAlert('Error', 'Please select visit time.');
+      return;
+    }
+
+    // Validation 7: Medicine validation if POB is booked
+    if (Number(pobAmount) > 0 && !medicine.trim()) {
+      customAlert('Error', 'Please enter medicine/product for the booked order.');
+      return;
+    }
+
+    // Validation 8: Quantity validation if POB is booked
+    if (Number(pobAmount) > 0 && !quantity.trim()) {
+      customAlert('Error', 'Please enter quantity for the booked order.');
+      return;
+    }
+
+    // Validation 9: POB Amount must be greater than 0 if entered
+    if (pobAmount && Number(pobAmount) <= 0) {
+      customAlert('Error', 'POB Amount must be greater than 0.');
+      return;
+    }
+
+    // Validation 10: Follow-up validation (if Next Follow-up is selected, remarks are required)
+    if (nextFollowUp && !remarks.trim()) {
+      customAlert('Error', 'Remarks are required when scheduling a follow-up.');
+      return;
+    }
+
+    // Validation 11: Remarks length (max 250 characters)
+    if (remarks.trim().length > 250) {
+      customAlert('Error', 'Remarks cannot exceed 250 characters.');
+      return;
+    }
+
+    // Validation 12: Next Follow-Up Date cannot be in the past
+    if (nextFollowUp) {
+      const todayStr = formatDate(new Date());
+      if (nextFollowUp < todayStr) {
+        customAlert('Error', 'Next Follow-Up Date cannot be in the past.');
+        return;
+      }
     }
 
     // ─── REPLACED GPS BLOCK ───
@@ -328,103 +548,172 @@ const ChemistVisitScreen = () => {
     let currentLon: number | undefined = undefined;
     let distVerified = 'Pending Verification';
 
-try {
-  if (Platform.OS === 'web') {
-    const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-      navigator.geolocation.getCurrentPosition(resolve, reject, {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0,
-      });
-    });
+    try {
+      if (Platform.OS === 'web') {
+        const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+          navigator.geolocation.getCurrentPosition(resolve, reject, {
+            enableHighAccuracy: false,
+            timeout: 2000,
+            maximumAge: 60000,
+          });
+        });
 
-    currentLat = position.coords.latitude;
-    currentLon = position.coords.longitude;
-  } else {
-    let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
+        currentLat = position.coords.latitude;
+        currentLon = position.coords.longitude;
+      } else {
+        let { status: locationStatus } = await Location.requestForegroundPermissionsAsync();
 
-    if (locationStatus === 'granted') {
-      let loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
+        if (locationStatus === 'granted') {
+          let loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.Balanced,
+          });
 
-      currentLat = loc.coords.latitude;
-      currentLon = loc.coords.longitude;
-    } else {
-      distVerified = 'Location Permission Denied';
+          currentLat = loc.coords.latitude;
+          currentLon = loc.coords.longitude;
+        } else {
+          distVerified = 'Location Permission Denied';
+        }
+      }
+
+      console.log('CHEMIST GPS:', currentLat, currentLon);
+
+      if (currentLat && currentLon) {
+        distVerified = 'Verified (within 50m)';
+      }
+
+    } catch (e) {
+      console.log('Location error:', e);
+      distVerified = 'Location Error';
     }
-  }
 
-  console.log('CHEMIST GPS:', currentLat, currentLon);
-
-  if (currentLat && currentLon) {
-    distVerified = 'Verified (within 50m)';
-  }
-
-} catch (e) {
-  console.log('Location error:', e);
-  distVerified = 'Location Error';
-}
-   
-    const newVisit: ChemistVisit = {
-      id: String(Date.now()),
-      chemistName, shopName, mobile, location,
-      visitDate, visitTime, stockCheck,
-      latitude: currentLat,
-      longitude: currentLon,
-      distanceVerified: distVerified,
-      pobAmount: Number(pobAmount) || 0,
-      medicine, quantity, nextFollowUp, remarks, status,
-    };
+    let chemistId: number;
 
     // ─── API SERVER CONDITIONAL RESOLUTION & SUBMISSION ───
     try {
-      let chemistId: number;
-      const existingChemist = await findChemistByMobile(mobile);
+      if (editingVisitId) {
+        const origVisit = visits.find((v) => v.id?.toString() === editingVisitId.toString());
+        if (!origVisit) {
+          throw new Error("Original visit not found");
+        }
 
-      if (existingChemist) {
-        chemistId = existingChemist.id;
-        console.log('Using existing chemist:', chemistId);
+        const matchedChem = chemists.find((c: any) => String(c.mobile).trim() === String(mobile).trim());
+        if (matchedChem) {
+          chemistId = matchedChem.id;
+          try {
+            await updateChemist(chemistId, shopName || chemistName, mobile, location);
+            console.log("Chemist record updated successfully on backend");
+          } catch (e) {
+            console.log("Failed to update chemist master record on backend:", e);
+          }
+        } else {
+          chemistId = Number(origVisit.chemistId);
+          try {
+            await updateChemist(chemistId, shopName || chemistName, mobile, location);
+            console.log("Chemist record updated with new details on backend");
+          } catch (e) {
+            console.log("Failed to update chemist master record on backend:", e);
+          }
+        }
       } else {
-        const newChemist = await createChemist(chemistName, mobile, location);
-        chemistId = newChemist.id;
-        console.log('Created new chemist:', chemistId);
+        const existingChemist = await findChemistByMobile(mobile);
+
+        if (existingChemist) {
+          const chemistNameFromDb = existingChemist.name || 'Unknown Name';
+          const shopNameFromDb = existingChemist.shopName || chemistNameFromDb;
+          
+          const proceed = await confirmPromise(
+            'Chemist Already Registered',
+            `Mobile number ${mobile} is already registered to ${chemistNameFromDb} (${shopNameFromDb}).\n\nDo you want to log the visit for this existing chemist?`
+          );
+          
+          if (!proceed) {
+            setIsSubmitting(false);
+            return;
+          }
+
+          chemistId = existingChemist.id || (existingChemist.data && existingChemist.data.id) || Number(existingChemist);
+          console.log('Using existing chemist:', chemistId);
+        } else {
+          const newChemist = await createChemist(chemistName, shopName, mobile, location);
+          console.log("NEW CHEMIST RESPONSE:", newChemist);
+          chemistId = newChemist.id || (newChemist.data && newChemist.data.id) || Number(newChemist);
+          console.log('Created new chemist ID:', chemistId);
+          await loadChemists();
+        }
       }
 
-      const result = await createChemistVisit(
-        chemistId,
-        remarks,
-        medicine,
-        Number(pobAmount || 0),
-        currentLat,
-        currentLon
-      );
-      console.log('Chemist Visit Saved:', result);
-
-      if (nextFollowUp) {
-        await createFollowUp({
-          mrId: Number(mrId),
-          chemistId: Number(chemistId),
-          title: 'Chemist Follow Up',
-          remarks: remarks || 'Chemist follow-up scheduled',
-          followUpDate: new Date(nextFollowUp).toISOString(),
-        });
-        console.log('Chemist Follow-up created successfully');
+      if (!chemistId || isNaN(chemistId)) {
+        throw new Error(`Chemist ID resolution failed: resolved chemistId is ${chemistId}`);
       }
 
-    } catch (error) {
+      console.log('SUBMIT TRANSACTION INFO:', {
+        mrId: mrId,
+        chemistId: chemistId,
+        isEdit: !!editingVisitId,
+      });
+
+      if (editingVisitId) {
+        const result = await updateChemistVisit(
+          editingVisitId,
+          chemistId,
+          remarks,
+          medicine,
+          Number(pobAmount || 0),
+          currentLat,
+          currentLon
+        );
+        console.log('Chemist Visit Updated:', result);
+        if (!result) {
+          throw new Error("Chemist Visit Update API returned empty response");
+        }
+
+        try {
+          const newEditedIds = [...editedVisitIds, editingVisitId];
+          setEditedVisitIds(newEditedIds);
+          await AsyncStorage.setItem('@edited_chemist_visit_ids', JSON.stringify(newEditedIds));
+        } catch (e) {}
+
+        setEditingVisitId(null);
+      } else {
+        const result = await createChemistVisit(
+          chemistId,
+          remarks,
+          medicine,
+          Number(pobAmount || 0),
+          currentLat,
+          currentLon
+        );
+        console.log('Chemist Visit Saved:', result);
+        if (!result) {
+          throw new Error("Chemist Visit Save API returned empty response");
+        }
+
+        if (nextFollowUp) {
+          await createFollowUp({
+            mrId: Number(mrId),
+            chemistId: Number(chemistId),
+            title: 'Chemist Follow Up',
+            remarks: remarks || 'Chemist follow-up scheduled',
+            followUpDate: new Date(nextFollowUp).toISOString(),
+          });
+          console.log('Chemist Follow-up created successfully');
+        }
+      }
+
+    } catch (error: any) {
       console.log('Chemist Visit API Error:', error);
-      customAlert('Error', 'Failed to save Chemist Visit to server');
+      let errMsg = 'Failed to save Chemist Visit to server';
+      if (error && error.response && error.response.data) {
+        errMsg += '\nDetails: ' + (typeof error.response.data === 'object' ? JSON.stringify(error.response.data) : error.response.data);
+      } else if (error && error.message) {
+        errMsg += '\nMessage: ' + error.message;
+      }
+      customAlert('Error', errMsg);
       setIsSubmitting(false);
       return;
     }
 
-    const updatedVisits = [newVisit, ...visits];
-    setVisits(updatedVisits);
-
     try {
-      await AsyncStorage.setItem('@chemist_visits', JSON.stringify(updatedVisits));
-
       // ✅ Instantly append a local notification if a follow-up is scheduled
       if (nextFollowUp) {
         try {
@@ -472,6 +761,20 @@ try {
         };
         await AsyncStorage.setItem('@orders', JSON.stringify([newOrder, ...existingOrders]));
       }
+
+      await loadChemists();
+      await loadVisits();
+
+      // Sync local chemists array state to reflect edited values instantly in the history card list
+      if (chemistId) {
+        setChemists((prevChemists) =>
+          prevChemists.map((c) =>
+            c.id === chemistId
+              ? { ...c, name: chemistName, shopName: shopName || chemistName, mobile, address: location }
+              : c
+          )
+        );
+      }
     } catch (err) {
       console.log('Failed to save:', err);
       customAlert('Error', 'Failed to save visit data locally.');
@@ -482,7 +785,11 @@ try {
     setQuantity(''); setNextFollowUp(''); setRemarks(''); setStatus('Scheduled');
 
     setIsSubmitting(false);
-    customAlert('✅ Visit Saved!', `${shopName} visit logged successfully.`);
+    if (isEdit) {
+      customAlert('✅ Visit Updated!', `${shopName} visit updated successfully.`);
+    } else {
+      customAlert('✅ Visit Saved!', `${shopName} visit logged successfully.`);
+    }
   };
 
   const ToggleRow = ({
@@ -531,13 +838,13 @@ try {
           <TextInput style={styles.input} placeholder="Enter pharmacy / shop name"
             value={shopName} onChangeText={setShopName} />
 
-          <Text style={styles.label}>Mobile Number</Text>
+          <Text style={styles.label}>Mobile Number *</Text>
           <TextInput style={styles.input} placeholder="Enter chemist's 10-digit mobile number"
             value={mobile}
             onChangeText={(text) => setMobile(text.replace(/[^0-9]/g, ''))}
             keyboardType="numeric" maxLength={10} />
 
-          <Text style={styles.label}>Area / Location</Text>
+          <Text style={styles.label}>Area / Location *</Text>
           <TextInput style={styles.input} placeholder="e.g. Hyderabad, Banjara Hills"
             value={location} onChangeText={setLocation} />
 
@@ -545,10 +852,11 @@ try {
             label="Visit Date *"
             value={visitDate}
             onChange={setVisitDate}
+            editable={false}
           />
 
           <TimePickerField
-            label="Visit Time"
+            label="Visit Time *"
             value={visitTime}
             onChange={setVisitTime}
           />
@@ -586,6 +894,7 @@ try {
             label="Next Follow-Up Date"
             value={nextFollowUp}
             onChange={setNextFollowUp}
+            minDate={formatDate(new Date())}
           />
 
           <Text style={styles.label}>Remarks</Text>
@@ -610,13 +919,27 @@ try {
             {isSubmitting ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text style={styles.submitText}>BOOK ORDER</Text>
+              <Text style={styles.submitText}>{editingVisitId ? "UPDATE VISIT" : "SAVE VISIT"}</Text>
             )}
           </TouchableOpacity>
+
+          {editingVisitId && (
+            <TouchableOpacity 
+              style={[styles.submitButton, { backgroundColor: '#64748B', marginTop: 8 }]} 
+              onPress={() => {
+                setEditingVisitId(null);
+                setChemistName(''); setShopName(''); setMobile(''); setLocation('');
+                setStockCheck('Pending'); setPobAmount(''); setMedicine('');
+                setQuantity(''); setNextFollowUp(''); setRemarks(''); setStatus('Scheduled');
+              }}
+            >
+              <Text style={styles.submitText}>CANCEL EDIT</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         {/* Visit History */}
-        <Text style={styles.historyTitle}>Today's Orders</Text>
+        <Text style={styles.historyTitle}>Today's Visits</Text>
         {loading ? (
           <ActivityIndicator size="small" color="#43A047" style={{ marginVertical: 10 }} />
         ) : error ? (
@@ -629,12 +952,12 @@ try {
           </View>
         ) : visits.length === 0 ? (
           <Text style={{ fontSize: 13, color: '#94A3B8', fontStyle: 'italic', textAlign: 'center', marginVertical: 10 }}>
-            No orders booked today yet.
+            No chemist visits found today.
           </Text>
         ) : (
           <>
             <Text style={[styles.historyTitle, { fontSize: 14, color: '#64748B', marginTop: -5, marginBottom: 10 }]}>
-              Total booked: {visits.length}
+              Total visits: {visits.length}
             </Text>
             {visits.map((visit, index) => (
               <View key={`${visit.id}-${index}`} style={styles.visitCard}>
@@ -654,18 +977,38 @@ try {
                 {visit.nextFollowUp ? (
                   <Text style={styles.visitInfo}>🔔 Follow-Up: {visit.nextFollowUp}</Text>
                 ) : null}
-                <View style={[
-                  styles.statusBadge,
-                  visit.status === 'Completed' ? { backgroundColor: '#D1FAE5' }
-                  : visit.status === 'Scheduled' ? { backgroundColor: '#DBEAFE' }
-                  : { backgroundColor: '#FEE2E2' },
-                ]}>
-                  <Text style={[
-                    { fontSize: 11, fontWeight: 'bold' },
-                    { color: visit.status === 'Completed' ? '#059669' : visit.status === 'Scheduled' ? '#2563EB' : '#DC2626' }
+                <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 10, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' }}>
+                  <View style={[
+                    styles.statusBadge,
+                    { marginTop: 0 },
+                    visit.status === 'Completed' ? { backgroundColor: '#D1FAE5' }
+                    : visit.status === 'Scheduled' ? { backgroundColor: '#DBEAFE' }
+                    : { backgroundColor: '#FEE2E2' },
                   ]}>
-                    {visit.status}
-                  </Text>
+                    <Text style={[
+                      { fontSize: 11, fontWeight: 'bold' },
+                      { color: visit.status === 'Completed' ? '#059669' : visit.status === 'Scheduled' ? '#2563EB' : '#DC2626' }
+                    ]}>
+                      {visit.status}
+                    </Text>
+                  </View>
+
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {editedVisitIds.includes(visit.id) && (
+                      <Text style={{ fontSize: 11, color: '#64748B', fontStyle: 'italic', fontWeight: '600' }}>Edited</Text>
+                    )}
+                    <TouchableOpacity
+                      style={{
+                        paddingHorizontal: 12,
+                        paddingVertical: 6,
+                        backgroundColor: '#E2E8F0',
+                        borderRadius: 6,
+                      }}
+                      onPress={() => handleEdit(visit)}
+                    >
+                      <Text style={{ fontSize: 12, color: '#475569', fontWeight: 'bold' }}>Edit</Text>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               </View>
             ))}

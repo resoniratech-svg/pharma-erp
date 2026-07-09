@@ -11,6 +11,7 @@ import {
     ActivityIndicator,
     TouchableOpacity,
 } from 'react-native';
+import { getChemistVisitsByMr } from '../../services/chemistService';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -46,24 +47,52 @@ const GeoTaggedChemistVisitsScreen = () => {
     setLoading(true);
     setError(null);
     try {
-      const stored = await AsyncStorage.getItem('@chemist_visits');
-      const parsed = safeJsonParse(stored, []);
-      const mapped: GeoChemVisit[] = parsed.map((item: any, idx: number) => ({
-        id: item.id?.toString() || `local-${Date.now()}-${idx}`,
-        chemistName: item.chemistName || 'Unknown Chemist',
-        visitTime: item.visitTime || '-',
-        latitude: item.latitude && !isNaN(parseFloat(item.latitude))
-          ? parseFloat(item.latitude)
-          : null,
-        longitude: item.longitude && !isNaN(parseFloat(item.longitude))
-          ? parseFloat(item.longitude)
-          : null,
-        distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
-        status: item.status === 'Verified' || item.status === 'Rejected' 
-          ? item.status 
-          : (item.latitude ? 'Verified' : 'Pending')
-      }));
-      setVisits(mapped);
+      let serverVisits = [];
+      try {
+        serverVisits = await getChemistVisitsByMr();
+      } catch (err) {
+        console.log('Failed to fetch chemist visits from backend:', err);
+      }
+
+      if (serverVisits && serverVisits.length > 0) {
+        const mapped: GeoChemVisit[] = serverVisits.map((item: any, idx: number) => {
+          let timeStr = '-';
+          if (item.visitDate) {
+            try {
+              const d = new Date(item.visitDate);
+              timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {}
+          }
+          return {
+            id: item.id?.toString() || `server-${idx}`,
+            chemistName: item.chemistName || `Chemist #${item.chemistId}`,
+            visitTime: timeStr,
+            latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
+            longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
+            distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
+            status: item.status === 'Verified' || item.status === 'Rejected'
+              ? item.status
+              : (item.latitude ? 'Verified' : 'Pending')
+          };
+        });
+        setVisits(mapped);
+        await AsyncStorage.setItem('@chemist_visits', JSON.stringify(serverVisits));
+      } else {
+        const stored = await AsyncStorage.getItem('@chemist_visits');
+        const parsed = safeJsonParse(stored, []);
+        const mapped: GeoChemVisit[] = parsed.map((item: any, idx: number) => ({
+          id: item.id?.toString() || `local-${Date.now()}-${idx}`,
+          chemistName: item.chemistName || 'Unknown Chemist',
+          visitTime: item.visitTime || '-',
+          latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
+          longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
+          distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
+          status: item.status === 'Verified' || item.status === 'Rejected' 
+            ? item.status 
+            : (item.latitude ? 'Verified' : 'Pending')
+        }));
+        setVisits(mapped);
+      }
     } catch (err) {
       console.log('Failed to load chemist visits', err);
       setError('Failed to load chemist visits.');

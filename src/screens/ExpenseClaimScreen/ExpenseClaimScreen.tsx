@@ -696,7 +696,7 @@
 //   },
 // });
 ////////////////////////////////////////////////////////////////////////////////////////////
-import { createExpense } from '../../services/expenseService';
+import { createExpense, getExpensesByMr } from '../../services/expenseService';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -807,15 +807,38 @@ const ExpenseClaimScreen = () => {
     setLoading(true);
     setError(null);
     try {
-      const stored = await AsyncStorage.getItem('@expense_claims');
-      if (stored) {
-        const parsed = safeJsonParse(stored, DEFAULT_CLAIMS);
+      let serverClaims = [];
+      try {
+        serverClaims = await getExpensesByMr();
+      } catch (err) {
+        console.log('Failed to fetch expenses from backend:', err);
+      }
+
+      if (serverClaims && serverClaims.length > 0) {
+        const parsed = serverClaims.map((c: any, idx: number) => ({
+          id: c.id || Date.now() + idx,
+          date: c.date ? new Date(c.date).toLocaleDateString('en-GB').replace(/\//g, '-') : c.expenseDate || 'N/A',
+          category: c.type || c.category || 'Miscellaneous',
+          amount: Number(c.amount) || 0,
+          remarks: c.description || c.remarks || '',
+          receiptRef: c.billUrl || c.receiptUrl || 'N/A',
+          status: c.status || 'Pending Approval',
+          kmTravelled: c.kmTravelled
+        }));
         setClaims(parsed);
         calculateTotals(parsed);
+        await AsyncStorage.setItem('@expense_claims', JSON.stringify(parsed));
       } else {
-        await AsyncStorage.setItem('@expense_claims', JSON.stringify(DEFAULT_CLAIMS));
-        setClaims(DEFAULT_CLAIMS);
-        calculateTotals(DEFAULT_CLAIMS);
+        const stored = await AsyncStorage.getItem('@expense_claims');
+        if (stored) {
+          const parsed = safeJsonParse(stored, DEFAULT_CLAIMS);
+          setClaims(parsed);
+          calculateTotals(parsed);
+        } else {
+          await AsyncStorage.setItem('@expense_claims', JSON.stringify(DEFAULT_CLAIMS));
+          setClaims(DEFAULT_CLAIMS);
+          calculateTotals(DEFAULT_CLAIMS);
+        }
       }
     } catch (e) {
       console.log('Failed to load claims:', e);

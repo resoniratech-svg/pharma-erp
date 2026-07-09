@@ -1,4 +1,4 @@
-import { createTourPlan } from '../../services/tourPlanService';
+import { createTourPlan, getTourPlansByMr } from '../../services/tourPlanService';
 import { getDoctors } from '../../services/doctorService';
 import { getChemists } from '../../services/chemistService';
 import React, { useState, useEffect } from 'react';
@@ -201,8 +201,38 @@ const TourPlanningScreen = () => {
     setLoading(true);
     setError(null);
     try {
-      const storedPlans = await AsyncStorage.getItem('@tour_plans');
-      setPlans(safeJsonParse(storedPlans, []));
+      let serverPlans = [];
+      try {
+        serverPlans = await getTourPlansByMr();
+      } catch (err) {
+        console.log('Failed to fetch tour plans from backend:', err);
+      }
+
+      if (serverPlans && serverPlans.length > 0) {
+        const mappedPlans = serverPlans.map((p: any, idx: number) => ({
+          id: p.id || Date.now() + idx,
+          date: p.tourDate ? formatDate(new Date(p.tourDate)) : p.date || getTomorrowDateString(),
+          territory: p.territory || '',
+          objective: p.objective || 'Field Work',
+          planType: p.planType || 'MTP',
+          status: p.status || 'Pending Approval',
+          docCount: String(p.doctorIds?.length || 0),
+          chemistCount: String(p.chemistIds?.length || 0),
+          doctorsList: (p.doctorIds || []).map((id: number) => {
+            const doc = doctors.find((d: any) => d.id === id);
+            return doc ? doc.name || doc.doctorName : `Doctor #${id}`;
+          }).join(', '),
+          chemistsList: (p.chemistIds || []).map((id: number) => {
+            const chem = chemists.find((c: any) => c.id === id);
+            return chem ? chem.name || chem.chemistName : `Chemist #${id}`;
+          }).join(', '),
+        }));
+        setPlans(mappedPlans);
+        await AsyncStorage.setItem('@tour_plans', JSON.stringify(mappedPlans));
+      } else {
+        const storedPlans = await AsyncStorage.getItem('@tour_plans');
+        setPlans(safeJsonParse(storedPlans, []));
+      }
 
       const storedDocVisits = await AsyncStorage.getItem('@doctor_visits');
       setDoctorVisits(safeJsonParse(storedDocVisits, []));
@@ -728,7 +758,7 @@ const TourPlanningScreen = () => {
               <View style={styles.pickerOutlineContainer}>
                 <Picker
                   selectedValue={selectedDoctorId}
-                  onValueChange={(value) => {
+                  onValueChange={(value: any) => {
                     if (!value) return;
                     const doctorId = Number(value);
                     if (!selectedDoctorIds.includes(doctorId)) {
@@ -758,7 +788,7 @@ const TourPlanningScreen = () => {
               <View style={styles.pickerOutlineContainer}>
                 <Picker
                   selectedValue={selectedChemistId}
-                  onValueChange={(value) => {
+                  onValueChange={(value: any) => {
                     if (!value) return;
                     const chemistId = Number(value);
                     if (!selectedChemistIds.includes(chemistId)) {
