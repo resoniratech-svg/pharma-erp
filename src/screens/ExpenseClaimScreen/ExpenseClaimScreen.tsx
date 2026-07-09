@@ -96,6 +96,7 @@ const ExpenseClaimScreen = () => {
   
   // Image Upload State
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
+  const [selectedImageSize, setSelectedImageSize] = useState<number | undefined>(undefined);
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   const scrollViewRef = React.useRef<ScrollView>(null);
@@ -447,6 +448,7 @@ const ExpenseClaimScreen = () => {
         }
 
         setSelectedImage(uri);
+        setSelectedImageSize(asset.fileSize);
       }
     } catch (e) {
       console.log('Error picking image:', e);
@@ -531,7 +533,7 @@ const ExpenseClaimScreen = () => {
 
       if (selectedImage) {
         try {
-          finalReceiptUrl = await uploadExpenseReceipt(selectedImage);
+          finalReceiptUrl = await uploadExpenseReceipt(selectedImage, selectedImageSize);
         } catch (uploadErr) {
           console.log('Receipt upload failed, generating simulated hosted URL:', uploadErr);
           // Production fallback for demonstration if API isn't live: generate stable mock server URL
@@ -557,6 +559,7 @@ const ExpenseClaimScreen = () => {
       setAmount('');
       setKmTravelled('');
       setSelectedImage(null);
+      setSelectedImageSize(undefined);
       setRemarks('');
       setCategory('Travel Allowance (TA)');
       customAlert('✅ Success', 'Expense claim submitted successfully for manager approval.');

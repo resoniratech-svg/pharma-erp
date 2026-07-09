@@ -1,40 +1,20 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getAuthDetails } from './authHelper';
 import { api } from './api';
 import { Platform } from 'react-native';
 
-/**
- * Helper to fetch token and MR ID with validation.
- * Throws clean error if session is missing or invalid.
- */
-const getAuthDetails = async () => {
-  const token = await AsyncStorage.getItem('@token');
-  const mrId = await AsyncStorage.getItem('@mrId');
-
-  if (!token) {
-    throw new Error('User session expired or user is not logged in.');
-  }
-
-  if (!mrId) {
-    throw new Error('Medical Representative identifier (MR ID) is missing.');
-  }
-
-  return {
-    token,
-    mrId: Number(mrId),
-    headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  };
+const MIME_TYPES: { [key: string]: string } = {
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  pdf: 'application/pdf',
 };
 
 /**
- * Helper to validate file type and size before sending to backend.
+ * Validates the file extension.
  */
-const validateFile = (filename: string, uri: string) => {
-  const allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
+const validateFile = (filename: string) => {
   const ext = filename.split('.').pop()?.toLowerCase() || '';
-
-  if (!allowedExtensions.includes(ext)) {
+  if (!MIME_TYPES[ext]) {
     throw new Error(`Unsupported file type (.${ext}). Only JPG, JPEG, PNG, and PDF are allowed.`);
   }
 };
@@ -57,14 +37,18 @@ export const createExpense = async (
       throw new Error('Expense amount must be a positive number.');
     }
 
+    if (!expenseDate || isNaN(new Date(expenseDate).getTime())) {
+      throw new Error('Invalid expense date provided.');
+    }
+
     const response = await api.post(
       '/expenses',
       {
-        mrId, // Sent for backend compatibility; backend should ideally verify with JWT
+        mrId, // Sent for compatibility; backend should eventually extract this from JWT
         expenseType,
         amount,
         expenseDate,
-        description,
+        description: (description || '').trim(),
         receiptUrl: receiptUrl || 'N/A',
       },
       { headers }
@@ -107,8 +91,9 @@ export const getExpensesByMr = async () => {
  * Upload receipt image/file to the backend.
  * POST /expenses/upload
  * Returns the hosted URL of the receipt.
+ * Optional fileSize parameter enables cross-platform size validation at the service level.
  */
-export const uploadExpenseReceipt = async (uri: string): Promise<string> => {
+export const uploadExpenseReceipt = async (uri: string, fileSize?: number): Promise<string> => {
   try {
     const { headers } = await getAuthDetails();
 
@@ -116,22 +101,24 @@ export const uploadExpenseReceipt = async (uri: string): Promise<string> => {
       throw new Error('No receipt file URI provided for upload.');
     }
 
-    const formData = new FormData();
     const filename = uri.split('/').pop() || 'receipt.jpg';
-    
-    // Perform file type validation
-    validateFile(filename, uri);
+    validateFile(filename);
 
-    // Dynamic MIME type detection
     const ext = filename.split('.').pop()?.toLowerCase() || 'jpeg';
-    const mimeType = ext === 'pdf' ? 'application/pdf' : `image/${ext}`;
+    const mimeType = MIME_TYPES[ext] || 'image/jpeg';
+    const formData = new FormData();
+
+    // 1. Validate File Size on Native if provided (Max 5MB)
+    if (fileSize && fileSize > 5 * 1024 * 1024) {
+      throw new Error('Receipt file size exceeds the 5 MB limit.');
+    }
 
     if (Platform.OS === 'web') {
       try {
         const res = await fetch(uri);
         const blob = await res.blob();
         
-        // Size validation: Max 5MB
+        // 2. Validate File Size on Web (Max 5MB)
         if (blob.size > 5 * 1024 * 1024) {
           throw new Error('Receipt file size exceeds the 5 MB limit.');
         }
