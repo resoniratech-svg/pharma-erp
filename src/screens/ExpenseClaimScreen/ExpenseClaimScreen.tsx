@@ -42,36 +42,7 @@ interface ExpenseClaim {
   status: 'Pending Approval' | 'Approved' | 'Rejected';
 }
 
-const DEFAULT_CLAIMS: ExpenseClaim[] = [
-  {
-    id: 1718100000000,
-    date: '10-Jun-2026',
-    category: 'Travel Allowance (TA)',
-    amount: 110.00,
-    kmTravelled: 22,
-    receiptRef: 'https://images.unsplash.com/photo-1554415707-6e8cfc93fe23?q=80&w=200',
-    remarks: 'Auto-calculated from logged daily GPS route (22.0 km at ₹5.00/km)',
-    status: 'Approved',
-  },
-  {
-    id: 1718103600000,
-    date: '10-Jun-2026',
-    category: 'Daily Allowance (DA)',
-    amount: 250.00,
-    receiptRef: 'N/A',
-    remarks: 'Local HQ beat daily allowance standard rate',
-    status: 'Approved',
-  },
-  {
-    id: 1718110800000,
-    date: '11-Jun-2026',
-    category: 'Hotel / Lodging',
-    amount: 1200.00,
-    receiptRef: 'https://images.unsplash.com/photo-1566073771259-6a8506099945?q=80&w=200',
-    remarks: 'Outstation hotel stay at Secunderabad Lodge',
-    status: 'Pending Approval',
-  }
-];
+
 
 const ExpenseClaimScreen = () => {
   const navigation = useNavigation<any>();
@@ -165,18 +136,9 @@ const ExpenseClaimScreen = () => {
         }));
         setClaims(parsed);
         calculateTotals(parsed);
-        await AsyncStorage.setItem('@expense_claims', JSON.stringify(parsed));
       } else {
-        const stored = await AsyncStorage.getItem('@expense_claims');
-        if (stored) {
-          const parsed = safeJsonParse(stored, DEFAULT_CLAIMS);
-          setClaims(parsed);
-          calculateTotals(parsed);
-        } else {
-          await AsyncStorage.setItem('@expense_claims', JSON.stringify(DEFAULT_CLAIMS));
-          setClaims(DEFAULT_CLAIMS);
-          calculateTotals(DEFAULT_CLAIMS);
-        }
+        setClaims([]);
+        calculateTotals([]);
       }
     } catch (e) {
       console.log('Failed to load claims:', e);
@@ -535,10 +497,11 @@ const ExpenseClaimScreen = () => {
         try {
           finalReceiptUrl = await uploadExpenseReceipt(selectedImage, selectedImageSize);
         } catch (uploadErr) {
-          console.log('Receipt upload failed, generating simulated hosted URL:', uploadErr);
-          // Production fallback for demonstration if API isn't live: generate stable mock server URL
-          const mockFilename = selectedImage.split('/').pop() || `receipt_${Date.now()}.jpg`;
-          finalReceiptUrl = `http://192.168.1.19:5000/uploads/${mockFilename}`;
+          console.error('Receipt upload failed:', uploadErr);
+          customAlert('❌ Upload Failed', 'Failed to upload receipt document. Please try again.');
+          setIsSaving(false);
+          setUploadingReceipt(false);
+          return;
         }
       }
 
