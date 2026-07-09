@@ -170,12 +170,7 @@ const DashboardScreen = () => {
       }
     } catch (e) {}
 
-    const salesSum = chemistTotal + ordersTotal;
-    setTotalOrders(salesSum);
-    setSalesProgress(Math.min(Math.round((salesSum / targets.sales) * 100), 100));
-    
-    // Set dynamic targets so UI can render them
-    setDynamicTargets(targets);
+
 
     try {
       let isCheckedInVal = false;
