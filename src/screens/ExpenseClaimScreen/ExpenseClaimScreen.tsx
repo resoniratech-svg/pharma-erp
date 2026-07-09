@@ -2,6 +2,7 @@ import { createExpense, getExpensesByMr, uploadExpenseReceipt } from '../../serv
 import { getDoctorVisitsByMr } from '../../services/doctorService';
 import { getChemistVisitsByMr } from '../../services/chemistService';
 import { getAttendanceLogs } from '../../services/attendanceService';
+import { getTargetsByMr } from '../../services/targetService';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -92,17 +93,16 @@ const ExpenseClaimScreen = () => {
 
   const loadConfigSettings = async () => {
     try {
-      const storedTargets = await AsyncStorage.getItem('@monthly_targets');
-      if (storedTargets) {
-        const parsed = JSON.parse(storedTargets);
+      const targets = await getTargetsByMr();
+      if (targets) {
         setConfigSettings({
-          taRate: parsed.taRate || 5.00,
-          daAmount: parsed.daAmount || 250,
-          maxLimit: parsed.maxLimit || 50000,
+          taRate: Number(targets.taRate || targets.travelRate) || 5.00,
+          daAmount: Number(targets.daAmount || targets.dailyAllowance || targets.dailyRate) || 250,
+          maxLimit: Number(targets.maxLimit || targets.maxClaimLimit) || 50000,
         });
       }
     } catch (e) {
-      console.log('Failed to load targets config for allowance:', e);
+      console.log('Failed to fetch targets config from backend:', e);
     }
   };
 
@@ -336,19 +336,9 @@ const ExpenseClaimScreen = () => {
         setAmount((finalDist * configSettings.taRate).toFixed(0));
         setRemarks(`Auto-fill: ${finalDist} km calculated from visits & attendance. TA calculated at ₹${configSettings.taRate.toFixed(2)}/km.`);
       } else {
-        // Fallback to AsyncStorage if no API route is found
-        const localDist = await AsyncStorage.getItem(`@gps_movement_${selectedDate}`);
-        const logs = safeJsonParse(localDist, []);
-        if (logs.length >= 2) {
-          let dist = 0;
-          for (let i = 0; i < logs.length - 1; i++) {
-            dist += calculateDistance(logs[i].latitude, logs[i].longitude, logs[i + 1].latitude, logs[i + 1].longitude);
-          }
-          const finalDist = parseFloat(dist.toFixed(2));
-          setKmTravelled(finalDist.toString());
-          setAmount((finalDist * configSettings.taRate).toFixed(0));
-          setRemarks(`Auto-fill: ${finalDist} km recorded on route map. Travel Allowance calculated at ₹${configSettings.taRate.toFixed(2)}/km.`);
-        }
+        setKmTravelled('');
+        setAmount('');
+        setRemarks('');
       }
     } catch (e) {
       console.log('Failed to dynamic GPS distance lookup:', e);
