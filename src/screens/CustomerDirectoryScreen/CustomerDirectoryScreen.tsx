@@ -27,6 +27,9 @@ interface Customer {
   phone: string;
   address: string;
   lastVisitDate: string;
+  customerCode?: string; // code identifier for searching
+  latitude?: number;
+  longitude?: number;
   categoryBadge?: string; // e.g. "Class A", "Key Client"
   outstandingBalance?: number;
   creditLimit?: number;
@@ -89,101 +92,83 @@ const CustomerDirectoryScreen = () => {
 
       // Map doctors
       const mappedDocs: Customer[] = (Array.isArray(docList) ? docList : []).map((d: any) => ({
-        id: d.id || Math.random(),
-        name: d.doctorName || d.name || 'Dr. Unknown',
-        type: 'Doctor',
+        id: Number(d.id || d._id) || 0,
+        customerCode: d.doctorCode || d.code || 'N/A',
+        name: d.name || d.doctorName || 'N/A',
+        type: 'Doctor' as const,
         subText: d.specialization || d.specialty || 'General Practitioner',
-        phone: d.mobile || d.phone || '+919876543210',
-        address: d.clinicAddress || d.address || 'Clinic Address, Hyderabad',
-        lastVisitDate: d.lastVisitDate || '09-Jun-2026',
-        categoryBadge: d.classCategory || d.category || '★ Class A',
-      }));
+        phone: d.mobile || d.phone || 'N/A',
+        address: d.clinicAddress || d.address || 'N/A',
+        lastVisitDate: d.lastVisitDate || d.last_visit_date || 'Never Visited',
+        categoryBadge: d.classCategory || d.category || undefined,
+        latitude: d.latitude != null ? Number(d.latitude) : undefined,
+        longitude: d.longitude != null ? Number(d.longitude) : undefined,
+      })).filter(c => c.id !== 0);
 
       // Map Chemists
       const mappedChems: Customer[] = (Array.isArray(chemList) ? chemList : []).map((c: any) => ({
-        id: c.id || Math.random(),
-        name: c.name || c.chemistName || 'Chemist Store',
-        type: 'Chemist',
-        subText: `Proprietor: ${c.ownerName || c.proprietor || 'Mr. Ramesh Lal'}`,
-        phone: c.mobile || c.phone || '+919543210987',
-        address: c.address || 'Door 4-2-12, Main Bazar, Hyderabad',
-        lastVisitDate: c.lastVisitDate || '11-Jun-2026',
-        outstandingBalance: c.outstandingBalance != null ? Number(c.outstandingBalance) : 4500.00,
-        creditLimit: c.creditLimit != null ? Number(c.creditLimit) : 50000,
-        availableCredit: c.availableCredit != null ? Number(c.availableCredit) : 45500,
-        lastPaymentDate: c.lastPaymentDate || '01-Jun-2026',
-        pendingInvoices: c.pendingInvoices != null ? Number(c.pendingInvoices) : 2,
-      }));
+        id: Number(c.id || c._id) || 0,
+        customerCode: c.chemistCode || c.code || 'N/A',
+        name: c.name || c.chemistName || 'N/A',
+        type: 'Chemist' as const,
+        subText: c.ownerName || c.proprietor ? `Proprietor: ${c.ownerName || c.proprietor}` : 'Proprietor: N/A',
+        phone: c.mobile || c.phone || 'N/A',
+        address: c.address || 'N/A',
+        lastVisitDate: c.lastVisitDate || c.last_visit_date || 'Never Visited',
+        outstandingBalance: c.outstandingBalance != null ? Number(c.outstandingBalance) : undefined,
+        creditLimit: c.creditLimit != null ? Number(c.creditLimit) : undefined,
+        availableCredit: c.availableCredit != null ? Number(c.availableCredit) : undefined,
+        lastPaymentDate: c.lastPaymentDate || undefined,
+        pendingInvoices: c.pendingInvoices != null ? Number(c.pendingInvoices) : undefined,
+        latitude: c.latitude != null ? Number(c.latitude) : undefined,
+        longitude: c.longitude != null ? Number(c.longitude) : undefined,
+      })).filter(c => c.id !== 0);
 
       // Map Hospitals
       const mappedHosps: Customer[] = (Array.isArray(hospList) ? hospList : []).map((h: any) => ({
-        id: h.id || Math.random(),
-        name: h.name || h.hospitalName || 'General Hospital',
-        type: 'Hospital',
-        subText: `Procurement: ${h.contactPerson || h.procurement || 'Mr. J. P. Gupta'}`,
-        phone: h.mobile || h.phone || '+919321098765',
-        address: h.address || 'Nampally Station Road, Hyderabad',
-        lastVisitDate: h.lastVisitDate || '03-Jun-2026',
-        categoryBadge: 'Key Hospital Acc',
-        outstandingBalance: h.outstandingBalance != null ? Number(h.outstandingBalance) : 24500.00,
-        creditLimit: h.creditLimit != null ? Number(h.creditLimit) : 200000,
-        availableCredit: h.availableCredit != null ? Number(h.availableCredit) : 175500,
-        lastPaymentDate: h.lastPaymentDate || '28-May-2026',
-        pendingInvoices: h.pendingInvoices != null ? Number(h.pendingInvoices) : 5,
-      }));
+        id: Number(h.id || h._id) || 0,
+        customerCode: h.hospitalCode || h.code || 'N/A',
+        name: h.name || h.hospitalName || 'N/A',
+        type: 'Hospital' as const,
+        subText: h.contactPerson || h.procurement ? `Procurement: ${h.contactPerson || h.procurement}` : 'Procurement: N/A',
+        phone: h.mobile || h.phone || 'N/A',
+        address: h.address || 'N/A',
+        lastVisitDate: h.lastVisitDate || h.last_visit_date || 'Never Visited',
+        categoryBadge: h.categoryBadge || h.category || undefined,
+        outstandingBalance: h.outstandingBalance != null ? Number(h.outstandingBalance) : undefined,
+        creditLimit: h.creditLimit != null ? Number(h.creditLimit) : undefined,
+        availableCredit: h.availableCredit != null ? Number(h.availableCredit) : undefined,
+        lastPaymentDate: h.lastPaymentDate || undefined,
+        pendingInvoices: h.pendingInvoices != null ? Number(h.pendingInvoices) : undefined,
+        latitude: h.latitude != null ? Number(h.latitude) : undefined,
+        longitude: h.longitude != null ? Number(h.longitude) : undefined,
+      })).filter(c => c.id !== 0);
 
       // Map Stockists
       const mappedStocks: Customer[] = (Array.isArray(stockList) ? stockList : []).map((s: any) => ({
-        id: s.id || Math.random(),
-        name: s.name || s.stockistName || 'Distributor Agency',
-        type: 'Stockist',
-        subText: `Manager: ${s.contactPerson || s.owner || 'Mr. Balaji'}`,
-        phone: s.mobile || s.phone || '+919012345678',
-        address: s.address || 'Metro Road, Himayatnagar, Hyderabad',
-        lastVisitDate: s.lastVisitDate || '12-Jun-2026',
-        outstandingBalance: s.outstandingBalance != null ? Number(s.outstandingBalance) : 12300.00,
-        creditLimit: s.creditLimit != null ? Number(s.creditLimit) : 500000,
-        availableCredit: s.availableCredit != null ? Number(s.availableCredit) : 487700,
-        lastPaymentDate: s.lastPaymentDate || '05-Jun-2026',
-        pendingInvoices: s.pendingInvoices != null ? Number(s.pendingInvoices) : 1,
-      }));
+        id: Number(s.id || s._id) || 0,
+        customerCode: s.stockistCode || s.code || 'N/A',
+        name: s.name || s.stockistName || 'N/A',
+        type: 'Stockist' as const,
+        subText: s.contactPerson || s.owner ? `Manager: ${s.contactPerson || s.owner}` : 'Manager: N/A',
+        phone: s.mobile || s.phone || 'N/A',
+        address: s.address || 'N/A',
+        lastVisitDate: s.lastVisitDate || s.last_visit_date || 'Never Visited',
+        outstandingBalance: s.outstandingBalance != null ? Number(s.outstandingBalance) : undefined,
+        creditLimit: s.creditLimit != null ? Number(s.creditLimit) : undefined,
+        availableCredit: s.availableCredit != null ? Number(s.availableCredit) : undefined,
+        lastPaymentDate: s.lastPaymentDate || undefined,
+        pendingInvoices: s.pendingInvoices != null ? Number(s.pendingInvoices) : undefined,
+        latitude: s.latitude != null ? Number(s.latitude) : undefined,
+        longitude: s.longitude != null ? Number(s.longitude) : undefined,
+      })).filter(c => c.id !== 0);
 
-      // Fallbacks if empty
-      let finalDocs = mappedDocs;
-      if (finalDocs.length === 0) {
-        finalDocs = [
-          { id: 1, name: 'Dr. Suresh Kumar', type: 'Doctor', subText: 'Cardiologist (MD, DM)', phone: '+919876543210', address: 'Apollo Hospitals, Hyderabad', lastVisitDate: '09-Jun-2026', categoryBadge: '★ Class A' },
-          { id: 3, name: 'Dr. Anita Roy', type: 'Doctor', subText: 'Gynecologist (MS, OBGYN)', phone: '+918765432109', address: 'Lifeline Fertility Center, Hyderabad', lastVisitDate: '05-Jun-2026', categoryBadge: '★ Class A' },
-          { id: 6, name: 'Dr. Vikas Patel', type: 'Doctor', subText: 'Pediatrician (MD Pediatrics)', phone: '+917654321098', address: 'Kids Care Hospital, Hyderabad', lastVisitDate: '28-May-2026', categoryBadge: 'Class B' }
-        ];
-      }
-
-      let finalChems = mappedChems;
-      if (finalChems.length === 0) {
-        finalChems = [
-          { id: 2, name: 'Sai Krupa Chemists', type: 'Chemist', subText: 'Proprietor: Mr. Ramesh Lal', phone: '+919543210987', address: 'Door 4-2-12, Main Bazar, Hyderabad', lastVisitDate: '11-Jun-2026', outstandingBalance: 4500.00, creditLimit: 50000, availableCredit: 45500, lastPaymentDate: '01-Jun-2026', pendingInvoices: 2 },
-          { id: 4, name: 'MedPlus Retail Drugs', type: 'Chemist', subText: 'Manager: Mr. Anil Deshmukh', phone: '+919432109876', address: 'Beside Metro Station, Hyderabad', lastVisitDate: '07-Jun-2026', outstandingBalance: 1800.00, creditLimit: 30000, availableCredit: 28200, lastPaymentDate: '07-Jun-2026', pendingInvoices: 1 },
-          { id: 7, name: 'Apollo Pharmacy Retail', type: 'Chemist', subText: 'Store Manager: Ramesh Gupta', phone: '+919012345678', address: 'Street No 3, Ameerpet Cross Roads, Hyderabad', lastVisitDate: '10-Jun-2026', outstandingBalance: 7200.00, creditLimit: 80000, availableCredit: 72800, lastPaymentDate: '29-May-2026', pendingInvoices: 3 }
-        ];
-      }
-
-      let finalHosps = mappedHosps;
-      if (finalHosps.length === 0) {
-        finalHosps = [
-          { id: 5, name: 'Care General Hospital', type: 'Hospital', subText: 'Procurement: Mr. J. P. Gupta', phone: '+919321098765', address: 'Nampally Station Road, Hyderabad', lastVisitDate: '03-Jun-2026', categoryBadge: 'Key Hospital Acc', outstandingBalance: 24500.00, creditLimit: 200000, availableCredit: 175500, lastPaymentDate: '28-May-2026', pendingInvoices: 5 }
-        ];
-      }
-
-      let finalStocks = mappedStocks;
-      if (finalStocks.length === 0) {
-        finalStocks = [
-          { id: 8, name: 'Metro Pharma Stockist', type: 'Stockist', subText: 'Proprietor: Mr. S. Venkatesh', phone: '+919888877777', address: 'Main Warehouse Road, Hyderabad', lastVisitDate: '12-Jun-2026', outstandingBalance: 54000.00, creditLimit: 500000, availableCredit: 446000, lastPaymentDate: '02-Jun-2026', pendingInvoices: 4 }
-        ];
-      }
-
-      setCustomers([...finalDocs, ...finalChems, ...finalHosps, ...finalStocks]);
+      // Combine and sort alphabetically by customer name
+      const sortedCombined = [...mappedDocs, ...mappedChems, ...mappedHosps, ...mappedStocks];
+      sortedCombined.sort((a, b) => a.name.localeCompare(b.name));
+      setCustomers(sortedCombined);
     } catch (err: any) {
-      console.log('Customers Directory Load Error:', err);
+      console.error('Customers Directory Load Error:', err);
       setError('Failed to fetch customer directory records. Pull down to try again.');
     } finally {
       setLoading(false);
@@ -210,20 +195,23 @@ const CustomerDirectoryScreen = () => {
   };
 
   const handleWhatsApp = (phone: string, name: string) => {
-    const waUrl = `https://wa.me/${phone.replace('+', '')}?text=Hello%20${encodeURIComponent(name)},%20this%20is%20MJ%20Healthcare%20MR%20representative.`;
+    const cleanName = name.startsWith('Dr.') ? name : `Mr./Ms. ${name}`;
+    const waUrl = `https://wa.me/${phone.replace(/[^0-9]/g, '')}?text=Hello%20${encodeURIComponent(cleanName)},%20this%20is%20MJ%20Healthcare.`;
     Linking.canOpenURL(waUrl)
       .then((supported) => {
         if (supported) {
           Linking.openURL(waUrl);
         } else {
-          Linking.openURL(`https://api.whatsapp.com/send?phone=${phone.replace('+', '')}`);
+          Linking.openURL(`https://api.whatsapp.com/send?phone=${phone.replace(/[^0-9]/g, '')}`);
         }
       })
       .catch(() => customAlert('Error', 'Unable to launch WhatsApp chat'));
   };
 
-  const handleDirections = (address: string) => {
-    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+  const handleDirections = (customer: Customer) => {
+    const hasCoords = customer.latitude != null && customer.longitude != null;
+    const query = hasCoords ? `${customer.latitude},${customer.longitude}` : customer.address;
+    const mapsUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`;
     Linking.openURL(mapsUrl).catch(() =>
       customAlert('Error', 'Failed to open navigation directions')
     );
@@ -248,7 +236,8 @@ const CustomerDirectoryScreen = () => {
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.subText.toLowerCase().includes(searchQuery.toLowerCase()) ||
       item.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.phone.includes(searchQuery);
+      item.phone.includes(searchQuery) ||
+      (item.customerCode && item.customerCode.toLowerCase().includes(searchQuery.toLowerCase()));
 
     const matchesTab = activeTab === 'All' || item.type === activeTab;
 
@@ -386,7 +375,7 @@ const CustomerDirectoryScreen = () => {
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={styles.circleBtn}
-                        onPress={() => handleDirections(customer.address)}
+                        onPress={() => handleDirections(customer)}
                       >
                         <Text style={styles.actionIcon}>🗺️</Text>
                       </TouchableOpacity>
