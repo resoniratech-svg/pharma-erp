@@ -769,9 +769,11 @@ const ExpenseClaimScreen = () => {
                     <TouchableOpacity style={styles.imagePickerBtn} onPress={() => pickImage(false)}>
                       <Text style={styles.imagePickerBtnText}>🖼️ Choose Gallery</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.imagePickerBtn} onPress={() => pickImage(true)}>
-                      <Text style={styles.imagePickerBtnText}>📷 Take Photo</Text>
-                    </TouchableOpacity>
+                    {Platform.OS !== 'web' && (
+                      <TouchableOpacity style={styles.imagePickerBtn} onPress={() => pickImage(true)}>
+                        <Text style={styles.imagePickerBtnText}>📷 Take Photo</Text>
+                      </TouchableOpacity>
+                    )}
                   </View>
                   
                   {selectedImage ? (
