@@ -7,9 +7,15 @@ export const createDailyReport = async (
   chemistVisits: number,
   samplesDistributed: number,
   ordersCollected: number,
-  remarks: string
+  remarks: string,
+  competitorActivity?: string,
+  attendanceStatus?: string,
+  checkInTime?: string,
+  checkOutTime?: string,
+  distanceTravelled?: number,
+  followUpsCount?: number,
+  territory?: string
 ) => {
-
   const token = await AsyncStorage.getItem('@token');
   const mrId = await AsyncStorage.getItem('@mrId');
 
@@ -23,6 +29,13 @@ export const createDailyReport = async (
       samplesDistributed,
       ordersCollected,
       remarks,
+      competitorActivity,
+      attendanceStatus,
+      checkInTime,
+      checkOutTime,
+      distanceTravelled,
+      followUpsCount,
+      territory,
     },
     {
       headers: {
