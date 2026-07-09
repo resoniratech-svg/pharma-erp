@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import { getMeetingsByMr } from '../../services/meetingService';
 import { getAttendanceLogs } from '../../services/attendanceService';
+import { getMrDashboardAnalytics } from '../../services/dashboardService';
 
 interface RecentOrder {
   id: string; client: string; status: 'Shipped' | 'Pending' | 'Failed'; amount: string; date: string;
@@ -75,38 +76,87 @@ const DashboardScreen = () => {
 
   const loadStats = async () => {
     let docVisitsList: any[] = [];
-    let targets = { sales: 50000, docs: 30, chemists: 20 };
-    try {
-      const targetsData = await AsyncStorage.getItem('@monthly_targets');
-      if (targetsData) targets = JSON.parse(targetsData);
-    } catch (e) { console.log(e); }
-
-    try {
-      const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
-      docVisitsList = docVisitsData ? JSON.parse(docVisitsData) : [];
-      setDocCount(docVisitsList.length);
-      setDoctorProgress(Math.min(Math.round((docVisitsList.length / targets.docs) * 100), 100));
-    } catch (e) { console.log(e); }
-
-    let chemistTotal = 0;
     let chemistVisitsList: any[] = [];
-    try {
-      const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
-      chemistVisitsList = chemistVisitsData ? JSON.parse(chemistVisitsData) : [];
-      setChemistCount(chemistVisitsList.length);
-      // Fixed: use pobAmount for Chemist sales
-      chemistTotal = chemistVisitsList.reduce((sum: number, item: any) => sum + (parseFloat(item.orderValue || item.pobAmount) || 0), 0);
-      setChemistProgress(Math.min(Math.round((chemistVisitsList.length / targets.chemists) * 100), 100));
-    } catch (e) { console.log(e); }
-
-    let ordersTotal = 0;
     let ordersList: any[] = [];
-    try {
-      const ordersData = await AsyncStorage.getItem('@orders');
-      ordersList = ordersData ? JSON.parse(ordersData) : [];
-      setOrdersCount(ordersList.length);
-      ordersTotal = ordersList.reduce((sum: number, item: any) => sum + (parseFloat(item.totalAmount) || 0), 0);
+    let targets = { sales: 50000, docs: 30, chemists: 20 };
 
+    // 1. Try to fetch dynamic real-time stats from backend
+    let loadedFromServer = false;
+    try {
+      const stats = await getMrDashboardAnalytics();
+      if (stats) {
+        setDocCount(stats.todayDoctorVisits?.completed || 0);
+        setDoctorProgress(stats.monthlyProgress?.docs?.percent || 0);
+        setChemistCount(stats.todayChemistVisits?.completed || 0);
+        setChemistProgress(stats.monthlyProgress?.chemists?.percent || 0);
+        setOrdersCount(stats.todayOrders?.count || 0);
+        setTotalOrders(stats.todayOrders?.amount || 0);
+        setSalesProgress(stats.monthlyProgress?.sales?.percent || 0);
+        setIsCheckedIn(stats.attendance?.status === 'Present');
+        setCheckInTime(stats.attendance?.checkInTime || '');
+        setUserName((await AsyncStorage.getItem('@user_name')) || 'Priya Reddy');
+        setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
+        
+        targets = {
+          sales: stats.monthlyProgress?.sales?.target || 50000,
+          docs: stats.monthlyProgress?.docs?.target || 30,
+          chemists: stats.monthlyProgress?.chemists?.target || 20,
+        };
+        setDynamicTargets(targets);
+        loadedFromServer = true;
+      }
+    } catch (err) {
+      console.log('Failed to fetch dashboard stats from server, falling back to local storage:', err);
+    }
+
+    // 2. Fallback to AsyncStorage if server load failed
+    if (!loadedFromServer) {
+      try {
+        const targetsData = await AsyncStorage.getItem('@monthly_targets');
+        if (targetsData) targets = JSON.parse(targetsData);
+      } catch (e) { console.log(e); }
+
+      try {
+        const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
+        docVisitsList = docVisitsData ? JSON.parse(docVisitsData) : [];
+        setDocCount(docVisitsList.length);
+        setDoctorProgress(Math.min(Math.round((docVisitsList.length / targets.docs) * 100), 100));
+      } catch (e) { console.log(e); }
+
+      let chemistTotal = 0;
+      try {
+        const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
+        chemistVisitsList = chemistVisitsData ? JSON.parse(chemistVisitsData) : [];
+        setChemistCount(chemistVisitsList.length);
+        chemistTotal = chemistVisitsList.reduce((sum: number, item: any) => sum + (parseFloat(item.orderValue || item.pobAmount) || 0), 0);
+        setChemistProgress(Math.min(Math.round((chemistVisitsList.length / targets.chemists) * 100), 100));
+      } catch (e) { console.log(e); }
+
+      let ordersTotal = 0;
+      try {
+        const ordersData = await AsyncStorage.getItem('@orders');
+        ordersList = ordersData ? JSON.parse(ordersData) : [];
+        setOrdersCount(ordersList.length);
+        ordersTotal = ordersList.reduce((sum: number, item: any) => sum + (parseFloat(item.totalAmount) || 0), 0);
+      } catch (e) { console.log(e); }
+
+      const salesSum = chemistTotal + ordersTotal;
+      setTotalOrders(salesSum);
+      setSalesProgress(Math.min(Math.round((salesSum / targets.sales) * 100), 100));
+      setDynamicTargets(targets);
+
+      try {
+        setIsCheckedIn((await AsyncStorage.getItem('@checked_in')) === 'true');
+        setCheckInTime((await AsyncStorage.getItem('@check_in_time')) || '');
+        setUserName((await AsyncStorage.getItem('@user_name')) || 'Priya Reddy');
+        setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
+      } catch (e) { console.log(e); }
+    }
+
+    // 3. Load other lists (recent orders list, meetings, follow-ups, GPS logs, notifications)
+    try {
+      const storedOrders = await AsyncStorage.getItem('@orders');
+      ordersList = storedOrders ? JSON.parse(storedOrders) : [];
       if (ordersList.length > 0) {
         setRecentOrdersList(ordersList.slice(0, 4).map((o: any, idx: number) => ({
           id: o.orderNumber || `ORD-NEW-${idx}`,
@@ -118,7 +168,7 @@ const DashboardScreen = () => {
       } else {
         setRecentOrdersList([]);
       }
-    } catch (e) { console.log(e); }
+    } catch (e) {}
 
     const salesSum = chemistTotal + ordersTotal;
     setTotalOrders(salesSum);
@@ -201,7 +251,6 @@ const DashboardScreen = () => {
       setUserName((await AsyncStorage.getItem('@user_name')) || 'Priya Reddy');
       setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
     } catch (e) { console.log(e); }
-    
     try {
       const meetingsData = await getMeetingsByMr();
       const meetingsList = Array.isArray(meetingsData) ? meetingsData : [];
@@ -226,24 +275,30 @@ const DashboardScreen = () => {
       console.log('Error loading today schedule meetings:', e);
       setScheduleList([]);
     }
-    
-    // Pending Follow Ups from all sources
-    const combinedFollowUps = [
-      ...docVisitsList.map((v: any) => ({ ...v, followUpType: 'Doctor', titleName: v.doctorName, followDate: v.nextFollowUp || v.followUpDate })),
-      ...chemistVisitsList.map((c: any) => ({ ...c, followUpType: 'Chemist', titleName: c.shopName || c.chemistName, followDate: c.nextFollowUp || c.followUpDate })),
-      ...ordersList.map((o: any) => ({ ...o, followUpType: 'Order', titleName: o.customerName, followDate: o.expectedDelivery || o.followUpDate || o.nextFollowUp }))
-    ];
-    setFollowUps(combinedFollowUps.filter((visit: any) => visit.followDate).slice(0, 3));
 
-    // Dynamic Recent Visits
-    const combinedVisits = [
-      ...docVisitsList.map((v: any) => ({ id: v.id || Math.random(), name: `Dr. ${v.doctorName}`, type: 'Doctor', time: v.visitTime || '10:00 AM', status: v.status || 'Completed', date: v.visitDate || v.date })),
-      ...chemistVisitsList.map((c: any) => ({ id: c.id || Math.random(), name: c.shopName || c.chemistName, type: 'Chemist', time: c.visitTime || '11:00 AM', status: c.status || 'Completed', date: c.visitDate || c.date }))
-    ];
-    combinedVisits.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
-    setRecentVisitsList(combinedVisits.slice(0, 3));
+    try {
+      const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
+      docVisitsList = docVisitsData ? JSON.parse(docVisitsData) : [];
+      const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
+      chemistVisitsList = chemistVisitsData ? JSON.parse(chemistVisitsData) : [];
+      const storedOrders = await AsyncStorage.getItem('@orders');
+      ordersList = storedOrders ? JSON.parse(storedOrders) : [];
 
-    // Dynamic Notifications
+      const combinedFollowUps = [
+        ...docVisitsList.map((v: any) => ({ ...v, followUpType: 'Doctor', titleName: v.doctorName, followDate: v.nextFollowUp || v.followUpDate })),
+        ...chemistVisitsList.map((c: any) => ({ ...c, followUpType: 'Chemist', titleName: c.shopName || c.chemistName, followDate: c.nextFollowUp || c.followUpDate })),
+        ...ordersList.map((o: any) => ({ ...o, followUpType: 'Order', titleName: o.customerName, followDate: o.expectedDelivery || o.followUpDate || o.nextFollowUp }))
+      ];
+      setFollowUps(combinedFollowUps.filter((visit: any) => visit.followDate).slice(0, 3));
+
+      const combinedVisits = [
+        ...docVisitsList.map((v: any) => ({ id: v.id || Math.random(), name: `Dr. ${v.doctorName}`, type: 'Doctor', time: v.visitTime || '10:00 AM', status: v.status || 'Completed', date: v.visitDate || v.date })),
+        ...chemistVisitsList.map((c: any) => ({ id: c.id || Math.random(), name: c.shopName || c.chemistName, type: 'Chemist', time: c.visitTime || '11:00 AM', status: c.status || 'Completed', date: c.visitDate || c.date }))
+      ];
+      combinedVisits.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
+      setRecentVisitsList(combinedVisits.slice(0, 3));
+    } catch (e) { console.log(e); }
+
     try {
       const notifsData = await AsyncStorage.getItem('@notifications');
       const notifsList = notifsData ? JSON.parse(notifsData) : [];
@@ -252,7 +307,6 @@ const DashboardScreen = () => {
       setNotificationsList([]);
     }
 
-    // Dynamic GPS Route Summary
     try {
       const todayString = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
       const gpsKey = `@gps_movement_${todayString}`;
@@ -271,12 +325,12 @@ const DashboardScreen = () => {
         setGpsData({
           distance: `${dist.toFixed(2)} KM`,
           checkIns: gpsLogs.length,
-          territory: 'Assigned Territory', // Would dynamically pull from @assigned_territories
+          territory: 'Assigned Territory',
           lastLocation: gpsLogs[gpsLogs.length - 1].address || 'Unknown',
-          coverage: 'Tracking' 
+          coverage: 'Tracking'
         });
       } else {
-        setGpsData(null); // Will render an empty/inactive state
+        setGpsData(null);
       }
     } catch (e) {
       setGpsData(null);

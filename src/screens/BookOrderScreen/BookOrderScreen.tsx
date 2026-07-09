@@ -18,6 +18,7 @@ import { getHospitals } from '../../services/hospitalService';
 import { getStockists } from '../../services/stockistService';
 import { getProducts } from '../../services/productService';
 import { getDistributors } from '../../services/distributorService';
+import { createRetailerOrder, getRetailerOrders } from '../../services/orderService';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -288,12 +289,39 @@ const BookOrderScreen = () => {
   const loadOrders = async () => {
     setError(null);
     try {
-      const storedOrders = await AsyncStorage.getItem('@orders');
-      const parsed = safeJsonParse(storedOrders, []);
-      setOrders(parsed);
+      let serverOrders = [];
+      try {
+        serverOrders = await getRetailerOrders();
+      } catch (err) {
+        console.log('Failed to fetch orders from backend:', err);
+      }
+
+      if (serverOrders && serverOrders.length > 0) {
+        const mapped = serverOrders.map((o: any, idx: number) => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          customerType: 'Retailer',
+          customerName: o.retailer?.name || 'Retailer',
+          customerMobile: o.retailer?.mobile || '',
+          productName: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].product?.name || 'Product' : 'Product',
+          quantity: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].quantity : 0,
+          rate: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].rate : 0,
+          totalAmount: o.totalAmount,
+          distributor: 'Assigned Stockist',
+          remarks: o.remarks || '',
+          status: o.status === 'PENDING' ? 'Booked' : (o.status === 'DELIVERED' ? 'Delivered' : o.status === 'CANCELLED' ? 'Cancelled' : 'Booked'),
+          dateFormatted: o.orderDate ? o.orderDate.split('T')[0] : '',
+        }));
+        setOrders(mapped);
+        await AsyncStorage.setItem('@orders', JSON.stringify(mapped));
+      } else {
+        const storedOrders = await AsyncStorage.getItem('@orders');
+        const parsed = safeJsonParse(storedOrders, []);
+        setOrders(parsed);
+      }
     } catch (err) {
       console.log('Failed to load orders:', err);
-      setError('Failed to load order history from storage.');
+      setError('Failed to load order history.');
     }
   };
 
@@ -331,7 +359,7 @@ const BookOrderScreen = () => {
     }
 
     if (editingOrderId !== null) {
-      // Update existing order
+      // Update existing order (local fallback)
       const updatedOrders = orders.map(o => {
         if (o.id === editingOrderId) {
           return {
@@ -355,7 +383,6 @@ const BookOrderScreen = () => {
         await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
         customAlert('✅ Order Updated!', `Order details updated successfully.`);
         
-        // Reset editing state
         setEditingOrderId(null);
         setCustomerName('');
         setCustomerMobile('');
@@ -366,41 +393,64 @@ const BookOrderScreen = () => {
         customAlert('Error', 'Failed to update order locally.');
       }
     } else {
-      // Create new order
-      const nextOrderNum = 1000 + orders.length + 1;
-      const orderNumber = `ORD-${nextOrderNum}`;
+      // Extract DB retailer ID
+      let resolvedRetailerId = 1;
+      if (selectedCustomerId && typeof selectedCustomerId === 'string' && selectedCustomerId.includes('_')) {
+        const parts = selectedCustomerId.split('_');
+        const parsedId = Number(parts[parts.length - 1]);
+        if (!isNaN(parsedId)) {
+          resolvedRetailerId = parsedId;
+        }
+      }
 
-      const newOrder = {
-        id: Date.now(),
-        orderNumber,
-        customerType,
-        customerName,
-        customerMobile,
-        productName: selectedProduct,
-        quantity: parseFloat(quantity),
-        rate: parseFloat(rate),
+      // Extract DB product ID
+      const matchedProduct = products.find(p => (p.name || p.productName) === selectedProduct);
+      const resolvedProductId = matchedProduct ? Number(matchedProduct.id) : 1;
+
+      const orderPayload = {
+        retailerId: resolvedRetailerId,
         totalAmount: parseFloat(totalAmount),
-        distributor,
-        remarks,
-        status: 'Booked', // Booked, Forwarded, Delivered, Cancelled
-        dateFormatted: formatOrderDate(new Date()),
+        orderItems: [
+          {
+            productId: resolvedProductId,
+            quantity: parseFloat(quantity),
+            rate: parseFloat(rate),
+            amount: parseFloat(totalAmount)
+          }
+        ]
       };
 
-      const updatedOrders = [newOrder, ...orders];
-      setOrders(updatedOrders);
-
       try {
+        const result = await createRetailerOrder(orderPayload);
+        const newOrder = {
+          id: result.id,
+          orderNumber: result.orderNumber || `ORD-${Date.now().toString().slice(-4)}`,
+          customerType,
+          customerName,
+          customerMobile,
+          productName: selectedProduct,
+          quantity: parseFloat(quantity),
+          rate: parseFloat(rate),
+          totalAmount: parseFloat(totalAmount),
+          distributor,
+          remarks,
+          status: 'Booked',
+          dateFormatted: formatOrderDate(new Date()),
+        };
+
+        const updatedOrders = [newOrder, ...orders];
+        setOrders(updatedOrders);
         await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
-        customAlert('✅ Order Booked!', `Order ${orderNumber} has been successfully recorded.`);
+        customAlert('✅ Order Booked!', `Order ${newOrder.orderNumber} has been successfully recorded.`);
         
-        // Reset inputs
         setCustomerName('');
         setCustomerMobile('');
         setSelectedCustomerId(null);
         setQuantity('');
         setRemarks('');
       } catch (error) {
-        customAlert('Error', 'Failed to save order data locally.');
+        console.log('Failed to create order on server:', error);
+        customAlert('Error', 'Failed to save order to the server.');
       }
     }
   };

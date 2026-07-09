@@ -65,7 +65,7 @@ const GeoTaggedChemistVisitsScreen = () => {
           }
           return {
             id: item.id?.toString() || `server-${idx}`,
-            chemistName: item.chemistName || `Chemist #${item.chemistId}`,
+            chemistName: item.chemistName || item.chemist?.name || `Chemist #${item.chemistId}`,
             visitTime: timeStr,
             latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
             longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,

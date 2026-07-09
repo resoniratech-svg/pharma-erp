@@ -66,7 +66,7 @@ const GeoTaggedDoctorVisitsScreen = () => {
           }
           return {
             id: item.id?.toString() || `server-${idx}`,
-            doctorName: item.doctorName || `Doctor #${item.doctorId}`,
+            doctorName: item.doctorName || item.doctor?.name || `Doctor #${item.doctorId}`,
             checkIn: timeStr,
             checkOut: item.checkOut || '-',
             latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,

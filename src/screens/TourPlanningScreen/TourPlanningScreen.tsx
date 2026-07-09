@@ -222,17 +222,36 @@ const TourPlanningScreen = () => {
 
       if (serverPlans && serverPlans.length > 0) {
         const mappedPlans = serverPlans.map((p: any, idx: number) => {
-          // Normalize doctor IDs from array of numbers/objects or database formats
+          // Normalize doctor IDs — support both plain IDs and joined relations from backend
           const rawDocIds = p.doctorIds || p.doctor_ids || p.doctors || [];
           const doctorIds = Array.isArray(rawDocIds)
-            ? rawDocIds.map((d: any) => (typeof d === 'object' && d !== null ? Number(d.id || d) : Number(d)))
+            ? rawDocIds.map((d: any) => (typeof d === 'object' && d !== null ? d.id || d : d))
             : [];
 
-          // Normalize chemist IDs from array of numbers/objects or database formats
+          // Normalize chemist IDs — support both plain IDs and joined relations from backend
           const rawChemIds = p.chemistIds || p.chemist_ids || p.chemists || [];
           const chemistIds = Array.isArray(rawChemIds)
-            ? rawChemIds.map((c: any) => (typeof c === 'object' && c !== null ? Number(c.id || c) : Number(c)))
+            ? rawChemIds.map((c: any) => (typeof c === 'object' && c !== null ? c.id || c : c))
             : [];
+
+          // Use joined tourPlanDoctors/tourPlanChemists if available (backend populates these)
+          // Otherwise fall back to ID lookup from locally loaded doctors/chemists list
+          const doctorCount = p.tourPlanDoctors?.length || doctorIds.length;
+          const chemistCount = p.tourPlanChemists?.length || chemistIds.length;
+
+          const doctorsListStr = p.tourPlanDoctors && p.tourPlanDoctors.length > 0
+            ? p.tourPlanDoctors.map((td: any) => td.doctor?.name || td.doctor?.doctorName || `Doctor #${td.doctorId}`).join(', ')
+            : doctorIds.map((id: any) => {
+                const doc = docsList.find((d: any) => String(d.id) === String(id));
+                return doc ? doc.name || doc.doctorName : `Doctor #${id}`;
+              }).join(', ') || 'None';
+
+          const chemistsListStr = p.tourPlanChemists && p.tourPlanChemists.length > 0
+            ? p.tourPlanChemists.map((tc: any) => tc.chemist?.name || tc.chemist?.chemistName || tc.chemist?.shopName || `Chemist #${tc.chemistId}`).join(', ')
+            : chemistIds.map((id: any) => {
+                const chem = chemsList.find((c: any) => String(c.id) === String(id));
+                return chem ? chem.name || chem.chemistName || chem.shopName : `Chemist #${id}`;
+              }).join(', ') || 'None';
 
           return {
             id: p.id || Date.now() + idx,
@@ -241,8 +260,8 @@ const TourPlanningScreen = () => {
             objective: p.objective || 'Field Work',
             planType: p.planType || 'MTP',
             status: p.status || 'Pending Approval',
-            docCount: doctorIds.length,
-            chemistCount: chemistIds.length,
+            docCount: doctorCount,
+            chemistCount: chemistCount,
             doctorIds,
             chemistIds,
             area: p.area || '',
@@ -250,14 +269,8 @@ const TourPlanningScreen = () => {
             startTime: p.startTime || '09:00 AM',
             endTime: p.endTime || '06:00 PM',
             remarks: p.remarks || '',
-            doctorsList: doctorIds.map((id: number) => {
-              const doc = docsList.find((d: any) => String(d.id) === String(id));
-              return doc ? doc.name || doc.doctorName : `Doctor #${id}`;
-            }).join(', ') || 'None',
-            chemistsList: chemistIds.map((id: number) => {
-              const chem = chemsList.find((c: any) => String(c.id) === String(id));
-              return chem ? chem.name || chem.chemistName || chem.shopName : `Chemist #${id}`;
-            }).join(', ') || 'None',
+            doctorsList: doctorsListStr,
+            chemistsList: chemistsListStr,
           };
         });
         setPlans(mappedPlans);
