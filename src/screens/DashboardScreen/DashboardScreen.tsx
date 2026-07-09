@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
-import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
 import { getMeetingsByMr } from '../../services/meetingService';
+import { getAttendanceLogs } from '../../services/attendanceService';
 
 interface RecentOrder {
   id: string; client: string; status: 'Shipped' | 'Pending' | 'Failed'; amount: string; date: string;
@@ -127,8 +128,76 @@ const DashboardScreen = () => {
     setDynamicTargets(targets);
 
     try {
-      setIsCheckedIn((await AsyncStorage.getItem('@checked_in')) === 'true');
-      setCheckInTime((await AsyncStorage.getItem('@check_in_time')) || '');
+      let isCheckedInVal = false;
+      let checkInTimeVal = '';
+
+      try {
+        const logsList = await getAttendanceLogs();
+        const today = new Date();
+        
+        const checkSameDay = (d1: Date, d2Str: string) => {
+          if (!d2Str) return false;
+          try {
+            const d2 = new Date(d2Str);
+            if (isNaN(d2.getTime())) {
+              const cleaned = d2Str.replace(/-/g, ' ');
+              const parts = cleaned.split(' ');
+              if (parts.length >= 3) {
+                const day = parseInt(parts[0]);
+                const year = parseInt(parts[2]);
+                const monthStr = parts[1].toLowerCase();
+                const monthsAbbr = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+                const monthIdx = monthsAbbr.findIndex(m => monthStr.startsWith(m));
+                if (day && year && monthIdx !== -1) {
+                  return d1.getDate() === day && d1.getMonth() === monthIdx && d1.getFullYear() === year;
+                }
+              }
+              return false;
+            }
+            return d1.getDate() === d2.getDate() && 
+                   d1.getMonth() === d2.getMonth() && 
+                   d1.getFullYear() === d2.getFullYear();
+          } catch (e) {
+            return false;
+          }
+        };
+
+        const todayLog = Array.isArray(logsList) ? logsList.find((log: any) => 
+          checkSameDay(today, log.date || log.checkInTime || log.check_in_time || log.createdAt)
+        ) : null;
+
+        if (todayLog) {
+          isCheckedInVal = !todayLog.status || 
+                           String(todayLog.status).toUpperCase() === 'PRESENT' || 
+                           String(todayLog.status).toUpperCase() === 'APPROVED';
+          
+          const rawTime = todayLog.checkInTime || todayLog.check_in_time || '';
+          if (rawTime && !rawTime.includes('AM') && !rawTime.includes('PM') && !rawTime.includes('am') && !rawTime.includes('pm')) {
+            try {
+              const parsedDate = new Date(rawTime);
+              if (!isNaN(parsedDate.getTime())) {
+                checkInTimeVal = parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              } else {
+                checkInTimeVal = rawTime;
+              }
+            } catch {
+              checkInTimeVal = rawTime;
+            }
+          } else {
+            checkInTimeVal = rawTime;
+          }
+        }
+      } catch (err) {
+        console.log('Dashboard failed to fetch attendance logs from API:', err);
+      }
+
+      if (!isCheckedInVal) {
+        isCheckedInVal = (await AsyncStorage.getItem('@checked_in')) === 'true';
+        checkInTimeVal = (await AsyncStorage.getItem('@check_in_time')) || '';
+      }
+
+      setIsCheckedIn(isCheckedInVal);
+      setCheckInTime(checkInTimeVal);
       setUserName((await AsyncStorage.getItem('@user_name')) || 'Priya Reddy');
       setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
     } catch (e) { console.log(e); }

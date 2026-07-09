@@ -1,6 +1,6 @@
-import { createTourPlan, getTourPlansByMr } from '../../services/tourPlanService';
-import { getDoctors } from '../../services/doctorService';
-import { getChemists } from '../../services/chemistService';
+import { createTourPlan, getTourPlansByMr, updateTourPlan, deleteTourPlan, updateTourPlanStatus } from '../../services/tourPlanService';
+import { getDoctors, getDoctorVisitsByMr } from '../../services/doctorService';
+import { getChemists, getChemistVisitsByMr } from '../../services/chemistService';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -81,7 +81,7 @@ const TourPlanningScreen = () => {
 
   // Convert AM/PM time format (09:00 AM) to HTML5 time format (09:00)
   const formatTime12to24 = (time12: string) => {
-    const match = time12.match(/^(\d{2}):(\d{2})\s*(AM|PM)$/i);
+    const match = time12.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)$/i);
     if (match) {
       let hours = parseInt(match[1]);
       const minutes = match[2];
@@ -144,10 +144,10 @@ const TourPlanningScreen = () => {
   const [chemists, setChemists] = useState<any[]>([]);
 
   // ⬅️ Step 3: Added Selection Tracking States
-  const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
-  const [selectedChemistId, setSelectedChemistId] = useState<number | null>(null);
-  const [selectedDoctorIds, setSelectedDoctorIds] = useState<number[]>([]);
-  const [selectedChemistIds, setSelectedChemistIds] = useState<number[]>([]);
+  const [selectedDoctorId, setSelectedDoctorId] = useState<any>(null);
+  const [selectedChemistId, setSelectedChemistId] = useState<any>(null);
+  const [selectedDoctorIds, setSelectedDoctorIds] = useState<any[]>([]);
+  const [selectedChemistIds, setSelectedChemistIds] = useState<any[]>([]);
 
   // Web safe alert
   const customAlert = (title: string, message: string) => {
@@ -170,36 +170,48 @@ const TourPlanningScreen = () => {
   }, [chemistsList]);
 
   useEffect(() => {
-    loadPlans();
-  }, []);
-
-  useEffect(() => {
-    const loadDoctors = async () => {
+    const initData = async () => {
+      setLoading(true);
+      setError(null);
       try {
-        const response = await getDoctors();
-        setDoctors(response.data || []);
-      } catch (error) {
-        console.log('Doctor Load Error:', error);
+        // 1. Load doctors first
+        let activeDocs = [];
+        try {
+          const response = await getDoctors();
+          activeDocs = response.data || [];
+          setDoctors(activeDocs);
+        } catch (error) {
+          console.log('Doctor Load Error:', error);
+        }
+
+        // 2. Load chemists second
+        let activeChems = [];
+        try {
+          const response = await getChemists();
+          activeChems = response.data || [];
+          setChemists(activeChems);
+        } catch (error) {
+          console.log('Chemist Load Error:', error);
+        }
+
+        // 3. Load plans third (passing doctors/chemists directly to avoid race conditions)
+        await loadPlans(activeDocs, activeChems);
+
+      } catch (err) {
+        console.log('Failed to initialize TourPlanningScreen:', err);
+        setError('Failed to load tour planning data.');
+      } finally {
+        setLoading(false);
       }
     };
-    loadDoctors();
+
+    initData();
   }, []);
 
-  useEffect(() => {
-    const loadChemists = async () => {
-      try {
-        const response = await getChemists();
-        setChemists(response.data || []);
-      } catch (error) {
-        console.log('Chemist Load Error:', error);
-      }
-    };
-    loadChemists();
-  }, []);
+  const loadPlans = async (loadedDoctors?: any[], loadedChemists?: any[]) => {
+    const docsList = loadedDoctors || doctors;
+    const chemsList = loadedChemists || chemists;
 
-  const loadPlans = async () => {
-    setLoading(true);
-    setError(null);
     try {
       let serverPlans = [];
       try {
@@ -209,41 +221,58 @@ const TourPlanningScreen = () => {
       }
 
       if (serverPlans && serverPlans.length > 0) {
-        const mappedPlans = serverPlans.map((p: any, idx: number) => ({
-          id: p.id || Date.now() + idx,
-          date: p.tourDate ? formatDate(new Date(p.tourDate)) : p.date || getTomorrowDateString(),
-          territory: p.territory || '',
-          objective: p.objective || 'Field Work',
-          planType: p.planType || 'MTP',
-          status: p.status || 'Pending Approval',
-          docCount: String(p.doctorIds?.length || 0),
-          chemistCount: String(p.chemistIds?.length || 0),
-          doctorsList: (p.doctorIds || []).map((id: number) => {
-            const doc = doctors.find((d: any) => d.id === id);
-            return doc ? doc.name || doc.doctorName : `Doctor #${id}`;
-          }).join(', '),
-          chemistsList: (p.chemistIds || []).map((id: number) => {
-            const chem = chemists.find((c: any) => c.id === id);
-            return chem ? chem.name || chem.chemistName : `Chemist #${id}`;
-          }).join(', '),
-        }));
+        const mappedPlans = serverPlans.map((p: any, idx: number) => {
+          // Normalize doctor IDs from array of numbers/objects or database formats
+          const rawDocIds = p.doctorIds || p.doctor_ids || p.doctors || [];
+          const doctorIds = Array.isArray(rawDocIds)
+            ? rawDocIds.map((d: any) => (typeof d === 'object' && d !== null ? Number(d.id || d) : Number(d)))
+            : [];
+
+          // Normalize chemist IDs from array of numbers/objects or database formats
+          const rawChemIds = p.chemistIds || p.chemist_ids || p.chemists || [];
+          const chemistIds = Array.isArray(rawChemIds)
+            ? rawChemIds.map((c: any) => (typeof c === 'object' && c !== null ? Number(c.id || c) : Number(c)))
+            : [];
+
+          return {
+            id: p.id || Date.now() + idx,
+            date: p.tourDate ? formatDate(new Date(p.tourDate)) : p.date || getTomorrowDateString(),
+            territory: p.territory || '',
+            objective: p.objective || 'Field Work',
+            planType: p.planType || 'MTP',
+            status: p.status || 'Pending Approval',
+            docCount: doctorIds.length,
+            chemistCount: chemistIds.length,
+            doctorIds,
+            chemistIds,
+            area: p.area || '',
+            beat: p.beat || '',
+            startTime: p.startTime || '09:00 AM',
+            endTime: p.endTime || '06:00 PM',
+            remarks: p.remarks || '',
+            doctorsList: doctorIds.map((id: number) => {
+              const doc = docsList.find((d: any) => String(d.id) === String(id));
+              return doc ? doc.name || doc.doctorName : `Doctor #${id}`;
+            }).join(', ') || 'None',
+            chemistsList: chemistIds.map((id: number) => {
+              const chem = chemsList.find((c: any) => String(c.id) === String(id));
+              return chem ? chem.name || chem.chemistName || chem.shopName : `Chemist #${id}`;
+            }).join(', ') || 'None',
+          };
+        });
         setPlans(mappedPlans);
-        await AsyncStorage.setItem('@tour_plans', JSON.stringify(mappedPlans));
       } else {
-        const storedPlans = await AsyncStorage.getItem('@tour_plans');
-        setPlans(safeJsonParse(storedPlans, []));
+        setPlans([]);
       }
 
-      const storedDocVisits = await AsyncStorage.getItem('@doctor_visits');
-      setDoctorVisits(safeJsonParse(storedDocVisits, []));
+      const serverDocVisits = await getDoctorVisitsByMr();
+      setDoctorVisits(serverDocVisits || []);
 
-      const storedChemistVisits = await AsyncStorage.getItem('@chemist_visits');
-      setChemistVisits(safeJsonParse(storedChemistVisits, []));
+      const serverChemistVisits = await getChemistVisitsByMr();
+      setChemistVisits(serverChemistVisits || []);
     } catch (error) {
       console.log('Failed to load tour plans data:', error);
-      setError('Failed to load tour planning data.');
-    } finally {
-      setLoading(false);
+      throw error;
     }
   };
 
@@ -331,32 +360,33 @@ const TourPlanningScreen = () => {
     }
 
     if (editingPlanId !== null) {
-      const updatedPlans = plans.map((p) => {
-        if (p.id === editingPlanId) {
-          return {
-            ...p,
-            date,
-            area,
-            beat,
-            territory,
-            planType,
-            docCount: parseInt(docCount) || 0,
-            doctorsList,
-            chemistCount: parseInt(chemistCount) || 0,
-            chemistsList,
-            startTime,
-            endTime,
-            objective,
-            remarks,
-          };
-        }
-        return p;
-      });
-
-      setPlans(updatedPlans);
       try {
-        await AsyncStorage.setItem('@tour_plans', JSON.stringify(updatedPlans));
-        customAlert('✅ Plan Updated', 'The tour plan has been successfully updated.');
+        // Build names from selectedDoctorIds/chemistIds for local display
+        const finalDoctorsList = selectedDoctorIds.map(id => {
+          const doc = doctors.find((d: any) => String(d.id) === String(id));
+          return doc ? doc.name || doc.doctorName || `Doctor #${id}` : `Doctor #${id}`;
+        }).join(', ');
+        const finalChemistsList = selectedChemistIds.map(id => {
+          const chem = chemists.find((c: any) => String(c.id) === String(id));
+          return chem ? chem.name || chem.chemistName || chem.shopName || `Chemist #${id}` : `Chemist #${id}`;
+        }).join(', ');
+
+        await updateTourPlan(
+          editingPlanId,
+          new Date(getWebDateFormat(date)).toISOString(),
+          territory,
+          objective,
+          selectedDoctorIds,
+          selectedChemistIds,
+          area,
+          beat,
+          planType,
+          startTime,
+          endTime,
+          remarks
+        );
+        customAlert('✅ Plan Updated', 'The tour plan has been successfully updated on the server.');
+        await loadPlans();
         
         setEditingPlanId(null);
         setArea('');
@@ -373,48 +403,31 @@ const TourPlanningScreen = () => {
       }
     } else {
       try {
+        // Build names from selectedDoctorIds/chemistIds for local display
+        const finalDoctorsList = selectedDoctorIds.map(id => {
+          const doc = doctors.find((d: any) => String(d.id) === String(id));
+          return doc ? doc.name || doc.doctorName || `Doctor #${id}` : `Doctor #${id}`;
+        }).join(', ');
+        const finalChemistsList = selectedChemistIds.map(id => {
+          const chem = chemists.find((c: any) => String(c.id) === String(id));
+          return chem ? chem.name || chem.chemistName || chem.shopName || `Chemist #${id}` : `Chemist #${id}`;
+        }).join(', ');
+
         await createTourPlan(
-          new Date(date).toISOString(),
+          new Date(getWebDateFormat(date)).toISOString(),
           territory,
           objective,
           selectedDoctorIds,
-          selectedChemistIds
+          selectedChemistIds,
+          area,
+          beat,
+          planType,
+          startTime,
+          endTime,
+          remarks
         );
-        console.log('Tour Plan Saved Successfully');
-      } catch (error: any) {
-  console.log('TOUR PLAN ERROR:', error);
-  console.log('TOUR PLAN ERROR RESPONSE:', error?.response?.data);
-
-  Alert.alert(
-    'Error',
-    JSON.stringify(error?.response?.data || error.message)
-  );
-}
-
-      const newPlan = {
-        id: Date.now(),
-        date,
-        area,
-        beat,
-        territory,
-        planType,
-        docCount: selectedDoctorIds.length,
-        doctorsList,
-        chemistCount: selectedChemistIds.length,
-        chemistsList,
-        startTime,
-        endTime,
-        objective,
-        remarks,
-        status: 'Draft',
-      };
-
-      const updatedPlans = [newPlan, ...plans];
-      setPlans(updatedPlans);
-
-      try {
-        await AsyncStorage.setItem('@tour_plans', JSON.stringify(updatedPlans));
-        customAlert('✅ Tour Plan Submitted', `Route plan for ${area} - ${beat} has been successfully logged.`);
+        customAlert('✅ Tour Plan Submitted', `Route plan has been successfully logged.`);
+        await loadPlans();
         
         setArea('');
         setBeat('');
@@ -425,8 +438,12 @@ const TourPlanningScreen = () => {
         setSelectedDoctorIds([]);
         setSelectedChemistIds([]);
         setDate(getTomorrowDateString());
-      } catch (error) {
-        customAlert('Error', 'Failed to save tour plan locally.');
+      } catch (error: any) {
+        console.log('TOUR PLAN ERROR:', error);
+        Alert.alert(
+          'Error',
+          JSON.stringify(error?.response?.data || error.message)
+        );
       }
     }
   };
@@ -444,6 +461,8 @@ const TourPlanningScreen = () => {
     setDoctorsList(plan.doctorsList || '');
     setChemistsList(plan.chemistsList || '');
     setRemarks(plan.remarks || '');
+    setSelectedDoctorIds(plan.doctorIds || []);
+    setSelectedChemistIds(plan.chemistIds || []);
     customAlert('Editing Plan', `Modifying plan for ${plan.area}. Update form fields above.`);
   };
 
@@ -452,13 +471,13 @@ const TourPlanningScreen = () => {
 
     if (Platform.OS === 'web') {
       if (confirmDelete) {
-        const updatedPlans = plans.filter(p => p.id !== planId);
-        setPlans(updatedPlans);
         try {
-          await AsyncStorage.setItem('@tour_plans', JSON.stringify(updatedPlans));
+          await deleteTourPlan(planId);
           customAlert('Deleted', 'Tour plan deleted successfully.');
+          await loadPlans();
         } catch (e) {
-          console.log('Failed to delete plan');
+          console.log('Failed to delete plan', e);
+          customAlert('Error', 'Failed to delete tour plan from server.');
         }
       }
     } else {
@@ -470,13 +489,13 @@ const TourPlanningScreen = () => {
           { 
             text: 'Yes', 
             onPress: async () => {
-              const updatedPlans = plans.filter(p => p.id !== planId);
-              setPlans(updatedPlans);
               try {
-                await AsyncStorage.setItem('@tour_plans', JSON.stringify(updatedPlans));
+                await deleteTourPlan(planId);
                 customAlert('Deleted', 'Tour plan deleted successfully.');
+                await loadPlans();
               } catch (e) {
-                console.log('Failed to delete plan');
+                console.log('Failed to delete plan', e);
+                customAlert('Error', 'Failed to delete tour plan from server.');
               }
             }
           }
@@ -486,25 +505,22 @@ const TourPlanningScreen = () => {
   };
 
   const cycleStatus = async (planId: number) => {
-    const updatedPlans = plans.map((p) => {
-      if (p.id === planId) {
-        let currentStatus = p.status || 'Draft';
-        let nextStatus = 'Draft';
-        if (currentStatus === 'Draft') nextStatus = 'Pending Approval';
-        else if (currentStatus === 'Pending Approval') nextStatus = 'Approved';
-        else if (currentStatus === 'Approved') nextStatus = 'Rejected';
-        else if (currentStatus === 'Rejected') nextStatus = 'Completed';
-        else nextStatus = 'Draft';
-        return { ...p, status: nextStatus };
-      }
-      return p;
-    });
+    const plan = plans.find(p => p.id === planId);
+    if (!plan) return;
 
-    setPlans(updatedPlans);
+    let currentStatus = plan.status || 'Draft';
+    let nextStatus = 'Draft';
+    if (currentStatus === 'Draft') nextStatus = 'Pending Approval';
+    else if (currentStatus === 'Pending Approval') nextStatus = 'Approved';
+    else if (currentStatus === 'Approved') nextStatus = 'Completed';
+    else nextStatus = 'Draft';
+
     try {
-      await AsyncStorage.setItem('@tour_plans', JSON.stringify(updatedPlans));
+      await updateTourPlanStatus(planId, nextStatus);
+      await loadPlans();
     } catch (e) {
-      console.log('Failed to update tour status');
+      console.log('Failed to update tour status on server', e);
+      customAlert('Error', 'Failed to update plan status on server.');
     }
   };
 
@@ -522,9 +538,10 @@ const TourPlanningScreen = () => {
     const planned = (plan.doctorsList || '').split(',').map((n: string) => n.trim().toLowerCase()).filter((n: string) => n !== '');
     if (planned.length === 0) return 0;
     const matches = list.filter((v) => {
-      const vDate = formatDate(new Date(v.id));
+      const visitDateVal = v.visitDate || v.date || v.createdAt || v.visit_date || v.id;
+      const vDate = formatDate(new Date(visitDateVal));
       if (vDate !== plan.date) return false;
-      const vName = (v.doctorName || '').trim().toLowerCase();
+      const vName = (v.doctorName || v.name || '').trim().toLowerCase();
       return planned.some((pName: string) => vName.includes(pName) || pName.includes(vName));
     });
     return matches.length;
@@ -534,9 +551,10 @@ const TourPlanningScreen = () => {
     const planned = (plan.chemistsList || '').split(',').map((n: string) => n.trim().toLowerCase()).filter((n: string) => n !== '');
     if (planned.length === 0) return 0;
     const matches = list.filter((v) => {
-      const vDate = formatDate(new Date(v.id));
+      const visitDateVal = v.visitDate || v.date || v.createdAt || v.visit_date || v.id;
+      const vDate = formatDate(new Date(visitDateVal));
       if (vDate !== plan.date) return false;
-      const vName = (v.shopName || '').trim().toLowerCase();
+      const vName = (v.chemistName || v.shopName || v.name || '').trim().toLowerCase();
       return planned.some((pName: string) => vName.includes(pName) || pName.includes(vName));
     });
     return matches.length;
@@ -577,7 +595,7 @@ const TourPlanningScreen = () => {
         ) : error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>⚠️ {error}</Text>
-            <TouchableOpacity style={styles.retryButton} onPress={loadPlans}>
+            <TouchableOpacity style={styles.retryButton} onPress={() => loadPlans()}>
               <Text style={styles.retryButtonText}>🔄 Retry Loading Tour Plans</Text>
             </TouchableOpacity>
           </View>
@@ -759,13 +777,16 @@ const TourPlanningScreen = () => {
                 <Picker
                   selectedValue={selectedDoctorId}
                   onValueChange={(value: any) => {
-                    if (!value) return;
-                    const doctorId = Number(value);
-                    if (!selectedDoctorIds.includes(doctorId)) {
-                      setSelectedDoctorIds([...selectedDoctorIds, doctorId]);
-                      const doctor = doctors.find((d) => d.id === doctorId);
+                    if (!value && value !== 0) return;
+                    // Use raw ID (string or number) exactly as returned by backend
+                    const rawId = value;
+                    const alreadySelected = selectedDoctorIds.some(id => String(id) === String(rawId));
+                    if (!alreadySelected) {
+                      setSelectedDoctorIds([...selectedDoctorIds, rawId]);
+                      const doctor = doctors.find((d: any) => String(d.id) === String(rawId));
                       if (doctor) {
-                        setDoctorsList(doctorsList ? `${doctorsList}, ${doctor.name}` : doctor.name);
+                        const docName = doctor.name || doctor.doctorName || `Doctor #${rawId}`;
+                        setDoctorsList(doctorsList ? `${doctorsList}, ${docName}` : docName);
                       }
                     }
                     setSelectedDoctorId(null);
@@ -773,7 +794,7 @@ const TourPlanningScreen = () => {
                 >
                   <Picker.Item label="Select Doctor..." value={null} color="#94A3B8" />
                   {doctors.map((doctor) => (
-                    <Picker.Item key={doctor.id} label={doctor.name} value={doctor.id} />
+                    <Picker.Item key={String(doctor.id)} label={doctor.name || doctor.doctorName} value={doctor.id} />
                   ))}
                 </Picker>
               </View>
@@ -789,13 +810,16 @@ const TourPlanningScreen = () => {
                 <Picker
                   selectedValue={selectedChemistId}
                   onValueChange={(value: any) => {
-                    if (!value) return;
-                    const chemistId = Number(value);
-                    if (!selectedChemistIds.includes(chemistId)) {
-                      setSelectedChemistIds([...selectedChemistIds, chemistId]);
-                      const chemist = chemists.find((c) => c.id === chemistId);
+                    if (!value && value !== 0) return;
+                    // Use raw ID (string or number) exactly as returned by backend
+                    const rawId = value;
+                    const alreadySelected = selectedChemistIds.some(id => String(id) === String(rawId));
+                    if (!alreadySelected) {
+                      setSelectedChemistIds([...selectedChemistIds, rawId]);
+                      const chemist = chemists.find((c: any) => String(c.id) === String(rawId));
                       if (chemist) {
-                        setChemistsList(chemistsList ? `${chemistsList}, ${chemist.name}` : chemist.name);
+                        const chemName = chemist.name || chemist.chemistName || chemist.shopName || `Chemist #${rawId}`;
+                        setChemistsList(chemistsList ? `${chemistsList}, ${chemName}` : chemName);
                       }
                     }
                     setSelectedChemistId(null);
@@ -803,7 +827,7 @@ const TourPlanningScreen = () => {
                 >
                   <Picker.Item label="Select Chemist..." value={null} color="#94A3B8" />
                   {chemists.map((chemist) => (
-                    <Picker.Item key={chemist.id} label={chemist.name} value={chemist.id} />
+                    <Picker.Item key={String(chemist.id)} label={chemist.name || chemist.chemistName || chemist.shopName} value={chemist.id} />
                   ))}
                 </Picker>
               </View>
@@ -821,11 +845,7 @@ const TourPlanningScreen = () => {
                 onChangeText={setRemarks}
                 multiline
                 numberOfLines={3}
-                onFocus={() => {
-                  setTimeout(() => {
-                    scrollViewRef.current?.scrollToEnd({ animated: true });
-                  }, 150);
-                }}
+               
               />
 
               <View style={styles.buttonRow}>
@@ -925,7 +945,7 @@ const TourPlanningScreen = () => {
 
                       <View style={styles.cardDivider} />
 
-                      {['Draft', 'Pending Approval', 'Rejected'].includes(plan.status) && (
+                      {['Draft', 'Rejected'].includes(plan.status) && (
                         <View style={styles.actionsRow}>
                           <TouchableOpacity 
                             onPress={() => handleEditPlan(plan)}

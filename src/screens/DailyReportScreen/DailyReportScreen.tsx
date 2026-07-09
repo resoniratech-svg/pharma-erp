@@ -1,4 +1,8 @@
 import { createDailyReport } from '../../services/dailyReportService';
+import { getDoctorVisitsByMr } from '../../services/doctorService';
+import { getChemistVisitsByMr } from '../../services/chemistService';
+import { getAttendanceLogs } from '../../services/attendanceService';
+import { getTourPlansByMr } from '../../services/tourPlanService';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -12,11 +16,12 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
 } from 'react-native';
+
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import * as Location from 'expo-location';
+
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -28,6 +33,32 @@ const safeJsonParse = (data: string | null, fallback: any) => {
   }
 };
 
+const extractCoords = (obj: any, type: 'checkin' | 'checkout' | 'visit') => {
+  if (!obj) return null;
+  let lat: any = null;
+  let lng: any = null;
+
+  if (type === 'checkin') {
+    lat = obj.checkInLat || obj.checkInLatitude || obj.check_in_latitude || obj.latitude || obj.lat;
+    lng = obj.checkInLng || obj.checkInLongitude || obj.check_in_longitude || obj.longitude || obj.lng;
+  } else if (type === 'checkout') {
+    lat = obj.checkOutLat || obj.checkOutLatitude || obj.check_out_latitude || obj.latitude || obj.lat;
+    lng = obj.checkOutLng || obj.checkOutLongitude || obj.check_out_longitude || obj.longitude || obj.lng;
+  } else {
+    lat = obj.latitude || obj.lat || obj.latitude_coords || obj.doctorLatitude || obj.chemistLatitude || obj.visitLatitude || obj.gpsLatitude || (obj.location && obj.location.latitude);
+    lng = obj.longitude || obj.lng || obj.longitude_coords || obj.doctorLongitude || obj.chemistLongitude || obj.visitLongitude || obj.gpsLongitude || (obj.location && obj.location.longitude);
+  }
+
+  const parsedLat = parseFloat(lat);
+  const parsedLng = parseFloat(lng);
+
+  if (isNaN(parsedLat) || isNaN(parsedLng)) return null;
+  if (parsedLat === 0 && parsedLng === 0) return null;
+  if (parsedLat < -90 || parsedLat > 90 || parsedLng < -180 || parsedLng > 180) return null;
+
+  return { latitude: parsedLat, longitude: parsedLng };
+};
+
 const DailyReportScreen = () => {
   const [docCount, setDocCount] = useState(0);
   const [chemistCount, setChemistCount] = useState(0);
@@ -37,12 +68,14 @@ const DailyReportScreen = () => {
   const [checkInTime, setCheckInTime] = useState('');
   const [upcomingFollowUps, setUpcomingFollowUps] = useState(0);
   const [endTime, setEndTime] = useState('');
+  const [todayTourTerritory, setTodayTourTerritory] = useState('Field Work (Ad-hoc)');
   const [totalKmTravelled, setTotalKmTravelled] = useState(0);
 
   // Form states
   const [remarks, setRemarks] = useState('');
   const [competitorActivity, setCompetitorActivity] = useState('');
   const [approvalStatus, setApprovalStatus] = useState('Pending Approval');
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const [reportGenerated, setReportGenerated] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -66,6 +99,8 @@ const DailyReportScreen = () => {
       loadDailyMetrics();
     }
   }, [isFocused]);
+
+
 
   const checkSameDay = (d1: Date, d2Str: string) => {
     if (!d2Str) return false;
@@ -106,27 +141,62 @@ const DailyReportScreen = () => {
     return R * c;
   };
 
+  const formatTime12h = (timeStr: string) => {
+    if (!timeStr || timeStr === 'N/A' || timeStr === 'Active') return timeStr;
+    if (timeStr.toLowerCase().includes('am') || timeStr.toLowerCase().includes('pm')) {
+      return timeStr;
+    }
+    try {
+      const date = new Date(timeStr);
+      if (isNaN(date.getTime())) return timeStr;
+      let hours = date.getHours();
+      const minutes = String(date.getMinutes()).padStart(2, '0');
+      const ampm = hours >= 12 ? 'pm' : 'am';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      return `${hours}:${minutes} ${ampm}`;
+    } catch (e) {
+      return timeStr;
+    }
+  };
+
   const calculateDuration = (start: string, end: string) => {
     if (!start || !end || start === 'N/A' || end === 'N/A' || end === 'Active') return '';
     try {
-      const parseTime = (timeStr: string) => {
-        const parts = timeStr.trim().toLowerCase().split(' ');
-        let [hours, minutes] = parts[0].split(':').map(Number);
-        if (parts[1]) {
-          if (hours === 12) {
-            hours = parts[1] === 'am' ? 0 : 12;
-          } else if (parts[1] === 'pm') {
-            hours += 12;
+      let startDate = new Date(start);
+      let endDate = new Date(end);
+
+      if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+        const parseTimeStr = (timeStr: string) => {
+          const dateAttempt = new Date(timeStr);
+          if (!isNaN(dateAttempt.getTime())) {
+            return dateAttempt.getHours() * 60 + dateAttempt.getMinutes();
           }
-        }
-        return (hours || 0) * 60 + (minutes || 0);
-      };
-      const startMins = parseTime(start);
-      const endMins = parseTime(end);
-      let diff = endMins - startMins;
-      if (diff < 0) diff += 24 * 60; 
-      const hrs = Math.floor(diff / 60);
-      const mins = diff % 60;
+          const parts = timeStr.trim().toLowerCase().split(' ');
+          let [hours, minutes] = parts[0].split(':').map(Number);
+          if (parts[1]) {
+            if (hours === 12) {
+              hours = parts[1] === 'am' ? 0 : 12;
+            } else if (parts[1] === 'pm') {
+              hours += 12;
+            }
+          }
+          return (hours || 0) * 60 + (minutes || 0);
+        };
+        const startMins = parseTimeStr(start);
+        const endMins = parseTimeStr(end);
+        let diff = endMins - startMins;
+        if (diff < 0) diff += 24 * 60; 
+        const hrs = Math.floor(diff / 60);
+        const mins = diff % 60;
+        return ` (${hrs}h ${mins}m)`;
+      }
+
+      const diffMs = endDate.getTime() - startDate.getTime();
+      if (diffMs < 0) return '';
+      const totalMins = Math.floor(diffMs / 60000);
+      const hrs = Math.floor(totalMins / 60);
+      const mins = totalMins % 60;
       return ` (${hrs}h ${mins}m)`;
     } catch (e) {
       return '';
@@ -138,15 +208,18 @@ const DailyReportScreen = () => {
     setError(null);
     try {
       const today = new Date();
-      const yyyy = today.getFullYear();
-      const mm = String(today.getMonth() + 1).padStart(2, '0');
-      const dd = String(today.getDate()).padStart(2, '0');
-      const isoToday = `${yyyy}-${mm}-${dd}`;
 
-      // 1. Get Doctor Visits & Follow Ups
-      const docData = await AsyncStorage.getItem('@doctor_visits');
-      const allDocList = safeJsonParse(docData, []);
-      const docList = allDocList.filter((v: any) => checkSameDay(today, v.visitDate || v.date));
+      // 1. Get Doctor Visits & Follow Ups from API (with AsyncStorage fallback)
+      let allDocList: any[] = [];
+      try {
+        allDocList = await getDoctorVisitsByMr();
+        if (!Array.isArray(allDocList)) allDocList = [];
+      } catch (err) {
+        console.log('Failed to fetch doctor visits from API, falling back to AsyncStorage:', err);
+        const docData = await AsyncStorage.getItem('@doctor_visits');
+        allDocList = safeJsonParse(docData, []);
+      }
+      const docList = allDocList.filter((v: any) => checkSameDay(today, v.visitDate || v.date || v.createdAt || v.visit_date));
       setDocCount(docList.length);
 
       const followUpCount = docList.filter((v: any) => {
@@ -155,16 +228,23 @@ const DailyReportScreen = () => {
       }).length;
       setUpcomingFollowUps(followUpCount);
 
-      // 2. Get Chemist Visits
-      const chemistData = await AsyncStorage.getItem('@chemist_visits');
-      const allChemistList = safeJsonParse(chemistData, []);
-      const chemistList = allChemistList.filter((v: any) => checkSameDay(today, v.visitDate || v.date));
+      // 2. Get Chemist Visits from API (with AsyncStorage fallback)
+      let allChemistList: any[] = [];
+      try {
+        allChemistList = await getChemistVisitsByMr();
+        if (!Array.isArray(allChemistList)) allChemistList = [];
+      } catch (err) {
+        console.log('Failed to fetch chemist visits from API, falling back to AsyncStorage:', err);
+        const chemistData = await AsyncStorage.getItem('@chemist_visits');
+        allChemistList = safeJsonParse(chemistData, []);
+      }
+      const chemistList = allChemistList.filter((v: any) => checkSameDay(today, v.visitDate || v.date || v.createdAt || v.visit_date));
       setChemistCount(chemistList.length);
 
-      // 3. Get Orders & Calculate Sales
+      // 3. Get Orders & Calculate Sales (Keep AsyncStorage until orders API is ready)
       const ordersData = await AsyncStorage.getItem('@orders');
       const allOrdersList = safeJsonParse(ordersData, []);
-      const ordersList = allOrdersList.filter((o: any) => checkSameDay(today, o.dateFormatted || o.date));
+      const ordersList = allOrdersList.filter((o: any) => checkSameDay(today, o.dateFormatted || o.date || o.createdAt));
       setOrderCount(ordersList.length);
 
       // Sum values from both orders and chemist visit values
@@ -178,99 +258,211 @@ const DailyReportScreen = () => {
 
       setTotalSales(chemistSalesSum + ordersSalesSum);
 
-      // 4. Get Dynamic GPS Route Distance (matches DashboardScreen)
-      let gpsDistance = 0;
+      // 3.5 Get Tour Plan / Beat for Today (with fallback)
+      let todayTour = 'Field Work (Ad-hoc)';
       try {
-        const todayString = today.toLocaleDateString('en-GB').replace(/\//g, '-');
-        const gpsKey = `@gps_movement_${todayString}`;
-        const gpsDataRaw = await AsyncStorage.getItem(gpsKey);
-        const gpsLogs = gpsDataRaw ? JSON.parse(gpsDataRaw) : [];
-
-        if (gpsLogs && gpsLogs.length > 1) {
-          let dist = 0;
-          for (let i = 0; i < gpsLogs.length - 1; i++) {
-            dist += calculateDistance(
-              gpsLogs[i].latitude, gpsLogs[i].longitude,
-              gpsLogs[i + 1].latitude, gpsLogs[i + 1].longitude
-            );
-          }
-          gpsDistance = dist;
+        const allTourPlans = await getTourPlansByMr();
+        const activeTour = Array.isArray(allTourPlans) ? allTourPlans.find((plan: any) => 
+          checkSameDay(today, plan.tourDate || plan.date || plan.createdAt)
+        ) : null;
+        if (activeTour && activeTour.territory) {
+          todayTour = activeTour.territory;
         }
-      } catch (e) {
-        console.log('Failed to calculate GPS distance', e);
+      } catch (err) {
+        console.log('Failed to fetch tour plans for DailyReport:', err);
+      }
+      setTodayTourTerritory(todayTour);
+
+      // 4. Get Attendance Status from API (with AsyncStorage fallback)
+      let logsList: any[] = [];
+      try {
+        logsList = await getAttendanceLogs();
+        if (!Array.isArray(logsList)) logsList = [];
+      } catch (err) {
+        console.log('Failed to fetch attendance logs from API, falling back to AsyncStorage:', err);
+        const storedLogs = await AsyncStorage.getItem('@attendance_logs');
+        logsList = safeJsonParse(storedLogs, []);
       }
 
-      // 5. Get Attendance Status
-      const checkedInStatus = await AsyncStorage.getItem('@checked_in');
-      const checkInTimeStored = await AsyncStorage.getItem('@check_in_time');
-      const attendanceDateStored = await AsyncStorage.getItem('@attendance_date');
-      const storedLogs = await AsyncStorage.getItem('@attendance_logs');
-      const logsList = safeJsonParse(storedLogs, []);
-
-      // Find today's checkout log
-      const todayLog = logsList.find((log: any) => checkSameDay(today, log.date || log.checkInTime));
+      const todayLog = logsList.find((log: any) => checkSameDay(today, log.date || log.checkInTime || log.check_in_time || log.createdAt));
 
       let statusStr = 'Absent';
       let checkInStr = '';
       let endStr = '';
-      let kmStr = 0;
 
       let startLat: number | null = null;
       let startLng: number | null = null;
       let endLat: number | null = null;
       let endLng: number | null = null;
+      let checkInCoords: { latitude: number; longitude: number } | null = null;
+      let checkOutCoords: { latitude: number; longitude: number } | null = null;
 
-      if (checkedInStatus === 'true' && attendanceDateStored && checkSameDay(today, attendanceDateStored)) {
+      const isLogPresent = todayLog && (!todayLog.status || 
+                            String(todayLog.status).toUpperCase() === 'PRESENT' || 
+                            String(todayLog.status).toUpperCase() === 'APPROVED');
+
+      if (isLogPresent) {
         statusStr = 'Present';
-        checkInStr = checkInTimeStored || '';
-        endStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        checkInStr = todayLog.checkInTime || todayLog.check_in_time || '';
         
-        const storedLat = await AsyncStorage.getItem('@check_in_lat');
-        const storedLng = await AsyncStorage.getItem('@check_in_lng');
-        if (storedLat) startLat = parseFloat(storedLat);
-        if (storedLng) startLng = parseFloat(storedLng);
-        
-        try {
-           const { status } = await Location.requestForegroundPermissionsAsync();
-           if (status === 'granted') {
-             const currentLoc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
-             endLat = currentLoc.coords.latitude;
-             endLng = currentLoc.coords.longitude;
-           }
-        } catch(e) {}
-
-        const checkInCheckOutDist = (startLat && startLng && endLat && endLng) 
-            ? calculateDistance(startLat, startLng, endLat, endLng) : 0;
-            
-        const totalVisits = docList.length + chemistList.length;
-        kmStr = checkInCheckOutDist > 0 ? parseFloat(checkInCheckOutDist.toFixed(2)) 
-                : (gpsDistance > 0 ? parseFloat(gpsDistance.toFixed(2)) : (totalVisits > 0 ? (totalVisits * 4) + 6 : 0));
-      } else if (todayLog) {
-        statusStr = 'Present';
-        checkInStr = todayLog.checkInTime || '';
-        endStr = todayLog.checkOutTime || '';
-        
-        if (todayLog.checkInLat) startLat = todayLog.checkInLat;
-        if (todayLog.checkInLng) startLng = todayLog.checkInLng;
-        if (todayLog.checkOutLat) endLat = todayLog.checkOutLat;
-        if (todayLog.checkOutLng) endLng = todayLog.checkOutLng;
-
-        const checkInCheckOutDist = (startLat && startLng && endLat && endLng) 
-            ? calculateDistance(startLat, startLng, endLat, endLng) : 0;
-
-        const totalVisits = docList.length + chemistList.length;
-        kmStr = checkInCheckOutDist > 0 ? parseFloat(checkInCheckOutDist.toFixed(2)) 
-                : (gpsDistance > 0 ? parseFloat(gpsDistance.toFixed(2)) : (totalVisits > 0 ? (totalVisits * 4) + 6 : 12));
-      } else {
-        // Fallback: if they logged any doctor/chemist visits or orders today, they were present!
-        if (docList.length > 0 || chemistList.length > 0 || ordersList.length > 0) {
-          statusStr = 'Present';
-          checkInStr = 'N/A';
-          endStr = 'N/A';
-          const totalVisits = docList.length + chemistList.length;
-          kmStr = gpsDistance > 0 ? parseFloat(gpsDistance.toFixed(2)) : (totalVisits > 0 ? (totalVisits * 4) + 6 : 8);
+        const checkOutVal = todayLog.checkOutTime || todayLog.check_out_time;
+        if (checkOutVal && checkOutVal !== 'Active') {
+          endStr = checkOutVal;
         } else {
-          statusStr = 'Absent';
+          endStr = 'Active';
+        }
+        
+        // Parse Check-in & Check-out Coordinates dynamically from API
+        checkInCoords = extractCoords(todayLog, 'checkin');
+        checkOutCoords = extractCoords(todayLog, 'checkout');
+        
+        if (checkInCoords) {
+          startLat = checkInCoords.latitude;
+          startLng = checkInCoords.longitude;
+        }
+        if (checkOutCoords) {
+          endLat = checkOutCoords.latitude;
+          endLng = checkOutCoords.longitude;
+        }
+      } else {
+        // Fallback to AsyncStorage if API fails or returns no log
+        const localCheckedIn = await AsyncStorage.getItem('@checked_in');
+        const localCheckInTime = await AsyncStorage.getItem('@check_in_time');
+        const localCheckInDate = await AsyncStorage.getItem('@attendance_date');
+        
+        if (localCheckedIn === 'true' && localCheckInTime && localCheckInDate && checkSameDay(today, localCheckInDate)) {
+          statusStr = 'Present';
+          checkInStr = localCheckInTime;
+          endStr = 'Active';
+          
+          const localLat = await AsyncStorage.getItem('@check_in_lat');
+          const localLng = await AsyncStorage.getItem('@check_in_lng');
+          if (localLat && localLng) {
+            startLat = parseFloat(localLat);
+            startLng = parseFloat(localLng);
+            checkInCoords = { latitude: startLat, longitude: startLng };
+          }
+        } else {
+          // Fallback: if they logged any doctor/chemist visits or orders today, they were present!
+          if (docList.length > 0 || chemistList.length > 0 || ordersList.length > 0) {
+            statusStr = 'Present';
+            checkInStr = 'N/A';
+            endStr = 'N/A';
+          } else {
+            statusStr = 'Absent';
+          }
+        }
+      }
+
+      // ─── BUSINESS ROUTE DISTANCE CALCULATION ───
+      let kmStr = 0;
+      if (statusStr === 'Present') {
+        const routePoints: { latitude: number; longitude: number; time: number; seq: number; name: string }[] = [];
+        let sequenceCounter = 0;
+
+        // 1. Gather Doctor Visit coordinates using API-compliant keys
+        docList.forEach((v: any) => {
+          const coords = extractCoords(v, 'visit');
+          if (coords) {
+            const timeVal = v.visitDate ? new Date(v.visitDate).getTime() : 
+                           (v.date ? new Date(v.date).getTime() : 
+                           (v.createdAt ? new Date(v.createdAt).getTime() : 0));
+            routePoints.push({ 
+              ...coords, 
+              time: timeVal, 
+              seq: sequenceCounter++,
+              name: `Doctor: ${v.doctorName || v.name || 'Unnamed'}`
+            });
+          }
+        });
+
+        // 2. Gather Chemist Visit coordinates using API-compliant keys
+        chemistList.forEach((v: any) => {
+          const coords = extractCoords(v, 'visit');
+          if (coords) {
+            const timeVal = v.visitDate ? new Date(v.visitDate).getTime() : 
+                           (v.date ? new Date(v.date).getTime() : 
+                           (v.createdAt ? new Date(v.createdAt).getTime() : 0));
+            routePoints.push({ 
+              ...coords, 
+              time: timeVal, 
+              seq: sequenceCounter++,
+              name: `Chemist: ${v.chemistName || v.shopName || v.name || 'Unnamed'}`
+            });
+          }
+        });
+
+        // Sort visits chronologically (prefer parsed timestamp, fall back to stable logging order)
+        routePoints.sort((a, b) => {
+          if (a.time !== b.time) {
+            return a.time - b.time;
+          }
+          return a.seq - b.seq;
+        });
+
+        // Compile complete route coordinates: Check-in -> Visits -> Check-out
+        const routeCoords: { latitude: number; longitude: number; name: string }[] = [];
+        
+        if (startLat !== null && startLng !== null) {
+          routeCoords.push({ latitude: startLat, longitude: startLng, name: 'Attendance Check-In' });
+        }
+        routePoints.forEach(pt => {
+          const last = routeCoords[routeCoords.length - 1];
+          if (!last || last.latitude !== pt.latitude || last.longitude !== pt.longitude) {
+            routeCoords.push({ latitude: pt.latitude, longitude: pt.longitude, name: pt.name });
+          }
+        });
+        if (endLat !== null && endLng !== null) {
+          const last = routeCoords[routeCoords.length - 1];
+          if (!last || last.latitude !== endLat || last.longitude !== endLng) {
+            routeCoords.push({ latitude: endLat, longitude: endLng, name: 'Attendance Check-Out' });
+          }
+        }
+
+        // --- DETAILED DEBUGGING COORDINATES PRINT ---
+        console.log("=== DAILY REPORT COORDINATES DIAGNOSTICS ===");
+        console.log("1. ATTENDANCE CHECK-IN:", checkInCoords ? `${checkInCoords.latitude}, ${checkInCoords.longitude}` : "N/A");
+        
+        console.log("2. DOCTOR VISITS:");
+        docList.forEach((d: any, idx: number) => {
+          const c = extractCoords(d, 'visit');
+          console.log(`   [Doc #${idx + 1}] ID: ${d.id || d._id || 'N/A'}, Name: ${d.doctorName || d.name || 'N/A'}, Coords: ${c ? `${c.latitude}, ${c.longitude}` : 'N/A'}`);
+        });
+
+        console.log("3. CHEMIST VISITS:");
+        chemistList.forEach((c: any, idx: number) => {
+          const coords = extractCoords(c, 'visit');
+          console.log(`   [Chemist #${idx + 1}] ID: ${c.id || c._id || 'N/A'}, Name: ${c.chemistName || c.shopName || c.name || 'N/A'}, Coords: ${coords ? `${coords.latitude}, ${coords.longitude}` : 'N/A'}`);
+        });
+
+        console.log("4. ATTENDANCE CHECK-OUT:", checkOutCoords ? `${checkOutCoords.latitude}, ${checkOutCoords.longitude}` : "N/A");
+        console.log("5. FINAL COMPILED ROUTE:", routeCoords.map(pt => `${pt.name} (${pt.latitude}, ${pt.longitude})`));
+
+        // Calculate cumulative distance, printing each individual segment
+        console.log("6. INDIVIDUAL ROUTE SEGMENTS:");
+        let totalDist = 0;
+        if (routeCoords.length > 1) {
+          for (let i = 0; i < routeCoords.length - 1; i++) {
+            const pA = routeCoords[i];
+            const pB = routeCoords[i + 1];
+            const segmentDist = calculateDistance(pA.latitude, pA.longitude, pB.latitude, pB.longitude);
+            
+            console.log(`   Segment [${pA.name}] -> [${pB.name}] = ${segmentDist.toFixed(4)} km`);
+            
+            // Ignore drift under 10m
+            if (segmentDist > 0.01) {
+              totalDist += segmentDist;
+            }
+          }
+        }
+        console.log(`7. TOTAL HAVERSINE DISTANCE CALCULATED: ${totalDist.toFixed(2)} km`);
+        console.log("============================================");
+
+        // Show "Distance not available" if fewer than 2 valid points exist or total distance is 0
+        if (routeCoords.length < 2) {
+          kmStr = 0;
+        } else {
+          kmStr = parseFloat(totalDist.toFixed(2));
         }
       }
 
@@ -283,6 +475,7 @@ const DailyReportScreen = () => {
       const savedReport = await AsyncStorage.getItem('@daily_report_submitted');
       if (savedReport === new Date().toDateString()) {
         setReportGenerated(true);
+        customAlert('Already Submitted', 'You have already submitted today\'s daily work report.');
         const reportDataStr = await AsyncStorage.getItem('@daily_report_data');
         if (reportDataStr) {
           const reportData = safeJsonParse(reportDataStr, null);
@@ -292,6 +485,10 @@ const DailyReportScreen = () => {
             setApprovalStatus(reportData.status || 'Pending Approval');
           }
         }
+      } else {
+        setReportGenerated(false);
+        await AsyncStorage.removeItem('@daily_report_submitted');
+        await AsyncStorage.removeItem('@daily_report_data');
       }
 
     } catch (err) {
@@ -311,10 +508,41 @@ const DailyReportScreen = () => {
       customAlert('Warning', 'You cannot submit a daily report if you have not marked your attendance today.');
       return;
     }
-    if (!remarks.trim()) {
+
+    const cleanRemarks = remarks.trim();
+    if (!cleanRemarks) {
       customAlert('Error', 'Please enter daily activity remarks before submitting.');
       return;
     }
+
+    if (cleanRemarks.length < 20) {
+      customAlert('Error', 'Daily activity remarks must be at least 20 characters long.');
+      return;
+    }
+
+    if (cleanRemarks.length > 500) {
+      customAlert('Error', 'Daily activity remarks cannot exceed 500 characters.');
+      return;
+    }
+
+    // Reject repeated character sequences (e.g. aaaaa, 11111, .....)
+    const simplifiedRemarks = cleanRemarks.replace(/\s/g, '').toLowerCase();
+    if (/^(.)\1+$/.test(simplifiedRemarks) || /^(abc|xyz|test|spam|remarks|qwert|12345|xxxxx)+$/.test(simplifiedRemarks)) {
+      customAlert('Error', 'Please write a meaningful description of today\'s activities.');
+      return;
+    }
+
+    const cleanCompetitor = competitorActivity.trim();
+    if (cleanCompetitor && cleanCompetitor.length > 500) {
+      customAlert('Error', 'Competitor activity notes cannot exceed 500 characters.');
+      return;
+    }
+
+    // Write cleaned/trimmed values back to state so PDF & Share use clean strings consistently
+    setRemarks(cleanRemarks);
+    setCompetitorActivity(cleanCompetitor);
+
+    setIsSubmitting(true);
 
     const avgOrderValue = orderCount > 0 ? totalSales / orderCount : 0;
 
@@ -330,8 +558,8 @@ const DailyReportScreen = () => {
       endTime: endTime,
       totalKmTravelled: totalKmTravelled,
       upcomingFollowUps: upcomingFollowUps,
-      remarks: remarks,
-      competitorActivity: competitorActivity,
+      remarks: cleanRemarks,
+      competitorActivity: cleanCompetitor,
       status: 'Pending Approval',
       submittedAt: new Date().toLocaleTimeString(),
     };
@@ -339,16 +567,16 @@ const DailyReportScreen = () => {
     try {
       const reportDate = new Date().toISOString();
 
-await createDailyReport(
-  reportDate,
-  docCount,
-  chemistCount,
-  0, // samplesDistributed
-  totalSales, // ordersCollected
-  remarks
-);
+      await createDailyReport(
+        reportDate,
+        docCount,
+        chemistCount,
+        0, // samplesDistributed
+        totalSales, // ordersCollected
+        cleanRemarks
+      );
 
-console.log('Daily Report Saved Successfully');
+      console.log('Daily Report Saved Successfully');
       // Save submission state to storage
       await AsyncStorage.setItem('@daily_report_submitted', new Date().toDateString());
       await AsyncStorage.setItem('@daily_report_data', JSON.stringify(reportData));
@@ -358,6 +586,8 @@ console.log('Daily Report Saved Successfully');
       customAlert('🎉 Report Submitted!', 'Your daily work report has been successfully compiled and sent to your manager.');
     } catch (error) {
       customAlert('Error', 'Failed to submit the report.');
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -389,8 +619,12 @@ console.log('Daily Report Saved Successfully');
               <span class="value" style="color: ${attendanceStatus === 'Present' ? '#2E7D32' : '#C62828'}">${attendanceStatus}</span>
             </div>
             <div class="row">
+              <span class="label">Daily Tour Beat:</span>
+              <span class="value">${todayTourTerritory}</span>
+            </div>
+            <div class="row">
               <span class="label">Distance Travelled:</span>
-              <span class="value">${totalKmTravelled} km</span>
+              <span class="value">${totalKmTravelled > 0 ? `${totalKmTravelled} km` : 'Distance not available'}</span>
             </div>
             <div class="row">
               <span class="label">Doctor Visits:</span>
@@ -423,8 +657,18 @@ console.log('Daily Report Saved Successfully');
       `;
 
       if (Platform.OS === 'web') {
-        // On web, directly open the print dialog
-        await Print.printAsync({ html: htmlContent });
+        // On web, open a new window to print the HTML content natively
+        const printWindow = window.open('', '_blank');
+        if (printWindow) {
+          printWindow.document.write(htmlContent);
+          printWindow.document.close();
+          // Let Edge/Chrome render the HTML before triggering the print dialog
+          setTimeout(() => {
+            printWindow.print();
+          }, 300);
+        } else {
+          customAlert('Popups Blocked', 'Please allow popups to export the PDF report.');
+        }
       } else {
         // On mobile, save as PDF and open share dialog
         const { uri } = await Print.printToFileAsync({ html: htmlContent });
@@ -443,7 +687,8 @@ console.log('Daily Report Saved Successfully');
     try {
       const shareMessage = `📋 *Daily Work Report - ${new Date().toDateString()}*\n\n`
         + `📍 Attendance: ${attendanceStatus}\n`
-        + `🚗 Distance: ${totalKmTravelled} km\n`
+        + `🗺️ Tour Beat: ${todayTourTerritory}\n`
+        + `🚗 Distance: ${totalKmTravelled > 0 ? `${totalKmTravelled} km` : 'Distance not available'}\n`
         + `🩺 Doctors Visited: ${docCount}\n`
         + `💊 Chemists Visited: ${chemistCount}\n`
         + `📦 Orders Booked: ${orderCount}\n`
@@ -486,6 +731,9 @@ console.log('Daily Report Saved Successfully');
     );
   }
 
+  const isLocked = reportGenerated || isSubmitting;
+  console.log("DailyReport States:", { reportGenerated, isSubmitting, isLocked });
+
   return (
     <KeyboardAvoidingView 
       style={{ flex: 1 }} 
@@ -496,11 +744,12 @@ console.log('Daily Report Saved Successfully');
         style={styles.container}
         contentContainerStyle={{ paddingBottom: 280 }}
         keyboardShouldPersistTaps="handled"
+        {...({ className: 'print-report-container' } as any)}
       >
       <Text style={styles.title}>📋 Daily Work Report</Text>
 
       {reportGenerated ? (
-        <View style={styles.successCard}>
+        <View style={styles.successCard} {...{ className: 'no-print' } as any}>
           <Text style={styles.successText}>✅ Report Already Submitted</Text>
           <Text style={styles.successSubtext}>Today's report is saved and locked for changes.</Text>
           
@@ -519,10 +768,24 @@ console.log('Daily Report Saved Successfully');
               <Text style={styles.mockActionBtnText}>📤 Share Report</Text>
             </TouchableOpacity>
           </View>
+
+          <TouchableOpacity 
+            style={[styles.mockActionBtn, { marginTop: 12, width: '100%', backgroundColor: '#d32f2f', paddingVertical: 12 }]} 
+            onPress={async () => {
+              await AsyncStorage.removeItem('@daily_report_submitted');
+              await AsyncStorage.removeItem('@daily_report_data');
+              setReportGenerated(false);
+              setRemarks('');
+              setCompetitorActivity('');
+              customAlert('Reset Success', 'Today\'s daily report submission has been cleared. You can now edit and re-submit.');
+            }}
+          >
+            <Text style={styles.mockActionBtnText}>🔄 Reset Today's Submission (Unlock & Edit)</Text>
+          </TouchableOpacity>
         </View>
       ) : null}
 
-      <View style={styles.card}>
+      <View style={styles.card} {...{ className: 'print-card' } as any}>
         <Text style={styles.cardHeader}>Summary Metrics ({new Date().toDateString()})</Text>
 
         <View style={styles.row}>
@@ -532,11 +795,16 @@ console.log('Daily Report Saved Successfully');
           </Text>
         </View>
 
+        <View style={styles.row}>
+          <Text style={styles.label}>🗺️ Daily Tour Beat:</Text>
+          <Text style={styles.value}>{todayTourTerritory}</Text>
+        </View>
+
         {attendanceStatus === 'Present' && (
           <View style={styles.row}>
             <Text style={styles.label}>⏰ Working Hours:</Text>
             <Text style={styles.value}>
-               {checkInTime} - {endTime || 'Active'}
+               {formatTime12h(checkInTime)} - {formatTime12h(endTime) || 'Active'}
                <Text style={{ color: '#059669', fontWeight: 'bold' }}>{calculateDuration(checkInTime, endTime)}</Text>
             </Text>
           </View>
@@ -545,7 +813,9 @@ console.log('Daily Report Saved Successfully');
         {attendanceStatus === 'Present' && (
           <View style={styles.row}>
             <Text style={styles.label}>🚗 Distance Travelled:</Text>
-            <Text style={styles.value}>{totalKmTravelled} km</Text>
+            <Text style={styles.value}>
+              {totalKmTravelled > 0 ? `${totalKmTravelled} km` : 'Distance not available'}
+            </Text>
           </View>
         )}
 
@@ -584,46 +854,54 @@ console.log('Daily Report Saved Successfully');
         </View>
       </View>
 
-      <View style={styles.card}>
+      <View style={styles.card} {...{ className: 'print-card' } as any}>
         <Text style={styles.cardHeader}>Daily Activity Remarks</Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="Summary of today's field work, customer discussions, or feedback..."
-          value={remarks}
-          onChangeText={setRemarks}
-          multiline
-          numberOfLines={4}
-          editable={!reportGenerated}
-          onFocus={() => {
-            setTimeout(() => {
-              scrollViewRef.current?.scrollToEnd({ animated: true });
-            }, 150);
-          }}
-        />
+        {isLocked ? (
+          <View style={styles.readOnlyContainer}>
+            <Text style={styles.readOnlyText}>{remarks || 'No remarks provided for today.'}</Text>
+          </View>
+        ) : (
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="Summary of today's field work, customer discussions, or feedback..."
+            value={remarks}
+            onChangeText={setRemarks}
+            multiline
+            numberOfLines={4}
+          />
+        )}
 
         <Text style={[styles.cardHeader, { marginTop: 20, borderBottomWidth: 0, paddingBottom: 0 }]}>
           Competitor Activity & Feedback
         </Text>
-        <TextInput
-          style={[styles.input, styles.textArea]}
-          placeholder="e.g. Competitor product offers seen, pricing discounts, doctor feedback on alternative options..."
-          value={competitorActivity}
-          onChangeText={setCompetitorActivity}
-          multiline
-          numberOfLines={4}
-          editable={!reportGenerated}
-          onFocus={() => {
-            setTimeout(() => {
-              scrollViewRef.current?.scrollToEnd({ animated: true });
-            }, 150);
-          }}
-        />
+        {isLocked ? (
+          <View style={styles.readOnlyContainer}>
+            <Text style={styles.readOnlyText}>{competitorActivity || 'No competitor activity reported.'}</Text>
+          </View>
+        ) : (
+          <TextInput
+            style={[styles.input, styles.textArea]}
+            placeholder="e.g. Competitor product offers seen, pricing discounts, doctor feedback on alternative options..."
+            value={competitorActivity}
+            onChangeText={setCompetitorActivity}
+            multiline
+            numberOfLines={4}
+          />
+        )}
 
         <TouchableOpacity 
-          style={[styles.submitButton, reportGenerated && { backgroundColor: '#9E9E9E' }]} 
+          style={[
+            styles.submitButton, 
+            { backgroundColor: (reportGenerated || isSubmitting) ? '#9E9E9E' : '#43A047' }
+          ]} 
           onPress={handleGenerateReport}
+          disabled={reportGenerated || isSubmitting}
         >
-          <Text style={styles.submitText}>SUBMIT DAILY REPORT</Text>
+          {isSubmitting ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.submitText}>SUBMIT DAILY REPORT</Text>
+          )}
         </TouchableOpacity>
       </View>
       <View style={{ height: 40 }} />
@@ -812,5 +1090,19 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 14,
     fontWeight: 'bold',
+  },
+  readOnlyContainer: {
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
+    borderRadius: 8,
+    backgroundColor: '#EEF2F6',
+    padding: 12,
+    marginTop: 10,
+    minHeight: 80,
+  },
+  readOnlyText: {
+    fontSize: 14,
+    color: '#64748B',
+    lineHeight: 20,
   },
 });
