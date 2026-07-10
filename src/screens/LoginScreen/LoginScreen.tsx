@@ -59,7 +59,7 @@ const LoginScreen = () => {
       // ✅ Sync actual profile metadata to prevent stale John Doe defaults
       await AsyncStorage.setItem(
         '@user_name',
-        response.data.user?.fullName || response.data.user?.name || 'Priya Reddy'
+        response.data.mr?.name || response.data.user?.fullName || response.data.user?.name || ''
       );
 
       await AsyncStorage.setItem(
