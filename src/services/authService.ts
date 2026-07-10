@@ -10,6 +10,7 @@ export interface UserRecord {
   department: string;
   roleId: string;
   avatarUrl?: string;
+  linkedDistributorCode?: string;
 }
 
 export class AuthService {
