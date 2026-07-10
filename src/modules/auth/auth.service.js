@@ -59,17 +59,27 @@ const loginUser = async (
     throw new Error("Invalid credentials");
   }
 
-  // Device session concurrency control for MR
-  if (user.role === "MEDICAL_REPRESENTATIVE" && deviceId) {
-    if (user.currentDeviceId && user.currentDeviceId !== deviceId && !force) {
-      const err = new Error("Already logged in on another device.");
-      err.statusCode = 409;
-      throw err;
+  // Single-device login restriction for MRs
+  if (
+    user.role === "MEDICAL_REPRESENTATIVE" &&
+    deviceId
+  ) {
+    if (
+      user.currentDeviceId &&
+      user.currentDeviceId !== deviceId &&
+      !force
+    ) {
+      const error = new Error(
+        "This account is already logged in on another device. Do you want to log out of the other device?"
+      );
+      error.statusCode = 409;
+      throw error;
     }
-    // Update the current device ID in database
+
+    // Update currentDeviceId for this MR
     await prisma.user.update({
       where: { id: user.id },
-      data: { currentDeviceId: deviceId }
+      data: { currentDeviceId: deviceId },
     });
   }
 
@@ -106,6 +116,7 @@ const loginUser = async (
       : null,
   };
 };
+
 
 const getCurrentUser = async (userId) => {
   const user = await prisma.user.findUnique({
