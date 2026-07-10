@@ -12,6 +12,7 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { getChemistVisitsByMr } from '../../services/chemistService';
+import { getReadableLocation } from '../../services/locationHelper';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -181,6 +182,7 @@ const GeoTaggedChemistVisitsScreen = () => {
                 distanceColor = '#F59E0B';
               }
 
+              const readableLoc = getReadableLocation(item.latitude, item.longitude);
               return (
                 <View style={styles.listItem}>
                   <View style={styles.listHeader}>
@@ -190,13 +192,13 @@ const GeoTaggedChemistVisitsScreen = () => {
                     </View>
                   </View>
 
-                  <View style={styles.coordRow}>
-                    <Text style={styles.coordLabel}>Coords:</Text>
-                    <Text style={styles.coordValue}>
-                      {item.latitude !== null && item.longitude !== null
-                        ? `${item.latitude.toFixed(4)}° N, ${item.longitude.toFixed(4)}° E`
-                        : 'GPS Not Available'}
-                    </Text>
+                  <View style={styles.locationDetailRow}>
+                    <Text style={styles.locationCity}>📍 {readableLoc}</Text>
+                    {item.latitude !== null && item.longitude !== null && (
+                      <Text style={styles.locationCoords}>
+                        🛰️ {item.latitude.toFixed(4)}° N, {item.longitude.toFixed(4)}° E
+                      </Text>
+                    )}
                   </View>
 
                   <View style={styles.timeRow}>
@@ -288,19 +290,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: 'bold',
   },
-  coordRow: {
-    flexDirection: 'row',
-    marginBottom: 8,
+  locationDetailRow: {
+    marginBottom: 10,
+    gap: 4,
   },
-  coordLabel: {
-    fontSize: 12,
-    color: '#64748B',
-    marginRight: 4,
+  locationCity: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#1E293B',
   },
-  coordValue: {
-    fontSize: 12,
+  locationCoords: {
+    fontSize: 11,
     fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace',
-    color: '#334155',
+    color: '#64748B',
   },
   timeRow: {
     flexDirection: 'row',
