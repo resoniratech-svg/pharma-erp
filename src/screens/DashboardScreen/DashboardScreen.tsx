@@ -67,7 +67,7 @@ const DashboardScreen = () => {
   const [notificationsList, setNotificationsList] = useState<any[]>([]);
   const [gpsData, setGpsData] = useState<any>(null);
 
-  const [userName, setUserName] = useState('Priya Reddy');
+  const [userName, setUserName] = useState('');
   const [designation, setDesignation] = useState('Medical Representative');
 
   const [dynamicTargets, setDynamicTargets] = useState({ sales: 50000, docs: 30, chemists: 20 });
@@ -94,7 +94,7 @@ const DashboardScreen = () => {
         setSalesProgress(stats.monthlyProgress?.sales?.percent || 0);
         setIsCheckedIn(stats.attendance?.status === 'Present');
         setCheckInTime(stats.attendance?.checkInTime || '');
-        setUserName((await AsyncStorage.getItem('@user_name')) || 'Priya Reddy');
+        setUserName((await AsyncStorage.getItem('@user_name')) || '');
         setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
         
         targets = {
@@ -148,7 +148,7 @@ const DashboardScreen = () => {
       try {
         setIsCheckedIn((await AsyncStorage.getItem('@checked_in')) === 'true');
         setCheckInTime((await AsyncStorage.getItem('@check_in_time')) || '');
-        setUserName((await AsyncStorage.getItem('@user_name')) || 'Priya Reddy');
+        setUserName((await AsyncStorage.getItem('@user_name')) || '');
         setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
       } catch (e) { console.log(e); }
     }
