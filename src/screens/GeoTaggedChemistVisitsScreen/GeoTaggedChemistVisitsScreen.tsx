@@ -11,7 +11,7 @@ import {
     ActivityIndicator,
     TouchableOpacity,
 } from 'react-native';
-import { getChemistVisitsByMr } from '../../services/chemistService';
+import { getChemistVisitsByMr, getChemists } from '../../services/chemistService';
 import { getReadableLocation } from '../../services/locationHelper';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
@@ -48,6 +48,21 @@ const GeoTaggedChemistVisitsScreen = () => {
     setLoading(true);
     setError(null);
     try {
+      // Fetch master chemist list to resolve names dynamically
+      let chemsList = [];
+      try {
+        const chemsRes = await getChemists();
+        chemsList = chemsRes.data || chemsRes || [];
+      } catch (e) {
+        console.log('Failed to fetch master chemists:', e);
+      }
+      const chemsMap = new Map<number, string>();
+      chemsList.forEach((c: any) => {
+        if (c.id) {
+          chemsMap.set(Number(c.id), c.name || c.chemistName || c.shopName);
+        }
+      });
+
       let serverVisits = [];
       try {
         serverVisits = await getChemistVisitsByMr();
@@ -64,9 +79,11 @@ const GeoTaggedChemistVisitsScreen = () => {
               timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             } catch (e) {}
           }
+          const chemIdNum = Number(item.chemistId);
+          const resolvedName = chemsMap.get(chemIdNum) || item.chemistName || item.chemist?.name || (item.chemistId ? `Chemist #${item.chemistId}` : 'N/A');
           return {
             id: item.id?.toString() || `server-${idx}`,
-            chemistName: item.chemistName || item.chemist?.name || `Chemist #${item.chemistId}`,
+            chemistName: resolvedName,
             visitTime: timeStr,
             latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
             longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
@@ -81,17 +98,21 @@ const GeoTaggedChemistVisitsScreen = () => {
       } else {
         const stored = await AsyncStorage.getItem('@chemist_visits');
         const parsed = safeJsonParse(stored, []);
-        const mapped: GeoChemVisit[] = parsed.map((item: any, idx: number) => ({
-          id: item.id?.toString() || `local-${Date.now()}-${idx}`,
-          chemistName: item.chemistName || 'Unknown Chemist',
-          visitTime: item.visitTime || '-',
-          latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
-          longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
-          distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
-          status: item.status === 'Verified' || item.status === 'Rejected' 
-            ? item.status 
-            : (item.latitude ? 'Verified' : 'Pending')
-        }));
+        const mapped: GeoChemVisit[] = parsed.map((item: any, idx: number) => {
+          const chemIdNum = Number(item.chemistId);
+          const resolvedName = chemsMap.get(chemIdNum) || item.chemistName || item.chemist?.name || (item.chemistId ? `Chemist #${item.chemistId}` : 'N/A');
+          return {
+            id: item.id?.toString() || `local-${Date.now()}-${idx}`,
+            chemistName: resolvedName,
+            visitTime: item.visitTime || '-',
+            latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
+            longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
+            distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
+            status: item.status === 'Verified' || item.status === 'Rejected' 
+              ? item.status 
+              : (item.latitude ? 'Verified' : 'Pending')
+          };
+        });
         setVisits(mapped);
       }
     } catch (err) {

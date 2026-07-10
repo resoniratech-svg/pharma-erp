@@ -11,7 +11,7 @@ import {
     ActivityIndicator,
     TouchableOpacity,
 } from 'react-native';
-import { getDoctorVisitsByMr } from '../../services/doctorService';
+import { getDoctorVisitsByMr, getDoctors } from '../../services/doctorService';
 import { getReadableLocation } from '../../services/locationHelper';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
@@ -49,6 +49,21 @@ const GeoTaggedDoctorVisitsScreen = () => {
     setLoading(true);
     setError(null);
     try {
+      // Fetch master doctor list to resolve names dynamically
+      let docsList = [];
+      try {
+        const docsRes = await getDoctors();
+        docsList = docsRes.data || docsRes || [];
+      } catch (e) {
+        console.log('Failed to fetch master doctors:', e);
+      }
+      const docsMap = new Map<number, string>();
+      docsList.forEach((d: any) => {
+        if (d.id) {
+          docsMap.set(Number(d.id), d.name || d.doctorName);
+        }
+      });
+
       let serverVisits = [];
       try {
         serverVisits = await getDoctorVisitsByMr();
@@ -65,9 +80,11 @@ const GeoTaggedDoctorVisitsScreen = () => {
               timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             } catch (e) {}
           }
+          const docIdNum = Number(item.doctorId);
+          const resolvedName = docsMap.get(docIdNum) || item.doctorName || item.doctor?.name || (item.doctorId ? `Doctor #${item.doctorId}` : 'N/A');
           return {
             id: item.id?.toString() || `server-${idx}`,
-            doctorName: item.doctorName || item.doctor?.name || `Doctor #${item.doctorId}`,
+            doctorName: resolvedName,
             checkIn: timeStr,
             checkOut: item.checkOut || '-',
             latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
@@ -83,18 +100,22 @@ const GeoTaggedDoctorVisitsScreen = () => {
       } else {
         const stored = await AsyncStorage.getItem('@doctor_visits');
         const parsed = safeJsonParse(stored, []);
-        const mapped: GeoDocVisit[] = parsed.map((item: any, idx: number) => ({
-          id: item.id?.toString() || `local-${Date.now()}-${idx}`,
-          doctorName: item.doctorName || 'Unknown Doctor',
-          checkIn: item.visitTime || '-',
-          checkOut: item.checkOut || '-',
-          latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
-          longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
-          distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
-          status: item.status === 'Verified' || item.status === 'Rejected' 
-            ? item.status 
-            : (item.latitude ? 'Verified' : 'Pending')
-        }));
+        const mapped: GeoDocVisit[] = parsed.map((item: any, idx: number) => {
+          const docIdNum = Number(item.doctorId);
+          const resolvedName = docsMap.get(docIdNum) || item.doctorName || item.doctor?.name || (item.doctorId ? `Doctor #${item.doctorId}` : 'N/A');
+          return {
+            id: item.id?.toString() || `local-${Date.now()}-${idx}`,
+            doctorName: resolvedName,
+            checkIn: item.visitTime || '-',
+            checkOut: item.checkOut || '-',
+            latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
+            longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
+            distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
+            status: item.status === 'Verified' || item.status === 'Rejected' 
+              ? item.status 
+              : (item.latitude ? 'Verified' : 'Pending')
+          };
+        });
         setVisits(mapped);
       }
     } catch (err) {
