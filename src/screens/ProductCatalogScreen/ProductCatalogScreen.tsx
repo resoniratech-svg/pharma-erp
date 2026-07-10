@@ -28,119 +28,8 @@ interface Product {
   formType: 'tablet' | 'capsule' | 'liquid'; // Avatar type
 }
 
-const MASTER_PRODUCTS: Product[] = [
-  {
-    id: 1,
-    name: 'Augmentin 625 Duo',
-    genericName: 'Amoxicillin + Clavulanic Acid',
-    category: 'Antibiotics',
-    packaging: '10 Tablets / Strip',
-    price: 201.50,
-    indications: 'Severe bacterial infections of the respiratory tract, skin, joints, and urinary tract.',
-    dosage: '1 tablet twice daily after meals.',
-    stock: 250,
-    composition: ['Amoxicillin IP 500mg', 'Potassium Clavulanate IP 125mg'],
-    formType: 'tablet',
-  },
-  {
-    id: 2,
-    name: 'Calpol 650',
-    genericName: 'Paracetamol',
-    category: 'Analgesics',
-    packaging: '15 Tablets / Strip',
-    price: 33.40,
-    indications: 'Symptomatic relief of mild-to-moderate pain and fever.',
-    dosage: '1 tablet every 4-6 hours as needed (Max 4 tablets daily).',
-    stock: 80,
-    composition: ['Paracetamol IP 650mg'],
-    formType: 'tablet',
-  },
-  {
-    id: 3,
-    name: 'Lipitor 10mg',
-    genericName: 'Atorvastatin',
-    category: 'Cardiology',
-    packaging: '15 Tablets / Strip',
-    price: 120.00,
-    indications: 'Management of primary hypercholesterolemia and cardiovascular risk reduction.',
-    dosage: '1 tablet once daily, preferably at bedtime.',
-    stock: 150,
-    composition: ['Atorvastatin Calcium Trihydrate IP 10mg'],
-    formType: 'tablet',
-  },
-  {
-    id: 4,
-    name: 'Pan-D Capsule',
-    genericName: 'Pantoprazole + Domperidone',
-    category: 'Gastroenterology',
-    packaging: '15 Capsules / Strip',
-    price: 142.00,
-    indications: 'Gastroesophageal Reflux Disease (GERD), hyperacidity, bloating, and stomach ulcers.',
-    dosage: '1 capsule daily in the morning, 30 minutes before breakfast.',
-    stock: 0, // Out of Stock demo
-    composition: ['Pantoprazole Sodium Sesquihydrate IP 40mg', 'Domperidone IP 30mg'],
-    formType: 'capsule',
-  },
-  {
-    id: 5,
-    name: 'Amlokind-5',
-    genericName: 'Amlodipine',
-    category: 'Cardiology',
-    packaging: '15 Tablets / Strip',
-    price: 18.50,
-    indications: 'Management of essential hypertension and chronic stable angina.',
-    dosage: '1 tablet once daily in the morning.',
-    stock: 310,
-    composition: ['Amlodipine Besylate IP 5mg'],
-    formType: 'tablet',
-  },
-  {
-    id: 6,
-    name: 'Azithral 500',
-    genericName: 'Azithromycin',
-    category: 'Antibiotics',
-    packaging: '5 Tablets / Strip',
-    price: 119.00,
-    indications: 'Acute bacterial sinusitis, tonsillitis, and community-acquired pneumonia.',
-    dosage: '1 tablet once daily for 3 consecutive days.',
-    stock: 45,
-    composition: ['Azithromycin Dihydrate IP 500mg'],
-    formType: 'tablet',
-  },
-  {
-    id: 7,
-    name: 'Neurobion Forte',
-    genericName: 'Vitamin B-Complex',
-    category: 'Vitamins',
-    packaging: '30 Tablets / Strip',
-    price: 45.10,
-    indications: 'Treatment of Vitamin B deficiencies, diabetic neuropathy, and boosting immunity.',
-    dosage: '1 tablet once daily after a meal.',
-    stock: 500,
-    composition: [
-      'Thiamine Mononitrate (Vit B1) 10mg',
-      'Riboflavin (Vit B2) 10mg',
-      'Pyridoxine HCl (Vit B6) 3mg',
-      'Cyanocobalamin (Vit B12) 15mcg',
-      'Nicotinamide (Vit B3) 45mg',
-      'Calcium Pantothenate 50mg'
-    ],
-    formType: 'tablet',
-  },
-  {
-    id: 8,
-    name: 'Gaviscon Liquid',
-    genericName: 'Sodium Alginate + Sodium Bicarbonate',
-    category: 'Gastroenterology',
-    packaging: '150ml Bottle',
-    price: 165.00,
-    indications: 'Fast relief from heartburn, acid indigestion, and reflux esophagitis.',
-    dosage: '10-20ml liquid after meals and at bedtime.',
-    stock: 95,
-    composition: ['Sodium Alginate 250mg', 'Sodium Bicarbonate 133.5mg', 'Calcium Carbonate 80mg'],
-    formType: 'liquid',
-  }
-];
+// All product data loaded exclusively from the Product Master API.
+// No hardcoded product list allowed in production.
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -155,45 +44,32 @@ const safeJsonParse = (data: string | null, fallback: any) => {
 const ProductCatalogScreen = () => {
   const navigation = useNavigation<any>();
   const [searchQuery, setSearchQuery] = useState('');
-  const [activeTab, setActiveTab] = useState<'All' | 'Antibiotics' | 'Analgesics' | 'Cardiology' | 'Gastroenterology' | 'Vitamins'>('All');
+  const [activeTab, setActiveTab] = useState<string>('All');
   const [expandedCards, setExpandedCards] = useState<{ [key: number]: boolean }>({});
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-
-  console.log(
-  'PRODUCTS STATE',
-  JSON.stringify(products, null, 2)
-);
-  
-  // Sample Quantities state
-  const [sampleQty, setSampleQty] = useState<{ [key: number]: number }>({});
+  const [sampleQty, setSampleQty] = useState<{ [key: number]: number }>();
 
   const loadProducts = async () => {
     try {
       setLoading(true);
       const data = await getProducts();
-console.log('FIRST PRODUCT', data[0]);
 
-const mappedProducts = data.map((p: any) => ({
-  id: p.id,
-  name: p.name,
-  genericName: p.code || '',
-  category: p.category?.name || '',
-  packaging: p.hsnCode || '',
-  price: p.mrp || 0,
-  indications: '',
-  dosage: '',
-  stock: p.minStock || 0,
-  composition: [],
-  formType: 'tablet',
-}));
+      const mappedProducts = data.map((p: any) => ({
+        id: p.id,
+        name: p.name || p.productName || '',
+        genericName: p.genericName || p.code || '',
+        category: p.category?.name || p.categoryName || '',
+        packaging: p.packaging || p.hsnCode || '',
+        price: p.mrp || p.ptr || 0,
+        indications: p.indications || '',
+        dosage: p.dosage || '',
+        stock: p.stock || p.minStock || 0,
+        composition: p.composition || [],
+        formType: p.formType || p.form || 'tablet',
+      }));
 
-console.log(
-  'MAPPED PRODUCTS',
-  JSON.stringify(mappedProducts, null, 2)
-);
-
-setProducts(mappedProducts);
+      setProducts(mappedProducts);
     } catch (error) {
       console.log('Failed to load products:', error);
     } finally {

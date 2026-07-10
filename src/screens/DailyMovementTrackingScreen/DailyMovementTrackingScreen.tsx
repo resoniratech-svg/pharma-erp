@@ -55,58 +55,8 @@ const safeJsonParse = (data: string | null, fallback: any) => {
   }
 };
 
-const DEFAULT_LOGS: LocationLog[] = [
-  {
-    id: 1718100000000,
-    time: '09:05 AM',
-    latitude: 17.3850,
-    longitude: 78.4867,
-    address: 'Koti Main Road, Hyderabad Central, TS',
-    type: 'checkin',
-    label: 'Checked-In: HQ Gate',
-    accuracy: 4,
-  },
-  {
-    id: 1718103600000,
-    time: '10:30 AM',
-    latitude: 17.3912,
-    longitude: 78.4905,
-    address: 'Dr. Reddy Clinic, Barkatpura, Hyderabad',
-    type: 'doctor',
-    label: 'Visit: Dr. Suresh Kumar',
-    accuracy: 5,
-  },
-  {
-    id: 1718110800000,
-    time: '12:45 PM',
-    latitude: 17.3980,
-    longitude: 78.4988,
-    address: 'Sai Krupa Chemists, Himayatnagar, Hyderabad',
-    type: 'chemist',
-    label: 'Order: Sai Krupa Pharma',
-    accuracy: 6,
-  },
-  {
-    id: 1718118000000,
-    time: '03:15 PM',
-    latitude: 17.4055,
-    longitude: 78.5021,
-    address: 'MedPlus Drugs, Narayanguda, Hyderabad',
-    type: 'chemist',
-    label: 'Visit: MedPlus Retail',
-    accuracy: 6,
-  },
-  {
-    id: 1718128800000,
-    time: '06:15 PM',
-    latitude: 17.4120,
-    longitude: 78.5110,
-    address: 'Secunderabad Exit Beat Gate, Hyderabad',
-    type: 'checkout',
-    label: 'Checked-Out: Beat Exit',
-    accuracy: 5,
-  },
-];
+// Movement log data loaded from backend API and AsyncStorage only.
+// No hardcoded location or visit data allowed in production.
 
 const DailyMovementTrackingScreen = () => {
   const navigation = useNavigation<any>();
@@ -627,41 +577,8 @@ console.log('TYPE:', typeof selectedDate);
     setLastSynced(formatLastSyncedTime());
   };
 
-  const loadMockRouteDemo = async () => {
-    setLoading(true);
-    try {
-      const key = `@gps_movement_${selectedDate}`;
-      const checkInLat = await AsyncStorage.getItem('@check_in_lat');
-      const checkInLng = await AsyncStorage.getItem('@check_in_lng');
-      
-      let seeded = [...DEFAULT_LOGS];
-      if (checkInLat && checkInLng) {
-        const targetLat = parseFloat(checkInLat);
-        const targetLng = parseFloat(checkInLng);
-        const latOffset = targetLat - DEFAULT_LOGS[0].latitude;
-        const lngOffset = targetLng - DEFAULT_LOGS[0].longitude;
-        
-        seeded = DEFAULT_LOGS.map(log => ({
-          ...log,
-          latitude: parseFloat((log.latitude + latOffset).toFixed(5)),
-          longitude: parseFloat((log.longitude + lngOffset).toFixed(5)),
-          address: log.type === 'checkin' ? 'Checked-In: HQ Gate' : log.address
-        }));
-      }
-      
-      await AsyncStorage.setItem(key, JSON.stringify(seeded));
-      setMovementLogs(seeded);
-      calculateTotalDist(seeded);
-      await calculateRealCoverage();
-      setLastSynced(formatLastSyncedTime());
-      customAlert('Demo Loaded', 'Simulated route data loaded successfully around your check-in location.');
-    } catch (e) {
-      console.log('Failed to load demo route logs', e);
-      setError('Failed to seed demo route.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // loadMockRouteDemo removed — no hardcoded location data in production.
+
 
   const clearLogs = async () => {
     const key = `@gps_movement_${selectedDate}`;

@@ -30,34 +30,8 @@ const safeJsonParse = (data: string | null, fallback: any) => {
   }
 };
 
-const PRODUCT_LIST = [
-  { name: 'Paracetamol 650mg', defaultRate: 15.00 },
-  { name: 'Augmentin 625 Duo', defaultRate: 120.00 },
-  { name: 'Calpol 500mg', defaultRate: 12.00 },
-  { name: 'Azithromycin 500mg', defaultRate: 85.00 },
-  { name: 'Pan-D Capsule', defaultRate: 45.00 },
-  { name: 'Limcee Vitamin C', defaultRate: 8.00 }
-];
-
-const CUSTOMER_MASTERS: Record<string, Array<{ name: string; mobile: string; due: number }>> = {
-  Chemist: [
-    { name: 'Apollo Pharmacy', mobile: '9988776655', due: 5000 },
-    { name: 'MedPlus Drugs', mobile: '8877665544', due: 3500 },
-    { name: 'Sri Rama Medicals', mobile: '7766554433', due: 7200 },
-    { name: 'Care Chemists', mobile: '6655443322', due: 1800 }
-  ],
-  Hospital: [
-    { name: 'Yashoda Hospital', mobile: '9123456789', due: 15000 },
-    { name: 'Apollo Hospitals', mobile: '9234567890', due: 28000 },
-    { name: 'Care Hospital', mobile: '9345678901', due: 12500 },
-    { name: 'Sunshine Clinic', mobile: '9456789012', due: 4500 }
-  ],
-  Stockist: [
-    { name: 'Metro Pharma Distributors', mobile: '9012345678', due: 50000 },
-    { name: 'Sri Balaji Agencies', mobile: '9023456789', due: 85000 },
-    { name: 'Venkateshwara Medical Agencies', mobile: '9034567890', due: 120000 }
-  ]
-};
+// All customer and product data loaded exclusively from backend APIs.
+// No hardcoded fallback business data allowed in production.
 
 const BookOrderScreen = () => {
   const navigation = useNavigation<any>();
@@ -192,20 +166,10 @@ const BookOrderScreen = () => {
             setSelectedProduct(defaultName);
             setRate((defaultProd.ptr || defaultProd.mrp || 0).toString());
           }
-        } else {
-          // Use hardcoded product default fallback
-          if (PRODUCT_LIST.length > 0) {
-            setSelectedProduct(PRODUCT_LIST[0].name);
-            setRate(PRODUCT_LIST[0].defaultRate.toString());
-          }
         }
       } catch (err) {
         console.log('Failed to load dynamic data in BookOrderScreen:', err);
-        // Fallbacks if backend fails
-        if (PRODUCT_LIST.length > 0) {
-          setSelectedProduct(PRODUCT_LIST[0].name);
-          setRate(PRODUCT_LIST[0].defaultRate.toString());
-        }
+        // No fallback static data — show empty state
       } finally {
         setLoadingMaster(false);
       }
@@ -236,12 +200,8 @@ const BookOrderScreen = () => {
         mobile: s.mobile || '',
       }));
     }
-    // Fallback static lists
-    return (CUSTOMER_MASTERS[customerType] || []).map((cust, idx) => ({
-      id: `static_${customerType}_${idx}`,
-      name: cust.name,
-      mobile: cust.mobile,
-    }));
+    // No API data available — return empty list (show empty state in UI)
+    return [];
   };
 
   // Helper to load dynamic product list
@@ -252,10 +212,8 @@ const BookOrderScreen = () => {
         rate: p.ptr || p.mrp || 0,
       }));
     }
-    return PRODUCT_LIST.map(p => ({
-      name: p.name,
-      rate: p.defaultRate,
-    }));
+    // No API data available — return empty list (show empty state in UI)
+    return [];
   };
 
   // Auto pre-fill default rate when product changes

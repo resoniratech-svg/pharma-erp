@@ -26,48 +26,6 @@ interface ReorderAlert {
   category?: string;
 }
 
-const SEED_ALERTS: ReorderAlert[] = [
-  {
-    id: '1',
-    productName: 'Paracetamol 500mg Tablets',
-    sku: 'SKU-PARA-500',
-    category: 'Analgesics',
-    currentStock: 20,
-    reorderLevel: 50,
-    suggestedQty: 200,
-    priority: 'High',
-  },
-  {
-    id: '2',
-    productName: 'Amoxicillin 250mg Capsules',
-    sku: 'SKU-AMOX-250',
-    category: 'Antibiotics',
-    currentStock: 40,
-    reorderLevel: 60,
-    suggestedQty: 150,
-    priority: 'Medium',
-  },
-  {
-    id: '3',
-    productName: 'Vitamin D3 Drops',
-    sku: 'SKU-VITD3-DRP',
-    category: 'Supplements',
-    currentStock: 12,
-    reorderLevel: 30,
-    suggestedQty: 100,
-    priority: 'High',
-  },
-  {
-    id: '4',
-    productName: 'Metformin 850mg Tablets',
-    sku: 'SKU-MET-850',
-    category: 'Antidiabetic',
-    currentStock: 95,
-    reorderLevel: 100,
-    suggestedQty: 300,
-    priority: 'Low',
-  },
-];
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -106,9 +64,7 @@ const AutoReorderAlertsScreen = () => {
       if (stored) {
         setAlerts(safeJsonParse(stored, []));
       } else {
-        // First load, write seed data
-        await AsyncStorage.setItem('@reorder_alerts', JSON.stringify(SEED_ALERTS));
-        setAlerts(SEED_ALERTS);
+        setAlerts([]);
       }
     } catch (e) {
       console.log('Failed to load reorder alerts', e);
@@ -147,15 +103,6 @@ const AutoReorderAlertsScreen = () => {
     }
   };
 
-  const handleResetAlerts = async () => {
-    try {
-      await AsyncStorage.setItem('@reorder_alerts', JSON.stringify(SEED_ALERTS));
-      setAlerts(SEED_ALERTS);
-      customAlert('Reset Successful', 'Reorder alerts reset to defaults.');
-    } catch (e) {
-      console.log('Failed to reset alerts', e);
-    }
-  };
 
   const filtered = alerts.filter(item => {
     const matchesSearch = item.productName.toLowerCase().includes(search.toLowerCase()) || 
@@ -222,14 +169,6 @@ const AutoReorderAlertsScreen = () => {
             ))}
           </View>
 
-          {/* Reset Bar when empty */}
-          {__DEV__ && alerts.length === 0 && (
-            <View style={styles.resetContainer}>
-              <TouchableOpacity style={styles.resetButton} onPress={handleResetAlerts}>
-                <Text style={styles.resetButtonText}>Reset Mock Alerts</Text>
-              </TouchableOpacity>
-            </View>
-          )}
 
           {/* Alerts List */}
           <FlatList
@@ -244,7 +183,7 @@ const AutoReorderAlertsScreen = () => {
                 <Ionicons name="shield-checkmark-outline" size={48} color="#10B981" />
                 <Text style={styles.emptyText}>No reorder alerts found</Text>
                 <Text style={styles.emptySubText}>
-                  All stock parameters are verified. Pull to refresh or load default mock data.
+                  No reorder alerts at this time. All stock levels are within limits.
                 </Text>
               </View>
             }

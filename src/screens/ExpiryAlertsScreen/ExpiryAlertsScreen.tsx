@@ -26,48 +26,8 @@ interface ExpiryAlert {
   category?: string;
 }
 
-const SEED_ALERTS: ExpiryAlert[] = [
-  {
-    id: '1',
-    productName: 'Cough Syrup 100ml',
-    batchNo: 'B-CS-8812',
-    expiryDate: '12-May-2026',
-    stockQty: 45,
-    value: 5400,
-    priority: 'Expired',
-    category: 'Liquid Oral',
-  },
-  {
-    id: '2',
-    productName: 'Azithromycin 500mg',
-    batchNo: 'B-AZI-9921',
-    expiryDate: '15-Aug-2026',
-    stockQty: 120,
-    value: 18000,
-    priority: 'Critical',
-    category: 'Tablets',
-  },
-  {
-    id: '3',
-    productName: 'Insulin Glargine 100IU',
-    batchNo: 'B-INS-7711',
-    expiryDate: '30-Nov-2026',
-    stockQty: 15,
-    value: 22500,
-    priority: 'Warning',
-    category: 'Injectables',
-  },
-  {
-    id: '4',
-    productName: 'Calpol Suspension 60ml',
-    batchNo: 'B-CAL-1102',
-    expiryDate: '10-Jul-2026',
-    stockQty: 80,
-    value: 3600,
-    priority: 'Critical',
-    category: 'Paediatric',
-  },
-];
+// Expiry alert data loaded exclusively from backend via AsyncStorage sync.
+// No hardcoded seed/mock data allowed in production.
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -106,8 +66,8 @@ const ExpiryAlertsScreen = () => {
       if (stored) {
         setAlerts(safeJsonParse(stored, []));
       } else {
-        await AsyncStorage.setItem('@expiry_alerts', JSON.stringify(SEED_ALERTS));
-        setAlerts(SEED_ALERTS);
+        // No data yet — show empty state, do not seed mock data
+        setAlerts([]);
       }
     } catch (e) {
       console.log('Failed to load expiry alerts', e);
@@ -147,15 +107,6 @@ const ExpiryAlertsScreen = () => {
     }
   };
 
-  const handleResetAlerts = async () => {
-    try {
-      await AsyncStorage.setItem('@expiry_alerts', JSON.stringify(SEED_ALERTS));
-      setAlerts(SEED_ALERTS);
-      customAlert('Reset Successful', 'Expiry alerts reset to defaults.');
-    } catch (e) {
-      console.log('Failed to reset alerts', e);
-    }
-  };
 
   const filtered = alerts.filter(item => {
     const matchesSearch = item.productName.toLowerCase().includes(search.toLowerCase()) || 
@@ -231,14 +182,6 @@ const ExpiryAlertsScreen = () => {
             </View>
           )}
 
-          {/* Reset Bar when empty */}
-          {__DEV__ && alerts.length === 0 && (
-            <View style={styles.resetContainer}>
-              <TouchableOpacity style={styles.resetButton} onPress={handleResetAlerts}>
-                <Text style={styles.resetButtonText}>Reset Mock Alerts</Text>
-              </TouchableOpacity>
-            </View>
-          )}
 
           {/* Alerts List */}
           <FlatList
