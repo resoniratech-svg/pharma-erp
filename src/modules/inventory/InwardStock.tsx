@@ -195,14 +195,13 @@ export default function InwardStock() {
     .getAll()
     .filter((w) => w.status === "Active");
 
-  const [suppliers, setSuppliers] = useState<string[]>(() => {
-    try {
-      const saved = localStorage.getItem("erp_suppliers");
-      return saved ? JSON.parse(saved) : MOCK_SUPPLIERS;
-    } catch {
-      return MOCK_SUPPLIERS;
-    }
-  });
+  const [suppliers, setSuppliers] = useState<any[]>([]);
+
+  useEffect(() => {
+    import('../../services/supplierService').then(({ supplierService }) => {
+      supplierService.getAll().then(setSuppliers);
+    });
+  }, []);
 
   // Create GRN Form State
   const [formData, setFormData] = useState({
@@ -388,13 +387,15 @@ export default function InwardStock() {
     }
   };
 
-  const handleAddSupplier = (newSupplier: string) => {
+  const handleAddSupplier = async (newSupplier: string) => {
     const trimmed = newSupplier.trim();
     if (!trimmed) return;
-    if (!suppliers.includes(trimmed)) {
-      const updated = [...suppliers, trimmed];
-      setSuppliers(updated);
-      localStorage.setItem("erp_suppliers", JSON.stringify(updated));
+    if (!suppliers.find(s => s.name === trimmed)) {
+      const { supplierService } = await import('../../services/supplierService');
+      const added = await supplierService.add(trimmed);
+      if (added) {
+        setSuppliers([...suppliers, added]);
+      }
     }
     setFormData({ ...formData, supplier: trimmed });
   };
@@ -545,42 +546,38 @@ export default function InwardStock() {
 
     const newGrnNo = `GRN-${new Date().getFullYear()}-${String(inwardRecords.length + 1).padStart(3, "0")}`;
 
-    const newRecord: Inward = {
-      id: Date.now().toString(),
+    const { supplierService } = await import('../../services/supplierService');
+    const matchedSupplier = (await supplierService.getAll()).find(s => s.name === supplier);
+    const supplierId = matchedSupplier?.id || 1; // Fallback
+
+    const newRecord: any = {
       grnNo: newGrnNo,
-      date: formData.date,
-      supplier: supplier,
-      warehouseId: location,
-
-      warehouseCode:
-        warehouseService.getAll().find((w) => w.id === location)
-          ?.code ?? "",
-
-      warehouseName:
-        warehouseService.getAll().find((w) => w.id === location)
-          ?.name ?? "",
+      date: new Date(formData.date).toISOString(),
+      supplierId: supplierId,
+      warehouseId: Number(location),
       itemsCount: autoCalculatedMetrics.totalItems,
       totalQuantity: autoCalculatedMetrics.totalQuantity,
       totalValue: autoCalculatedMetrics.totalValue,
       status: formData.status,
-      products: [...formProducts],
       remarks: remarks,
-      createdBy: currentUser?.fullName ?? "System",
-
-      createdDate: new Date().toLocaleDateString("en-GB").replace(/\//g, "-"),
-
-      lastUpdatedBy: currentUser?.fullName ?? "System",
-
-      lastUpdatedDate: new Date()
-        .toLocaleDateString("en-GB")
-        .replace(/\//g, "-"),
+      items: formProducts.map(p => ({
+        productId: products.find(prod => prod.name === p.product)?.id || 0,
+        batchNo: p.batchNo,
+        mfgDate: p.mfgDate ? new Date(p.mfgDate).toISOString() : undefined,
+        expiryDate: p.expiryDate ? new Date(p.expiryDate).toISOString() : undefined,
+        quantity: Number(p.quantity),
+        ptr: Number(p.ptr),
+        mrp: Number(p.mrp)
+      }))
     };
 
-    const updatedRecords = [newRecord, ...inwardRecords];
-
-    setInwardRecords(updatedRecords);
-
-    inwardStockService.saveAll(updatedRecords);
+    const success = await inwardStockService.add(newRecord);
+    if (success) {
+      const updatedRecords = await inwardStockService.getAll();
+      setInwardRecords(updatedRecords as Inward[]);
+    } else {
+      alert("Failed to save GRN to backend");
+    }
 
     const inventory = inventoryService.getAll();
 
@@ -850,7 +847,7 @@ export default function InwardStock() {
                       onChange={(val) =>
                         setFormData({ ...formData, supplier: val })
                       }
-                      options={suppliers.map((s) => ({ value: s, label: s }))}
+                      options={suppliers.map((s) => ({ value: s.name, label: s.name }))}
                       placeholder="Select Supplier"
                       allowAdd={true}
                       onAdd={handleAddSupplier}

@@ -357,111 +357,76 @@ export default function WarehouseTransfer() {
 
     const newTransferNo = `TRF-${new Date().getFullYear()}-${String(transferRecords.length + 1).padStart(3, '0')}`;
     
-    const newRecord: WarehouseTransfer = {
-      id: Date.now().toString(),
+    const newRecord: any = {
       transferNo: newTransferNo,
-      date: formData.date,
-      fromWarehouseId: formData.fromWarehouseId,
-      fromWarehouseName: warehouses.find(w => w.id === formData.fromWarehouseId)?.name ?? "",
-      toWarehouseId: formData.toWarehouseId,
-      toWarehouseName: warehouses.find(w => w.id === formData.toWarehouseId)?.name ?? "",
+      date: new Date(formData.date).toISOString(),
+      fromWarehouseId: Number(formData.fromWarehouseId),
+      toWarehouseId: Number(formData.toWarehouseId),
       remarks: trimmedRemarks,
       itemsCount: autoCalculatedMetrics.totalItems,
       totalQuantity: autoCalculatedMetrics.totalQuantity,
       status: formData.status,
-      products: [...formProducts],
-      createdBy: 'Current User',
-      createdDate: new Date().toISOString(),
-      lastUpdatedBy: 'Current User',
-      lastUpdatedDate: new Date().toISOString()
+      items: formProducts.map(p => ({
+        productId: products.find(prod => prod.code === p.product)?.id || 0,
+        batchId: inventoryService.getAll().find(s => s.productCode === p.product && s.batchNo === p.batchNo && s.warehouseId === formData.fromWarehouseId)?.id || 0,
+        quantity: Number(p.transferQty)
+      }))
     };
 
-    if (newRecord.status === "In Transit" || newRecord.status === "Completed") {
-      const inventoryRecords = inventoryService.getAll();
+    warehouseTransferService.add(newRecord).then(success => {
+      if (success) {
+        warehouseTransferService.getAll().then(records => {
+          setTransferRecords(records as WarehouseTransfer[]);
+        });
+      } else {
+        alert("Failed to initiate warehouse transfer in backend");
+      }
+    });
 
+    if (formData.status === "In Transit" || formData.status === "Completed") {
       formProducts.forEach((item) => {
-        const source = inventoryRecords.find(
-          r => r.productCode === item.product && r.batchNo === item.batchNo && r.warehouseId === newRecord.fromWarehouseId
+        const source = inventoryService.getAll().find(
+          r => r.productCode === item.product && r.batchNo === item.batchNo && r.warehouseId === formData.fromWarehouseId
         );
-
-        if (source) {
-          source.availableQty -= Number(item.transferQty);
-          source.lastUpdated = new Date().toISOString();
-        }
 
         stockLedgerService.addRecord({
           id: Date.now().toString() + Math.random().toString(),
-          transactionNo: newRecord.transferNo,
+          transactionNo: newTransferNo,
           transactionDate: new Date().toISOString(),
           productCode: item.product,
           productName: products.find(p => p.code === item.product)?.name ?? "",
           batchNo: item.batchNo,
-          warehouseId: newRecord.fromWarehouseId,
+          warehouseId: formData.fromWarehouseId,
           transactionType: "TRANSFER_OUT",
           inQty: 0,
           outQty: Number(item.transferQty),
           balanceQty: source?.availableQty ?? 0,
-          remarks: newRecord.remarks || "Warehouse Transfer",
+          remarks: trimmedRemarks || "Warehouse Transfer",
         });
 
-        if (newRecord.status === "Completed") {
-          const destination = inventoryRecords.find(
-            (r) => r.productCode === item.product && r.batchNo === item.batchNo && r.warehouseId === newRecord.toWarehouseId
+        if (formData.status === "Completed") {
+          const destination = inventoryService.getAll().find(
+            (r) => r.productCode === item.product && r.batchNo === item.batchNo && r.warehouseId === formData.toWarehouseId
           );
-
-          if (destination) {
-            destination.availableQty += Number(item.transferQty);
-            destination.lastUpdated = new Date().toISOString();
             
-            stockLedgerService.addRecord({
-              id: Date.now().toString() + Math.random().toString(),
-              transactionNo: newRecord.transferNo,
-              transactionDate: new Date().toISOString(),
-              productCode: item.product,
-              productName: products.find(p => p.code === item.product)?.name ?? "",
-              batchNo: item.batchNo,
-              warehouseId: newRecord.toWarehouseId,
-              transactionType: "TRANSFER_IN",
-              inQty: Number(item.transferQty),
-              outQty: 0,
-              balanceQty: destination.availableQty,
-              remarks: newRecord.remarks || "Warehouse Transfer",
-            });
-          } else if (source) {
-            const newStockId = Date.now().toString() + Math.random().toString();
-            inventoryRecords.push({
-              ...source,
-              id: newStockId,
-              warehouseId: newRecord.toWarehouseId,
-              warehouseCode: warehouses.find(w => w.id === newRecord.toWarehouseId)?.code ?? "",
-              warehouseName: warehouses.find(w => w.id === newRecord.toWarehouseId)?.name ?? "",
-              availableQty: Number(item.transferQty),
-              lastUpdated: new Date().toISOString(),
-            });
-
-            stockLedgerService.addRecord({
-              id: Date.now().toString() + Math.random().toString(),
-              transactionNo: newRecord.transferNo,
-              transactionDate: new Date().toISOString(),
-              productCode: item.product,
-              productName: products.find(p => p.code === item.product)?.name ?? "",
-              batchNo: item.batchNo,
-              warehouseId: newRecord.toWarehouseId,
-              transactionType: "TRANSFER_IN",
-              inQty: Number(item.transferQty),
-              outQty: 0,
-              balanceQty: Number(item.transferQty),
-              remarks: newRecord.remarks || "Warehouse Transfer",
-            });
-          }
+          stockLedgerService.addRecord({
+            id: Date.now().toString() + Math.random().toString(),
+            transactionNo: newTransferNo,
+            transactionDate: new Date().toISOString(),
+            productCode: item.product,
+            productName: products.find(p => p.code === item.product)?.name ?? "",
+            batchNo: item.batchNo,
+            warehouseId: formData.toWarehouseId,
+            transactionType: "TRANSFER_IN",
+            inQty: Number(item.transferQty),
+            outQty: 0,
+            balanceQty: destination?.availableQty ?? Number(item.transferQty),
+            remarks: trimmedRemarks || "Warehouse Transfer",
+          });
         }
       });
-
-      inventoryService.saveAll(inventoryRecords);
     }
 
-    warehouseTransferService.addRecord(newRecord);
-    setTransferRecords(warehouseTransferService.getAll());
     setShowCreateModal(false);
     alert("Warehouse transfer initiated successfully!");
   };

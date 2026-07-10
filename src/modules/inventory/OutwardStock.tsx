@@ -490,52 +490,41 @@ export default function OutwardStock() {
        .getAll()
        .find((w) => w.id === formData.warehouseId);
        
-    const newRecord: Outward = {
-      id: Date.now().toString(),
+    const newRecord: any = {
       dispatchNo: newDispatchNo,
-      date: formData.date,
+      date: new Date(formData.date).toISOString(),
       client: trimmedClient,
-      warehouseId: selectedWarehouse?.id ?? "",
-      warehouseCode: selectedWarehouse?.code ?? "",
-      warehouseName: selectedWarehouse?.name ?? "",
+      warehouseId: Number(selectedWarehouse?.id) || 0,
       referenceNumber: trimmedRef,
       itemsCount: autoCalculatedMetrics.totalItems,
       totalQuantity: autoCalculatedMetrics.totalQuantity,
       totalValue: autoCalculatedMetrics.totalValue,
       status: formData.status,
-      products: [...formProducts],
-      createdBy: "Current User",
-      createdDate: new Date().toISOString(),
-      lastUpdatedBy: "Current User",
-      lastUpdatedDate: new Date().toISOString(),
+      items: formProducts.map(p => ({
+        productId: productService.getProducts().find(prod => prod.name === p.product)?.id || 0,
+        batchId: inventoryService.getAll().find(s => s.batchNo === p.batchNo && s.warehouseId === formData.warehouseId)?.id || 0,
+        quantity: Number(p.dispatchQty),
+        rate: Number(p.rate)
+      }))
     };
 
-    const updatedRecords = [newRecord, ...outwardRecords];
-    setOutwardRecords(updatedRecords);
-    outwardStockService.saveAll(updatedRecords);
-
-    const updatedInventory = inventoryService.getAll();
-
-    formProducts.forEach((item) => {
-      const stock = updatedInventory.find(
-        (s) =>
-          s.batchNo === item.batchNo && s.warehouseId === formData.warehouseId,
-      );
-
-      if (!stock) return;
-      
-      stock.availableQty -= Number(item.dispatchQty);
-      stock.lastUpdated = new Date().toISOString();
+    outwardStockService.add(newRecord).then(success => {
+      if (success) {
+        outwardStockService.getAll().then(records => {
+          setOutwardRecords(records as Outward[]);
+        });
+      } else {
+        alert("Failed to save dispatch to backend");
+      }
     });
 
-    inventoryService.saveAll(updatedInventory);
-
+    // Keeping local ledger log for dashboard mockup compatibility
     formProducts.forEach((item) => {
       const product = productService
         .getProducts()
         .find((p) => p.name === item.product);
 
-      const stock = updatedInventory.find(
+      const stock = inventoryService.getAll().find(
         (s) =>
           s.batchNo === item.batchNo && s.warehouseId === formData.warehouseId,
       );

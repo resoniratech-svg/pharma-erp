@@ -1,67 +1,53 @@
+import { apiRequest } from './apiClient';
+
 export interface InwardStockRecord {
-  id: string;
+  id?: string;
   grnNo: string;
   date: string;
-  supplier: string;
-  warehouseId: string;
-  warehouseCode: string;
-  warehouseName: string;
+  supplierId: number;
+  warehouseId: number;
   invoiceNumber?: string;
   invoiceDate?: string;
   itemsCount: number;
   totalQuantity: number;
   totalValue: number;
-  status: "Draft" | "Pending QC" | "Completed" | "Rejected";
-  products: any[];
-  createdBy: string;
-  createdDate: string;
-  lastUpdatedBy: string;
-  lastUpdatedDate: string;
+  status: string;
+  remarks?: string;
+  items: Array<{
+    productId: number;
+    batchNo: string;
+    mfgDate?: string;
+    expiryDate?: string;
+    quantity: number;
+    ptr: number;
+    mrp: number;
+  }>;
 }
 
-const STORAGE_KEY = "inwardStockRecords";
-
 export const inwardStockService = {
-  getAll(): InwardStockRecord[] {
-    const data = localStorage.getItem(STORAGE_KEY);
-
-    if (!data) return [];
-
+  async getAll(): Promise<InwardStockRecord[]> {
     try {
-      return JSON.parse(data);
-    } catch {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/inward-stock');
+      if (response.success) {
+        return response.data;
+      }
+      return [];
+    } catch (e) {
+      console.error("Failed to load inward stock:", e);
       return [];
     }
   },
 
-  saveAll(records: InwardStockRecord[]) {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(records)
-    );
-  },
-
-  add(record: InwardStockRecord) {
-    const records = this.getAll();
-    records.unshift(record);
-    this.saveAll(records);
-  },
-
-  update(id: string, record: InwardStockRecord) {
-    const records = this.getAll();
-
-    const updated = records.map((r) =>
-      r.id === id ? record : r
-    );
-
-    this.saveAll(updated);
-  },
-
-  delete(id: string) {
-    const records = this.getAll();
-
-    this.saveAll(
-      records.filter((r) => r.id !== id)
-    );
-  },
+  async add(record: InwardStockRecord): Promise<boolean> {
+    try {
+      const response = await apiRequest<{ success: boolean }>('/inward-stock', {
+        method: 'POST',
+        bodyData: record,
+      });
+      return response.success;
+    } catch (e) {
+      console.error("Failed to save inward stock:", e);
+      return false;
+    }
+  }
 };

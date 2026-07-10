@@ -1,4 +1,4 @@
-let BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+let BASE_URL = import.meta.env.VITE_API_URL || 'https://pharma-erp-pharma-backend.rrh5yv.easypanel.host/api';
 
 if (typeof window !== 'undefined') {
   const storedOverride = localStorage.getItem('VITE_API_URL');

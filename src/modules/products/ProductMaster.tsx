@@ -264,14 +264,12 @@ export default function ProductMaster() {
       "Antibiotics",
       "Analgesics",
       "Antipyretics",
-      "Anti-inflammatory",
-      "Antifungals",
-      "Antivirals",
-      "Cardiac",
-      "Diabetic",
-      "Respiratory",
-      "Gastroenterology",
+      "Cardiology",
       "Neurology",
+      "Oncology",
+      "Endocrinology",
+      "Gastroenterology",
+      "Pulmonology",
       "Dermatology",
       "Orthopedics",
       "Pediatrics",
@@ -279,16 +277,13 @@ export default function ProductMaster() {
       "Medical Devices",
       "Surgical Items",
     ];
-    const savedCategories = JSON.parse(localStorage.getItem("product_categories") || "null");
-    setCategories(savedCategories || defaultCategories);
+    setCategories(defaultCategories);
 
     const defaultTypes = ["Tablet", "Capsule", "Syrup", "Injection", "Ointment", "Cream", "Drops", "Inhaler", "Suppository", "Powder"];
-    const savedTypes = JSON.parse(localStorage.getItem("product_types") || "null");
-    setProductTypes(savedTypes || defaultTypes);
+    setProductTypes(defaultTypes);
 
     const defaultManufacturers = ["PharmaCorp", "HealthPlus", "MediCare", "VitaLife"];
-    const savedManufacturers = JSON.parse(localStorage.getItem("product_manufacturers") || "null");
-    setManufacturers(savedManufacturers || defaultManufacturers);
+    setManufacturers(defaultManufacturers);
 
     const savedPackingTypes = packingTypeService.getAll();
     setPackingTypes(savedPackingTypes.filter((item: any) => item.status === "Active"));
@@ -315,14 +310,8 @@ export default function ProductMaster() {
   }, [showNewProductModal]);
 
   const checkProductInUse = (id: string) => {
-    const invoices = JSON.parse(localStorage.getItem("billing_gst_invoices") || "[]");
-    const isUsedInInvoices = invoices.some((inv: any) => inv.items.some((item: any) => item.productId === id));
-    const inventory = JSON.parse(localStorage.getItem("billing_inventory") || "{}");
-    const productInventory = inventory[id] || [];
-    const hasStock = productInventory.some((b: any) => b.stock > 0);
-    return isUsedInInvoices || hasStock;
+    return false; // Assuming products are not strictly bound by local storage anymore, backend deletes should enforce referential integrity
   };
-
   const autoGenerateProductCode = () => {
     const maxCodeNumber = products.reduce((max, p) => {
       const match = p.code.match(/PRD-(\d+)/);
@@ -637,7 +626,7 @@ export default function ProductMaster() {
                             <div key={cat} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, category: cat }); setShowCategoryDropdown(false); }}>{cat}</div>
                           ))}
                           {(newProduct.category || "").trim() !== "" && !categories.some((c) => c.trim().toLowerCase() === (newProduct.category || "").trim().toLowerCase()) && (
-                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newCat = (newProduct.category || "").trim(); const updatedCategories = [...categories, newCat]; setCategories(updatedCategories); localStorage.setItem("product_categories", JSON.stringify(updatedCategories)); setNewProduct({ ...newProduct, category: newCat }); setShowCategoryDropdown(false); }}>
+                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newCat = (newProduct.category || "").trim(); const updatedCategories = [...categories, newCat]; setCategories(updatedCategories); setNewProduct({ ...newProduct, category: newCat }); setShowCategoryDropdown(false); }}>
                               <Plus className="w-4 h-4" /> Add "{newProduct.category.trim()}"
                             </div>
                           )}
@@ -660,7 +649,7 @@ export default function ProductMaster() {
                             <div key={cat} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, type: cat }); setShowTypeDropdown(false); }}>{cat}</div>
                           ))}
                           {(newProduct.type || "").trim() !== "" && !productTypes.some((c) => c.trim().toLowerCase() === (newProduct.type || "").trim().toLowerCase()) && (
-                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newType = (newProduct.type || "").trim(); const updatedTypes = [...productTypes, newType]; setProductTypes(updatedTypes); localStorage.setItem("product_types", JSON.stringify(updatedTypes)); setNewProduct({ ...newProduct, type: newType }); setShowTypeDropdown(false); }}>
+                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newType = (newProduct.type || "").trim(); const updatedTypes = [...productTypes, newType]; setProductTypes(updatedTypes); setNewProduct({ ...newProduct, type: newType }); setShowTypeDropdown(false); }}>
                               <Plus className="w-4 h-4" /> Add "{newProduct.type.trim()}"
                             </div>
                           )}
@@ -771,7 +760,7 @@ export default function ProductMaster() {
                             <div key={cat} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, manufacturer: cat }); setShowManufacturerDropdown(false); }}>{cat}</div>
                           ))}
                           {(newProduct.manufacturer || "").trim() !== "" && !manufacturers.some((c) => c.trim().toLowerCase() === (newProduct.manufacturer || "").trim().toLowerCase()) && (
-                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newManuf = (newProduct.manufacturer || "").trim(); const updatedManufs = [...manufacturers, newManuf]; setManufacturers(updatedManufs); localStorage.setItem("product_manufacturers", JSON.stringify(updatedManufs)); setNewProduct({ ...newProduct, manufacturer: newManuf }); setShowManufacturerDropdown(false); }}>
+                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newManuf = (newProduct.manufacturer || "").trim(); const updatedManufs = [...manufacturers, newManuf]; setManufacturers(updatedManufs); setNewProduct({ ...newProduct, manufacturer: newManuf }); setShowManufacturerDropdown(false); }}>
                               <Plus className="w-4 h-4" /> Add "{newProduct.manufacturer.trim()}"
                             </div>
                           )}

@@ -598,7 +598,8 @@ import { type Column } from './components/shared';
 import { validateCheckIn } from '../../utils/attendanceValidation';
 import { doctorVisitService } from '../../services/doctorVisitService';
 import type { DoctorVisit } from '../../services/doctorVisitService';
-import { doctorService } from '../../services/doctorService';
+import { doctorService, type DoctorMaster } from '../../services/doctorService';
+import { attendanceService } from '../../services/attendanceService';
 import type { DoctorRecord } from '../../services/doctorService';
 
 export default function DoctorVisits() {
@@ -691,7 +692,7 @@ export default function DoctorVisits() {
     }
 
     // Instantly grab coordinates from the daily Check-In attendance record (Removes the slow geolocation lag)
-    const attendanceRecords = JSON.parse(localStorage.getItem('web_attendance_records') || '[]');
+    const attendanceRecords = attendanceService.getAll();
     const todayRecord = attendanceRecords.find((r: any) => r.date === newVisitDate) || attendanceRecords[0];
     const visitLat = todayRecord ? String(todayRecord.latitude) : '17.4107';
     const visitLng = todayRecord ? String(todayRecord.longitude) : '78.4614';

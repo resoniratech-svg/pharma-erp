@@ -124,16 +124,6 @@ export default function DispatchManagement() {
       setDispatches(data);
     });
     
-    const storedTransporters = localStorage.getItem('pharma_erp_transporters');
-    if (storedTransporters) {
-      try {
-        const parsed = JSON.parse(storedTransporters);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          setTransporters(parsed);
-        }
-      } catch (e) {}
-    }
-    
     const whs = warehouseService.getAll();
     setWarehouses(whs.filter((w: any) => w.status === 'Active'));
 
@@ -450,7 +440,7 @@ export default function DispatchManagement() {
 
     if (totalQty <= 0) return alert("Total dispatch quantity must be greater than zero.");
 
-    const currentUser = JSON.parse(localStorage.getItem('authUser') || '{}');
+    const currentUser = authService.getCurrentUser() || { fullName: 'System' };
     const dispatchId = `DSP-${new Date().getFullYear()}-${String(dispatches.length + 1).padStart(4, '0')}`;
     
     if (dispatchType === 'Distributor Order') {
@@ -1073,7 +1063,8 @@ export default function DispatchManagement() {
                               const newType = (newTransporter || "").trim();
                               const updatedTypes = [...transporters, newType];
                               setTransporters(updatedTypes);
-                              localStorage.setItem("pharma_erp_transporters", JSON.stringify(updatedTypes));
+                              // Not saving to localStorage anymore
+                              // localStorage.setItem("pharma_erp_transporters", JSON.stringify(updatedTypes));
                               setNewTransporter(newType);
                               setShowTransporterDropdown(false);
                             }}

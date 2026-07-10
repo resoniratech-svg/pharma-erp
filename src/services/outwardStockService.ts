@@ -1,75 +1,49 @@
+import { apiRequest } from './apiClient';
+
 export interface OutwardStockRecord {
-  id: string;
-
+  id?: string;
   dispatchNo: string;
-
   date: string;
-
   client: string;
-
-  warehouseId: string;
-  warehouseCode: string;
-  warehouseName: string;
-
+  warehouseId: number;
   referenceNumber?: string;
-
   itemsCount: number;
   totalQuantity: number;
   totalValue: number;
-
-  status: "Draft" | "Processing" | "Dispatched" | "Cancelled";
-
-  products: any[];
-
-  createdBy: string;
-  createdDate: string;
-  lastUpdatedBy: string;
-  lastUpdatedDate: string;
+  status: string;
+  remarks?: string;
+  items: Array<{
+    productId: number;
+    batchId: number;
+    quantity: number;
+    rate: number;
+  }>;
 }
 
-const STORAGE_KEY = "outwardStockRecords";
-
 export const outwardStockService = {
- getAll(): OutwardStockRecord[] {
-    const data = localStorage.getItem(STORAGE_KEY);
-
-    if (!data) return [];
-
+  async getAll(): Promise<OutwardStockRecord[]> {
     try {
-      return JSON.parse(data);
-    } catch {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/outward-stock');
+      if (response.success) {
+        return response.data;
+      }
+      return [];
+    } catch (e) {
+      console.error("Failed to load outward stock:", e);
       return [];
     }
   },
 
-  saveAll(records: OutwardStockRecord[]) {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(records)
-    );
-  },
-
-  add(record: OutwardStockRecord) {
-    const records = this.getAll();
-    records.unshift(record);
-    this.saveAll(records);
-  },
-
-  update(id: string, record: OutwardStockRecord) {
-    const records = this.getAll();
-
-    const updated = records.map((r) =>
-      r.id === id ? record : r
-    );
-
-    this.saveAll(updated);
-  },
-
-  delete(id: string) {
-    const records = this.getAll();
-
-    this.saveAll(
-      records.filter((r) => r.id !== id)
-    );
-  },
+  async add(record: OutwardStockRecord): Promise<boolean> {
+    try {
+      const response = await apiRequest<{ success: boolean }>('/outward-stock', {
+        method: 'POST',
+        bodyData: record,
+      });
+      return response.success;
+    } catch (e) {
+      console.error("Failed to save outward stock:", e);
+      return false;
+    }
+  }
 };

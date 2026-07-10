@@ -38,9 +38,9 @@ const Field = ({
       {label}
     </label>
     <div
-      className="flex items-center gap-3 bg-white border rounded-xl px-4 py-3 transition-all duration-200 shadow-sm"
+      className="flex items-center gap-3 bg-[#F7FAFC] border rounded-xl px-4 py-3.5 transition-all duration-200 shadow-sm"
       style={{
-        borderColor: error ? '#EF4444' : value ? '#14B8A660' : '#E2E8F0',
+        borderColor: error ? '#EF4444' : value ? '#14B8A680' : '#DDE3EC',
         boxShadow: value && !error
           ? `0 0 0 3px #14B8A614`
           : error
@@ -203,57 +203,23 @@ export default function LoginPage() {
 
         navigate("/workspace/dashboard");
         return;
+      } else {
+        setLoading(false);
+        setEmailErr(result.message || 'Login failed.');
+        setPasswordErr(result.message || 'Login failed.');
+        return;
       }
-    } catch (err) {
-      console.warn("Backend connection failed, falling back to mock database:", err);
-    }
-
-    // 2. Fallback to mock user database if backend fails or connection is rejected
-    let dbUsers = USERS;
-    const storedDb = localStorage.getItem('web_users_database');
-    if (storedDb) {
-      try { dbUsers = JSON.parse(storedDb); } catch {}
-    } else {
-      localStorage.setItem('web_users_database', JSON.stringify(USERS));
-    }
-
-    const user = dbUsers.find(u => u.email === email && u.password === password);
-    
-    if (!user) {
+    } catch (err: any) {
       setLoading(false);
-      setEmailErr('Invalid email or password.');
-      setPasswordErr('Invalid email or password.');
+      setEmailErr('Backend connection failed.');
+      setPasswordErr('Could not connect to the server.');
+      console.error(err);
       return;
     }
-
-    if (user.roleId !== role.id) {
-      setLoading(false);
-      setEmailErr(`Invalid credentials for ${role.title} workspace.`);
-      setPasswordErr('');
-      return;
-    }
-
-    setLoading(false);
-    setSuccess(true);
-
-    await new Promise((res) => setTimeout(res, 700));
-    localStorage.setItem("activeRole", user.roleId);
-    localStorage.setItem("workspaceRole", role.id);
-    localStorage.setItem("userId", user.id);
-    localStorage.setItem("authUser", JSON.stringify(user));
-
-    activityLogService.addLog({
-      userId: user.id,
-      userName: user.fullName,
-      action: "Login",
-      module: "Authentication",
-    });
-
-    navigate("/workspace/dashboard");
   };
 
   return (
-    <div className="min-h-screen flex font-sans bg-[#F8FAFC]">
+    <div className="min-h-screen flex font-sans bg-[#EEF2F7]">
       {/* ── Left Brand Panel (Desktop Only) ─────────────────────── */}
       <div className="hidden lg:flex w-[40%] relative flex-col justify-between p-12 overflow-hidden"
            style={{ background: 'linear-gradient(135deg, #14B8A6 0%, #06B6D4 50%, #4F46E5 100%)' }}>
@@ -324,11 +290,11 @@ export default function LoginPage() {
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-[440px] bg-white rounded-[16px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-[#E2E8F0] p-8 lg:p-10"
+            className="w-full max-w-[450px] bg-white rounded-[16px] shadow-[0_20px_60px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] border border-[#E8EDF2] p-10 lg:p-12"
           >
             {/* ── Role header ────────────────────────────────────── */}
             <div className="flex flex-col items-center mb-8 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-[#14B8A6]/10 flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-2xl bg-[#E6FAF8] flex items-center justify-center mb-5 shadow-sm border border-[#CCEFEC]">
                 <RoleIcon className="w-8 h-8 text-[#14B8A6]" />
               </div>
               <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">
@@ -397,7 +363,7 @@ export default function LoginPage() {
                 id="login-btn"
                 type="submit"
                 disabled={loading || success}
-                className={`w-full flex items-center justify-center gap-2.5 py-3.5 rounded-[12px] font-bold text-white text-sm transition-all duration-200 disabled:opacity-80 disabled:cursor-not-allowed mt-4 shadow-sm hover:-translate-y-[2px] active:scale-[0.98] ${success ? 'bg-[#10B981]' : 'bg-[#14B8A6] hover:bg-[#0F9F8D] hover:shadow-[0_4px_12px_rgba(20,184,166,0.25)]'}`}
+                className={`w-full flex items-center justify-center gap-2.5 py-4 rounded-[12px] font-bold text-white text-sm transition-all duration-200 disabled:opacity-80 disabled:cursor-not-allowed mt-4 shadow-sm hover:-translate-y-[2px] active:scale-[0.98] ${success ? 'bg-[#10B981]' : 'bg-[#14B8A6] hover:bg-[#0F9F8D] hover:shadow-[0_4px_12px_rgba(20,184,166,0.25)]'}`}
               >
                 <AnimatePresence mode="wait">
                   {loading ? (

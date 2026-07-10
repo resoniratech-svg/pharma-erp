@@ -20,7 +20,7 @@ import { dailyReportService } from '../../services/dailyReportService';
 import { doctorVisitService } from '../../services/doctorVisitService';
 import { chemistVisitService } from '../../services/chemistVisitService';
 import { retailerOrderService } from '../../services/retailerOrderService';
-
+import { attendanceService } from '../../services/attendanceService';
 // Configurable Activity Score Multipliers
 const SCORE_MULTIPLIERS = {
   doctor: 3,
@@ -109,7 +109,7 @@ export default function DailyReports() {
   // Safe JSON parsing for active user context to prevent component crash
   let authUser = null;
   try {
-    const storedUser = localStorage.getItem('authUser');
+    const storedUser = JSON.stringify(authService.getCurrentUser() || {});
     authUser = storedUser ? JSON.parse(storedUser) : null;
   } catch (e) {
     console.error("Error parsing authUser:", e);
@@ -183,27 +183,27 @@ export default function DailyReports() {
         }
 
         // Fetch attendance
-        const attendanceData = JSON.parse(localStorage.getItem('web_attendance_records') || '[]');
+        const attendanceData = attendanceService.getAll();
         const todayAttendance = attendanceData.find(
           (a: any) => (a.userId === currentUserId || a.repName === activeMRName) && isToday(a.date)
         );
 
         // Load Doctor Visits (MR Filtered)
-        const docData = JSON.parse(localStorage.getItem('doctor_visits') || localStorage.getItem('web_doctor_visits') || '[]');
+        const docData = doctorVisitService.getAll();
         const todayDocs = docData.filter(
           (v: any) => (!v.mrId || Number(v.mrId) === mrId || v.userId === currentUserId || v.mrId === currentUserId || v.mrName === activeMRName) && isToday(v.visitDate || v.date)
         );
         const doctorsVisited = todayDocs.length;
 
         // Load Chemist Visits (MR Filtered)
-        const chemData = JSON.parse(localStorage.getItem('chemist_visits') || localStorage.getItem('web_chemist_visits') || '[]');
+        const chemData = chemistVisitService.getAll();
         const todayChemists = chemData.filter(
           (v: any) => (!v.mrId || Number(v.mrId) === mrId || v.userId === currentUserId || v.mrId === currentUserId || v.mrName === activeMRName) && isToday(v.visitDate || v.date)
         );
         const chemistsVisited = todayChemists.length;
 
         // Load Orders (MR Filtered)
-        const ordersData = JSON.parse(localStorage.getItem('@orders') || localStorage.getItem('web_orders') || '[]');
+        const ordersData = retailerOrderService.getAll();
         const todayOrdersList = ordersData.filter(
           (o: any) => (!o.mrId || Number(o.mrId) === mrId || o.userId === currentUserId || o.mrId === currentUserId || o.mrName === activeMRName) && isToday(o.dateFormatted || o.date)
         );
@@ -356,7 +356,9 @@ export default function DailyReports() {
       }
 
       setReports(updatedReports);
-      localStorage.setItem('web_daily_reports', JSON.stringify(updatedReports));
+      dailyReportService.addDailyReport(mrId, existing).then(() => {
+        dailyReportService.loadDailyReports(mrId).then(setReports);
+      });
 
       // Centralized Service Audit Log
       activityLogService.addLog({
