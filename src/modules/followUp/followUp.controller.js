@@ -115,19 +115,37 @@ const completeFollowUp = async (
   });
 };
 
-const cancelFollowUp = async (
-  req,
-  res
-) => {
-  const data =
-    await service.cancelFollowUpService(
-      req.params.id
-    );
+const cancelFollowUp = async (req, res) => {
+  try {
+    const data = await service.cancelFollowUpService(req.params.id);
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
-  res.json({
-    success: true,
-    data,
-  });
+const rescheduleFollowUp = async (req, res) => {
+  try {
+    const data = await service.rescheduleFollowUpService(
+      Number(req.params.id),
+      req.body.followUpDate
+    );
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
 };
 
 module.exports = {
@@ -140,4 +158,5 @@ module.exports = {
   getFollowUpsByDate,
   completeFollowUp,
   cancelFollowUp,
+  rescheduleFollowUp,
 };

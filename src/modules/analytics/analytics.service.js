@@ -4,6 +4,9 @@ module.exports = {
   getDashboardAnalyticsService:
     repo.getDashboardAnalyticsRepo,
 
+  getMrDashboardAnalyticsService:
+    repo.getMrDashboardAnalyticsRepo,
+
   getLeadAnalyticsService:
     repo.getLeadAnalyticsRepo,
 

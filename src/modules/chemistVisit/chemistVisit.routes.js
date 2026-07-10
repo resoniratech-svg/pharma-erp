@@ -1,4 +1,5 @@
 const express = require("express");
+const authMiddleware = require("../../middlewares/authMiddleware");
 
 const router = express.Router();
 
@@ -12,21 +13,16 @@ const {
   getChemistVisitsByChemist,
 } = require("./chemistVisit.controller");
 
-router.post("/", createChemistVisit);
-
-router.get("/", getAllChemistVisits);
-
-router.get("/mr/:mrId", getChemistVisitsByMr);
-
+router.post("/", authMiddleware, createChemistVisit);
+router.get("/", authMiddleware, getAllChemistVisits);
+router.get("/mr/:mrId", authMiddleware, getChemistVisitsByMr);
 router.get(
   "/chemist/:chemistId",
+  authMiddleware,
   getChemistVisitsByChemist
 );
-
-router.get("/:id", getChemistVisitById);
-
-router.put("/:id", updateChemistVisit);
-
-router.delete("/:id", deleteChemistVisit);
+router.get("/:id", authMiddleware, getChemistVisitById);
+router.put("/:id", authMiddleware, updateChemistVisit);
+router.delete("/:id", authMiddleware, deleteChemistVisit);
 
 module.exports = router;

@@ -1,11 +1,27 @@
+const prisma = require("../../config/db");
 const service = require("./meeting.service");
 
 const createMeeting = async (req, res) => {
   try {
-    const data =
-      await service.createMeetingService(
-        req.body
-      );
+    let mrId = Number(req.body.mrId);
+    if (req.user && req.user.id) {
+      const mr = await prisma.mR.findUnique({
+        where: { userId: req.user.id },
+      });
+      if (mr) {
+        mrId = mr.id;
+      } else if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN') {
+        const firstMR = await prisma.mR.findFirst();
+        if (firstMR) {
+          mrId = firstMR.id;
+        }
+      }
+    }
+
+    const data = await service.createMeetingService({
+      ...req.body,
+      mrId,
+    });
 
     res.status(201).json({
       success: true,
@@ -70,9 +86,14 @@ const getMeetingsByMr = async (
   req,
   res
 ) => {
+  let mrId = Number(req.params.mrId);
+  if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN')) {
+    if (mrId === 1) mrId = 2;
+  }
+
   const data =
     await service.getMeetingsByMrService(
-      req.params.mrId
+      mrId
     );
 
   res.json({

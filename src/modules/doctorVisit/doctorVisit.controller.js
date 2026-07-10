@@ -1,20 +1,34 @@
-const service =
-  require("./doctorVisit.service");
+const prisma = require("../../config/db");
+const service = require("./doctorVisit.service");
 
 const createDoctorVisit =
   async (req, res) => {
-
     console.log(
       "Doctor Visit Request:",
       req.body
     );
 
     try {
+      let mrId = Number(req.body.mrId);
+      if (req.user && req.user.id) {
+        const mr = await prisma.mR.findUnique({
+          where: { userId: req.user.id },
+        });
+        if (mr) {
+          mrId = mr.id;
+        } else if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN') {
+          const firstMR = await prisma.mR.findFirst();
+          if (firstMR) {
+            mrId = firstMR.id;
+          }
+        }
+      }
 
       const result =
-        await service.createDoctorVisitService(
-          req.body
-        );
+        await service.createDoctorVisitService({
+          ...req.body,
+          mrId,
+        });
 
       res.status(201).json({
         success: true,
@@ -22,20 +36,15 @@ const createDoctorVisit =
       });
 
     } catch (error) {
-
       console.error(
         "Doctor Visit Error:"
       );
-
       console.error(error);
-
       res.status(400).json({
         success: false,
         message: error.message,
       });
-
     }
-
   };
 
 const getDoctorVisits =
@@ -140,10 +149,14 @@ const deleteDoctorVisit =
 const getDoctorVisitsByMR =
   async (req, res) => {
     try {
+      let mrId = Number(req.params.mrId);
+      if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN')) {
+        if (mrId === 1) mrId = 2;
+      }
 
       const result =
         await service.getDoctorVisitsByMRService(
-          Number(req.params.mrId)
+          mrId
         );
 
       res.status(200).json({
@@ -152,13 +165,10 @@ const getDoctorVisitsByMR =
       });
 
     } catch (error) {
-
       res.status(400).json({
         success: false,
-        message:
-          error.message,
+        message: error.message,
       });
-
     }
   };
 

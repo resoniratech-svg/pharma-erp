@@ -3,6 +3,29 @@ const prisma =
 
 const checkInRepo =
   async (data) => {
+    const active = await prisma.attendance.findFirst({
+      where: {
+        mrId: data.mrId,
+        checkOutTime: null
+      }
+    });
+
+    if (active) {
+      const activeDate = active.checkInTime || active.attendanceDate || active.createdAt;
+      if (new Date(activeDate).toDateString() !== new Date().toDateString()) {
+        // Auto check-out stale session from a previous day
+        await prisma.attendance.update({
+          where: { id: active.id },
+          data: {
+            checkOutTime: activeDate,
+            checkOutLatitude: active.checkInLatitude,
+            checkOutLongitude: active.checkInLongitude,
+          }
+        });
+      } else {
+        throw new Error("You are already checked in! Please check out first.");
+      }
+    }
 
     return prisma.attendance.create({
       data,
@@ -10,7 +33,6 @@ const checkInRepo =
         mr: true,
       },
     });
-
   };
 
 const checkOutRepo =

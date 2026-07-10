@@ -80,6 +80,51 @@ async function main() {
   } else {
     console.log('Super Admin user already exists.');
   }
+
+  console.log("Seeding distributors...");
+  const distributors = [
+    { name: 'Metro Pharma Distributors', mobile: '9012345678' },
+    { name: 'Sri Balaji Agencies', mobile: '9023456789' },
+    { name: 'Venkateshwara Medical Agencies', mobile: '9034567890' }
+  ];
+  for (const d of distributors) {
+    await prisma.distributor.upsert({
+      where: { id: distributors.indexOf(d) + 1 },
+      update: d,
+      create: d
+    });
+  }
+
+  console.log("Seeding hospitals...");
+  const hospitals = [
+    { name: 'Yashoda Hospital', mobile: '9123456789', address: 'Secunderabad' },
+    { name: 'Apollo Hospitals', mobile: '9234567890', address: 'Jubilee Hills' },
+    { name: 'Care Hospital', mobile: '9345678901', address: 'Banjara Hills' },
+    { name: 'Sunshine Clinic', mobile: '9456789012', address: 'Gachibowli' }
+  ];
+  for (const h of hospitals) {
+    await prisma.hospital.upsert({
+      where: { id: hospitals.indexOf(h) + 1 },
+      update: h,
+      create: h
+    });
+  }
+
+  console.log("Seeding territory beats...");
+  const territoryBeats = [
+    { area: 'Mumbai Central', district: 'Mumbai City', state: 'Maharashtra', totalDoctors: 15, totalChemists: 10 },
+    { area: 'Bandra-Khar West', district: 'Mumbai Suburban', state: 'Maharashtra', totalDoctors: 20, totalChemists: 15 },
+    { area: 'knr', district: 'Kannur', state: 'Kerala', totalDoctors: 10, totalChemists: 8 },
+    { area: 'pune', district: 'Pune', state: 'Maharashtra', totalDoctors: 12, totalChemists: 10 },
+    { area: 'delhi', district: 'New Delhi', state: 'Delhi', totalDoctors: 18, totalChemists: 12 }
+  ];
+  for (const tb of territoryBeats) {
+    await prisma.territoryBeat.upsert({
+      where: { id: territoryBeats.indexOf(tb) + 1 },
+      update: tb,
+      create: tb
+    });
+  }
   
   console.log("Seeding finished successfully!");
 }

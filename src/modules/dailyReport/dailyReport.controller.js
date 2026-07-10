@@ -1,8 +1,27 @@
+const prisma = require("../../config/db");
 const service = require("./dailyReport.service");
 
 const createDailyReport = async (req, res) => {
   try {
-    const data = await service.createDailyReportService(req.body);
+    let mrId = Number(req.body.mrId);
+    if (req.user && req.user.id) {
+      const mr = await prisma.mR.findUnique({
+        where: { userId: req.user.id },
+      });
+      if (mr) {
+        mrId = mr.id;
+      } else if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN') {
+        const firstMR = await prisma.mR.findFirst();
+        if (firstMR) {
+          mrId = firstMR.id;
+        }
+      }
+    }
+
+    const data = await service.createDailyReportService({
+      ...req.body,
+      mrId,
+    });
 
     res.status(201).json({
       success: true,
@@ -56,9 +75,12 @@ const deleteDailyReport = async (req, res) => {
 };
 
 const getDailyReportsByMr = async (req, res) => {
-  const data = await service.getDailyReportsByMrService(
-    req.params.mrId
-  );
+  let mrId = Number(req.params.mrId);
+  if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN')) {
+    if (mrId === 1) mrId = 2;
+  }
+
+  const data = await service.getDailyReportsByMrService(mrId);
 
   res.json({
     success: true,

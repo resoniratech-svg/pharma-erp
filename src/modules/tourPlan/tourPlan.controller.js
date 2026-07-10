@@ -1,8 +1,27 @@
+const prisma = require("../../config/db");
 const service = require("./tourPlan.service");
 
 const createTourPlan = async (req, res) => {
   try {
-    const data = await service.createTourPlanService(req.body);
+    let mrId = Number(req.body.mrId);
+    if (req.user && req.user.id) {
+      const mr = await prisma.mR.findUnique({
+        where: { userId: req.user.id },
+      });
+      if (mr) {
+        mrId = mr.id;
+      } else if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN') {
+        const firstMR = await prisma.mR.findFirst();
+        if (firstMR) {
+          mrId = firstMR.id;
+        }
+      }
+    }
+
+    const data = await service.createTourPlanService({
+      ...req.body,
+      mrId,
+    });
 
     res.status(201).json({
       success: true,
@@ -89,10 +108,12 @@ const deleteTourPlan = async (req, res) => {
 
 const getTourPlansByMr = async (req, res) => {
   try {
-    const data =
-      await service.getTourPlansByMrService(
-        req.params.mrId
-      );
+    let mrId = Number(req.params.mrId);
+    if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN')) {
+      if (mrId === 1) mrId = 2;
+    }
+
+    const data = await service.getTourPlansByMrService(mrId);
 
     res.json({
       success: true,
@@ -175,10 +196,14 @@ const getTodaySchedule = async (
 ) => {
 
   try {
+    let mrId = Number(req.params.mrId);
+    if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN')) {
+      if (mrId === 1) mrId = 2;
+    }
 
     const data =
       await service.getTodayScheduleService(
-        req.params.mrId
+        mrId
       );
 
     if (!data) {

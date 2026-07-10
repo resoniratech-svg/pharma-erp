@@ -33,7 +33,9 @@ const registerUser = async (data) => {
 
 const loginUser = async (
   email,
-  password
+  password,
+  deviceId = null,
+  force = false
 ) => {
   const user = await prisma.user.findUnique({
     where: {
@@ -57,12 +59,27 @@ const loginUser = async (
     throw new Error("Invalid credentials");
   }
 
+  // Device session concurrency control for MR
+  if (user.role === "MEDICAL_REPRESENTATIVE" && deviceId) {
+    if (user.currentDeviceId && user.currentDeviceId !== deviceId && !force) {
+      const err = new Error("Already logged in on another device.");
+      err.statusCode = 409;
+      throw err;
+    }
+    // Update the current device ID in database
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { currentDeviceId: deviceId }
+    });
+  }
+
   const token = jwt.sign(
     {
       id: user.id,
       role: user.role,
       email: user.email,
       companyId: user.companyId,
+      deviceId,
     },
     process.env.JWT_SECRET,
     {

@@ -28,6 +28,7 @@ model User {
   branch   Branch? @relation(fields: [branchId], references: [id])
 
   isActive Boolean @default(true)
+  currentDeviceId String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -249,6 +250,21 @@ model Warehouse {
   name    String
   code    String  @unique
   address String?
+
+  type          String  @default("Main Warehouse")
+  branch        String  @default("Default Branch")
+  contactPerson String?
+  phone         String?
+  email         String?
+  city          String?
+  state         String?
+  country       String?
+  pinCode       String?
+  gstNumber     String?
+  licenseNumber String?
+  remarks       String?
+  status        String  @default("Active")
+  createdBy     String  @default("System")
 
   companyId Int
   company   Company @relation(fields: [companyId], references: [id])
@@ -524,8 +540,10 @@ model InvoiceItem {
 model RetailerOrder {
   id         Int @id @default(autoincrement())
   retailerId Int
+  mrId       Int?
 
   retailer Retailer @relation(fields: [retailerId], references: [id])
+  mr       MR?      @relation(fields: [mrId], references: [id])
 
   orderNumber String   @unique
   orderDate   DateTime @default(now())
@@ -651,6 +669,7 @@ user   User? @relation(fields: [userId], references: [id])
   leaveRequests LeaveRequest[]
   expenseClaims ExpenseClaim[]
   notifications Notification[]
+  retailerOrders RetailerOrder[]
 
   createdAt DateTime @default(now())
 }
@@ -1086,3 +1105,26 @@ model Notification {
 
   mr MR @relation(fields: [mrId], references: [id])
 }
+
+model Distributor {
+  id     Int    @id @default(autoincrement())
+  name   String
+  mobile String
+}
+
+model Hospital {
+  id      Int     @id @default(autoincrement())
+  name    String
+  mobile  String?
+  address String?
+}
+
+model TerritoryBeat {
+  id           Int    @id @default(autoincrement())
+  area         String
+  district     String
+  state        String
+  totalDoctors   Int
+  totalChemists  Int
+}
+

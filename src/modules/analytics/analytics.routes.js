@@ -10,6 +10,11 @@ router.get(
 );
 
 router.get(
+  "/mr/:mrId/dashboard",
+  controller.getMrDashboardAnalytics
+);
+
+router.get(
   "/leads",
   controller.getLeadAnalytics
 );

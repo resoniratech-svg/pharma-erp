@@ -127,6 +127,17 @@ const cancelFollowUpRepo = async (id) => {
   });
 };
 
+const rescheduleFollowUpRepo = async (id, newFollowUpDate) => {
+  return prisma.followUp.update({
+    where: {
+      id: Number(id),
+    },
+    data: {
+      followUpDate: new Date(newFollowUpDate),
+    },
+  });
+};
+
 module.exports = {
   createFollowUpRepo,
   getAllFollowUpsRepo,
@@ -137,4 +148,5 @@ module.exports = {
   getFollowUpsByDateRepo,
   completeFollowUpRepo,
   cancelFollowUpRepo,
+  rescheduleFollowUpRepo,
 };

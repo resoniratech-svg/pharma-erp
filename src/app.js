@@ -192,6 +192,9 @@ const routeHistoryRoutes =
 require(
 "./modules/dailyMovement/dailyMovement.routes"
 );
+const distributorRoutes = require("./modules/distributor/distributor.routes");
+const hospitalRoutes = require("./modules/hospital/hospital.routes");
+const territoryRoutes = require("./modules/territory/territory.routes");
 
 const app = express();
 
@@ -429,6 +432,10 @@ app.get("/test", (req, res) => {
     message: "API Working",
   });
 });
+
+app.use("/api/distributors", distributorRoutes);
+app.use("/api/hospitals", hospitalRoutes);
+app.use("/api/territory", territoryRoutes);
 
 app.use(
   "/api/permissions",

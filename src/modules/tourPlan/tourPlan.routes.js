@@ -1,30 +1,22 @@
 const express = require("express");
-
+const authMiddleware = require("../../middlewares/authMiddleware");
 const router = express.Router();
 
 const controller = require("./tourPlan.controller");
 
-router.post("/", controller.createTourPlan);
-
-router.get("/", controller.getAllTourPlans);
-
-router.get("/mr/:mrId", controller.getTourPlansByMr);
-
-router.get("/date/:date", controller.getTourPlansByDate);
-
+router.post("/", authMiddleware, controller.createTourPlan);
+router.get("/", authMiddleware, controller.getAllTourPlans);
+router.get("/mr/:mrId", authMiddleware, controller.getTourPlansByMr);
+router.get("/date/:date", authMiddleware, controller.getTourPlansByDate);
 router.get(
   "/mr/:mrId/today",
+  authMiddleware,
   controller.getTodaySchedule
 );
-
-router.get("/:id", controller.getTourPlanById);
-
-router.put("/:id", controller.updateTourPlan);
-
-router.delete("/:id", controller.deleteTourPlan);
-
-router.put("/:id/approve", controller.approveTourPlan);
-
-router.put("/:id/complete", controller.completeTourPlan);
+router.get("/:id", authMiddleware, controller.getTourPlanById);
+router.put("/:id", authMiddleware, controller.updateTourPlan);
+router.delete("/:id", authMiddleware, controller.deleteTourPlan);
+router.put("/:id/approve", authMiddleware, controller.approveTourPlan);
+router.put("/:id/complete", authMiddleware, controller.completeTourPlan);
 
 module.exports = router;

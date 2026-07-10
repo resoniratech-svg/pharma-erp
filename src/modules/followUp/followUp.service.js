@@ -18,4 +18,6 @@ module.exports = {
   completeFollowUpService: repo.completeFollowUpRepo,
 
   cancelFollowUpService: repo.cancelFollowUpRepo,
+
+  rescheduleFollowUpService: repo.rescheduleFollowUpRepo,
 };

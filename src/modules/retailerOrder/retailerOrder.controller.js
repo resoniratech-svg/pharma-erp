@@ -1,28 +1,60 @@
-const service =
-require("./retailerOrder.service");
+const prisma = require("../../config/db");
+const service = require("./retailerOrder.service");
 
-const createRetailerOrder =
-async (req, res) => {
+const createRetailerOrder = async (req, res) => {
   try {
+    const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
 
-    const result =
-    await service
-      .createRetailerOrderService(
-        req.body
-      );
+    let retailerId = Number(req.body.retailerId);
+    const existingRetailer = await prisma.retailer.findUnique({
+      where: { id: retailerId }
+    });
+
+    if (!existingRetailer) {
+      const firstRetailer = await prisma.retailer.findFirst();
+      if (firstRetailer) {
+        retailerId = firstRetailer.id;
+      }
+    }
+
+    let mrId = undefined;
+    if (req.user && req.user.role === 'MEDICAL_REPRESENTATIVE') {
+      const mr = await prisma.mR.findFirst({
+        where: { userId: req.user.id }
+      });
+      if (mr) {
+        mrId = mr.id;
+      }
+    }
+
+    const orderItemsCreate = Array.isArray(req.body.orderItems)
+      ? {
+          create: req.body.orderItems.map((item) => ({
+            productId: Number(item.productId),
+            quantity: Number(item.quantity),
+            rate: Number(item.rate),
+            amount: Number(item.amount),
+          })),
+        }
+      : undefined;
+
+    const result = await service.createRetailerOrderService({
+      retailerId,
+      mrId,
+      totalAmount: Number(req.body.totalAmount),
+      orderNumber,
+      orderItems: orderItemsCreate,
+    });
 
     res.status(201).json({
       success: true,
       data: result,
     });
-
   } catch (error) {
-
     res.status(400).json({
       success: false,
       message: error.message,
     });
-
   }
 };
 

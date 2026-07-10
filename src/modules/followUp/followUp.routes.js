@@ -44,6 +44,12 @@ router.patch(
   controller.cancelFollowUp
 );
 
+router.patch(
+  "/:id/reschedule",
+  controller.rescheduleFollowUp
+);
+
+
 router.delete(
   "/:id",
   controller.deleteFollowUp

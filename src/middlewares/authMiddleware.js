@@ -1,6 +1,7 @@
 const jwt = require("jsonwebtoken");
+const prisma = require("../config/db");
 
-const authMiddleware = (req, res, next) => {
+const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
 
@@ -22,6 +23,21 @@ const authMiddleware = (req, res, next) => {
     );
 
     req.user = decoded;
+
+    // Check device session concurrency for MEDICAL_REPRESENTATIVE role
+    if (decoded.role === "MEDICAL_REPRESENTATIVE" && decoded.deviceId) {
+      const user = await prisma.user.findUnique({
+        where: { id: decoded.id },
+        select: { currentDeviceId: true },
+      });
+      if (user && user.currentDeviceId && user.currentDeviceId !== decoded.deviceId) {
+        return res.status(401).json({
+          success: false,
+          message: "Session terminated. You have logged in on another device.",
+          code: "SESSION_TERMINATED",
+        });
+      }
+    }
 
     next();
   } catch (error) {
