@@ -352,8 +352,30 @@ const ChemistVisitScreen = () => {
   const loadChemists = async () => {
     try {
       const response = await getChemists();
-      const chemistsData = response.data || response;
-      setChemists(Array.isArray(chemistsData) ? chemistsData : (chemistsData.data || []));
+      console.log('Chemists API Raw Response:', response);
+      
+      let resolvedChemists = [];
+      if (Array.isArray(response)) {
+        resolvedChemists = response;
+      } else if (response) {
+        if (Array.isArray(response.data)) {
+          resolvedChemists = response.data;
+        } else if (response.data && Array.isArray(response.data.data)) {
+          resolvedChemists = response.data.data;
+        } else if (Array.isArray(response.chemists)) {
+          resolvedChemists = response.chemists;
+        } else if (response.data && Array.isArray(response.data.chemists)) {
+          resolvedChemists = response.data.chemists;
+        } else if (Array.isArray(response.chemistsList)) {
+          resolvedChemists = response.chemistsList;
+        } else if (response.chemists && Array.isArray(response.chemists.data)) {
+          resolvedChemists = response.chemists.data;
+        } else {
+          resolvedChemists = response.data || response || [];
+        }
+      }
+      
+      setChemists(Array.isArray(resolvedChemists) ? resolvedChemists : []);
     } catch (e) {
       console.log('Failed to load chemists:', e);
     }

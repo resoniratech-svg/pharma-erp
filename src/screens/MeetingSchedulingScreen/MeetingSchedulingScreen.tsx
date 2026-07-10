@@ -117,42 +117,45 @@ const MeetingSchedulerScreen = () => {
   }, []);
 
   // Configured loader thread utility function to handle network operations
+  const resolveArrayResponse = (response: any, arrayName: string): any[] => {
+    if (!response) return [];
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response.data)) return response.data;
+    if (response.data && Array.isArray(response.data.data)) return response.data.data;
+    if (Array.isArray(response[arrayName])) return response[arrayName];
+    if (response.data && Array.isArray(response.data[arrayName])) return response.data[arrayName];
+    
+    const listKey = `${arrayName}List`;
+    if (Array.isArray(response[listKey])) return response[listKey];
+    
+    const fallback = response.data || response;
+    return Array.isArray(fallback) ? fallback : [];
+  };
+
   const loadBackendData = async () => {
     try {
       const doctorsResponse = await getDoctors();
-      const docData = doctorsResponse.data || doctorsResponse;
-      if (Array.isArray(docData)) {
-        setDoctors(docData);
-      } else if (doctorsResponse.data && Array.isArray(doctorsResponse.data.data)) {
-        setDoctors(doctorsResponse.data.data);
-      }
+      setDoctors(resolveArrayResponse(doctorsResponse, 'doctors'));
 
       const chemistsResponse = await getChemists();
-      const chemData = chemistsResponse.data || chemistsResponse;
-      if (Array.isArray(chemData)) {
-        setChemists(chemData);
-      } else if (chemistsResponse.data && Array.isArray(chemistsResponse.data.data)) {
-        setChemists(chemistsResponse.data.data);
-      }
+      setChemists(resolveArrayResponse(chemistsResponse, 'chemists'));
 
       try {
         const hospRes = await getHospitals();
-        const hospData = hospRes.data || hospRes;
-        if (Array.isArray(hospData)) setHospitals(hospData);
-        else if (hospRes.data && Array.isArray(hospRes.data.data)) setHospitals(hospRes.data.data);
+        setHospitals(resolveArrayResponse(hospRes, 'hospitals'));
       } catch(e) { console.log('hospitals load err', e); }
 
       try {
         const stockRes = await getStockists();
-        const stockData = stockRes.data || stockRes;
-        if (Array.isArray(stockData)) setStockists(stockData);
-        else if (stockRes.data && Array.isArray(stockRes.data.data)) setStockists(stockRes.data.data);
+        setStockists(resolveArrayResponse(stockRes, 'stockists'));
       } catch(e) { console.log('stockists load err', e); }
 
       const meetingsData = await getMeetingsByMr();
       console.log('MEETINGS DATA:', JSON.stringify(meetingsData, null, 2));
       console.log('Meetings:', meetingsData);
-      setMeetings(meetingsData.data || meetingsData || []);
+      
+      const resolvedMeetings = meetingsData.data || meetingsData || [];
+      setMeetings(Array.isArray(resolvedMeetings) ? resolvedMeetings : []);
     } catch (error) {
       console.log('Meeting Load Error:', error);
     }

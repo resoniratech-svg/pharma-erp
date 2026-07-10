@@ -402,8 +402,30 @@ const DoctorVisitScreen = () => {
   const loadDoctors = async () => {
     try {
       const response = await getDoctors();
-      console.log('Doctors:', response);
-      setDoctors(response.data || response); 
+      console.log('Doctors API Raw Response:', response);
+      
+      let resolvedDoctors = [];
+      if (Array.isArray(response)) {
+        resolvedDoctors = response;
+      } else if (response) {
+        if (Array.isArray(response.data)) {
+          resolvedDoctors = response.data;
+        } else if (response.data && Array.isArray(response.data.data)) {
+          resolvedDoctors = response.data.data;
+        } else if (Array.isArray(response.doctors)) {
+          resolvedDoctors = response.doctors;
+        } else if (response.data && Array.isArray(response.data.doctors)) {
+          resolvedDoctors = response.data.doctors;
+        } else if (Array.isArray(response.doctorsList)) {
+          resolvedDoctors = response.doctorsList;
+        } else if (response.doctors && Array.isArray(response.doctors.data)) {
+          resolvedDoctors = response.doctors.data;
+        } else {
+          resolvedDoctors = response.data || response || [];
+        }
+      }
+      
+      setDoctors(Array.isArray(resolvedDoctors) ? resolvedDoctors : []);
     } catch (error) {
       console.log('Load Doctors Error:', error);
     }
