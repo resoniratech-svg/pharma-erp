@@ -62,10 +62,11 @@ require("./modules/expiryMonitoring/expiryMonitoring.routes");
 const deadStockRoutes =
 require("./modules/deadStock/deadStock.routes");
 
-const warehouseTransferRoutes =
-require(
-"./modules/warehouseTransfer/warehouseTransfer.routes"
-);
+const warehouseTransferRoutes = require("./modules/warehouse-transfer/warehouse-transfer.routes");
+
+const inwardStockRoutes = require("./modules/inward-stock/inward-stock.routes");
+const outwardStockRoutes = require("./modules/outward-stock/outward-stock.routes");
+const supplierRoutes = require("./modules/suppliers/supplier.routes");
 
 const dispatchRoutes =
 require(
@@ -279,6 +280,21 @@ app.use(
 app.use(
   "/api/warehouse-transfers",
   warehouseTransferRoutes
+);
+
+app.use(
+  "/api/inward-stock",
+  inwardStockRoutes
+);
+
+app.use(
+  "/api/outward-stock",
+  outwardStockRoutes
+);
+
+app.use(
+  "/api/suppliers",
+  supplierRoutes
 );
 
 app.use(

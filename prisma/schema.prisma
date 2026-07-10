@@ -27,7 +27,7 @@ model User {
   branchId Int?
   branch   Branch? @relation(fields: [branchId], references: [id])
 
-  isActive Boolean @default(true)
+  isActive        Boolean @default(true)
   currentDeviceId String?
 
   createdAt DateTime @default(now())
@@ -182,22 +182,22 @@ model Product {
 
   minStock Int
 
-  genericName   String?
-  brandName     String?
-  type          String?
-  manufacturer  String?
-  composition   String?
-  scheme        String?
-  packingType   String?
-  unitsPerPack  String?
-  packsInBox    String?
-  totalUnits    String?
-  purchasePrice Float?
-  sellingPrice  Float?
-  reorderLevel  Int?
-  batchTracking Boolean @default(false)
+  genericName    String?
+  brandName      String?
+  type           String?
+  manufacturer   String?
+  composition    String?
+  scheme         String?
+  packingType    String?
+  unitsPerPack   String?
+  packsInBox     String?
+  totalUnits     String?
+  purchasePrice  Float?
+  sellingPrice   Float?
+  reorderLevel   Int?
+  batchTracking  Boolean @default(false)
   expiryTracking Boolean @default(false)
-  status        String @default("Active")
+  status         String  @default("Active")
 
   batches Batch[]
 
@@ -207,6 +207,10 @@ model Product {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  inwardStockItems       InwardStockItem[]
+  outwardStockItems      OutwardStockItem[]
+  warehouseTransferItems WarehouseTransferItem[]
 }
 
 model Batch {
@@ -222,12 +226,14 @@ model Batch {
 
   quantity Int
 
-  inventories        Inventory[]
-  warehouseTransfers WarehouseTransfer[]
-  dispatches         Dispatch[]
+  inventories            Inventory[]
+  warehouseTransferItems WarehouseTransferItem[]
+  dispatches             Dispatch[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  outwardStockItems OutwardStockItem[]
 }
 
 model Inventory {
@@ -275,6 +281,9 @@ model Warehouse {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  inwardStocks  InwardStock[]
+  outwardStocks OutwardStock[]
 }
 
 model StockMovement {
@@ -294,20 +303,29 @@ model StockMovement {
 }
 
 model WarehouseTransfer {
-  id Int @id @default(autoincrement())
-
-  batchId Int
-
+  id              Int                     @id @default(autoincrement())
+  transferNo      String                  @unique
+  date            DateTime                @default(now())
   fromWarehouseId Int
   toWarehouseId   Int
+  status          String                  @default("Completed")
+  itemsCount      Int                     @default(0)
+  totalQuantity   Int                     @default(0)
+  remarks         String?
+  items           WarehouseTransferItem[]
+  createdAt       DateTime                @default(now())
+}
 
-  quantity Int
-
-  remarks String?
-
-  createdAt DateTime @default(now())
-
-  batch Batch @relation(fields: [batchId], references: [id])
+model WarehouseTransferItem {
+  id                  Int               @id @default(autoincrement())
+  warehouseTransferId Int
+  warehouseTransfer   WarehouseTransfer @relation(fields: [warehouseTransferId], references: [id], onDelete: Cascade)
+  productId           Int
+  product             Product           @relation(fields: [productId], references: [id])
+  batchId             Int
+  batch               Batch             @relation(fields: [batchId], references: [id])
+  quantity            Int
+  createdAt           DateTime          @default(now())
 }
 
 model Dispatch {
@@ -366,29 +384,29 @@ model TransportChallan {
 
   challanNumber String? @unique
 
-  dispatchNo          String?
-  challanNo           String?
-  challanDate         String?
-  dispatchDate        String?
-  orderNo             String?
-  customer            String?
-  sourceWarehouse     String?
-  totalItems          Int?
-  totalQty            Int?
-  status              String?
-  products            Json?
-  createdBy           String?
-  createdDate         String?
-  podStatus           String?
-  podUploadedBy       String?
-  podUploadedDate     String?
-  podReceivedBy       String?
-  podDesignation      String?
-  podFileUrl          String?
-  podFileName         String?
-  podFileType         String?
-  podRemarks          String?
-  actualDeliveryDate  String?
+  dispatchNo         String?
+  challanNo          String?
+  challanDate        String?
+  dispatchDate       String?
+  orderNo            String?
+  customer           String?
+  sourceWarehouse    String?
+  totalItems         Int?
+  totalQty           Int?
+  status             String?
+  products           Json?
+  createdBy          String?
+  createdDate        String?
+  podStatus          String?
+  podUploadedBy      String?
+  podUploadedDate    String?
+  podReceivedBy      String?
+  podDesignation     String?
+  podFileUrl         String?
+  podFileName        String?
+  podFileType        String?
+  podRemarks         String?
+  actualDeliveryDate String?
 
   lrTrackings LRTracking[]
 
@@ -538,7 +556,7 @@ model InvoiceItem {
 }
 
 model RetailerOrder {
-  id         Int @id @default(autoincrement())
+  id         Int  @id @default(autoincrement())
   retailerId Int
   mrId       Int?
 
@@ -636,8 +654,8 @@ model Income {
 model MR {
   id Int @id @default(autoincrement())
 
-  userId Int? @unique
-user   User? @relation(fields: [userId], references: [id])
+  userId Int?  @unique
+  user   User? @relation(fields: [userId], references: [id])
 
   mrCode String @unique
 
@@ -659,16 +677,16 @@ user   User? @relation(fields: [userId], references: [id])
 
   chemistVisits ChemistVisit[]
 
-  targets       Target[]
-  tourPlans     TourPlan[]
-  dailyReports  DailyReport[]
-  meetings      Meeting[]
-  followUps     FollowUp[]
-  activities    Activity[]
-  assignedLeads Lead[]
-  leaveRequests LeaveRequest[]
-  expenseClaims ExpenseClaim[]
-  notifications Notification[]
+  targets        Target[]
+  tourPlans      TourPlan[]
+  dailyReports   DailyReport[]
+  meetings       Meeting[]
+  followUps      FollowUp[]
+  activities     Activity[]
+  assignedLeads  Lead[]
+  leaveRequests  LeaveRequest[]
+  expenseClaims  ExpenseClaim[]
+  notifications  Notification[]
   retailerOrders RetailerOrder[]
 
   createdAt DateTime @default(now())
@@ -1120,11 +1138,83 @@ model Hospital {
 }
 
 model TerritoryBeat {
-  id           Int    @id @default(autoincrement())
-  area         String
-  district     String
-  state        String
-  totalDoctors   Int
-  totalChemists  Int
+  id            Int    @id @default(autoincrement())
+  area          String
+  district      String
+  state         String
+  totalDoctors  Int
+  totalChemists Int
 }
 
+model Supplier {
+  id           Int           @id @default(autoincrement())
+  name         String        @unique
+  contact      String?
+  email        String?
+  address      String?
+  inwardStocks InwardStock[]
+  createdAt    DateTime      @default(now())
+}
+
+model InwardStock {
+  id            Int               @id @default(autoincrement())
+  grnNo         String            @unique
+  date          DateTime          @default(now())
+  supplierId    Int
+  supplier      Supplier          @relation(fields: [supplierId], references: [id])
+  warehouseId   Int
+  warehouse     Warehouse         @relation(fields: [warehouseId], references: [id])
+  invoiceNumber String?
+  invoiceDate   DateTime?
+  itemsCount    Int               @default(0)
+  totalQuantity Int               @default(0)
+  totalValue    Float             @default(0.0)
+  status        String            @default("Completed")
+  remarks       String?
+  items         InwardStockItem[]
+  createdAt     DateTime          @default(now())
+}
+
+model InwardStockItem {
+  id            Int         @id @default(autoincrement())
+  inwardStockId Int
+  inwardStock   InwardStock @relation(fields: [inwardStockId], references: [id], onDelete: Cascade)
+  productId     Int
+  product       Product     @relation(fields: [productId], references: [id])
+  batchNo       String
+  mfgDate       DateTime?
+  expiryDate    DateTime?
+  quantity      Int
+  ptr           Float       @default(0.0)
+  mrp           Float       @default(0.0)
+  createdAt     DateTime    @default(now())
+}
+
+model OutwardStock {
+  id              Int                @id @default(autoincrement())
+  dispatchNo      String             @unique
+  date            DateTime           @default(now())
+  client          String
+  warehouseId     Int
+  warehouse       Warehouse          @relation(fields: [warehouseId], references: [id])
+  referenceNumber String?
+  itemsCount      Int                @default(0)
+  totalQuantity   Int                @default(0)
+  totalValue      Float              @default(0.0)
+  status          String             @default("Dispatched")
+  remarks         String?
+  items           OutwardStockItem[]
+  createdAt       DateTime           @default(now())
+}
+
+model OutwardStockItem {
+  id             Int          @id @default(autoincrement())
+  outwardStockId Int
+  outwardStock   OutwardStock @relation(fields: [outwardStockId], references: [id], onDelete: Cascade)
+  productId      Int
+  product        Product      @relation(fields: [productId], references: [id])
+  batchId        Int
+  batch          Batch        @relation(fields: [batchId], references: [id])
+  quantity       Int
+  rate           Float        @default(0.0)
+}
