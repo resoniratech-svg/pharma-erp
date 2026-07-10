@@ -96,14 +96,14 @@ const CustomerDirectoryScreen = () => {
         customerCode: d.doctorCode || d.code || 'N/A',
         name: d.name || d.doctorName || 'N/A',
         type: 'Doctor' as const,
-        subText: d.specialization || d.specialty || 'General Practitioner',
+        subText: d.specialization || d.specialty || 'N/A',
         phone: d.mobile || d.phone || 'N/A',
         address: d.clinicAddress || d.address || 'N/A',
         lastVisitDate: d.lastVisitDate || d.last_visit_date || 'Never Visited',
         categoryBadge: d.classCategory || d.category || undefined,
         latitude: d.latitude != null ? Number(d.latitude) : undefined,
         longitude: d.longitude != null ? Number(d.longitude) : undefined,
-      })).filter(c => c.id !== 0);
+      })).filter(c => c.id !== 0 && c.name && c.name !== 'N/A');
 
       // Map Chemists
       const mappedChems: Customer[] = (Array.isArray(chemList) ? chemList : []).map((c: any) => ({
@@ -111,7 +111,7 @@ const CustomerDirectoryScreen = () => {
         customerCode: c.chemistCode || c.code || 'N/A',
         name: c.name || c.chemistName || 'N/A',
         type: 'Chemist' as const,
-        subText: c.ownerName || c.proprietor ? `Proprietor: ${c.ownerName || c.proprietor}` : 'Proprietor: N/A',
+        subText: c.ownerName || c.proprietor ? `Proprietor: ${c.ownerName || c.proprietor}` : '',
         phone: c.mobile || c.phone || 'N/A',
         address: c.address || 'N/A',
         lastVisitDate: c.lastVisitDate || c.last_visit_date || 'Never Visited',
@@ -122,7 +122,7 @@ const CustomerDirectoryScreen = () => {
         pendingInvoices: c.pendingInvoices != null ? Number(c.pendingInvoices) : undefined,
         latitude: c.latitude != null ? Number(c.latitude) : undefined,
         longitude: c.longitude != null ? Number(c.longitude) : undefined,
-      })).filter(c => c.id !== 0);
+      })).filter(c => c.id !== 0 && c.name && c.name !== 'N/A');
 
       // Map Hospitals
       const mappedHosps: Customer[] = (Array.isArray(hospList) ? hospList : []).map((h: any) => ({
@@ -130,7 +130,7 @@ const CustomerDirectoryScreen = () => {
         customerCode: h.hospitalCode || h.code || 'N/A',
         name: h.name || h.hospitalName || 'N/A',
         type: 'Hospital' as const,
-        subText: h.contactPerson || h.procurement ? `Procurement: ${h.contactPerson || h.procurement}` : 'Procurement: N/A',
+        subText: h.contactPerson || h.procurement ? `Procurement: ${h.contactPerson || h.procurement}` : '',
         phone: h.mobile || h.phone || 'N/A',
         address: h.address || 'N/A',
         lastVisitDate: h.lastVisitDate || h.last_visit_date || 'Never Visited',
@@ -142,7 +142,7 @@ const CustomerDirectoryScreen = () => {
         pendingInvoices: h.pendingInvoices != null ? Number(h.pendingInvoices) : undefined,
         latitude: h.latitude != null ? Number(h.latitude) : undefined,
         longitude: h.longitude != null ? Number(h.longitude) : undefined,
-      })).filter(c => c.id !== 0);
+      })).filter(c => c.id !== 0 && c.name && c.name !== 'N/A');
 
       // Map Stockists
       const mappedStocks: Customer[] = (Array.isArray(stockList) ? stockList : []).map((s: any) => ({
@@ -150,7 +150,7 @@ const CustomerDirectoryScreen = () => {
         customerCode: s.stockistCode || s.code || 'N/A',
         name: s.name || s.stockistName || 'N/A',
         type: 'Stockist' as const,
-        subText: s.contactPerson || s.owner ? `Manager: ${s.contactPerson || s.owner}` : 'Manager: N/A',
+        subText: s.contactPerson || s.owner ? `Manager: ${s.contactPerson || s.owner}` : '',
         phone: s.mobile || s.phone || 'N/A',
         address: s.address || 'N/A',
         lastVisitDate: s.lastVisitDate || s.last_visit_date || 'Never Visited',
@@ -161,7 +161,7 @@ const CustomerDirectoryScreen = () => {
         pendingInvoices: s.pendingInvoices != null ? Number(s.pendingInvoices) : undefined,
         latitude: s.latitude != null ? Number(s.latitude) : undefined,
         longitude: s.longitude != null ? Number(s.longitude) : undefined,
-      })).filter(c => c.id !== 0);
+      })).filter(c => c.id !== 0 && c.name && c.name !== 'N/A');
 
       // Combine and sort alphabetically by customer name
       const sortedCombined = [...mappedDocs, ...mappedChems, ...mappedHosps, ...mappedStocks];
@@ -341,7 +341,7 @@ const CustomerDirectoryScreen = () => {
                           <Text style={styles.badgeText}>{customer.categoryBadge}</Text>
                         )}
                       </View>
-                      <Text style={styles.subText}>{customer.subText}</Text>
+                      {customer.subText ? <Text style={styles.subText}>{customer.subText}</Text> : null}
                     </View>
                   </View>
 
@@ -427,7 +427,7 @@ const CustomerDirectoryScreen = () => {
                   <Text style={styles.sectionTitle}>Details</Text>
                   <Text style={styles.profileText}>📞 Mobile: {selectedProfileCustomer.phone}</Text>
                   <Text style={styles.profileText}>📍 Address: {selectedProfileCustomer.address}</Text>
-                  <Text style={styles.profileText}>ℹ️ Info: {selectedProfileCustomer.subText}</Text>
+                  {selectedProfileCustomer.subText ? <Text style={styles.profileText}>ℹ️ Info: {selectedProfileCustomer.subText}</Text> : null}
                   <Text style={styles.profileText}>🕒 Last Visited: {selectedProfileCustomer.lastVisitDate}</Text>
                 </View>
 
