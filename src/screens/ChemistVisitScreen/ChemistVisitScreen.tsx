@@ -8,6 +8,7 @@ import {
   updateChemist
 } from '../../services/chemistService'; 
 import { createFollowUp } from '../../services/followUpService'; 
+import { getProducts } from '../../services/productService';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -24,6 +25,7 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { Picker } from '@react-native-picker/picker';
 import * as Location from 'expo-location';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
@@ -152,10 +154,12 @@ const TimePickerField = ({
   label,
   value,
   onChange,
+  editable = true,
 }: {
   label: string;
   value: string;
   onChange: (time: string) => void;
+  editable?: boolean;
 }) => {
   const [showPicker, setShowPicker] = useState(false);
 
@@ -170,23 +174,25 @@ const TimePickerField = ({
 
   if (Platform.OS === 'web') {
     return (
-      <View style={{ marginBottom: 4 }}>
+      <View style={{ marginBottom: 4, opacity: editable ? 1 : 0.6 }}>
         <Text style={styles.label}>{label}</Text>
         {/* @ts-ignore */}
         <input
           type="time"
           value={value}
-          onChange={(e: any) => onChange(e.target.value)}
+          onChange={(e: any) => editable && onChange(e.target.value)}
+          disabled={!editable}
           style={{
             border: '1px solid #ddd',
             borderRadius: 8,
             padding: '12px',
             fontSize: 14,
-            backgroundColor: '#fafafa',
+            backgroundColor: editable ? '#fafafa' : '#e2e8f0',
             width: '100%',
             boxSizing: 'border-box',
             fontFamily: 'inherit',
             color: value ? '#222' : '#999',
+            cursor: editable ? 'default' : 'not-allowed',
           }}
         />
       </View>
@@ -194,11 +200,12 @@ const TimePickerField = ({
   }
 
   return (
-    <View style={{ marginBottom: 4 }}>
+    <View style={{ marginBottom: 4, opacity: editable ? 1 : 0.6 }}>
       <Text style={styles.label}>{label}</Text>
       <TouchableOpacity
-        style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }]}
-        onPress={() => setShowPicker(true)}
+        style={[styles.input, { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }, !editable && { backgroundColor: '#e2e8f0' }]}
+        onPress={() => editable && setShowPicker(true)}
+        disabled={!editable}
       >
         <Text style={{ fontSize: 14, color: value ? '#222' : '#999' }}>
           {value || 'Select time...'}
@@ -285,7 +292,11 @@ const ChemistVisitScreen = () => {
   const [quantity, setQuantity] = useState('');
   const [nextFollowUp, setNextFollowUp] = useState('');
   const [remarks, setRemarks] = useState('');
-  const [status, setStatus] = useState<ChemistVisit['status']>('Scheduled');
+  const [status, setStatus] = useState<ChemistVisit['status']>('Completed');
+
+  const [chemistSource, setChemistSource] = useState<'Existing' | 'New'>('Existing');
+  const [chemistId, setChemistId] = useState<number | null>(null);
+  const [products, setProducts] = useState<any[]>([]);
 
   const [mrId, setMrId] = useState<number | null>(null);
   const [visits, setVisits] = useState<ChemistVisit[]>([]);
@@ -348,9 +359,19 @@ const ChemistVisitScreen = () => {
     }
   };
 
+  const loadProducts = async () => {
+    try {
+      const prodData = await getProducts();
+      setProducts(prodData || []);
+    } catch (e) {
+      console.log('Failed to load products:', e);
+    }
+  };
+
   useEffect(() => {
     const init = async () => {
       await loadChemists();
+      await loadProducts();
       await loadVisits();
     };
     init();
@@ -578,7 +599,7 @@ const ChemistVisitScreen = () => {
       console.log('CHEMIST GPS:', currentLat, currentLon);
 
       if (currentLat && currentLon) {
-        distVerified = 'Verified (within 50m)';
+        distVerified = 'Location Recorded';
       }
 
     } catch (e) {
@@ -793,21 +814,25 @@ const ChemistVisitScreen = () => {
   };
 
   const ToggleRow = ({
-    label, options, selected, onSelect, colors,
+    label, options, selected, onSelect, colors, disabled = false,
   }: {
     label: string; options: string[]; selected: string;
-    onSelect: (val: any) => void; colors: string[];
+    onSelect: (val: any) => void; colors?: string[]; disabled?: boolean;
   }) => (
-    <View style={{ marginBottom: 12 }}>
+    <View style={{ marginBottom: 12, opacity: disabled ? 0.6 : 1 }}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.toggleRow}>
         {options.map((opt, i) => (
           <TouchableOpacity
             key={opt}
-            onPress={() => onSelect(opt)}
+            onPress={() => !disabled && onSelect(opt)}
+            disabled={disabled}
             style={[
               styles.toggleBtn,
-              selected === opt && { backgroundColor: colors[i], borderColor: colors[i] },
+              selected === opt && { 
+                backgroundColor: disabled ? '#94A3B8' : (colors ? colors[i] : '#1E88E5'), 
+                borderColor: disabled ? '#94A3B8' : (colors ? colors[i] : '#1E88E5') 
+              },
             ]}
           >
             <Text style={[styles.toggleBtnText, selected === opt && { color: '#fff', fontWeight: 'bold' }]}>
@@ -830,23 +855,125 @@ const ChemistVisitScreen = () => {
         <Text style={styles.title}>💊 Chemist Visit</Text>
 
         <View style={styles.form}>
+          {editingVisitId === null && (
+            <ToggleRow
+              label="Chemist Source"
+              options={['Existing Chemist', 'New Chemist']}
+              selected={chemistSource === 'Existing' ? 'Existing Chemist' : 'New Chemist'}
+              onSelect={(val) => {
+                setChemistSource(val === 'Existing Chemist' ? 'Existing' : 'New');
+                setChemistId(null);
+                setChemistName('');
+                setShopName('');
+                setMobile('');
+                setLocation('');
+              }}
+            />
+          )}
+
+          {(chemistSource === 'Existing' && editingVisitId === null) && (
+            <>
+              <Text style={styles.label}>Select Chemist *</Text>
+              <View
+                style={{
+                  borderWidth: 1,
+                  borderColor: '#ddd',
+                  borderRadius: 8,
+                  marginBottom: 12,
+                }}
+              >
+                <Picker
+                  selectedValue={chemistId?.toString() ?? ""}
+                  onValueChange={(itemValue) => {
+                    if (!itemValue || itemValue === "") {
+                      setChemistId(null);
+                      setChemistName('');
+                      setShopName('');
+                      setMobile('');
+                      setLocation('');
+                      return;
+                    }
+                    const chemIdNum = Number(itemValue);
+                    setChemistId(chemIdNum);
+                    const selectedChemist = chemists.find((c) => c.id === chemIdNum);
+                    if (selectedChemist) {
+                      setChemistName(selectedChemist.name || '');
+                      setShopName(selectedChemist.shopName || selectedChemist.name || '');
+                      setMobile(selectedChemist.mobile || '');
+                      setLocation(selectedChemist.address || selectedChemist.location || '');
+                    }
+                  }}
+                >
+                  <Picker.Item label="-- Select Existing Chemist --" value="" />
+                  {chemists.map((c) => (
+                    <Picker.Item key={c.id} label={`${c.shopName || c.name} (${c.name})`} value={c.id.toString()} />
+                  ))}
+                </Picker>
+              </View>
+            </>
+          )}
+
           <Text style={styles.label}>Chemist Name *</Text>
-          <TextInput style={styles.input} placeholder="Enter chemist name"
-            value={chemistName} onChangeText={setChemistName} />
+          <TextInput 
+            style={[
+              styles.input,
+              (editingVisitId === null && chemistSource === 'Existing' && chemistId !== null) && {
+                backgroundColor: '#F1F5F9',
+                color: '#64748B',
+              },
+            ]} 
+            placeholder="Enter chemist name"
+            value={chemistName} 
+            onChangeText={setChemistName}
+            editable={editingVisitId !== null || chemistSource === 'New' || chemistId === null}
+          />
 
           <Text style={styles.label}>Shop / Pharmacy Name *</Text>
-          <TextInput style={styles.input} placeholder="Enter pharmacy / shop name"
-            value={shopName} onChangeText={setShopName} />
+          <TextInput 
+            style={[
+              styles.input,
+              (editingVisitId === null && chemistSource === 'Existing' && chemistId !== null) && {
+                backgroundColor: '#F1F5F9',
+                color: '#64748B',
+              },
+            ]} 
+            placeholder="Enter pharmacy / shop name"
+            value={shopName} 
+            onChangeText={setShopName}
+            editable={editingVisitId !== null || chemistSource === 'New' || chemistId === null}
+          />
 
           <Text style={styles.label}>Mobile Number *</Text>
-          <TextInput style={styles.input} placeholder="Enter chemist's 10-digit mobile number"
+          <TextInput 
+            style={[
+              styles.input,
+              (editingVisitId === null && chemistSource === 'Existing' && chemistId !== null) && {
+                backgroundColor: '#F1F5F9',
+                color: '#64748B',
+              },
+            ]} 
+            placeholder="Enter chemist's 10-digit mobile number"
             value={mobile}
             onChangeText={(text) => setMobile(text.replace(/[^0-9]/g, ''))}
-            keyboardType="numeric" maxLength={10} />
+            keyboardType="numeric" 
+            maxLength={10}
+            editable={editingVisitId !== null || chemistSource === 'New' || chemistId === null}
+          />
 
           <Text style={styles.label}>Area / Location *</Text>
-          <TextInput style={styles.input} placeholder="e.g. Hyderabad, Banjara Hills"
-            value={location} onChangeText={setLocation} />
+          <TextInput 
+            style={[
+              styles.input,
+              (editingVisitId === null && chemistSource === 'Existing' && chemistId !== null) && {
+                backgroundColor: '#F1F5F9',
+                color: '#64748B',
+              },
+            ]} 
+            placeholder="e.g. Hyderabad, Banjara Hills"
+            value={location} 
+            onChangeText={setLocation}
+            editable={editingVisitId !== null || chemistSource === 'New' || chemistId === null}
+          />
 
           <DatePickerField
             label="Visit Date *"
@@ -859,6 +986,7 @@ const ChemistVisitScreen = () => {
             label="Visit Time *"
             value={visitTime}
             onChange={setVisitTime}
+            editable={false}
           />
 
           <ToggleRow
@@ -870,8 +998,24 @@ const ChemistVisitScreen = () => {
           />
 
           <Text style={styles.label}>Medicine / Product Ordered</Text>
-          <TextInput style={styles.input} placeholder="e.g. Calpol, Augmentin"
-            value={medicine} onChangeText={setMedicine} />
+          <View
+            style={{
+              borderWidth: 1,
+              borderColor: '#ddd',
+              borderRadius: 8,
+              marginBottom: 12,
+            }}
+          >
+            <Picker
+              selectedValue={medicine}
+              onValueChange={(itemValue) => setMedicine(itemValue)}
+            >
+              <Picker.Item label="-- Select Medicine / Product --" value="" />
+              {products.map((p) => (
+                <Picker.Item key={p.id} label={`${p.name || p.productName}`} value={p.name || p.productName} />
+              ))}
+            </Picker>
+          </View>
 
           <Text style={styles.label}>Quantity</Text>
           <TextInput style={styles.input} placeholder="e.g. 10 strips, 5 boxes"
@@ -907,14 +1051,6 @@ const ChemistVisitScreen = () => {
             numberOfLines={3}
           />
 
-          <ToggleRow
-            label="Status"
-            options={['Scheduled', 'Completed', 'Missed']}
-            selected={status}
-            onSelect={setStatus}
-            colors={['#3B82F6', '#10B981', '#EF4444']}
-          />
-
           <TouchableOpacity style={[styles.submitButton, isSubmitting && { opacity: 0.7 }]} onPress={handleSubmit} disabled={isSubmitting}>
             {isSubmitting ? (
               <ActivityIndicator color="#fff" />
@@ -930,7 +1066,8 @@ const ChemistVisitScreen = () => {
                 setEditingVisitId(null);
                 setChemistName(''); setShopName(''); setMobile(''); setLocation('');
                 setStockCheck('Pending'); setPobAmount(''); setMedicine('');
-                setQuantity(''); setNextFollowUp(''); setRemarks(''); setStatus('Scheduled');
+                setQuantity(''); setNextFollowUp(''); setRemarks(''); setStatus('Completed');
+                setChemistSource('Existing'); setChemistId(null);
               }}
             >
               <Text style={styles.submitText}>CANCEL EDIT</Text>
@@ -939,7 +1076,7 @@ const ChemistVisitScreen = () => {
         </View>
 
         {/* Visit History */}
-        <Text style={styles.historyTitle}>Today's Visits</Text>
+        <Text style={styles.historyTitle}>Recent Visits</Text>
         {loading ? (
           <ActivityIndicator size="small" color="#43A047" style={{ marginVertical: 10 }} />
         ) : error ? (

@@ -30,7 +30,7 @@ interface GeoChemVisit {
   latitude: number | null;
   longitude: number | null;
   gpsStatus: string;
-  status: 'Verified' | 'Pending' | 'Rejected';
+  status: 'Verified' | 'Completed' | 'Pending' | 'Rejected';
 }
 
 const GeoTaggedChemistVisitsScreen = () => {
@@ -79,17 +79,18 @@ const GeoTaggedChemistVisitsScreen = () => {
             } catch (e) {}
           }
           const chemIdNum = Number(item.chemistId);
-          const resolvedName = chemsMap.get(chemIdNum) || item.chemistName || item.chemist?.name || (item.chemistId ? `Chemist #${item.chemistId}` : 'N/A');
+          const resolvedName = chemsMap.get(chemIdNum) || item.chemistName || item.chemist?.name || 'N/A';
+          const latVal = item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null;
+          const lngVal = item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null;
+          const hasGPS = latVal !== null && lngVal !== null;
           return {
             id: item.id?.toString() || `server-${idx}`,
             chemistName: resolvedName,
             visitTime: timeStr,
-            latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
-            longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
-            gpsStatus: item.latitude ? 'Location Recorded' : 'Pending GPS Lock',
-            status: item.status === 'Verified' || item.status === 'Rejected'
-              ? item.status
-              : (item.latitude ? 'Verified' : 'Pending')
+            latitude: latVal,
+            longitude: lngVal,
+            gpsStatus: hasGPS ? 'Location Recorded' : 'Pending GPS Lock',
+            status: item.status || (hasGPS ? 'Completed' : 'Pending')
           };
         });
         setVisits(mapped);
@@ -99,7 +100,7 @@ const GeoTaggedChemistVisitsScreen = () => {
         const parsed = safeJsonParse(stored, []);
         const mapped: GeoChemVisit[] = parsed.map((item: any, idx: number) => {
           const chemIdNum = Number(item.chemistId);
-          const resolvedName = chemsMap.get(chemIdNum) || item.chemistName || item.chemist?.name || (item.chemistId ? `Chemist #${item.chemistId}` : 'N/A');
+          const resolvedName = chemsMap.get(chemIdNum) || item.chemistName || item.chemist?.name || 'N/A';
           let timeStr = item.visitTime || '-';
           if (item.visitDate) {
             try {
@@ -107,16 +108,17 @@ const GeoTaggedChemistVisitsScreen = () => {
               timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
             } catch (e) {}
           }
+          const latVal = item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null;
+          const lngVal = item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null;
+          const hasGPS = latVal !== null && lngVal !== null;
           return {
             id: item.id?.toString() || `local-${Date.now()}-${idx}`,
             chemistName: resolvedName,
             visitTime: timeStr,
-            latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
-            longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
-            gpsStatus: item.latitude ? 'Location Recorded' : 'Pending GPS Lock',
-            status: item.status === 'Verified' || item.status === 'Rejected' 
-              ? item.status 
-              : (item.latitude ? 'Verified' : 'Pending')
+            latitude: latVal,
+            longitude: lngVal,
+            gpsStatus: hasGPS ? 'Location Recorded' : 'Pending GPS Lock',
+            status: item.status || (hasGPS ? 'Completed' : 'Pending')
           };
         });
         setVisits(mapped);
@@ -190,7 +192,7 @@ const GeoTaggedChemistVisitsScreen = () => {
             renderItem={({ item }) => {
               let badgeColor = '#EF4444';
               let badgeBg = '#FEE2E2';
-              if (item.status === 'Verified') {
+              if (item.status === 'Verified' || item.status === 'Completed') {
                 badgeColor = '#10B981';
                 badgeBg = '#D1FAE5';
               } else if (item.status === 'Pending') {

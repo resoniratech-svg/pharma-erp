@@ -525,7 +525,7 @@ const DoctorVisitScreen = () => {
       );
 
       if (currentLat && currentLon) {
-        distVerified = 'Verified (within 50m)';
+        distVerified = 'Location Recorded';
       }
     } catch (e) {
       console.log(
@@ -713,21 +713,25 @@ const DoctorVisitScreen = () => {
 
   // Reusable toggle button row
   const ToggleRow = ({
-    label, options, selected, onSelect, colors,
+    label, options, selected, onSelect, colors, disabled = false,
   }: {
     label: string; options: string[]; selected: string;
-    onSelect: (val: any) => void; colors?: string[];
+    onSelect: (val: any) => void; colors?: string[]; disabled?: boolean;
   }) => (
-    <View style={{ marginBottom: 12 }}>
+    <View style={{ marginBottom: 12, opacity: disabled ? 0.6 : 1 }}>
       <Text style={styles.label}>{label}</Text>
       <View style={styles.toggleRow}>
         {options.map((opt, i) => (
           <TouchableOpacity
             key={opt}
-            onPress={() => onSelect(opt)}
+            onPress={() => !disabled && onSelect(opt)}
+            disabled={disabled}
             style={[
               styles.toggleBtn,
-              selected === opt && { backgroundColor: colors ? colors[i] : '#1E88E5', borderColor: colors ? colors[i] : '#1E88E5' },
+              selected === opt && { 
+                backgroundColor: disabled ? '#94A3B8' : (colors ? colors[i] : '#1E88E5'), 
+                borderColor: disabled ? '#94A3B8' : (colors ? colors[i] : '#1E88E5') 
+              },
             ]}
           >
             <Text style={[styles.toggleBtnText, selected === opt && { color: '#fff', fontWeight: 'bold' }]}>
@@ -782,6 +786,8 @@ const DoctorVisitScreen = () => {
                       setSpecialty('');
                       setClinic('');
                       setMobile('');
+                      setDoctorClass('B');
+                      setPrescriptionPotential('Medium');
                       return;
                     }
                     const doctorIdNum = Number(itemValue);
@@ -792,6 +798,8 @@ const DoctorVisitScreen = () => {
                       setSpecialty(selectedDoctor.specialization || selectedDoctor.specialty || '');
                       setClinic(selectedDoctor.hospital || selectedDoctor.clinic || '');
                       setMobile(selectedDoctor.mobile || '');
+                      setDoctorClass(selectedDoctor.classCategory || selectedDoctor.category || 'B');
+                      setPrescriptionPotential(selectedDoctor.prescriptionPotential || 'Medium');
                     }
                   }}
                 >
@@ -866,8 +874,8 @@ const DoctorVisitScreen = () => {
             editable={editingVisitId !== null || doctorSource === 'New' || doctorId === null}
           />
 
-          <DatePickerField label="Visit Date *" value={visitDate} onChange={setVisitDate} editable={false} />
-          <TimePickerField label="Visit Time" value={visitTime} onChange={setVisitTime} editable={editingVisitId === null} />
+           <DatePickerField label="Visit Date *" value={visitDate} onChange={setVisitDate} editable={false} />
+          <TimePickerField label="Visit Time" value={visitTime} onChange={setVisitTime} editable={false} />
 
           <ToggleRow
             label="Visit Type"
@@ -879,6 +887,7 @@ const DoctorVisitScreen = () => {
             label="Doctor Class"
             options={['A', 'B', 'C']}
             selected={doctorClass} onSelect={setDoctorClass}
+            disabled={editingVisitId === null && doctorSource === 'Existing' && doctorId !== null}
           />
 
           <Text style={styles.label}>Products Discussed</Text>
@@ -894,6 +903,7 @@ const DoctorVisitScreen = () => {
             options={['High', 'Medium', 'Low']}
             selected={prescriptionPotential} onSelect={setPrescriptionPotential}
             colors={['#10B981', '#F59E0B', '#EF4444']}
+            disabled={editingVisitId === null && doctorSource === 'Existing' && doctorId !== null}
           />
 
           <DatePickerField label="Next Follow-Up Date" value={nextFollowUp} onChange={setNextFollowUp} />

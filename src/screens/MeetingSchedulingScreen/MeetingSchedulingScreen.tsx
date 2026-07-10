@@ -38,8 +38,6 @@ interface Meeting {
   meetingMode: 'Physical' | 'Online' | 'Hybrid';
   reminder: '15 Minutes' | '30 Minutes' | '1 Hour' | '1 Day' | 'None';
   outcome: string;           
-  participants: string;
-  attendeesCount: number;    
   status: 'Scheduled' | 'Completed' | 'Cancelled';
   followUpDate: string;
   agenda: string;
@@ -76,7 +74,6 @@ const MeetingSchedulerScreen = () => {
   const [meetingMode, setMeetingMode] = useState<'Physical' | 'Online' | 'Hybrid'>('Physical');
   const [reminder, setReminder] = useState<'15 Minutes' | '30 Minutes' | '1 Hour' | '1 Day' | 'None'>('15 Minutes');
   const [outcome, setOutcome] = useState('Doctor Engagement');
-  const [participants, setParticipants] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
   const [agenda, setAgenda] = useState('');
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -212,9 +209,23 @@ const MeetingSchedulerScreen = () => {
       customAlert('Error', 'Please enter a meeting venue.');
       return;
     }
-    if ((meetingMode === 'Online' || meetingMode === 'Hybrid') && !meetingLink.trim()) {
-      customAlert('Error', 'Please enter a meeting link.');
-      return;
+    if (meetingMode === 'Online' || meetingMode === 'Hybrid') {
+      if (!meetingLink.trim()) {
+        customAlert('Error', 'Please enter a meeting link.');
+        return;
+      }
+      const trimmedLink = meetingLink.trim().toLowerCase();
+      const linkRegex = /^(https?:\/\/)?([\w\-]+\.)+[\w\-]+(\/[\w\-./?%&=]*)?$/;
+      const isDomainMatch = trimmedLink.includes('meet.google.com') ||
+                            trimmedLink.includes('zoom.us') ||
+                            trimmedLink.includes('teams.microsoft.com') ||
+                            trimmedLink.includes('teams.live.com') ||
+                            trimmedLink.includes('webex.com');
+      
+      if (!linkRegex.test(trimmedLink) && !isDomainMatch) {
+        customAlert('Error', 'Please enter a valid HTTP/HTTPS online meeting URL (e.g. Google Meet, Zoom, Teams, Webex).');
+        return;
+      }
     }
     if (!organizer.trim()) {
       customAlert('Error', 'Please enter an organizer.');
@@ -248,14 +259,29 @@ const MeetingSchedulerScreen = () => {
       }
     }
 
+    const timeToMinutes = (time12: string): number => {
+      const time24 = formatTime12to24(time12);
+      const [hh, mm] = time24.split(':').map(Number);
+      return hh * 60 + mm;
+    };
+
+    const currentMeetingStart = timeToMinutes(meetingTime);
+    const currentMeetingEnd = currentMeetingStart + 30; // 30-minute assumed meeting length
+
     const isConflict = meetings.some((m) => {
       const mDate = m.meetingDate ? m.meetingDate.split('T')[0] : m.date;
-      return mDate === meetingDate && m.time === meetingTime && m.status !== 'Cancelled';
+      if (mDate !== meetingDate || m.status === 'Cancelled') return false;
+
+      const mStart = timeToMinutes(m.time);
+      const mEnd = mStart + 30;
+
+      // Overlap logic: startA < endB && startB < endA
+      return currentMeetingStart < mEnd && mStart < currentMeetingEnd;
     });
     if (isConflict) {
       customAlert(
         'Scheduling Conflict',
-        `You already have another active meeting scheduled at ${meetingTime} on ${formatDateDisplay(meetingDate)}.`
+        `You already have another active meeting scheduled within this 30-minute window on ${formatDateDisplay(meetingDate)}.`
       );
       return;
     }
@@ -331,7 +357,6 @@ const MeetingSchedulerScreen = () => {
       setTopic('');
       setVenue('');
       setMeetingLink('');
-      setParticipants('');
       setFollowUpDate('');
       setAgenda('');
       setSelectedDoctorId(null);
@@ -404,12 +429,7 @@ const MeetingSchedulerScreen = () => {
         name: d.name || d.doctorName || '',
       }));
     }
-    return [
-      { id: 1, name: 'Dr. Ramesh (Cardiologist)' },
-      { id: 2, name: 'Dr. Kumar (Pediatrician)' },
-      { id: 3, name: 'Dr. Anitha (Dermatologist)' },
-      { id: 4, name: 'Dr. Suresh (General Physician)' },
-    ];
+    return [];
   };
 
   const getChemistsList = () => {
@@ -419,12 +439,7 @@ const MeetingSchedulerScreen = () => {
         name: c.name || c.chemistName || '',
       }));
     }
-    return [
-      { id: 1, name: 'Apollo Pharmacy' },
-      { id: 2, name: 'MedPlus Drugs' },
-      { id: 3, name: 'Sri Rama Medicals' },
-      { id: 4, name: 'Care Chemists' },
-    ];
+    return [];
   };
 
   const getHospitalsList = () => {
@@ -434,11 +449,7 @@ const MeetingSchedulerScreen = () => {
         name: h.name || h.hospitalName || '',
       }));
     }
-    return [
-      { id: 1, name: 'Yashoda Hospital' },
-      { id: 2, name: 'Apollo Hospitals' },
-      { id: 3, name: 'Care Hospital' },
-    ];
+    return [];
   };
 
   const getStockistsList = () => {
@@ -448,11 +459,7 @@ const MeetingSchedulerScreen = () => {
         name: s.name || s.stockistName || '',
       }));
     }
-    return [
-      { id: 1, name: 'Metro Pharma Distributors' },
-      { id: 2, name: 'Sri Balaji Agencies' },
-      { id: 3, name: 'Venkateshwara Medical Agencies' },
-    ];
+    return [];
   };
 
   return (
