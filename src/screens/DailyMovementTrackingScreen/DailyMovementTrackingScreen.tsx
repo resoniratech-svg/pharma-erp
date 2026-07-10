@@ -797,7 +797,6 @@ console.log('TYPE:', typeof selectedDate);
                 thumbColor={isSimulating ? '#2563EB' : '#94A3B8'}
               />
             </View>
-            {/* Seed Demo Route Trace button removed for production */}
           </View>
         )}
       </View>

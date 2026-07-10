@@ -13,17 +13,6 @@ import {
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 
-interface MonthlyTarget {
-  month: string;
-  salesAchieved: number;
-  salesTarget: number;
-  docsVisited: number;
-  docsTarget: number;
-  chemistsVisited: number;
-  chemistsTarget: number;
-  incentiveEarned: number;
-}
-
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
   try {
@@ -42,64 +31,52 @@ const TargetTrackingScreen = () => {
   const [docsVisited, setDocsVisited] = useState(0);
   const [chemistsVisited, setChemistsVisited] = useState(0);
 
-  // Dynamic Targets
-  const [salesTarget, setSalesTarget] = useState(50000);
-  const [docsTarget, setDocsTarget] = useState(30);
-  const [chemistsTarget, setChemistsTarget] = useState(20);
+  // Dynamic Targets (Initialized to 0 to prevent flashing mock targets)
+  const [salesTarget, setSalesTarget] = useState(0);
+  const [docsTarget, setDocsTarget] = useState(0);
+  const [chemistsTarget, setChemistsTarget] = useState(0);
+  const [incentivePct, setIncentivePct] = useState(5); // Defaults to 5% incentive
 
   useEffect(() => {
-
-  loadTargets();
-
-  loadCurrentMonthPerformance();
-
-}, []);
+    loadTargets();
+    loadCurrentMonthPerformance();
+  }, []);
 
   const loadTargets = async () => {
+    try {
+      const targets = await getTargetsByMr();
+      console.log('TARGETS:', targets);
 
-  try {
+      if (targets && targets.length > 0) {
+        // Dynamically find current month's target
+        const today = new Date();
+        const currentMonthName = today.toLocaleString('en-US', { month: 'long' }).toLowerCase();
+        const currentMonthShort = today.toLocaleString('en-US', { month: 'short' }).toLowerCase();
+        const currentMonthNum = String(today.getMonth() + 1).padStart(2, '0');
+        const currentYear = String(today.getFullYear());
 
-    const targets =
-      await getTargetsByMr();
+        const currentTarget = targets.find((t: any) => {
+          if (!t) return false;
+          const tMonth = String(t.month || t.targetMonth || t.monthName || '').toLowerCase();
+          const tYear = String(t.year || t.targetYear || '').toLowerCase();
+          
+          return (tMonth.includes(currentMonthName) || tMonth.includes(currentMonthShort) || tMonth.includes(`${currentYear}-${currentMonthNum}`)) &&
+                 (tYear.includes(currentYear) || tMonth.includes(currentYear));
+        }) || targets[0]; // fallback to first target
 
-    console.log(
-      'TARGETS:',
-      targets
-    );
-
-    if (
-      targets &&
-      targets.length > 0
-    ) {
-
-      const currentTarget =
-        targets[0];
-
-      setDocsTarget(
-        currentTarget.doctorVisitTarget
-      );
-
-      setChemistsTarget(
-        currentTarget.chemistVisitTarget
-      );
-
-      setSalesTarget(
-        Number(
-          currentTarget.orderTarget
-        )
-      );
-
+        if (currentTarget) {
+          setDocsTarget(currentTarget.doctorVisitTarget || 0);
+          setChemistsTarget(currentTarget.chemistVisitTarget || 0);
+          setSalesTarget(Number(currentTarget.orderTarget) || 0);
+          if (currentTarget.incentivePercentage != null) {
+            setIncentivePct(Number(currentTarget.incentivePercentage));
+          }
+        }
+      }
+    } catch (error) {
+      console.log('Target Load Error:', error);
     }
-
-  } catch (error) {
-
-    console.log(
-      'Target Load Error:',
-      error
-    );
-
-  }
-};
+  };
 
   const loadCurrentMonthPerformance = async () => {
     try {
@@ -161,7 +138,7 @@ const TargetTrackingScreen = () => {
   const chemistsPercent = getPercentage(chemistsVisited, chemistsTarget);
 
   const isEligibleForIncentive = salesPercent >= 100 && docsPercent >= 100 && chemistsPercent >= 100;
-  const estimatedIncentive = isEligibleForIncentive ? Math.round(salesAchieved * 0.05) : 0;
+  const estimatedIncentive = isEligibleForIncentive ? Math.round(salesAchieved * (incentivePct / 100)) : 0;
 
   return (
     <View style={styles.container}>
@@ -246,7 +223,7 @@ const TargetTrackingScreen = () => {
           </Text>
           <Text style={styles.incentiveDesc}>
             {isEligibleForIncentive 
-              ? 'You have fully met all monthly meet & sales targets. You qualify for a 5% incentive!'
+              ? `You have fully met all monthly meet & sales targets. You qualify for a ${incentivePct}% incentive!`
               : 'Complete 100% of all active targets (Sales, Doctor, & Chemist visits) to unlock monthly commission incentives.'}
           </Text>
           <View style={styles.divider} />

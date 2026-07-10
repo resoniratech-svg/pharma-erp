@@ -10,7 +10,6 @@ import {
   ScrollView,
   ActivityIndicator,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 interface MeetingReminder {
@@ -26,36 +25,6 @@ interface MeetingReminder {
   daysText: string;
 }
 
-const safeJsonParse = (data: string | null, fallback: any) => {
-  if (!data) return fallback;
-  try { return JSON.parse(data); } 
-  catch (err) { return fallback; }
-};
-
-// Helper to convert "02:30 PM" to "14:30:00" for perfect timestamp sorting
-const convertTo24Hour = (timeStr: string) => {
-  if (!timeStr) return "09:00:00";
-  try {
-    const [time, modifier] = timeStr.split(' ');
-    if (!time || !modifier) return "09:00:00";
-    let [hours, minutes] = time.split(':');
-    if (hours === '12') hours = '00';
-    if (modifier.toUpperCase() === 'PM') hours = String(parseInt(hours, 10) + 12);
-    return `${hours.padStart(2, '0')}:${minutes}:00`;
-  } catch {
-    return "09:00:00";
-  }
-};
-
-const createTimestamp = (dateStr: string, timeStr: string) => {
-  try {
-    const time24 = convertTo24Hour(timeStr);
-    return new Date(`${dateStr}T${time24}`).getTime();
-  } catch {
-    return Date.now();
-  }
-};
-
 const getDaysRemaining = (dateStr: string, todayStr: string) => {
   if (dateStr === todayStr) return 'Today';
   
@@ -70,11 +39,11 @@ const getDaysRemaining = (dateStr: string, todayStr: string) => {
 
 const getStatusColor = (status: string) => {
   switch (status.toUpperCase()) {
-    case 'SCHEDULED': return '#3B82F6';   // Blue
-    case 'COMPLETED': return '#10B981';   // Green
-    case 'RESCHEDULED': return '#F59E0B'; // Orange
-    case 'CANCELLED': return '#64748B';   // Gray
-    default: return '#3B82F6';
+    case 'SCHEDULED':    return '#3B82F6'; // Blue
+    case 'COMPLETED':    return '#10B981'; // Green
+    case 'RESCHEDULED':  return '#F59E0B'; // Orange
+    case 'CANCELLED':    return '#64748B'; // Gray
+    default:             return '#94A3B8'; // Neutral gray for unknown
   }
 };
 
@@ -100,19 +69,22 @@ const MeetingRemindersScreen = () => {
         const isCancelled = m.status === 'CANCELLED' || m.status === 'Cancelled';
 
         if (!isCompleted && !isCancelled) {
+          // Participants: only show if backend returns actual attendees
+          let participantStr = '';
+          if (m.meetingDoctors && m.meetingDoctors.length > 0) {
+            participantStr = `${m.meetingDoctors.length} Doctor(s)`;
+          } else if (m.meetingChemists && m.meetingChemists.length > 0) {
+            participantStr = `${m.meetingChemists.length} Chemist(s)`;
+          }
+
           upcomingReminders.push({
             id: m.id.toString(),
-            topic: m.title || 'Meeting',
-            participants:
-              m.meetingDoctors && m.meetingDoctors.length > 0
-                ? `${m.meetingDoctors.length} Doctor(s)`
-                : m.meetingChemists && m.meetingChemists.length > 0
-                ? `${m.meetingChemists.length} Chemist(s)`
-                : 'General Meeting',
+            topic: m.title || '',               // Hide if not returned by backend
+            participants: participantStr,        // Empty if no participants from backend
             date: meetingDate,
             time: new Date(m.meetingDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-            venue: m.location || 'N/A',
-            status: m.status || 'Scheduled',
+            venue: m.location || '',             // Hide if not returned by backend
+            status: m.status || '',              // Empty, badge hidden if no status
             timestamp: new Date(m.meetingDate).getTime(),
             isToday: meetingDate === todayStr,
             daysText: getDaysRemaining(meetingDate, todayStr)
@@ -137,6 +109,56 @@ const MeetingRemindersScreen = () => {
 
   const todayReminders = reminders.filter(r => r.isToday);
   const futureReminders = reminders.filter(r => !r.isToday);
+
+  // Reusable card renderer used for both Today and Upcoming sections
+  const renderCard = (reminder: MeetingReminder, isToday: boolean) => (
+    <View key={reminder.id} style={[styles.reminderCard, isToday && styles.todayCard]}>
+      <View style={styles.cardHeader}>
+        {/* Topic: only render if backend provides it */}
+        {reminder.topic ? (
+          <Text style={styles.topic}>{reminder.topic}</Text>
+        ) : (
+          <Text style={[styles.topic, { color: '#94A3B8' }]}>Untitled Meeting</Text>
+        )}
+
+        {/* Status badge: only render if status is present */}
+        {reminder.status ? (
+          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(reminder.status) }]}>
+            <Text style={styles.statusText}>{reminder.status.toUpperCase()}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      {/* Participants: only render if backend returned attendees */}
+      {reminder.participants ? (
+        <Text style={styles.clientText}>🤝 {reminder.participants}</Text>
+      ) : null}
+
+      <View style={styles.timeRow}>
+        <View style={styles.iconText}>
+          <Text style={styles.icon}>{isToday ? '⏰' : '📅'}</Text>
+          <Text style={styles.timeText}>{reminder.time} ({reminder.daysText})</Text>
+        </View>
+
+        {/* Venue: only render if backend returned a location */}
+        {reminder.venue ? (
+          <View style={styles.iconText}>
+            <Text style={styles.icon}>📍</Text>
+            <Text style={styles.timeText}>{reminder.venue}</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <TouchableOpacity
+        style={isToday ? styles.actionButton : styles.actionButtonNeutral}
+        onPress={() => navigation.navigate('MeetingScheduling', { meetingId: reminder.id })}
+      >
+        <Text style={isToday ? styles.actionButtonText : styles.actionButtonTextNeutral}>
+          View Details
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
 
   return (
     <View style={styles.container}>
@@ -163,36 +185,7 @@ const MeetingRemindersScreen = () => {
             {todayReminders.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>🔴 Due Today ({todayReminders.length})</Text>
-                {todayReminders.map(reminder => (
-                  <View key={reminder.id} style={[styles.reminderCard, styles.todayCard]}>
-                    <View style={styles.cardHeader}>
-                      <Text style={styles.topic}>{reminder.topic}</Text>
-                      {/* DYNAMIC STATUS BADGE */}
-                      <View style={[styles.statusBadge, { backgroundColor: getStatusColor(reminder.status) }]}>
-                        <Text style={styles.statusText}>{reminder.status.toUpperCase()}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.clientText}>🤝 {reminder.participants}</Text>
-                    
-                    <View style={styles.timeRow}>
-                      <View style={styles.iconText}>
-                        <Text style={styles.icon}>⏰</Text>
-                        <Text style={styles.timeText}>{reminder.time} ({reminder.daysText})</Text>
-                      </View>
-                      <View style={styles.iconText}>
-                        <Text style={styles.icon}>📍</Text>
-                        <Text style={styles.timeText}>{reminder.venue}</Text>
-                      </View>
-                    </View>
-                    
-                    <TouchableOpacity 
-                      style={styles.actionButton}
-                      onPress={() => navigation.navigate('MeetingScheduling')}
-                    >
-                      <Text style={styles.actionButtonText}>View Details</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                {todayReminders.map(reminder => renderCard(reminder, true))}
               </View>
             )}
 
@@ -200,36 +193,7 @@ const MeetingRemindersScreen = () => {
             {futureReminders.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>📅 Upcoming ({futureReminders.length})</Text>
-                {futureReminders.map(reminder => (
-                  <View key={reminder.id} style={styles.reminderCard}>
-                    <View style={styles.cardHeader}>
-                      <Text style={styles.topic}>{reminder.topic}</Text>
-                      {/* DYNAMIC STATUS BADGE */}
-                      <View style={[styles.statusBadgeNeutral, { backgroundColor: getStatusColor(reminder.status) }]}>
-                        <Text style={[styles.statusTextNeutral, { color: '#FFFFFF' }]}>{reminder.status.toUpperCase()}</Text>
-                      </View>
-                    </View>
-                    <Text style={styles.clientText}>🤝 {reminder.participants}</Text>
-                    
-                    <View style={styles.timeRow}>
-                      <View style={styles.iconText}>
-                        <Text style={styles.icon}>📅</Text>
-                        <Text style={styles.timeText}>{reminder.time} ({reminder.daysText})</Text>
-                      </View>
-                      <View style={styles.iconText}>
-                        <Text style={styles.icon}>📍</Text>
-                        <Text style={styles.timeText}>{reminder.venue}</Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity 
-                      style={styles.actionButtonNeutral}
-                      onPress={() => navigation.navigate('MeetingScheduling')}
-                    >
-                      <Text style={styles.actionButtonTextNeutral}>View Details</Text>
-                    </TouchableOpacity>
-                  </View>
-                ))}
+                {futureReminders.map(reminder => renderCard(reminder, false))}
               </View>
             )}
           </View>
@@ -263,9 +227,6 @@ const styles = StyleSheet.create({
   
   statusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
   statusText: { color: '#FFFFFF', fontSize: 9, fontWeight: 'bold' },
-  
-  statusBadgeNeutral: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  statusTextNeutral: { fontSize: 9, fontWeight: 'bold' },
   
   clientText: { fontSize: 14, color: '#4F46E5', fontWeight: '600', marginBottom: 12 },
   

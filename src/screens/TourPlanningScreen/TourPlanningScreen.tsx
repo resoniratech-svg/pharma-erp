@@ -14,19 +14,11 @@ import {
   KeyboardAvoidingView,
   ActivityIndicator,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker'; // ⬅️ Step 2: Added Picker Import
 
-const safeJsonParse = (data: string | null, fallback: any) => {
-  if (!data) return fallback;
-  try {
-    return JSON.parse(data);
-  } catch (err) {
-    console.log('safeJsonParse error in TourPlanningScreen:', err);
-    return fallback;
-  }
-};
+
 
 const TourPlanningScreen = () => {
   // Tomorrow's date helper (DD-MMM-YYYY)
@@ -240,18 +232,18 @@ const TourPlanningScreen = () => {
           const chemistCount = p.tourPlanChemists?.length || chemistIds.length;
 
           const doctorsListStr = p.tourPlanDoctors && p.tourPlanDoctors.length > 0
-            ? p.tourPlanDoctors.map((td: any) => td.doctor?.name || td.doctor?.doctorName || `Doctor #${td.doctorId}`).join(', ')
+            ? p.tourPlanDoctors.map((td: any) => td.doctor?.name || td.doctor?.doctorName || 'Unknown Doctor').join(', ')
             : doctorIds.map((id: any) => {
                 const doc = docsList.find((d: any) => String(d.id) === String(id));
-                return doc ? doc.name || doc.doctorName : `Doctor #${id}`;
-              }).join(', ') || 'None';
+                return doc ? doc.name || doc.doctorName : 'Unknown Doctor';
+              }).join(', ');
 
           const chemistsListStr = p.tourPlanChemists && p.tourPlanChemists.length > 0
-            ? p.tourPlanChemists.map((tc: any) => tc.chemist?.name || tc.chemist?.chemistName || tc.chemist?.shopName || `Chemist #${tc.chemistId}`).join(', ')
+            ? p.tourPlanChemists.map((tc: any) => tc.chemist?.name || tc.chemist?.chemistName || tc.chemist?.shopName || 'Unknown Chemist').join(', ')
             : chemistIds.map((id: any) => {
                 const chem = chemsList.find((c: any) => String(c.id) === String(id));
-                return chem ? chem.name || chem.chemistName || chem.shopName : `Chemist #${id}`;
-              }).join(', ') || 'None';
+                return chem ? chem.name || chem.chemistName || chem.shopName : 'Unknown Chemist';
+              }).join(', ');
 
           return {
             id: p.id || Date.now() + idx,
@@ -377,11 +369,11 @@ const TourPlanningScreen = () => {
         // Build names from selectedDoctorIds/chemistIds for local display
         const finalDoctorsList = selectedDoctorIds.map(id => {
           const doc = doctors.find((d: any) => String(d.id) === String(id));
-          return doc ? doc.name || doc.doctorName || `Doctor #${id}` : `Doctor #${id}`;
+          return doc ? doc.name || doc.doctorName || 'Unknown Doctor' : 'Unknown Doctor';
         }).join(', ');
         const finalChemistsList = selectedChemistIds.map(id => {
           const chem = chemists.find((c: any) => String(c.id) === String(id));
-          return chem ? chem.name || chem.chemistName || chem.shopName || `Chemist #${id}` : `Chemist #${id}`;
+          return chem ? chem.name || chem.chemistName || chem.shopName || 'Unknown Chemist' : 'Unknown Chemist';
         }).join(', ');
 
         await updateTourPlan(
@@ -408,6 +400,8 @@ const TourPlanningScreen = () => {
         setDoctorsList('');
         setChemistsList('');
         setRemarks('');
+        setSelectedDoctorId(null);
+        setSelectedChemistId(null);
         setSelectedDoctorIds([]);
         setSelectedChemistIds([]);
         setDate(getTomorrowDateString());
@@ -419,11 +413,11 @@ const TourPlanningScreen = () => {
         // Build names from selectedDoctorIds/chemistIds for local display
         const finalDoctorsList = selectedDoctorIds.map(id => {
           const doc = doctors.find((d: any) => String(d.id) === String(id));
-          return doc ? doc.name || doc.doctorName || `Doctor #${id}` : `Doctor #${id}`;
+          return doc ? doc.name || doc.doctorName || 'Unknown Doctor' : 'Unknown Doctor';
         }).join(', ');
         const finalChemistsList = selectedChemistIds.map(id => {
           const chem = chemists.find((c: any) => String(c.id) === String(id));
-          return chem ? chem.name || chem.chemistName || chem.shopName || `Chemist #${id}` : `Chemist #${id}`;
+          return chem ? chem.name || chem.chemistName || chem.shopName || 'Unknown Chemist' : 'Unknown Chemist';
         }).join(', ');
 
         await createTourPlan(
@@ -448,6 +442,8 @@ const TourPlanningScreen = () => {
         setDoctorsList('');
         setChemistsList('');
         setRemarks('');
+        setSelectedDoctorId(null);
+        setSelectedChemistId(null);
         setSelectedDoctorIds([]);
         setSelectedChemistIds([]);
         setDate(getTomorrowDateString());
@@ -547,28 +543,32 @@ const TourPlanningScreen = () => {
     }
   };
 
+  // KPI: match by doctor ID for accuracy (avoids name-duplicate issues)
   const getVisitedDocsCount = (plan: any, list: any[]) => {
-    const planned = (plan.doctorsList || '').split(',').map((n: string) => n.trim().toLowerCase()).filter((n: string) => n !== '');
-    if (planned.length === 0) return 0;
+    const plannedIds: any[] = plan.doctorIds || [];
+    if (plannedIds.length === 0) return 0;
     const matches = list.filter((v) => {
-      const visitDateVal = v.visitDate || v.date || v.createdAt || v.visit_date || v.id;
+      const visitDateVal = v.visitDate || v.date || v.createdAt || v.visit_date;
+      if (!visitDateVal) return false;
       const vDate = formatDate(new Date(visitDateVal));
       if (vDate !== plan.date) return false;
-      const vName = (v.doctorName || v.name || '').trim().toLowerCase();
-      return planned.some((pName: string) => vName.includes(pName) || pName.includes(vName));
+      const vDoctorId = v.doctorId || v.doctor_id || v.id;
+      return plannedIds.some((pid: any) => String(pid) === String(vDoctorId));
     });
     return matches.length;
   };
 
+  // KPI: match by chemist ID for accuracy (avoids name-duplicate issues)
   const getVisitedChemistsCount = (plan: any, list: any[]) => {
-    const planned = (plan.chemistsList || '').split(',').map((n: string) => n.trim().toLowerCase()).filter((n: string) => n !== '');
-    if (planned.length === 0) return 0;
+    const plannedIds: any[] = plan.chemistIds || [];
+    if (plannedIds.length === 0) return 0;
     const matches = list.filter((v) => {
-      const visitDateVal = v.visitDate || v.date || v.createdAt || v.visit_date || v.id;
+      const visitDateVal = v.visitDate || v.date || v.createdAt || v.visit_date;
+      if (!visitDateVal) return false;
       const vDate = formatDate(new Date(visitDateVal));
       if (vDate !== plan.date) return false;
-      const vName = (v.chemistName || v.shopName || v.name || '').trim().toLowerCase();
-      return planned.some((pName: string) => vName.includes(pName) || pName.includes(vName));
+      const vChemistId = v.chemistId || v.chemist_id || v.id;
+      return plannedIds.some((pid: any) => String(pid) === String(vChemistId));
     });
     return matches.length;
   };
@@ -798,7 +798,7 @@ const TourPlanningScreen = () => {
                       setSelectedDoctorIds([...selectedDoctorIds, rawId]);
                       const doctor = doctors.find((d: any) => String(d.id) === String(rawId));
                       if (doctor) {
-                        const docName = doctor.name || doctor.doctorName || `Doctor #${rawId}`;
+                        const docName = doctor.name || doctor.doctorName || 'Unknown Doctor';
                         setDoctorsList(doctorsList ? `${doctorsList}, ${docName}` : docName);
                       }
                     }
@@ -831,7 +831,7 @@ const TourPlanningScreen = () => {
                       setSelectedChemistIds([...selectedChemistIds, rawId]);
                       const chemist = chemists.find((c: any) => String(c.id) === String(rawId));
                       if (chemist) {
-                        const chemName = chemist.name || chemist.chemistName || chemist.shopName || `Chemist #${rawId}`;
+                        const chemName = chemist.name || chemist.chemistName || chemist.shopName || 'Unknown Chemist';
                         setChemistsList(chemistsList ? `${chemistsList}, ${chemName}` : chemName);
                       }
                     }
@@ -881,6 +881,8 @@ const TourPlanningScreen = () => {
                       setDoctorsList('');
                       setChemistsList('');
                       setRemarks('');
+                      setSelectedDoctorId(null);
+                      setSelectedChemistId(null);
                       setSelectedDoctorIds([]);
                       setSelectedChemistIds([]);
                       setDate(getTomorrowDateString());
@@ -941,8 +943,16 @@ const TourPlanningScreen = () => {
                       </View>
                       <Text style={styles.planInfo}>🕐 Hours: {plan.startTime} - {plan.endTime}</Text>
                       <Text style={styles.planInfo}>🎯 Objective: {plan.objective}</Text>
-                      <Text style={styles.planInfo}>🩺 Doctors Planned: {plan.docCount} ({plan.doctorsList || 'None'})</Text>
-                      <Text style={styles.planInfo}>💊 Chemists Planned: {plan.chemistCount} ({plan.chemistsList || 'None'})</Text>
+                      {plan.doctorsList ? (
+                        <Text style={styles.planInfo}>🩺 Doctors Planned: {plan.docCount} ({plan.doctorsList})</Text>
+                      ) : plan.docCount > 0 ? (
+                        <Text style={styles.planInfo}>🩺 Doctors Planned: {plan.docCount}</Text>
+                      ) : null}
+                      {plan.chemistsList ? (
+                        <Text style={styles.planInfo}>💊 Chemists Planned: {plan.chemistCount} ({plan.chemistsList})</Text>
+                      ) : plan.chemistCount > 0 ? (
+                        <Text style={styles.planInfo}>💊 Chemists Planned: {plan.chemistCount}</Text>
+                      ) : null}
                       {plan.remarks ? (
                         <Text style={styles.planInfo}>💬 Remarks: {plan.remarks}</Text>
                       ) : null}

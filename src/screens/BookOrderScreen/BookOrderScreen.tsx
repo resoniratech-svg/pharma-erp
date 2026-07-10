@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useIsFocused } from '@react-navigation/native';
-import { getChemists } from '../../services/chemistService';
+import { getChemists, createChemist } from '../../services/chemistService';
 import { getHospitals } from '../../services/hospitalService';
 import { getStockists } from '../../services/stockistService';
 import { getProducts } from '../../services/productService';
@@ -351,9 +351,24 @@ const BookOrderScreen = () => {
         customAlert('Error', 'Failed to update order locally.');
       }
     } else {
-      // Extract DB retailer ID
+      // Extract or create DB retailer ID
       let resolvedRetailerId = 1;
-      if (selectedCustomerId && typeof selectedCustomerId === 'string' && selectedCustomerId.includes('_')) {
+      
+      if (customerSource === 'New Customer') {
+        try {
+          // Register the new customer as a Chemist in the database first to get a valid ID
+          const newChemist = await createChemist(customerName, customerName, customerMobile, 'New Shop Address');
+          resolvedRetailerId = Number(newChemist.id || newChemist.data?.id);
+          if (isNaN(resolvedRetailerId) || !resolvedRetailerId) {
+            resolvedRetailerId = 1;
+          }
+        } catch (chemErr: any) {
+          console.log('Failed to create new chemist for the order:', chemErr);
+          const errMsg = chemErr?.response?.data?.message || chemErr?.message || '';
+          customAlert('Error', `Failed to register the new customer on the server. ${errMsg}`);
+          return;
+        }
+      } else if (selectedCustomerId && typeof selectedCustomerId === 'string' && selectedCustomerId.includes('_')) {
         const parts = selectedCustomerId.split('_');
         const parsedId = Number(parts[parts.length - 1]);
         if (!isNaN(parsedId)) {
@@ -406,9 +421,10 @@ const BookOrderScreen = () => {
         setSelectedCustomerId(null);
         setQuantity('');
         setRemarks('');
-      } catch (error) {
+      } catch (error: any) {
         console.log('Failed to create order on server:', error);
-        customAlert('Error', 'Failed to save order to the server.');
+        const serverMsg = error?.response?.data?.message || error?.response?.data?.error || error?.message || '';
+        customAlert('Error', `Failed to save order to the server. ${serverMsg}`);
       }
     }
   };
@@ -535,13 +551,7 @@ const BookOrderScreen = () => {
         >
 
 
-      <View style={styles.headerRow}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>⬅️ Back</Text>
-        </TouchableOpacity>
-        <Text style={styles.title}>📦 Book Order</Text>
-        <View style={{ width: 60 }} /> {/* Balance the back button spacing */}
-      </View>
+      <Text style={styles.title}>📦 Book Order</Text>
 
       {loadingMaster ? (
         <View style={styles.loaderCard}>
@@ -941,27 +951,8 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
-    textAlign: 'center',
-    flex: 1,
-  },
-  headerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
     marginBottom: 20,
-    width: '100%',
-  },
-  backButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 20,
-    backgroundColor: '#E3F2FD',
-    alignSelf: 'center',
-  },
-  backButtonText: {
-    fontSize: 14,
-    color: '#1E88E5',
-    fontWeight: 'bold',
+    textAlign: 'center',
   },
   loaderCard: {
     backgroundColor: '#fff',
