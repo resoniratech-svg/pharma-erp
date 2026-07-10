@@ -12,7 +12,6 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { getChemistVisitsByMr, getChemists } from '../../services/chemistService';
-import { getReadableLocation } from '../../services/locationHelper';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -30,7 +29,7 @@ interface GeoChemVisit {
   visitTime: string;
   latitude: number | null;
   longitude: number | null;
-  distanceVerified: string;
+  gpsStatus: string;
   status: 'Verified' | 'Pending' | 'Rejected';
 }
 
@@ -87,7 +86,7 @@ const GeoTaggedChemistVisitsScreen = () => {
             visitTime: timeStr,
             latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
             longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
-            distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
+            gpsStatus: item.latitude ? 'Location Recorded' : 'Pending GPS Lock',
             status: item.status === 'Verified' || item.status === 'Rejected'
               ? item.status
               : (item.latitude ? 'Verified' : 'Pending')
@@ -101,13 +100,20 @@ const GeoTaggedChemistVisitsScreen = () => {
         const mapped: GeoChemVisit[] = parsed.map((item: any, idx: number) => {
           const chemIdNum = Number(item.chemistId);
           const resolvedName = chemsMap.get(chemIdNum) || item.chemistName || item.chemist?.name || (item.chemistId ? `Chemist #${item.chemistId}` : 'N/A');
+          let timeStr = item.visitTime || '-';
+          if (item.visitDate) {
+            try {
+              const d = new Date(item.visitDate);
+              timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {}
+          }
           return {
             id: item.id?.toString() || `local-${Date.now()}-${idx}`,
             chemistName: resolvedName,
-            visitTime: item.visitTime || '-',
+            visitTime: timeStr,
             latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
             longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
-            distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
+            gpsStatus: item.latitude ? 'Location Recorded' : 'Pending GPS Lock',
             status: item.status === 'Verified' || item.status === 'Rejected' 
               ? item.status 
               : (item.latitude ? 'Verified' : 'Pending')
@@ -163,13 +169,9 @@ const GeoTaggedChemistVisitsScreen = () => {
               </Text>
             </View>
             <View style={styles.kpiCard}>
-              <Text style={styles.kpiLabel}>Coverage %</Text>
-              <Text style={[styles.kpiValue, { color: '#3B82F6' }]}>
-                {(() => {
-                  const verified = filteredVisits.filter(v => v.status === 'Verified').length;
-                  const total = filteredVisits.length;
-                  return total > 0 ? `${Math.round((verified / total) * 100)}%` : '0%';
-                })()}
+              <Text style={styles.kpiLabel}>Pending / Rejected</Text>
+              <Text style={[styles.kpiValue, { color: '#EF4444' }]}>
+                {filteredVisits.filter(v => v.status === 'Rejected' || v.status === 'Pending').length}
               </Text>
             </View>
           </ScrollView>
@@ -196,14 +198,6 @@ const GeoTaggedChemistVisitsScreen = () => {
                 badgeBg = '#FEF3C7';
               }
 
-              let distanceColor = '#EF4444';
-              if (item.distanceVerified.includes('Yes')) {
-                distanceColor = '#10B981';
-              } else if (item.distanceVerified.includes('Pending')) {
-                distanceColor = '#F59E0B';
-              }
-
-              const readableLoc = getReadableLocation(item.latitude, item.longitude);
               return (
                 <View style={styles.listItem}>
                   <View style={styles.listHeader}>
@@ -214,19 +208,19 @@ const GeoTaggedChemistVisitsScreen = () => {
                   </View>
 
                   <View style={styles.locationDetailRow}>
-                    <Text style={styles.locationCity}>📍 Nearest Hub: {readableLoc} (Info Only)</Text>
-                    {item.latitude !== null && item.longitude !== null && (
-                      <Text style={styles.locationCoords}>
-                        🛰️ GPS Audit Coords: {item.latitude.toFixed(4)}° N, {item.longitude.toFixed(4)}° E
-                      </Text>
-                    )}
+                    <Text style={styles.locationCity}>
+                      📍 GPS Status: <Text style={{ fontWeight: 'normal', color: item.latitude ? '#10B981' : '#F59E0B' }}>{item.gpsStatus}</Text>
+                    </Text>
+                    {item.latitude !== null && item.longitude !== null ? (
+                      <View style={{ marginTop: 4 }}>
+                        <Text style={styles.locationCoords}>Latitude: {item.latitude.toFixed(5)}</Text>
+                        <Text style={styles.locationCoords}>Longitude: {item.longitude.toFixed(5)}</Text>
+                      </View>
+                    ) : null}
                   </View>
 
                   <View style={styles.timeRow}>
-                    <Text style={styles.timeText}>🕒 Checked In: {item.visitTime}</Text>
-                    <Text style={[styles.matchText, { color: distanceColor }]}>
-                      {item.distanceVerified}
-                    </Text>
+                    <Text style={styles.timeText}>🕒 Visit Time: {item.visitTime}</Text>
                   </View>
                 </View>
               );

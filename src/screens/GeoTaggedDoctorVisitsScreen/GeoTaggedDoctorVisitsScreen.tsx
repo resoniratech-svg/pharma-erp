@@ -12,7 +12,6 @@ import {
     TouchableOpacity,
 } from 'react-native';
 import { getDoctorVisitsByMr, getDoctors } from '../../services/doctorService';
-import { getReadableLocation } from '../../services/locationHelper';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -27,11 +26,10 @@ const safeJsonParse = (data: string | null, fallback: any) => {
 interface GeoDocVisit {
   id: string;
   doctorName: string;
-  checkIn: string;
-  checkOut: string;
+  visitTime: string;
   latitude: number | null;
   longitude: number | null;
-  distanceVerified: string;
+  gpsStatus: string;
   status: 'Verified' | 'Pending' | 'Rejected';
 }
 
@@ -85,11 +83,10 @@ const GeoTaggedDoctorVisitsScreen = () => {
           return {
             id: item.id?.toString() || `server-${idx}`,
             doctorName: resolvedName,
-            checkIn: timeStr,
-            checkOut: item.checkOut || '-',
+            visitTime: timeStr,
             latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
             longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
-            distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
+            gpsStatus: item.latitude ? 'Location Recorded' : 'Pending GPS Lock',
             status: item.status === 'Verified' || item.status === 'Rejected'
               ? item.status
               : (item.latitude ? 'Verified' : 'Pending')
@@ -103,14 +100,20 @@ const GeoTaggedDoctorVisitsScreen = () => {
         const mapped: GeoDocVisit[] = parsed.map((item: any, idx: number) => {
           const docIdNum = Number(item.doctorId);
           const resolvedName = docsMap.get(docIdNum) || item.doctorName || item.doctor?.name || (item.doctorId ? `Doctor #${item.doctorId}` : 'N/A');
+          let timeStr = item.visitTime || '-';
+          if (item.visitDate) {
+            try {
+              const d = new Date(item.visitDate);
+              timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            } catch (e) {}
+          }
           return {
             id: item.id?.toString() || `local-${Date.now()}-${idx}`,
             doctorName: resolvedName,
-            checkIn: item.visitTime || '-',
-            checkOut: item.checkOut || '-',
+            visitTime: timeStr,
             latitude: item.latitude && !isNaN(parseFloat(item.latitude)) ? parseFloat(item.latitude) : null,
             longitude: item.longitude && !isNaN(parseFloat(item.longitude)) ? parseFloat(item.longitude) : null,
-            distanceVerified: item.distanceVerified || (item.latitude ? 'Verified (within 50m)' : 'Pending Verification'),
+            gpsStatus: item.latitude ? 'Location Recorded' : 'Pending GPS Lock',
             status: item.status === 'Verified' || item.status === 'Rejected' 
               ? item.status 
               : (item.latitude ? 'Verified' : 'Pending')
@@ -195,15 +198,6 @@ const GeoTaggedDoctorVisitsScreen = () => {
                 badgeBg = '#FEF3C7';
               }
 
-              let distanceColor = '#EF4444';
-             // if (item.distanceVerified.includes('Yes')) {
-             if (item.distanceVerified.includes('Verified')){
-                distanceColor = '#10B981';
-              } else if (item.distanceVerified.includes('Pending')) {
-                distanceColor = '#F59E0B';
-              }
-
-              const readableLoc = getReadableLocation(item.latitude, item.longitude);
               return (
                 <View style={styles.listItem}>
                   <View style={styles.listHeader}>
@@ -214,19 +208,19 @@ const GeoTaggedDoctorVisitsScreen = () => {
                   </View>
 
                   <View style={styles.locationDetailRow}>
-                    <Text style={styles.locationCity}>📍 Nearest Hub: {readableLoc} (Info Only)</Text>
-                    {item.latitude !== null && item.longitude !== null && (
-                      <Text style={styles.locationCoords}>
-                        🛰️ GPS Audit Coords: {item.latitude.toFixed(4)}° N, {item.longitude.toFixed(4)}° E
-                      </Text>
-                    )}
+                    <Text style={styles.locationCity}>
+                      📍 GPS Status: <Text style={{ fontWeight: 'normal', color: item.latitude ? '#10B981' : '#F59E0B' }}>{item.gpsStatus}</Text>
+                    </Text>
+                    {item.latitude !== null && item.longitude !== null ? (
+                      <View style={{ marginTop: 4 }}>
+                        <Text style={styles.locationCoords}>Latitude: {item.latitude.toFixed(5)}</Text>
+                        <Text style={styles.locationCoords}>Longitude: {item.longitude.toFixed(5)}</Text>
+                      </View>
+                    ) : null}
                   </View>
 
                   <View style={styles.timeRow}>
-                    <Text style={styles.timeText}>🕒 In: {item.checkIn}  |  Out: {item.checkOut}</Text>
-                    <Text style={[styles.matchText, { color: distanceColor }]}>
-                      {item.distanceVerified}
-                    </Text>
+                    <Text style={styles.timeText}>🕒 Visit Time: {item.visitTime}</Text>
                   </View>
                 </View>
               );
