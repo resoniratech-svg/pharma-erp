@@ -748,11 +748,7 @@ const MeetingSchedulerScreen = () => {
             onChangeText={setAgenda}
             multiline
             numberOfLines={3}
-            onFocus={() => {
-              setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }, 150);
-            }}
+        
           />
 
           <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>

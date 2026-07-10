@@ -59,8 +59,8 @@ const AttendanceScreen = () => {
   const [latitude, setLatitude] = useState<number | null>(null);
   const [longitude, setLongitude] = useState<number | null>(null);
   const [address, setAddress] = useState('');
-  const [userName, setUserName] = useState('Priya Reddy');
-  const [designation, setDesignation] = useState('Medical Representative');
+  const [userName, setUserName] = useState('');
+  const [designation, setDesignation] = useState('');
   const [logs, setLogs] = useState<any[]>([]);
 
   useEffect(() => {
@@ -97,11 +97,11 @@ const AttendanceScreen = () => {
           return {
             id: log.id || `att-log-${idx}`,
             date: log.date || 'N/A',
-            status: log.status || 'Present',
+            status: log.status ?? 'Unknown',
             checkInTime: log.checkIn || log.checkInTime || 'N/A',
-            checkInAddress: log.checkInAddress || log.address || 'Field Location',
+            checkInAddress: log.checkInAddress || log.address || 'N/A',
             checkOutTime: log.checkOut || log.checkOutTime || 'Active',
-            checkOutAddress: log.checkOutAddress || 'Field Location',
+            checkOutAddress: log.checkOutAddress || 'N/A',
             duration: durationStr || 'N/A'
           };
         });

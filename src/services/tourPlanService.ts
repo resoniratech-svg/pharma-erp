@@ -5,8 +5,14 @@ export const createTourPlan = async (
   tourDate: string,
   territory: string,
   objective: string,
-  doctorIds: number[],
-  chemistIds: number[]
+  doctorIds: any[],
+  chemistIds: any[],
+  area: string,
+  beat: string,
+  planType: string,
+  startTime: string,
+  endTime: string,
+  remarks: string
 ) => {
 
   const token = await AsyncStorage.getItem('@token');
@@ -21,6 +27,12 @@ export const createTourPlan = async (
       objective,
       doctorIds,
       chemistIds,
+      area,
+      beat,
+      planType,
+      startTime,
+      endTime,
+      remarks,
     },
     {
       headers: {
@@ -29,6 +41,73 @@ export const createTourPlan = async (
     }
   );
 
+  return response.data;
+};
+
+export const updateTourPlan = async (
+  planId: number | string,
+  tourDate: string,
+  territory: string,
+  objective: string,
+  doctorIds: any[],
+  chemistIds: any[],
+  area: string,
+  beat: string,
+  planType: string,
+  startTime: string,
+  endTime: string,
+  remarks: string
+) => {
+  const token = await AsyncStorage.getItem('@token');
+  const mrId = await AsyncStorage.getItem('@mrId');
+
+  const response = await api.put(
+    `/tour-plans/${planId}`,
+    {
+      mrId: Number(mrId),
+      tourDate,
+      territory,
+      objective,
+      doctorIds,
+      chemistIds,
+      area,
+      beat,
+      planType,
+      startTime,
+      endTime,
+      remarks,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return response.data;
+};
+
+export const deleteTourPlan = async (planId: number | string) => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.delete(`/tour-plans/${planId}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data;
+};
+
+export const updateTourPlanStatus = async (planId: number | string, status: string) => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.patch(
+    `/tour-plans/${planId}/status`,
+    { status },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
   return response.data;
 };
 
