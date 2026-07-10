@@ -103,6 +103,7 @@ import {
 } from './components/shared';
 import { type Column } from './components/shared';
 import { validateCheckIn } from '../../utils/attendanceValidation';
+import { meetingService } from '../../services/meetingService';
 
 interface MRMeeting {
   id: string;
@@ -149,17 +150,20 @@ export default function MrMeetings() {
   const [participants, setParticipants] = useState('');
   const [followUpDate, setFollowUpDate] = useState('');
 
-  // Load from LocalStorage on mount
+  const mrId = Number(localStorage.getItem('mrId') || '1');
+
+  // Load from database on mount
   useEffect(() => {
-    const stored = localStorage.getItem('@mr_meetings');
-    if (stored) {
+    async function loadData() {
       try {
-        setMeetings(JSON.parse(stored));
-      } catch (e) {
-        console.error('Failed to parse MR meetings', e);
+        const loaded = await meetingService.loadMeetings(mrId);
+        setMeetings(loaded);
+      } catch (error) {
+        console.error('Failed to load meetings from database:', error);
       }
     }
-  }, []);
+    loadData();
+  }, [mrId]);
 
   const handleUpdateStatus = (id: string, newStatus: 'Completed' | 'Cancelled') => {
     const updated = meetings.map(m => m.id === id ? { ...m, status: newStatus } : m);
@@ -230,7 +234,7 @@ export default function MrMeetings() {
   //       return;
   //     }
   //   }
-  const handleScheduleOrUpdate = () => {
+  const handleScheduleOrUpdate = async () => {
     // 1. NEW: Check if the MR is checked in before they can schedule!
     if (!validateCheckIn()) {
       return;
@@ -284,72 +288,83 @@ export default function MrMeetings() {
 
     const attendeesCount = participants.split(',').map(p => p.trim()).filter(p => p.length > 0).length;
 
-    const newMeetingData: MRMeeting = {
-      id: editMeetingId || Date.now().toString(),
-      title,
-      type,
-      organizer: organizer.trim(),
-      location,
-      meetingMode,
-      date,
-      time: displayTime,
-      rawTime: time,
-      priority,
-      reminder,
-      status: 'Scheduled',
-      agenda,
-      participants,
-      attendeesCount,
-      followUpDate,
-      outcome: ''
-    };
-
-    let updatedMeetings;
-    if (editMeetingId) {
-      updatedMeetings = meetings.map(m => m.id === editMeetingId ? newMeetingData : m);
-    } else {
-      updatedMeetings = [newMeetingData, ...meetings];
-    }
-
-    setMeetings(updatedMeetings);
-    localStorage.setItem('@mr_meetings', JSON.stringify(updatedMeetings));
-        // --- START OF GLOBAL NOTIFICATION BRIDGE ---
     try {
-      const storedGlobal = localStorage.getItem('crm_meetings');
-      let globalMeetings = storedGlobal ? JSON.parse(storedGlobal) : [];
-      
-      const newGlobalReminder = {
-        meetingId: newMeetingData.id,
-        meetingTitle: newMeetingData.title,
-        participant: newMeetingData.organizer || newMeetingData.participants,
-        meetingType: newMeetingData.type,
-        date: newMeetingData.date,
-        time: newMeetingData.time,
-        reminderStatus: 'Pending',
-        status: newMeetingData.status
-      };
-      
-      // If we are editing, update the old one. If not, add the new one!
-      if (editMeetingId) {
-        globalMeetings = globalMeetings.map((m: any) => 
-          m.meetingId === editMeetingId ? { ...m, ...newGlobalReminder } : m
-        );
-      } else {
-        globalMeetings.push(newGlobalReminder);
-      }
-      
-      // Send it to the Notification Engine
-      localStorage.setItem('crm_meetings', JSON.stringify(globalMeetings));
-    } catch (e) {
-      console.error("Failed to sync global meeting", e);
-    }
-    // --- END OF GLOBAL NOTIFICATION BRIDGE ---
+      const created = await meetingService.addMeeting(mrId, {
+        title,
+        date,
+        time,
+        location,
+        agenda,
+        status: "Scheduled"
+      });
 
-    setIsFormOpen(false);
-       if (editMeetingId) {
-      alert('✅ Meeting updated successfully!');
-    } else {
-      alert('✅ Meeting scheduled successfully!');
+      const newMeetingData: MRMeeting = {
+        id: String(created.id),
+        title,
+        type,
+        organizer: organizer.trim(),
+        location,
+        meetingMode,
+        date,
+        time: displayTime,
+        rawTime: time,
+        priority,
+        reminder,
+        status: 'Scheduled',
+        agenda,
+        participants,
+        attendeesCount,
+        followUpDate,
+        outcome: ''
+      };
+
+      let updatedMeetings;
+      if (editMeetingId) {
+        updatedMeetings = meetings.map(m => m.id === editMeetingId ? newMeetingData : m);
+      } else {
+        updatedMeetings = [newMeetingData, ...meetings];
+      }
+
+      setMeetings(updatedMeetings);
+      localStorage.setItem('@mr_meetings', JSON.stringify(updatedMeetings));
+      alert('✅ Meeting saved successfully to database!');
+      
+      // --- START OF GLOBAL NOTIFICATION BRIDGE ---
+      try {
+        const storedGlobal = localStorage.getItem('crm_meetings');
+        let globalMeetings = storedGlobal ? JSON.parse(storedGlobal) : [];
+        
+        const newGlobalReminder = {
+          meetingId: newMeetingData.id,
+          meetingTitle: newMeetingData.title,
+          participant: newMeetingData.organizer || newMeetingData.participants,
+          meetingType: newMeetingData.type,
+          date: newMeetingData.date,
+          time: newMeetingData.time,
+          reminderStatus: 'Pending',
+          status: newMeetingData.status
+        };
+        
+        // If we are editing, update the old one. If not, add the new one!
+        if (editMeetingId) {
+          globalMeetings = globalMeetings.map((m: any) => 
+            m.meetingId === editMeetingId ? { ...m, ...newGlobalReminder } : m
+          );
+        } else {
+          globalMeetings.push(newGlobalReminder);
+        }
+        
+        // Send it to the Notification Engine
+        localStorage.setItem('crm_meetings', JSON.stringify(globalMeetings));
+      } catch (e) {
+        console.error("Failed to sync global meeting", e);
+      }
+      // --- END OF GLOBAL NOTIFICATION BRIDGE ---
+
+      setIsFormOpen(false);
+    } catch (error: any) {
+      console.error(error);
+      alert('Failed to schedule meeting: ' + error.message);
     }
   };
 

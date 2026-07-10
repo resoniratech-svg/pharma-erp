@@ -115,6 +115,8 @@ import {
 } from './components/shared';
 import { type Column } from './components/shared';
 import { ExportService } from '../../services/exportService';
+import { attendanceService } from '../../services/attendanceService';
+
 interface AttendanceRecord {
   id: string;
   date: string;
@@ -137,10 +139,20 @@ export default function Attendance() {
     const [isExportOpen, setIsExportOpen] = useState(false);
 
   useEffect(() => {
-    const storedData = localStorage.getItem('web_attendance_records');
-    if (storedData) {
-      setRecords(JSON.parse(storedData));
-    }
+    const fetchRecords = async () => {
+      try {
+        const mrId = Number(localStorage.getItem('mrId') || '2');
+        const data = await attendanceService.loadAttendance(mrId);
+        setRecords(data);
+      } catch (e) {
+        console.error("Failed to load attendance records:", e);
+        const storedData = localStorage.getItem('web_attendance_records');
+        if (storedData) {
+          setRecords(JSON.parse(storedData));
+        }
+      }
+    };
+    fetchRecords();
   }, []);
 
   const columns: Column<AttendanceRecord>[] = [

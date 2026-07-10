@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { MapPin, Flag } from 'lucide-react';
 import { PageHeader, ActionButton } from './components/shared';
+import { attendanceService } from '../../services/attendanceService';
 
 // ✅ Helper to match dates in any format (ISO: YYYY-MM-DD or Local: DD-MMM-YYYY)
 const isTodayDate = (dateStr: string): boolean => {
@@ -86,19 +87,30 @@ export default function CheckOut() {
     }
   };
 
+  const [records, setRecords] = useState<any[]>([]);
+
   useEffect(() => {
+    const fetchRecords = async () => {
+      try {
+        const mrId = Number(localStorage.getItem('mrId') || '2');
+        const data = await attendanceService.loadAttendance(mrId);
+        setRecords(data);
+      } catch (e) {
+        console.error("Failed to load records on checkout mount:", e);
+        const stored = localStorage.getItem('web_attendance_records');
+        if (stored) setRecords(JSON.parse(stored));
+      }
+    };
+    fetchRecords();
     fetchLocation();
   }, []);
 
-  const handleCheckOut = () => {
+  const handleCheckOut = async () => {
     if (!isReady || !latLng) return;
 
     const userName = getMRName();
     const now = new Date();
-    const todayDateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
-
-    const existingData = localStorage.getItem('web_attendance_records');
-    const records = existingData ? JSON.parse(existingData) : [];
+    const todayDateStr = now.toISOString().split('T')[0];
 
     const recordIndex = records.findIndex((r: any) => r.date === todayDateStr && r.repName === userName);
 
@@ -114,43 +126,51 @@ export default function CheckOut() {
       return;
     }
 
-    records[recordIndex].checkOutTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-    records[recordIndex].checkOutDateTime = now.toISOString();
-    
-    if (records[recordIndex].checkInDateTime) {
-      const checkIn = new Date(records[recordIndex].checkInDateTime);
-      const diffMs = now.getTime() - checkIn.getTime();
-      const hours = Math.floor(diffMs / 3600000);
-      const minutes = Math.floor((diffMs % 3600000) / 60000);
+    try {
+      const todayRecord = records[recordIndex];
+      await attendanceService.checkOut(String(todayRecord.id), latLng.lat, latLng.lng, locationText);
+
+      records[recordIndex].checkOutTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+      records[recordIndex].checkOutDateTime = now.toISOString();
       
-      records[recordIndex].workingHours = `${hours}h ${minutes}m`;
-      records[recordIndex].totalMinutes = Math.floor(diffMs / 60000);
+      if (records[recordIndex].checkInDateTime) {
+        const checkIn = new Date(records[recordIndex].checkInDateTime);
+        const diffMs = now.getTime() - checkIn.getTime();
+        const hours = Math.floor(diffMs / 3600000);
+        const minutes = Math.floor((diffMs % 3600000) / 60000);
+        
+        records[recordIndex].workingHours = `${hours}h ${minutes}m`;
+        records[recordIndex].totalMinutes = Math.floor(diffMs / 60000);
+      }
+
+      records[recordIndex].checkOutLocation = locationText;
+      records[recordIndex].checkOutLatitude = latLng.lat;
+      records[recordIndex].checkOutLongitude = latLng.lng;
+      records[recordIndex].dayStatus = "Completed";
+
+      localStorage.setItem('web_attendance_records', JSON.stringify(records));
+
+      localStorage.setItem(
+        'today_checkin',
+        JSON.stringify({
+          checkedIn: false,
+          user: userName,
+          checkoutTime: now.toISOString()
+        })
+      );
+      
+      alert('Checked out successfully!');
+      navigate('/workspace/gps/attendance');
+    } catch (e: any) {
+      console.error(e);
+      alert('Checkout failed: ' + e.message);
     }
-
-    records[recordIndex].checkOutLocation = locationText;
-    records[recordIndex].checkOutLatitude = latLng.lat;
-    records[recordIndex].checkOutLongitude = latLng.lng;
-    records[recordIndex].dayStatus = "Completed";
-
-    localStorage.setItem('web_attendance_records', JSON.stringify(records));
-
-    localStorage.setItem(
-      'today_checkin',
-      JSON.stringify({
-        checkedIn: false,
-        user: userName,
-        checkoutTime: now.toISOString()
-      })
-    );
-    
-    alert('Checked out successfully!');
-    navigate('/workspace/gps/attendance');
   };
 
   const handleOpenSummary = () => {
     const userName = getMRName();
     const now = new Date();
-    const todayDateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+    const todayDateStr = now.toISOString().split('T')[0];
 
     // Retrieve records
     let storedDocs = [];
@@ -173,7 +193,6 @@ export default function CheckOut() {
     const todayReport = storedReports.find((r: any) => r.mrName === userName && isTodayDate(r.date));
 
     let workingHoursText = '0h 0m';
-    const records = JSON.parse(localStorage.getItem('web_attendance_records') || '[]');
     const record = records.find((r: any) => r.date === todayDateStr && r.repName === userName);
     if (record && record.checkInDateTime) {
       const checkIn = new Date(record.checkInDateTime);

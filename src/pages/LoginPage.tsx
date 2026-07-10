@@ -123,18 +123,43 @@ export default function LoginPage() {
     // 1. Try to login against the real backend API
     try {
       const BASE_URL = import.meta.env.VITE_API_URL || 'https://pharma-erp-pharma-backend.rrh5yv.easypanel.host/api';
-      const response = await fetch(`${BASE_URL}/auth/login`, {
+      
+      let deviceId = localStorage.getItem('deviceId');
+      if (!deviceId) {
+        deviceId = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+        localStorage.setItem('deviceId', deviceId);
+      }
+
+      let response = await fetch(`${BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email, password, deviceId }),
       });
+
+      if (response.status === 409) {
+        const confirmForce = window.confirm("You are already logged in on another device. Do you want to terminate that session and log in here?");
+        if (confirmForce) {
+          response = await fetch(`${BASE_URL}/auth/login`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ email, password, deviceId, force: true }),
+          });
+        } else {
+          setLoading(false);
+          setEmailErr('Logged in on another device.');
+          setPasswordErr('Logged in on another device.');
+          return;
+        }
+      }
 
       const result = await response.json();
 
       if (response.ok && result.success) {
-        const { token, user } = result.data;
+        const { token, user, mr } = result.data;
 
         // Check if user role matches the workspace role
         if (user.role !== role.id) {
@@ -154,6 +179,8 @@ export default function LoginPage() {
           email: user.email,
           fullName: user.name,
           roleId: user.role,
+          employeeCode: mr ? mr.mrCode : '',
+          department: mr ? 'Sales & Marketing' : 'Management',
         };
 
         localStorage.setItem("activeRole", user.role);
@@ -161,6 +188,11 @@ export default function LoginPage() {
         localStorage.setItem("userId", String(user.id));
         localStorage.setItem("authUser", JSON.stringify(authUser));
         localStorage.setItem("authToken", token);
+        if (mr) {
+          localStorage.setItem('mrId', String(mr.id));
+          localStorage.setItem('mrCode', mr.mrCode);
+          localStorage.setItem('mrTerritory', mr.territory || '');
+        }
 
         activityLogService.addLog({
           userId: String(user.id),

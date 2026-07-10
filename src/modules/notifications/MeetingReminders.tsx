@@ -229,6 +229,7 @@
 
 import { useState, useEffect } from 'react';
 import { Download, Filter, Calendar, CheckCircle2, Clock, CalendarDays, XCircle } from 'lucide-react';
+import { meetingService } from '../../services/meetingService';
 import {
   PageHeader,
   FilterBar,
@@ -331,7 +332,7 @@ export default function MeetingReminders() {
     setMeetings(mappedData);
   };
 
-  const handleComplete = (identifier: string) => {
+  const handleComplete = async (identifier: string) => {
     const updated = meetings.map(item => {
       if (item.id === identifier || item.meetingId === identifier) {
         return { 
@@ -345,9 +346,41 @@ export default function MeetingReminders() {
     });
     setMeetings(updated);
     
-    // NOTE: Because this screen now reads from multiple places, 
-    // a real backend API would handle the database update here. 
-    // For local storage demo, we won't overwrite the global storage.
+    const meetingItem = meetings.find(item => item.id === identifier || item.meetingId === identifier);
+    
+    if (meetingItem?.source === 'MR') {
+      try {
+        await meetingService.completeMeeting(identifier);
+      } catch (err) {
+        console.error("Failed to complete meeting in backend:", err);
+      }
+      
+      try {
+        const storedMR = JSON.parse(localStorage.getItem('@mr_meetings') || '[]');
+        const updatedMR = storedMR.map((m: any) => {
+          if (String(m.id) === String(identifier)) {
+            return { ...m, status: 'Completed' };
+          }
+          return m;
+        });
+        localStorage.setItem('@mr_meetings', JSON.stringify(updatedMR));
+      } catch (e) {
+        console.error(e);
+      }
+    } else {
+      try {
+        const storedCRM = JSON.parse(localStorage.getItem('crm_meetings') || '[]');
+        const updatedCRM = storedCRM.map((m: any) => {
+          if (String(m.id) === String(identifier) || String(m.meetingId) === String(identifier)) {
+            return { ...m, status: 'Completed' };
+          }
+          return m;
+        });
+        localStorage.setItem('crm_meetings', JSON.stringify(updatedCRM));
+      } catch (e) {
+        console.error(e);
+      }
+    }
   };
 
   const handleExport = () => {

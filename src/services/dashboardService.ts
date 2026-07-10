@@ -130,34 +130,39 @@ export const dashboardService = {
   },
 
   getPendingFollowUps: () => {
-    //const visits = safeJsonParse('web_doctor_visits');
+    // 1. Load CRM Lead follow-ups
+    const crmFollowUps = safeJsonParse('crm_followups');
+    const pendingCrm = crmFollowUps.filter((f: any) => f.status === 'Pending' || f.status === 'Overdue');
+    
+    // 2. Load Doctor Visit next follow-ups
     const visits = safeJsonParse('doctor_visits');
-   // const followUps = visits.filter((v: any) => v.followUpDate && v.followUpDate.trim() !== '');
-    const followUps = visits.filter((v: any) => v.nextFollowUp && v.nextFollowUp.trim() !== '');
+    const doctorFollowUps = visits.filter((v: any) => v.nextFollowUp && v.nextFollowUp.trim() !== '');
+
     let dueTodayCount = 0;
     let overdueCount = 0;
     const today = new Date();
     today.setHours(0,0,0,0);
+    const todayStr = today.toISOString().split('T')[0];
 
-    // const mappedFollowups = followUps.map((v: any) => {
-    //   let status = 'Upcoming';
-    //   if (isToday(v.followUpDate)) {
-    //     status = 'Due Today';
-    //     dueTodayCount++;
-    //   } else {
-    //     const fDate = new Date(v.followUpDate);
-    //     if (!isNaN(fDate.getTime()) && fDate < today) {
-    //       status = 'Overdue';
-    //       overdueCount++;
-    //     }
-    //   }
-    //   return {
-    //     name: v.doctorName || v.name,
-    //     status: status,
-    //     date: v.followUpDate,
-    //   };
-    // });
-    const mappedFollowups = followUps.map((v: any) => {
+    // Map CRM follow-ups
+    const list1 = pendingCrm.map((f: any) => {
+      let status = 'Upcoming';
+      if (f.date === todayStr) {
+        status = 'Due Today';
+        dueTodayCount++;
+      } else if (f.date < todayStr) {
+        status = 'Overdue';
+        overdueCount++;
+      }
+      return {
+        name: f.contactName || f.type,
+        status: status,
+        date: f.date,
+      };
+    });
+
+    // Map Doctor follow-ups
+    const list2 = doctorFollowUps.map((v: any) => {
       let status = 'Upcoming';
       if (isToday(v.nextFollowUp)) {
         status = 'Due Today';
@@ -170,28 +175,42 @@ export const dashboardService = {
         }
       }
       return {
-        name: v.doctorName || v.name,
+        name: `Dr. ${v.doctorName || v.name}`,
         status: status,
         date: v.nextFollowUp,
       };
     });
+
+    // Combine and sort (closest date first)
+    const combinedList = [...list1, ...list2];
+    combinedList.sort((a, b) => (a.date || '').localeCompare(b.date || ''));
+
     return {
       dueTodayCount,
       overdueCount,
-      list: mappedFollowups.slice(0, 5) // Return top 5 for widget
+      list: combinedList.slice(0, 5) // Return top 5 for widget
     };
   },
 
   getTodaySchedule: () => {
-   // const visits = safeJsonParse('web_doctor_visits');
-   const visits = safeJsonParse('doctor_visits');
-   // const followUps = visits.filter((v: any) => v.followUpDate && isToday(v.followUpDate));
-    const followUps = visits.filter((v: any) => v.nextFollowUp && isToday(v.nextFollowUp));
+    // 1. Load CRM Lead follow-ups for today
+    const crmFollowUps = safeJsonParse('crm_followups');
+    const todayCrm = crmFollowUps.filter((f: any) => f.status === 'Pending' && f.date === new Date().toISOString().split('T')[0]);
 
-    const schedule = followUps.map((v: any, idx: number) => ({
-      time: `10:${idx}0 AM`,
-      title: `Follow-up ${v.doctorName || v.name}`
-    }));
+    // 2. Load Doctor follow-ups for today
+    const visits = safeJsonParse('doctor_visits');
+    const todayDoctors = visits.filter((v: any) => v.nextFollowUp && isToday(v.nextFollowUp));
+
+    const schedule = [
+      ...todayCrm.map((f: any, idx: number) => ({
+        time: `10:${idx}0 AM`,
+        title: `Follow-up: ${f.contactName || f.type}`
+      })),
+      ...todayDoctors.map((v: any, idx: number) => ({
+        time: `11:${idx}0 AM`,
+        title: `Visit: Dr. ${v.doctorName}`
+      }))
+    ];
 
     return schedule.length > 0 ? schedule : null;
   },

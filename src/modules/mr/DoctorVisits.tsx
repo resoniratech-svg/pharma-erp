@@ -596,32 +596,15 @@ import {
 } from './components/shared';
 import { type Column } from './components/shared';
 import { validateCheckIn } from '../../utils/attendanceValidation';
-
-// ✅ Unified interface — matches React Native DoctorVisitScreen exactly
-interface DoctorVisit {
-  id: string;
-    mrName?: string;   
-  doctorName: string;
-  specialty: string;
-  clinic: string;
-  mobile?: string;
-  visitDate: string;
-  visitTime: string;
-  visitType: 'Routine Visit' | 'Follow Up' | 'New Doctor';
-  doctorClass: 'A' | 'B' | 'C';
-  productsDiscussed: string;
-  samplesGiven: string;
-  prescriptionPotential: 'High' | 'Medium' | 'Low';
-  nextFollowUp: string;
-  remarks?: string;
-  status: 'Completed' | 'Scheduled' | 'Missed';
-  latitude?: string;  
-  longitude?: string;
-  distanceVerified?: string;
-}
+import { doctorVisitService } from '../../services/doctorVisitService';
+import type { DoctorVisit } from '../../services/doctorVisitService';
+import { doctorService } from '../../services/doctorService';
+import type { DoctorRecord } from '../../services/doctorService';
 
 export default function DoctorVisits() {
   const [visits, setVisits] = useState<DoctorVisit[]>([]);
+  const [doctors, setDoctors] = useState<DoctorRecord[]>([]);
+  const [selectedDocId, setSelectedDocId] = useState<string>('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -642,50 +625,51 @@ export default function DoctorVisits() {
   const [newRemarks, setNewRemarks] = useState('');
   const [newStatus, setNewStatus] = useState<DoctorVisit['status']>('Scheduled');
 
-  // Load from localStorage on mount
-  useEffect(() => {
-    try {
-      const stored = localStorage.getItem('doctor_visits');
-      if (stored) {
-        // Auto-cleanup: Filter out old mock records (IDs '1', '2') from localStorage
-        const parsed = JSON.parse(stored);
-        const filtered = parsed.filter((v: any) => v.id !== '1' && v.id !== '2');
-        setVisits(filtered);
-        localStorage.setItem('doctor_visits', JSON.stringify(filtered));
-      } else {
-        setVisits([]);
-        localStorage.setItem('doctor_visits', JSON.stringify([]));
-      }
-    } catch (error) {
-      console.error('Failed to load doctor visits:', error);
-    }
-  }, []);
+  const mrId = Number(localStorage.getItem('mrId') || '1');
 
-  const saveVisits = (updatedList: DoctorVisit[]) => {
-    setVisits(updatedList);
-    localStorage.setItem('doctor_visits', JSON.stringify(updatedList));
+  // Load from backend on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const loadedVisits = await doctorVisitService.loadDoctorVisits(mrId);
+        setVisits(loadedVisits);
+        const loadedDocs = await doctorService.getDoctors();
+        setDoctors(loadedDocs);
+      } catch (error) {
+        console.error('Failed to load doctor visits or doctors:', error);
+      }
+    }
+    loadData();
+  }, [mrId]);
+
+  // Handle selecting doctor from master list
+  const handleSelectDoctor = (docIdStr: string) => {
+    setSelectedDocId(docIdStr);
+    const doc = doctors.find(d => String(d.id) === docIdStr);
+    if (doc) {
+      setNewDocName(doc.name);
+      setNewSpecialty(doc.specialization || '');
+      setNewClinic(doc.hospital || doc.address || '');
+      setNewMobile(doc.mobile || '');
+    } else {
+      setNewDocName('');
+      setNewSpecialty('');
+      setNewClinic('');
+      setNewMobile('');
+    }
   };
 
-  const handleAddVisit = () => {
+  const handleAddVisit = async () => {
     // Strict attendance check
     if (!validateCheckIn()) {
       return;
     }
 
-    const nameRegex = /^[a-zA-Z\s.-]+$/;
-
-    if (!newDocName.trim() || newDocName.trim().length < 3) { 
-      alert('Doctor Name must be at least 3 characters long.'); 
-      return; 
-    }
-    if (!nameRegex.test(newDocName.trim())) {
-      alert('Doctor Name cannot contain numbers or special characters.');
+    if (!selectedDocId) {
+      alert('Please select a Doctor from the master list.');
       return;
     }
-    if (!newClinic.trim() || newClinic.trim().length < 3) { 
-      alert('Clinic / Hospital name must be at least 3 characters long.'); 
-      return; 
-    }
+
     if (!newVisitDate) { 
       alert('Visit Date is required.'); 
       return; 
@@ -706,11 +690,6 @@ export default function DoctorVisits() {
       }
     }
 
-    if (newMobile && newMobile.length !== 10) {
-      alert('Mobile number must be exactly 10 digits.');
-      return;
-    }
-
     // Instantly grab coordinates from the daily Check-In attendance record (Removes the slow geolocation lag)
     const attendanceRecords = JSON.parse(localStorage.getItem('web_attendance_records') || '[]');
     const todayRecord = attendanceRecords.find((r: any) => r.date === newVisitDate) || attendanceRecords[0];
@@ -721,46 +700,89 @@ export default function DoctorVisits() {
     const now = new Date();
     const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     const finalVisitTime = newVisitTime || currentTime;
-const authUser = JSON.parse(localStorage.getItem('authUser') || 'null');
 
-    const newVisit: DoctorVisit = {
-      id: Date.now().toString(),
-       mrName: authUser?.fullName || '',
-      doctorName: newDocName,
-      specialty: newSpecialty || 'General Practitioner',
-      clinic: newClinic,
-      mobile: newMobile,
-      visitDate: newVisitDate,
-      visitTime: finalVisitTime,
-      visitType: newVisitType,
-      doctorClass: newDoctorClass,
-      productsDiscussed: newProductsDiscussed,
-      samplesGiven: newSamplesGiven,
-      prescriptionPotential: newPrescriptionPotential,
-      nextFollowUp: newNextFollowUp,
-      remarks: newRemarks,
-      status: newStatus,
-      latitude: visitLat,
-      longitude: visitLng,
-      distanceVerified: 'Yes (< 15m)' // Marked as verified to update metrics on dashboard
-    };
+    let finalDocId = selectedDocId;
 
-    saveVisits([newVisit, ...visits]);
-    setIsDrawerOpen(false);
-    alert('✅ Doctor Visit saved successfully!');
+    if (selectedDocId === 'NEW_DOCTOR') {
+      if (!newDocName.trim() || newDocName.trim().length < 3) {
+        alert('Doctor Name must be at least 3 characters long.');
+        return;
+      }
+      if (!newClinic.trim() || newClinic.trim().length < 3) {
+        alert('Clinic / Hospital name must be at least 3 characters long.');
+        return;
+      }
+      if (newMobile && newMobile.length !== 10) {
+        alert('Mobile number must be exactly 10 digits.');
+        return;
+      }
 
-    // Reset forms
-    setNewDocName(''); setNewSpecialty(''); setNewClinic('');
-    setNewMobile(''); setNewVisitDate(new Date().toISOString().split('T')[0]); setNewVisitTime('');
-    setNewVisitType('Routine Visit'); setNewDoctorClass('B');
-    setNewProductsDiscussed(''); setNewSamplesGiven('');
-    setNewPrescriptionPotential('Medium'); setNewNextFollowUp('');
-    setNewRemarks(''); setNewStatus('Scheduled');
+      try {
+        const createdDoc = await doctorService.addDoctor({
+          name: newDocName,
+          specialization: newSpecialty || 'General',
+          hospital: newClinic,
+          mobile: newMobile,
+          email: '',
+          address: newClinic,
+          territory: 'Default Territory'
+        });
+        
+        const updatedDocs = [createdDoc, ...doctors];
+        setDoctors(updatedDocs);
+        finalDocId = String(createdDoc.id);
+      } catch (error: any) {
+        alert('Failed to create doctor: ' + error.message);
+        return;
+      }
+    }
+
+    try {
+      const mapped = await doctorVisitService.addDoctorVisit(mrId, {
+        doctorId: Number(finalDocId),
+        remarks: newRemarks,
+        productsDiscussed: newProductsDiscussed,
+        samplesGiven: newSamplesGiven,
+        latitude: visitLat,
+        longitude: visitLng,
+        visitType: newVisitType,
+        doctorClass: newDoctorClass,
+        prescriptionPotential: newPrescriptionPotential,
+        nextFollowUp: newNextFollowUp,
+        status: newStatus
+      });
+
+      setVisits([mapped, ...visits]);
+      setIsDrawerOpen(false);
+      alert('✅ Doctor Visit saved successfully to database!');
+
+      // Reset forms
+      setSelectedDocId('');
+      setNewDocName(''); setNewSpecialty(''); setNewClinic('');
+      setNewMobile(''); setNewVisitDate(new Date().toISOString().split('T')[0]); setNewVisitTime('');
+      setNewVisitType('Routine Visit'); setNewDoctorClass('B');
+      setNewProductsDiscussed(''); setNewSamplesGiven('');
+      setNewPrescriptionPotential('Medium'); setNewNextFollowUp('');
+      setNewRemarks(''); setNewStatus('Scheduled');
+    } catch (error: any) {
+      console.error(error);
+      alert('Failed to save doctor visit: ' + error.message);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this visit record?')) {
-      saveVisits(visits.filter((v) => v.id !== id));
+      try {
+        const success = await doctorVisitService.deleteDoctorVisit(id);
+        if (success) {
+          setVisits(visits.filter((v) => v.id !== id));
+          alert('Visit record deleted successfully.');
+        } else {
+          alert('Failed to delete visit record.');
+        }
+      } catch (error: any) {
+        alert('Failed to delete visit: ' + error.message);
+      }
     }
   };
 
@@ -952,32 +974,43 @@ const authUser = JSON.parse(localStorage.getItem('authUser') || 'null');
         <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
 
           <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Select Doctor *</label>
+            <select value={selectedDocId} onChange={(e) => handleSelectDoctor(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-violet-500">
+              <option value="">-- Select Doctor --</option>
+              <option value="NEW_DOCTOR">+ Create New Doctor...</option>
+              {doctors.map((d) => (
+                <option key={d.id} value={String(d.id)}>{d.name} ({d.specialization})</option>
+              ))}
+            </select>
+          </div>
+
+          <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Doctor Name *</label>
-            <input type="text" value={newDocName} onChange={(e) => setNewDocName(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
-              placeholder="e.g. Dr. Satish Roy" />
+            <input type="text" value={newDocName} readOnly={selectedDocId !== 'NEW_DOCTOR'} onChange={(e) => setNewDocName(e.target.value)}
+              className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none ${selectedDocId === 'NEW_DOCTOR' ? 'bg-white focus:border-violet-500 text-slate-900' : 'bg-slate-50 text-slate-500'}`}
+              placeholder={selectedDocId === 'NEW_DOCTOR' ? 'Enter Doctor Name' : 'Select a doctor above'} />
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Specialty</label>
-            <input type="text" value={newSpecialty} onChange={(e) => setNewSpecialty(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
-              placeholder="e.g. Cardiologist" />
+            <input type="text" value={newSpecialty} readOnly={selectedDocId !== 'NEW_DOCTOR'} onChange={(e) => setNewSpecialty(e.target.value)}
+              className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none ${selectedDocId === 'NEW_DOCTOR' ? 'bg-white focus:border-violet-500 text-slate-900' : 'bg-slate-50 text-slate-500'}`}
+              placeholder={selectedDocId === 'NEW_DOCTOR' ? 'Enter Specialty' : 'e.g. Cardiologist'} />
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Clinic / Hospital Name *</label>
-            <input type="text" value={newClinic} onChange={(e) => setNewClinic(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
-              placeholder="e.g. City General Hospital" />
+            <input type="text" value={newClinic} readOnly={selectedDocId !== 'NEW_DOCTOR'} onChange={(e) => setNewClinic(e.target.value)}
+              className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none ${selectedDocId === 'NEW_DOCTOR' ? 'bg-white focus:border-violet-500 text-slate-900' : 'bg-slate-50 text-slate-500'}`}
+              placeholder={selectedDocId === 'NEW_DOCTOR' ? 'Enter Clinic/Hospital Name' : 'e.g. City General Hospital'} />
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Mobile Number <span className="text-slate-400 font-normal text-xs">(10 digits)</span></label>
-            <input type="tel" value={newMobile}
-              onChange={(e) => setNewMobile(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
-              placeholder="e.g. 9876543210" maxLength={10} />
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Mobile Number</label>
+            <input type="tel" value={newMobile} readOnly={selectedDocId !== 'NEW_DOCTOR'} onChange={(e) => setNewMobile(e.target.value)}
+              className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none ${selectedDocId === 'NEW_DOCTOR' ? 'bg-white focus:border-violet-500 text-slate-900' : 'bg-slate-50 text-slate-500'}`}
+              placeholder={selectedDocId === 'NEW_DOCTOR' ? 'Enter Mobile Number' : 'e.g. 9876543210'} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

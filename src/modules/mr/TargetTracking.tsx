@@ -6,6 +6,7 @@ import {
   SummaryCard,
 } from './components/shared';
 import { ExportService } from '../../services/exportService';
+import { targetService } from '../../services/targetService';
 
 
 export default function TargetTracking() {
@@ -14,15 +15,36 @@ export default function TargetTracking() {
   const [chemistsVisited, setChemistsVisited] = useState(0);
     const [isExportOpen, setIsExportOpen] = useState(false);
 
+  const [salesTarget, setSalesTarget] = useState(50000);
+  const [docsTarget, setDocsTarget] = useState(30);
+  const [chemistsTarget, setChemistsTarget] = useState(20);
 
-  // Hardcoded monthly targets based on RN app specifications
-  const SALES_TARGET = 50000;
-  const DOCS_TARGET = 30;
-  const CHEMISTS_TARGET = 20;
+  const mrId = Number(localStorage.getItem('mrId') || '1');
+
+  const SALES_TARGET = salesTarget;
+  const DOCS_TARGET = docsTarget;
+  const CHEMISTS_TARGET = chemistsTarget;
 
   useEffect(() => {
+    async function fetchTargets() {
+      try {
+        const loaded = await targetService.getTargetsByMR(mrId);
+        const today = new Date();
+        const currentMonth = today.getMonth() + 1;
+        const currentYear = today.getFullYear();
+        const currentTarget = loaded.find(t => t.month === currentMonth && t.year === currentYear) || loaded[0];
+        if (currentTarget) {
+          setSalesTarget(currentTarget.orderTarget || 50000);
+          setDocsTarget(currentTarget.doctorVisitTarget || 30);
+          setChemistsTarget(currentTarget.chemistVisitTarget || 20);
+        }
+      } catch (error) {
+        console.error("Failed to load backend targets:", error);
+      }
+    }
+    fetchTargets();
     loadCurrentMonthPerformance();
-  }, []);
+  }, [mrId]);
 
   const loadCurrentMonthPerformance = () => {
     try {

@@ -44,6 +44,26 @@ export async function apiRequest<T = any>(
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
+    
+    if (
+      response.status === 401 &&
+      (errorBody.code === 'SESSION_TERMINATED' ||
+        errorBody.message?.includes('Session terminated') ||
+        errorBody.message?.includes('another device'))
+    ) {
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('authUser');
+      localStorage.removeItem('activeRole');
+      localStorage.removeItem('workspaceRole');
+      localStorage.removeItem('userId');
+      localStorage.removeItem('mrId');
+      localStorage.removeItem('mrCode');
+      localStorage.removeItem('mrTerritory');
+      
+      alert("Your session has been terminated because you logged in from another device.");
+      window.location.href = '/workspace';
+    }
+
     throw new Error(errorBody.message || `Request failed with status ${response.status}`);
   }
 

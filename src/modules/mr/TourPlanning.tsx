@@ -11,6 +11,7 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './components/shared';
+import { tourPlanService } from '../../services/tourPlanService';
 
 interface TourPlan {
   id: string;
@@ -66,29 +67,22 @@ export default function TourPlanning() {
     setChemistCount(names.length);
   }, [chemistsList]);
 
+  const mrId = Number(localStorage.getItem('mrId') || '1');
+
   useEffect(() => {
-    const stored = localStorage.getItem('@web_tour_plans');
-    if (stored) {
-      setPlans(JSON.parse(stored));
-    } else {
-      // Mock data if empty
-      const initial: TourPlan[] = [
-        { 
-          id: '1', planType: 'MTP', date: '2026-10-01', repName: 'Rahul Verma', hq: 'Mumbai West', 
-          route: 'Andheri', beat: 'Lokhandwala', docCount: 2, chemistCount: 1, 
-          startTime: '09:00', endTime: '18:00', objective: 'Field Work',
-          doctorsList: 'Dr. Ramesh, Dr. Kumar', chemistsList: 'Apollo Pharmacy', remarks: 'Standard route check.',
-          status: 'Approved' 
-        },
-      ];
-      setPlans(initial);
-      localStorage.setItem('@web_tour_plans', JSON.stringify(initial));
+    async function loadData() {
+      try {
+        const loaded = await tourPlanService.loadTourPlans(mrId);
+        setPlans(loaded);
+      } catch (error) {
+        console.error('Failed to load tour plans from database:', error);
+      }
     }
-  }, []);
+    loadData();
+  }, [mrId]);
 
   const savePlans = (newPlans: TourPlan[]) => {
     setPlans(newPlans);
-    localStorage.setItem('@web_tour_plans', JSON.stringify(newPlans));
   };
 
   const openForm = (plan?: TourPlan) => {
@@ -127,14 +121,14 @@ export default function TourPlanning() {
     setEditingId(null);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (editingId) {
       savePlans(plans.map(p => p.id === editingId ? {
         ...p, planType, date, hq, route, beat, startTime, endTime, objective, docCount, chemistCount, doctorsList, chemistsList, remarks
       } : p));
     } else {
-        let authUser = null;
+      let authUser = null;
       try {
         const authUserString = localStorage.getItem('authUser');
         authUser = authUserString ? JSON.parse(authUserString) : null;
@@ -142,25 +136,41 @@ export default function TourPlanning() {
         authUser = null;
       }
       const activeMRName = authUser?.fullName || authUser?.name || 'Medical Representative';
-      const newPlan: TourPlan = {
-        id: Date.now().toString(),
-        planType,
-        date,
-        repName: activeMRName, // ✅ Dynamic logged-in name
-        hq,
-        route,
-        beat,
-        startTime,
-        endTime,
-        objective,
-        docCount,
-        chemistCount,
-        doctorsList,
-        chemistsList,
-        remarks,
-        status: 'Draft'
-      };
-      savePlans([newPlan, ...plans]);
+      
+      try {
+        const created = await tourPlanService.addTourPlan(mrId, {
+          date,
+          hq,
+          route,
+          beat,
+          objective,
+          remarks
+        });
+
+        const newPlan: TourPlan = {
+          id: String(created.id),
+          planType,
+          date,
+          repName: activeMRName,
+          hq,
+          route,
+          beat,
+          startTime,
+          endTime,
+          objective,
+          docCount,
+          chemistCount,
+          doctorsList,
+          chemistsList,
+          remarks,
+          status: 'Draft'
+        };
+        savePlans([newPlan, ...plans]);
+        alert('Tour Plan saved successfully to database!');
+      } catch (err: any) {
+        console.error(err);
+        alert('Failed to save tour plan: ' + err.message);
+      }
     }
     closeForm();
   };

@@ -159,6 +159,7 @@ import { useNavigate } from 'react-router';
 import { MapPin, Navigation } from 'lucide-react';
 import { PageHeader, ActionButton } from './components/shared';
 import { NotificationService } from '../../services/notificationService'; 
+import { attendanceService } from '../../services/attendanceService'; 
 
 
 export default function CheckIn() {
@@ -166,6 +167,7 @@ export default function CheckIn() {
   const [locationText, setLocationText] = useState('Fetching accurate location...');
   const [isReady, setIsReady] = useState(false);
   const [latLng, setLatLng] = useState<{lat: number, lng: number} | null>(null);
+  const [records, setRecords] = useState<any[]>([]);
 
   const fetchLocation = () => {
     setLocationText('Fetching accurate location...');
@@ -202,106 +204,22 @@ export default function CheckIn() {
   };
 
   useEffect(() => {
+    const fetchRecords = async () => {
+      try {
+        const mrId = Number(localStorage.getItem('mrId') || '2');
+        const data = await attendanceService.loadAttendance(mrId);
+        setRecords(data);
+      } catch (e) {
+        console.error("Failed to load records on checkin mount:", e);
+        const stored = localStorage.getItem('web_attendance_records');
+        if (stored) setRecords(JSON.parse(stored));
+      }
+    };
+    fetchRecords();
     fetchLocation();
   }, []);
 
-  // const handleCheckIn = () => {
-  //   if (!isReady || !latLng) return;
-
-  //   let authUser = null;
-  //   try {
-  //     const authUserString = localStorage.getItem('authUser');
-  //     authUser = authUserString ? JSON.parse(authUserString) : null;
-  //   } catch {
-  //     authUser = null;
-  //   }
-
-  //   const userName = authUser?.fullName || authUser?.name || 'Medical Representative';
-  //   const userId = authUser?.id || `USR-${Date.now()}`;
-
-  //   const now = new Date();
-  //   const todayDateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
-
-  //   const existingData = localStorage.getItem('web_attendance_records');
-  //   const records = existingData ? JSON.parse(existingData) : [];
-
-  //   const alreadyCheckedIn = records.find((r: any) => r.date === todayDateStr && r.repName === userName);
-  //   if (alreadyCheckedIn) {
-  //     alert('You have already checked in today!');
-  //     navigate('/workspace/gps/attendance');
-  //     return;
-  //   }
-
-  //   // ✅ 1. SELF-HEALING: Auto-mark incomplete previous shifts as "Pending Checkout"
-  //   let healedCount = 0;
-  //   const updatedRecords = records.map((r: any) => {
-  //     if (r.repName === userName && r.date !== todayDateStr && (!r.checkOutTime || r.checkOutTime === '-')) {
-  //       healedCount++;
-        
-  //       // Log a system activity
-  //       try {
-  //         const existingActivities = JSON.parse(localStorage.getItem('crm_activities') || '[]');
-  //         const newActivity = {
-  //           id: `ACT-${Date.now()}`,
-  //           type: 'System Close',
-  //           description: `Shift for ${userName} on ${r.date} was marked as PENDING CHECKOUT (Reason: Missed Check-Out).`,
-  //           date: now.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-  //           user: 'System'
-  //         };
-  //         localStorage.setItem('crm_activities', JSON.stringify([newActivity, ...existingActivities]));
-  //       } catch (e) {
-  //         console.error("Activity logging failed:", e);
-  //       }
-
-  //       return {
-  //         ...r,
-  //         checkOutTime: 'System Closed',
-  //         checkOutDateTime: '',
-  //         workingHours: 'Unresolved',
-  //         totalMinutes: 0,
-  //         checkOutLocation: 'System Closed (Missed Checkout)',
-  //         checkOutLatitude: r.latitude, // Same as check-in GPS (no fake data)
-  //         checkOutLongitude: r.longitude,
-  //         dayStatus: 'Pending Checkout', // Put in manager exceptions queue
-  //         statusReason: 'Missed Check-Out'
-  //       };
-  //     }
-  //     return r;
-  //   });
-
-  //   // 2. Add today's new check-in
-  //   const newRecord = {
-  //     id: `CHK-${Date.now()}`,
-  //     userId: userId, 
-  //     date: todayDateStr,
-  //     repName: userName,
-  //     checkInDateTime: now.toISOString(),
-  //     checkInTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-  //     checkOutTime: '-',
-  //     status: "Present", 
-  //     location: locationText,
-  //     latitude: latLng.lat,
-  //     longitude: latLng.lng,
-  //     createdAt: now.toISOString(),
-  //     dayStatus: 'In-Progress'
-  //   };
-
-  //   updatedRecords.unshift(newRecord);
-  //   localStorage.setItem('web_attendance_records', JSON.stringify(updatedRecords));
-
-  //   localStorage.setItem(
-  //     'today_checkin',
-  //     JSON.stringify({
-  //         checkedIn: true,
-  //         user: userName,
-  //         time: now.toISOString()
-  //     })
-  //   );
-
-  //   alert('Checked in successfully!');
-  //   navigate('/workspace/gps/attendance');
-  // };
-    const handleCheckIn = () => {
+  const handleCheckIn = async () => {
     if (!isReady || !latLng) return;
 
     let authUser = null;
@@ -316,152 +234,59 @@ export default function CheckIn() {
     const userId = authUser?.id || `USR-${Date.now()}`;
 
     const now = new Date();
-    const todayDateStr = now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+    // Use ISO YYYY-MM-DD format (or map it exactly) for reliable comparison since loadAttendance returns ISO strings for date
+    const todayDateStr = now.toISOString().split('T')[0];
 
-    const existingData = localStorage.getItem('web_attendance_records');
-    const records = existingData ? JSON.parse(existingData) : [];
+    const activeSession = records.find((r: any) => {
+      const recordDate = r.date; // already YYYY-MM-DD from service
+      return recordDate === todayDateStr && r.repName === userName && (!r.checkOutTime || r.checkOutTime === '-');
+    });
 
-    const alreadyCheckedIn = records.find((r: any) => r.date === todayDateStr && r.repName === userName);
-    if (alreadyCheckedIn) {
-      alert('You have already checked in today!');
+    if (activeSession) {
+      alert('You have already checked in today! Please check out first.');
       navigate('/workspace/gps/attendance');
       return;
     }
 
-    // ✅ 1. SELF-HEALING: Auto-mark incomplete previous shifts as "Pending Checkout"
-    // let healedCount = 0;
-    // const updatedRecords = records.map((r: any) => {
-    //   if (r.repName === userName && r.date !== todayDateStr && (!r.checkOutTime || r.checkOutTime === '-')) {
-    //     healedCount++;
-        
-    //     // Log a system activity
-    //     try {
-    //       const existingActivities = JSON.parse(localStorage.getItem('crm_activities') || '[]');
-    //       const newActivity = {
-    //         id: `ACT-${Date.now()}`,
-    //         type: 'System Close',
-    //         description: `Shift for ${userName} on ${r.date} was marked as PENDING CHECKOUT (Reason: Missed Check-Out).`,
-    //         date: now.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-    //         user: 'System'
-    //       };
+    try {
+      const mrId = Number(localStorage.getItem('mrId') || '2');
+      const dbRecord = await attendanceService.checkIn(mrId, userName, latLng.lat, latLng.lng, locationText);
 
-    //       localStorage.setItem('crm_activities', JSON.stringify([newActivity, ...existingActivities]));
-    //   //  }
+      // Add today's new check-in
+      const newRecord = {
+        id: String(dbRecord.id),
+        userId: userId, 
+        date: todayDateStr,
+        repName: userName,
+        checkInDateTime: now.toISOString(),
+        checkInTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+        checkOutTime: '-',
+        status: "Present", 
+        location: locationText,
+        latitude: latLng.lat,
+        longitude: latLng.lng,
+        createdAt: now.toISOString(),
+        dayStatus: 'In-Progress'
+      };
 
-    //       // ✅ Notify user of auto-closure
-    //       NotificationService.addNotification({
-    //         title: 'Attendance Auto-Closed',
-    //         message: `Yesterday's attendance on ${r.date} was automatically closed because checkout was not completed.`,
-    //         type: 'gps',
-    //         priority: 'medium',
-    //         module: 'GPS Attendance',
-    //         isActionRequired: false,
-    //         actionUrl: '/workspace/gps/attendance'
-    //       });
-    //     } 
-    //      catch (e) {
-    //       console.error("Activity logging failed:", e);
-    //     }
+      const updatedRecords = [newRecord, ...records];
+      localStorage.setItem('web_attendance_records', JSON.stringify(updatedRecords));
 
-    //     return {
-    //       ...r,
-    //       checkOutTime: 'System Closed',
-    //       checkOutDateTime: '',
-    //       workingHours: 'Unresolved',
-    //       totalMinutes: 0,
-    //       checkOutLocation: 'System Closed (Missed Checkout)',
-    //       checkOutLatitude: r.latitude, // Same as check-in GPS (no fake data)
-    //       checkOutLongitude: r.longitude,
-    //       dayStatus: 'Pending Checkout', // Put in manager exceptions queue
-    //       statusReason: 'Missed Check-Out'
-    //     };
-    //   }
-    //   return r;
-    // });
-        // ✅ 1. SELF-HEALING: Auto-mark incomplete previous shifts as "Auto Closed"
-    let healedCount = 0;
-    const updatedRecords = records.map((r: any) => {
-      if (r.repName === userName && r.date !== todayDateStr && (!r.checkOutTime || r.checkOutTime === '-')) {
-        healedCount++;
-        
-        // Log a system activity & dispatch in-app notification
-        try {
-          const existingActivities = JSON.parse(localStorage.getItem('crm_activities') || '[]');
-          const newActivity = {
-            id: `ACT-${Date.now()}`,
-            type: 'System Close',
-            description: `Shift for ${userName} on ${r.date} was marked as AUTO CLOSED (Reason: Missed Check-Out).`,
-            date: now.toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-            user: 'System'
-          };
-          localStorage.setItem('crm_activities', JSON.stringify([newActivity, ...existingActivities]));
+      localStorage.setItem(
+        'today_checkin',
+        JSON.stringify({
+            checkedIn: true,
+            user: userName,
+            time: now.toISOString()
+        })
+      );
 
-          // ✅ Notify user of auto-closure
-          NotificationService.addNotification({
-            title: 'Attendance Auto-Closed',
-            message: `Yesterday's attendance on ${r.date} was automatically closed because checkout was not completed.`,
-            type: 'gps',
-            priority: 'medium',
-            module: 'GPS Attendance',
-            isActionRequired: false,
-            actionUrl: '/workspace/gps/attendance'
-          });
-        } catch (e) {
-          console.error("Activity logging failed:", e);
-        }
-
-        return {
-          ...r,
-          checkOutTime: '09:00 PM (Auto Closed)',                 // ✅ Shows reasonable checkout time
-          checkOutDateTime: new Date(new Date(r.checkInDateTime).setHours(21, 0, 0)).toISOString(),
-          workingHours: '9h 00m',                                // ✅ Snapshot typical shift duration
-          totalMinutes: 540,
-          checkOutLocation: 'System Closed (Missed Checkout)',
-          checkOutLatitude: r.latitude, 
-          checkOutLongitude: r.longitude,
-          dayStatus: 'Auto Closed',                               // ✅ Marked as 'Auto Closed' instead of Pending
-          statusReason: 'Missed Check-Out',
-          // ✅ Audit Metadata
-          checkoutMode: 'AUTO',
-          closedBy: 'SYSTEM',
-          reason: 'Previous day attendance not checked out',
-          autoClosedAt: now.toISOString()
-        };
-      }
-      return r;
-    });
-
-    // 2. Add today's new check-in
-    const newRecord = {
-      id: `CHK-${Date.now()}`,
-      userId: userId, 
-      date: todayDateStr,
-      repName: userName,
-      checkInDateTime: now.toISOString(),
-      checkInTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-      checkOutTime: '-',
-      status: "Present", 
-      location: locationText,
-      latitude: latLng.lat,
-      longitude: latLng.lng,
-      createdAt: now.toISOString(),
-      dayStatus: 'In-Progress'
-    };
-
-    updatedRecords.unshift(newRecord);
-    localStorage.setItem('web_attendance_records', JSON.stringify(updatedRecords));
-
-    localStorage.setItem(
-      'today_checkin',
-      JSON.stringify({
-          checkedIn: true,
-          user: userName,
-          time: now.toISOString()
-      })
-    );
-
-    alert('Checked in successfully!');
-    navigate('/workspace/gps/attendance');
+      alert('Checked in successfully!');
+      navigate('/workspace/gps/attendance');
+    } catch (e: any) {
+      console.error(e);
+      alert('Check-in failed: ' + e.message);
+    }
   };
 
   return (

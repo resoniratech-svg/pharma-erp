@@ -67,8 +67,11 @@ const formatDate = (dateString: string | undefined) => {
 export default function WarehouseMaster() {
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   useEffect(() => {
-    const saved = warehouseService.getAll();
-    setWarehouses(saved);
+    async function loadData() {
+      const saved = await warehouseService.loadWarehouses();
+      setWarehouses(saved);
+    }
+    loadData();
   }, []);
  
   const [search, setSearch] = useState('');

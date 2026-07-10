@@ -16,6 +16,10 @@ import { ExportService } from '../../services/exportService';
 // Centralized Services
 import activityLogService from '../../services/activityLogService';
 import { NotificationService } from '../../services/notificationService';
+import { dailyReportService } from '../../services/dailyReportService';
+import { doctorVisitService } from '../../services/doctorVisitService';
+import { chemistVisitService } from '../../services/chemistVisitService';
+import { retailerOrderService } from '../../services/retailerOrderService';
 
 // Configurable Activity Score Multipliers
 const SCORE_MULTIPLIERS = {
@@ -121,22 +125,36 @@ export default function DailyReports() {
 
   const { todayDCR, isTodayDCRLocked } = todayDCRInfo;
 
-  useEffect(() => {
-    loadReports();
-  }, []);
+  const mrId = Number(localStorage.getItem('mrId') || '1');
 
-  const loadReports = () => {
-    try {
-      const stored = localStorage.getItem('web_daily_reports');
-      if (stored) {
-        setReports(JSON.parse(stored));
-      } else {
-        setReports([]);
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const loaded = await dailyReportService.loadDailyReports(mrId);
+        setReports(loaded.map(r => ({
+          id: r.id,
+          date: r.date,
+          repName: r.repName,
+          userId: String(mrId),
+          area: r.route || r.beat || 'Field',
+          doctorsVisited: r.docCalls,
+          chemistsVisited: r.chemCalls,
+          totalOrders: r.orderCollected,
+          orderValue: 0,
+          remarks: r.remarks,
+          status: 'Submitted' as const,
+        })));
+
+        // Pre-load current MR activities to local storage
+        await doctorVisitService.loadDoctorVisits(mrId);
+        await chemistVisitService.loadChemistVisits(mrId);
+        await retailerOrderService.getRetailerOrders();
+      } catch (error) {
+        console.error('Failed to load DCR records from backend:', error);
       }
-    } catch (e) {
-      console.error('Failed to load reports', e);
     }
-  };
+    loadData();
+  }, [mrId]);
 
   const handleStartCompile = () => {
     // Session Expiry Validation (No USR-MR fallback)
@@ -173,21 +191,21 @@ export default function DailyReports() {
         // Load Doctor Visits (MR Filtered)
         const docData = JSON.parse(localStorage.getItem('doctor_visits') || localStorage.getItem('web_doctor_visits') || '[]');
         const todayDocs = docData.filter(
-          (v: any) => (v.userId === currentUserId || v.mrId === currentUserId || v.mrName === activeMRName) && isToday(v.visitDate || v.date)
+          (v: any) => (!v.mrId || Number(v.mrId) === mrId || v.userId === currentUserId || v.mrId === currentUserId || v.mrName === activeMRName) && isToday(v.visitDate || v.date)
         );
         const doctorsVisited = todayDocs.length;
 
         // Load Chemist Visits (MR Filtered)
         const chemData = JSON.parse(localStorage.getItem('chemist_visits') || localStorage.getItem('web_chemist_visits') || '[]');
         const todayChemists = chemData.filter(
-          (v: any) => (v.userId === currentUserId || v.mrId === currentUserId || v.mrName === activeMRName) && isToday(v.visitDate || v.date)
+          (v: any) => (!v.mrId || Number(v.mrId) === mrId || v.userId === currentUserId || v.mrId === currentUserId || v.mrName === activeMRName) && isToday(v.visitDate || v.date)
         );
         const chemistsVisited = todayChemists.length;
 
         // Load Orders (MR Filtered)
         const ordersData = JSON.parse(localStorage.getItem('@orders') || localStorage.getItem('web_orders') || '[]');
         const todayOrdersList = ordersData.filter(
-          (o: any) => (o.userId === currentUserId || o.mrId === currentUserId || o.mrName === activeMRName) && isToday(o.dateFormatted || o.date)
+          (o: any) => (!o.mrId || Number(o.mrId) === mrId || o.userId === currentUserId || o.mrId === currentUserId || o.mrName === activeMRName) && isToday(o.dateFormatted || o.date)
         );
         const totalOrders = todayOrdersList.length;
         const orderValue = todayOrdersList.reduce((sum: number, order: any) => sum + (parseFloat(order.totalAmount) || 0), 0);
@@ -290,7 +308,7 @@ export default function DailyReports() {
     }, 600);
   };
 
-  const handleSaveDCR = (finalStatus: 'Draft' | 'Submitted') => {
+  const handleSaveDCR = async (finalStatus: 'Draft' | 'Submitted') => {
     if (!tempReport) return;
 
     if (finalStatus === 'Submitted' && isStillCheckedIn) {
@@ -305,54 +323,69 @@ export default function DailyReports() {
       return;
     }
 
-    const newReport: DCR = {
-      ...tempReport,
-      remarks: trimmedRemarks,
-      challenges: challenges.trim(),
-      nextDayPlan: nextPlan.trim(),
-      status: finalStatus
-    };
-
-    // Index check using scoped userId
-    const existingIndex = reports.findIndex(
-      (r) => r.userId === tempReport.userId && isToday(r.date)
-    );
-    let updatedReports;
-    
-    if (existingIndex >= 0) {
-      updatedReports = [...reports];
-      updatedReports[existingIndex] = newReport;
-    } else {
-      updatedReports = [newReport, ...reports];
-    }
-
-    setReports(updatedReports);
-    localStorage.setItem('web_daily_reports', JSON.stringify(updatedReports));
-
-    // Centralized Service Audit Log
-    activityLogService.addLog({
-      userId: tempReport.userId,
-      userName: tempReport.repName,
-      action: finalStatus === 'Submitted' ? 'Submitted DCR' : 'Saved DCR Draft',
-      module: 'Daily Call Reporting (DCR)',
-    });
-
-    // Centralized Manager Notifications
-    if (finalStatus === 'Submitted') {
-      NotificationService.addNotification({
-        title: 'New DCR Submitted',
-        message: `${tempReport.repName} has submitted today's DCR for approval.`,
-        type: 'mr',
-        priority: 'high',
-        module: 'Daily Call Reporting (DCR)',
-        isActionRequired: true,
-        actionUrl: '/workspace/super-admin/dcr-reviews'
+    try {
+      const mapped = await dailyReportService.addDailyReport(mrId, {
+        date: new Date().toISOString().split('T')[0],
+        docCalls: tempReport.doctorsVisited,
+        chemCalls: tempReport.chemistsVisited,
+        orderCollected: tempReport.totalOrders,
+        remarks: trimmedRemarks,
+        status: finalStatus === 'Submitted' ? 'Submitted' : 'Draft',
       });
-    }
 
-    alert(finalStatus === 'Submitted' ? '✅ DCR submitted successfully to manager!' : '📝 DCR saved as draft.');
-    setShowCompileModal(false);
-    setTempReport(null);
+      const newReport: DCR = {
+        ...tempReport,
+        id: String(mapped.id),
+        remarks: trimmedRemarks,
+        challenges: challenges.trim(),
+        nextDayPlan: nextPlan.trim(),
+        status: finalStatus === 'Submitted' ? 'Submitted' : 'Draft'
+      };
+
+      // Index check using scoped userId
+      const existingIndex = reports.findIndex(
+        (r) => r.userId === tempReport.userId && isToday(r.date)
+      );
+      let updatedReports;
+      
+      if (existingIndex >= 0) {
+        updatedReports = [...reports];
+        updatedReports[existingIndex] = newReport;
+      } else {
+        updatedReports = [newReport, ...reports];
+      }
+
+      setReports(updatedReports);
+      localStorage.setItem('web_daily_reports', JSON.stringify(updatedReports));
+
+      // Centralized Service Audit Log
+      activityLogService.addLog({
+        userId: tempReport.userId,
+        userName: tempReport.repName,
+        action: finalStatus === 'Submitted' ? 'Submitted DCR' : 'Saved DCR Draft',
+        module: 'Daily Call Reporting (DCR)',
+      });
+
+      // Centralized Manager Notifications
+      if (finalStatus === 'Submitted') {
+        NotificationService.addNotification({
+          title: 'New DCR Submitted',
+          message: `${tempReport.repName} has submitted today's DCR for approval.`,
+          type: 'mr',
+          priority: 'high',
+          module: 'Daily Call Reporting (DCR)',
+          isActionRequired: true,
+          actionUrl: '/workspace/super-admin/dcr-reviews'
+        });
+      }
+
+      alert(finalStatus === 'Submitted' ? '✅ DCR submitted successfully to manager and database!' : '📝 DCR saved as draft.');
+      setShowCompileModal(false);
+      setTempReport(null);
+    } catch (error: any) {
+      console.error(error);
+      alert('Failed to submit DCR: ' + error.message);
+    }
   };
 
   const columns: Column<DCR>[] = [

@@ -63,6 +63,20 @@ function mapToDb(w: any): any {
     name: w.name,
     code: w.code,
     address: w.address,
+    type: w.type,
+    branch: w.branch,
+    contactPerson: w.contactPerson,
+    phone: w.phone,
+    email: w.email,
+    city: w.city,
+    state: w.state,
+    country: w.country,
+    pinCode: w.pinCode,
+    gstNumber: w.gstNumber,
+    licenseNumber: w.licenseNumber,
+    remarks: w.remarks,
+    status: w.status,
+    createdBy: w.createdBy,
     companyId: 1, // Default company
   };
 }

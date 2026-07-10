@@ -136,37 +136,24 @@ export interface OrderData {
   dateFormatted: string;
 }
 
-const PRODUCT_LIST = [
-  { name: 'Paracetamol 650mg', defaultRate: 15.00 },
-  { name: 'Augmentin 625 Duo', defaultRate: 120.00 },
-  { name: 'Calpol 500mg', defaultRate: 12.00 },
-  { name: 'Azithromycin 500mg', defaultRate: 85.00 },
-  { name: 'Pan-D Capsule', defaultRate: 45.00 },
-  { name: 'Limcee Vitamin C', defaultRate: 8.00 }
-];
-
-const CUSTOMER_MASTERS: Record<string, Array<{ name: string; mobile: string; due: number }>> = {
-  Stockist: [
-    { name: 'Metro Pharma', mobile: '9876543210', due: 0 },
-    { name: 'Global Health', mobile: '8765432109', due: 0 },
-    { name: 'Carewell Agencies', mobile: '7654321098', due: 0 }
-  ],
-  Chemist: [
-    { name: 'Apollo Pharmacy', mobile: '9988776655', due: 5000 },
-    { name: 'MedPlus Drugs', mobile: '8877665544', due: 3500 },
-    { name: 'Sri Rama Medicals', mobile: '7766554433', due: 7200 },
-    { name: 'Care Chemists', mobile: '6655443322', due: 1800 }
-  ],
-  Hospital: [
-    { name: 'Yashoda Hospital', mobile: '9123456789', due: 15000 },
-    { name: 'Apollo Hospitals', mobile: '9234567890', due: 28000 },
-    { name: 'Care Hospital', mobile: '9345678901', due: 12500 },
-    { name: 'Sunshine Clinic', mobile: '9456789012', due: 4500 }
-  ]
-};
+import { productService } from '../../services/productService';
+import type { Product } from '../../services/productService';
+import { retailerService } from '../../services/retailerService';
+import type { RetailerRecord } from '../../services/retailerService';
+import { chemistService } from '../../services/chemistService';
+import type { ChemistRecord } from '../../services/chemistService';
+import { retailerOrderService } from '../../services/retailerOrderService';
+import type { RetailerOrderRecord } from '../../services/retailerOrderService';
 
 export default function OrderBooking() {
   const [orders, setOrders] = useState<OrderData[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [retailers, setRetailers] = useState<RetailerRecord[]>([]);
+  const [chemists, setChemists] = useState<ChemistRecord[]>([]);
+  
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>('');
+  const [selectedProductId, setSelectedProductId] = useState<string>('');
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -179,14 +166,94 @@ export default function OrderBooking() {
   const [customerType, setCustomerType] = useState('Chemist');
   const [customerName, setCustomerName] = useState('');
   const [customerMobile, setCustomerMobile] = useState('');
-  const [selectedProduct, setSelectedProduct] = useState(PRODUCT_LIST[0].name);
+  const [selectedProduct, setSelectedProduct] = useState('');
   const [quantity, setQuantity] = useState('');
-  const [rate, setRate] = useState(PRODUCT_LIST[0].defaultRate.toString());
+  const [rate, setRate] = useState('0');
   const [distributor, setDistributor] = useState('');
   const [remarks, setRemarks] = useState('');
   
- // const totalAmount = (parseFloat(quantity) || 0) * (parseFloat(rate) || 0);
-   const qtyNum = parseFloat(quantity) || 0;
+  const mrId = Number(localStorage.getItem('mrId') || '1');
+
+  // Load backend data on mount
+  useEffect(() => {
+    async function loadData() {
+      try {
+        const loadedProducts = await productService.loadProducts();
+        setProducts(loadedProducts);
+        if (loadedProducts.length > 0) {
+          setSelectedProductId(loadedProducts[0].id);
+          setSelectedProduct(loadedProducts[0].name);
+          setRate(loadedProducts[0].mrp || '0');
+        }
+
+        const loadedRetailers = await retailerService.getRetailers();
+        setRetailers(loadedRetailers);
+
+        const loadedChemists = await chemistService.getChemists();
+        setChemists(loadedChemists);
+
+        const loadedOrders = await retailerOrderService.getRetailerOrders();
+        setOrders(loadedOrders.map(o => ({
+          id: o.id,
+          orderNumber: o.orderNumber,
+          customerType: 'Retailer',
+          customerName: o.retailer?.name || 'Retailer',
+          customerMobile: o.retailer?.mobile || '',
+          productName: o.orderItems && o.orderItems.length > 0 ? (o.orderItems[0] as any).product?.name || 'Product' : 'Product',
+          quantity: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].quantity : 0,
+          rate: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].rate : 0,
+          totalAmount: o.totalAmount,
+          distributor: 'Assigned Stockist',
+          remarks: '',
+          status: o.status === 'PENDING' ? 'Booked' : (o.status === 'DELIVERED' ? 'Delivered' : 'Booked'),
+          dateFormatted: o.orderDate ? o.orderDate.split('T')[0] : '',
+        })));
+      } catch (error) {
+        console.error('Failed to load order booking dependency masters:', error);
+      }
+    }
+    loadData();
+  }, []);
+
+  const saveOrders = (updatedList: OrderData[]) => {
+    setOrders(updatedList);
+  };
+
+  // Auto pre-fill default rate when product changes
+  useEffect(() => {
+    const prod = products.find(p => p.id === selectedProductId);
+    if (prod) {
+      setSelectedProduct(prod.name);
+      setRate(prod.mrp || '0');
+    }
+  }, [selectedProductId, products]);
+
+  // Reset customer details on type change
+  useEffect(() => {
+    setSelectedCustomerId('');
+    setCustomerName('');
+    setCustomerMobile('');
+  }, [customerType]);
+
+  // Handle customer selection from master lists
+  const handleSelectCustomer = (customerIdStr: string) => {
+    setSelectedCustomerId(customerIdStr);
+    if (customerType === 'Chemist') {
+      const chem = chemists.find(c => String(c.id) === customerIdStr);
+      if (chem) {
+        setCustomerName(chem.name);
+        setCustomerMobile(chem.mobile || '');
+      }
+    } else {
+      const ret = retailers.find(r => String(r.id) === customerIdStr);
+      if (ret) {
+        setCustomerName(ret.name);
+        setCustomerMobile(ret.mobile || '');
+      }
+    }
+  };
+
+  const qtyNum = parseFloat(quantity) || 0;
   const rateNum = parseFloat(rate) || 0;
   const baseAmount = qtyNum * rateNum;
   
@@ -201,39 +268,6 @@ export default function OrderBooking() {
 
   const totalAmount = baseAmount - schemeDiscount;
 
-  // Auto pre-fill default rate when product changes
-  useEffect(() => {
-    const prod = PRODUCT_LIST.find(p => p.name === selectedProduct);
-    if (prod) setRate(prod.defaultRate.toString());
-  }, [selectedProduct]);
-
-  // Reset customer details on type change
-  useEffect(() => {
-    setCustomerName('');
-    setCustomerMobile('');
-    // Removed dues logic
-  }, [customerType]);
-
-  // Load from local storage
-  useEffect(() => {
-    try {
-      // NOTE: We used 'web_orders' in ChemistVisits for the POB auto-save previously.
-      // We look for both so you don't lose old data.
-      const stored = localStorage.getItem('@orders') || localStorage.getItem('web_orders');
-      if (stored) {
-        setOrders(JSON.parse(stored));
-      }
-    } catch (err) {
-      console.log('Failed to load orders', err);
-    }
-  }, []);
-
-  const saveOrders = (updatedList: OrderData[]) => {
-    setOrders(updatedList);
-    localStorage.setItem('@orders', JSON.stringify(updatedList));
-    localStorage.setItem('web_orders', JSON.stringify(updatedList)); // Keep synced with old name
-  };
-
   const formatOrderDate = (date: Date) => {
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const day = date.getDate().toString().padStart(2, '0');
@@ -247,56 +281,71 @@ export default function OrderBooking() {
     return `${day}-${month}-${year} ${hours}:${minutes} ${ampm}`;
   };
 
-  const handleSubmit = () => {
-       if (!validateCheckIn()) {
+  const handleSubmit = async () => {
+    if (!validateCheckIn()) {
       return; 
     }
-    if (!customerName.trim()) { alert('Please enter or select customer name'); return; }
-    if (!customerMobile.trim() || customerMobile.length !== 10) { alert('Please enter a valid 10-digit mobile number'); return; }
-    if (!quantity.trim() || parseFloat(quantity) <= 0) { alert('Please enter a valid quantity'); return; }
-    if (!rate.trim() || parseFloat(rate) <= 0) { alert('Please enter a valid rate'); return; }
+    if (!selectedCustomerId) {
+      alert('Please select a customer from the list.');
+      return;
+    }
+    if (!selectedProductId) {
+      alert('Please select a product from the list.');
+      return;
+    }
+    if (!quantity.trim() || parseFloat(quantity) <= 0) {
+      alert('Please enter a valid quantity');
+      return;
+    }
+    if (!rate.trim() || parseFloat(rate) <= 0) {
+      alert('Please enter a valid rate');
+      return;
+    }
 
-    if (editingOrderId !== null) {
-      const updatedOrders = orders.map(o => {
-        if (o.id === editingOrderId) {
-          return {
-            ...o,
-            customerType, customerName, customerMobile,
-            productName: selectedProduct, quantity: parseFloat(quantity),
-            rate: parseFloat(rate), totalAmount, distributor, remarks
-          };
-        }
-        return o;
-      });
-      saveOrders(updatedOrders);
-      setEditingOrderId(null);
-    } else {
-      const nextOrderNum = 1000 + orders.length + 1;
-      const orderNumber = `ORD-${nextOrderNum}`;
+    try {
+      const orderPayload = {
+        retailerId: Number(selectedCustomerId),
+        totalAmount: Number(totalAmount),
+        orderItems: [
+          {
+            productId: Number(selectedProductId),
+            quantity: Number(quantity),
+            rate: Number(rate),
+            amount: Number(totalAmount)
+          }
+        ]
+      };
 
+      const result = await retailerOrderService.addRetailerOrder(orderPayload);
+      
       const newOrder: OrderData = {
-        id: Date.now(),
-        orderNumber,
-        customerType,
-        customerName,
-        customerMobile,
+        id: result.id,
+        orderNumber: result.orderNumber || `ORD-${Date.now().toString().slice(-4)}`,
+        customerType: customerType,
+        customerName: customerName,
+        customerMobile: customerMobile,
         productName: selectedProduct,
         quantity: parseFloat(quantity),
         rate: parseFloat(rate),
         totalAmount,
-        distributor,
+        distributor: distributor || 'Assigned Stockist',
         remarks,
         status: 'Booked',
         dateFormatted: formatOrderDate(new Date()),
       };
-      saveOrders([newOrder, ...orders]);
-            alert('✅ Order booked successfully!');
 
+      setOrders([newOrder, ...orders]);
+      alert('✅ Order booked successfully in database!');
+
+      // Reset Form
+      setIsDrawerOpen(false);
+      setSelectedCustomerId('');
+      setSelectedProductId('');
+      setCustomerName(''); setCustomerMobile(''); setQuantity(''); setRemarks('');
+    } catch (error: any) {
+      console.error(error);
+      alert('Failed to book order: ' + error.message);
     }
-
-    // Reset Form
-    setIsDrawerOpen(false);
-    setCustomerName(''); setCustomerMobile(''); setQuantity(''); setRemarks('');
   };
 
   const handleEdit = (order: OrderData) => {
@@ -304,9 +353,9 @@ export default function OrderBooking() {
     setCustomerType(order.customerType || 'Chemist');
     setCustomerName(order.customerName || (order as any).chemist || ''); 
     setCustomerMobile(order.customerMobile || '');
-    setSelectedProduct(order.productName || PRODUCT_LIST[0].name);
+    setSelectedProduct(order.productName || (products[0] ? products[0].name : ''));
     setQuantity(order.quantity ? order.quantity.toString() : '');
-    setRate(order.rate ? order.rate.toString() : PRODUCT_LIST[0].defaultRate.toString());
+    setRate(order.rate ? order.rate.toString() : (products[0] ? products[0].mrp : '0'));
     setDistributor(order.distributor || '');
     setRemarks(order.remarks || '');
     setIsDrawerOpen(true);
@@ -516,7 +565,7 @@ export default function OrderBooking() {
 
       {/* DRAWER FORM */}
       <Drawer open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title={editingOrderId ? `Edit Order` : `Book New Order`}>
-        <form onSubmit={(e) => { e.preventDefault(); handleSubmit(); }} className="space-y-4 pb-8">
+        <form onSubmit={(e) => e.preventDefault()} className="space-y-4 pb-8">
           
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Customer Type *</label>
@@ -535,43 +584,46 @@ export default function OrderBooking() {
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Select Predefined Customer *</label>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Select Customer *</label>
             <select
-              onChange={(e) => {
-                if(e.target.value) {
-                  const cust = CUSTOMER_MASTERS[customerType].find(c => c.name === e.target.value);
-                  if (cust) {
-                    setCustomerName(cust.name); setCustomerMobile(cust.mobile);
-                  }
-                }
-              }}
+              value={selectedCustomerId}
+              onChange={(e) => handleSelectCustomer(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-violet-500 cursor-pointer"
             >
-              <option value="">-- Choose {customerType} --</option>
-              {CUSTOMER_MASTERS[customerType].map(cust => (
-                <option key={cust.name} value={cust.name}>{cust.name}</option>
-              ))}
+              <option value="">-- Choose Customer --</option>
+              {customerType === 'Chemist' ? (
+                chemists.map(c => (
+                  <option key={c.id} value={String(c.id)}>{c.name}</option>
+                ))
+              ) : (
+                retailers.map(r => (
+                  <option key={r.id} value={String(r.id)}>{r.name}</option>
+                ))
+              )}
             </select>
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Customer Name (Editable) *</label>
-            <input type="text" value={customerName} onChange={(e) => setCustomerName(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500" />
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Customer Name (Read-Only) *</label>
+            <input type="text" value={customerName} readOnly
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 focus:outline-none"
+              placeholder="Select a customer above" />
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Customer Mobile *</label>
-            <input type="tel" value={customerMobile} onChange={(e) => setCustomerMobile(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500" maxLength={10} />
+            <input type="tel" value={customerMobile} readOnly
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-slate-50 text-slate-500 focus:outline-none"
+              placeholder="e.g. 9876543210" />
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Product Name *</label>
-            <select value={selectedProduct} onChange={(e) => setSelectedProduct(e.target.value)}
+            <select value={selectedProductId} onChange={(e) => setSelectedProductId(e.target.value)}
               className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-violet-500 cursor-pointer">
-              {PRODUCT_LIST.map(prod => (
-                <option key={prod.name} value={prod.name}>{prod.name} (₹{prod.defaultRate.toFixed(2)})</option>
+              <option value="">-- Select Product --</option>
+              {products.map(prod => (
+                <option key={prod.id} value={String(prod.id)}>{prod.name} (MRP: ₹{prod.mrp})</option>
               ))}
             </select>
           </div>

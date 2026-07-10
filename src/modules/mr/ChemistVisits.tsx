@@ -471,12 +471,14 @@ import {
 } from './components/shared';
 import { type Column } from './components/shared';
 import { validateCheckIn } from '../../utils/attendanceValidation';
+import { chemistVisitService } from '../../services/chemistVisitService';
+import type { ChemistVisit as DbChemistVisit } from '../../services/chemistVisitService';
+import { chemistService } from '../../services/chemistService';
+import type { ChemistRecord } from '../../services/chemistService';
 
-// ✅ Unified interface — matches React Native ChemistVisitScreen exactly
 interface ChemistVisit {
   id: string;
   mrName?: string;
-
   chemistName: string;
   shopName: string;
   mobile?: string;
@@ -490,7 +492,6 @@ interface ChemistVisit {
   nextFollowUp?: string;
   remarks?: string;
   status: 'Scheduled' | 'Completed' | 'Missed';
-  // GPS fields for Geo-tagging verification
   latitude?: string;
   longitude?: string;
   distanceVerified?: string;
@@ -498,6 +499,8 @@ interface ChemistVisit {
 
 export default function ChemistVisits() {
   const [visits, setVisits] = useState<ChemistVisit[]>([]);
+  const [chemists, setChemists] = useState<ChemistRecord[]>([]);
+  const [selectedChemId, setSelectedChemId] = useState<string>('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -506,33 +509,66 @@ export default function ChemistVisits() {
   const [newShopName, setNewShopName] = useState('');
   const [newMobile, setNewMobile] = useState('');
   const [newLocation, setNewLocation] = useState('');
-  const [newVisitDate, setNewVisitDate] = useState('');
+  const [newVisitDate, setNewVisitDate] = useState(new Date().toISOString().split('T')[0]);
   const [newVisitTime, setNewVisitTime] = useState('');
-  const [newStockCheck, setNewStockCheck] = useState<ChemistVisit['stockCheck']>('Pending');
-  const [newPobAmount, setNewPobAmount] = useState<string>('');  // string so '0' displays correctly
+  const [newStockCheck, setNewStockCheck] = useState<'Yes' | 'No' | 'Pending'>('Pending');
+  const [newPobAmount, setNewPobAmount] = useState<string>('');
   const [newMedicine, setNewMedicine] = useState('');
   const [newQuantity, setNewQuantity] = useState('');
   const [newNextFollowUp, setNewNextFollowUp] = useState('');
   const [newRemarks, setNewRemarks] = useState('');
   const [newStatus, setNewStatus] = useState<ChemistVisit['status']>('Scheduled');
 
+  const mrId = Number(localStorage.getItem('mrId') || '1');
+
+  // Load from backend on mount
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('chemist_visits');
-      if (stored) {
-        // Auto-cleanup: Filter out old mock records (IDs '1', '2', '3') from localStorage
-        const parsed = JSON.parse(stored);
-        const filtered = parsed.filter((v: any) => v.id !== '1' && v.id !== '2' && v.id !== '3');
-        setVisits(filtered);
-        localStorage.setItem('chemist_visits', JSON.stringify(filtered));
-      } else {
-        setVisits([]);
-        localStorage.setItem('chemist_visits', JSON.stringify([]));
+    async function loadData() {
+      try {
+        const loadedVisits = await chemistVisitService.loadChemistVisits(mrId);
+        const mappedVisits = loadedVisits.map(v => ({
+          id: v.id,
+          mrName: '',
+          chemistName: v.chemistName,
+          shopName: v.address || 'Pharmacy',
+          mobile: v.mobile,
+          location: v.address || 'N/A',
+          visitDate: v.visitDate,
+          visitTime: v.visitTime,
+          stockCheck: 'Pending' as const,
+          pobAmount: Number(v.orderValue) || 0,
+          medicine: v.productsDiscussed,
+          quantity: '',
+          nextFollowUp: '',
+          remarks: v.remarks,
+          status: 'Completed' as const,
+        }));
+        setVisits(mappedVisits);
+        const loadedChemists = await chemistService.getChemists();
+        setChemists(loadedChemists);
+      } catch (error) {
+        console.error('Failed to load chemist visits or chemists:', error);
       }
-    } catch (error) {
-      console.error('Failed to load chemist visits:', error);
     }
-  }, []);
+    loadData();
+  }, [mrId]);
+
+  // Handle selecting chemist from master list
+  const handleSelectChemist = (chemIdStr: string) => {
+    setSelectedChemId(chemIdStr);
+    const chem = chemists.find(c => String(c.id) === chemIdStr);
+    if (chem) {
+      setNewChemistName(chem.name);
+      setNewShopName(chem.name);
+      setNewMobile(chem.mobile || '');
+      setNewLocation(chem.address || '');
+    } else {
+      setNewChemistName('');
+      setNewShopName('');
+      setNewMobile('');
+      setNewLocation('');
+    }
+  };
 
   const saveVisits = (updatedList: ChemistVisit[]) => {
     setVisits(updatedList);
@@ -555,30 +591,17 @@ export default function ChemistVisits() {
     }
   };
 
-  const handleAddVisit = () => {
+  const handleAddVisit = async () => {
     if (!validateCheckIn()) {
       return; 
     }
     // ✅ Required field checks
-    if (!newChemistName.trim()) {
-      alert('Chemist Name is required.');
-      return;
-    }
-    if (!newShopName.trim()) {
-      alert('Shop / Pharmacy Name is required.');
-      return;
-    }
-    if (!newLocation.trim()) {
-      alert('Area / Location is required.');
+    if (!selectedChemId) {
+      alert('Please select a Chemist from the master list.');
       return;
     }
     if (!newVisitDate) {
       alert('Visit Date is required.');
-      return;
-    }
-    // ✅ Mobile: must be exactly 10 digits if entered
-    if (newMobile && newMobile.length !== 10) {
-      alert('Mobile number must be exactly 10 digits.');
       return;
     }
     // ✅ POB Amount: must not be negative
@@ -597,35 +620,108 @@ export default function ChemistVisits() {
     const now = new Date();
     const currentTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
     const finalVisitTime = newVisitTime || currentTime;
-const authUser = JSON.parse(localStorage.getItem('authUser') || 'null');
 
+    let finalChemId = selectedChemId;
 
-    const newVisit: ChemistVisit = {
-      id: Date.now().toString(),mrName: authUser?.fullName || '', chemistName: newChemistName, shopName: newShopName,
-      mobile: newMobile, location: newLocation, visitDate: newVisitDate,
-      visitTime: finalVisitTime, stockCheck: newStockCheck, pobAmount: Number(newPobAmount) || 0,
-      medicine: newMedicine, quantity: newQuantity, nextFollowUp: newNextFollowUp,
-      remarks: newRemarks, status: newStatus,
-      latitude: visitLat,
-      longitude: visitLng,
-      distanceVerified: 'Yes (< 15m)'
-    };
+    if (selectedChemId === 'NEW_CHEMIST') {
+      if (!newChemistName.trim() || newChemistName.trim().length < 3) {
+        alert('Chemist Name must be at least 3 characters long.');
+        return;
+      }
+      if (!newShopName.trim() || newShopName.trim().length < 3) {
+        alert('Shop / Pharmacy name must be at least 3 characters long.');
+        return;
+      }
+      if (newMobile && newMobile.length !== 10) {
+        alert('Mobile number must be exactly 10 digits.');
+        return;
+      }
+      if (!newLocation.trim() || newLocation.trim().length < 3) {
+        alert('Area / Location must be at least 3 characters long.');
+        return;
+      }
 
-    saveVisits([newVisit, ...visits]);
-    savePobToOrders(newShopName, newVisitDate, Number(newPobAmount) || 0);
-    setIsDrawerOpen(false);
-    alert('✅ Chemist Visit saved successfully!');
+      try {
+        const createdChem = await chemistService.addChemist({
+          name: newChemistName,
+          mobile: newMobile,
+          email: '',
+          address: newLocation,
+          territory: 'Default Territory',
+          gstNumber: '',
+          drugLicenseNumber: ''
+        });
 
-    setNewChemistName(''); setNewShopName(''); setNewMobile('');
-    setNewLocation(''); setNewVisitDate(''); setNewVisitTime('');
-    setNewStockCheck('Pending'); setNewPobAmount(''); setNewMedicine('');
-    setNewQuantity(''); setNewNextFollowUp(''); setNewRemarks('');
-    setNewStatus('Scheduled');
+        const updatedChems = [createdChem, ...chemists];
+        setChemists(updatedChems);
+        finalChemId = String(createdChem.id);
+      } catch (error: any) {
+        alert('Failed to create chemist: ' + error.message);
+        return;
+      }
+    }
+
+    try {
+      const dbVisit = await chemistVisitService.addChemistVisit(mrId, {
+        chemistId: Number(finalChemId),
+        remarks: newRemarks,
+        productsDiscussed: newMedicine,
+        orderValue: newPobAmount,
+        latitude: visitLat,
+        longitude: visitLng,
+      });
+
+      const newVisit: ChemistVisit = {
+        id: dbVisit.id,
+        mrName: '',
+        chemistName: newChemistName,
+        shopName: newShopName,
+        mobile: newMobile,
+        location: newLocation,
+        visitDate: newVisitDate,
+        visitTime: finalVisitTime,
+        stockCheck: newStockCheck,
+        pobAmount: Number(newPobAmount) || 0,
+        medicine: newMedicine,
+        quantity: newQuantity,
+        nextFollowUp: newNextFollowUp,
+        remarks: newRemarks,
+        status: newStatus,
+        latitude: visitLat,
+        longitude: visitLng,
+        distanceVerified: 'Yes (< 15m)'
+      };
+
+      setVisits([newVisit, ...visits]);
+      savePobToOrders(newShopName, newVisitDate, Number(newPobAmount) || 0);
+      setIsDrawerOpen(false);
+      alert('✅ Chemist Visit saved successfully to database!');
+
+      setSelectedChemId('');
+      setNewChemistName(''); setNewShopName(''); setNewMobile('');
+      setNewLocation(''); setNewVisitDate(new Date().toISOString().split('T')[0]); setNewVisitTime('');
+      setNewStockCheck('Pending'); setNewPobAmount(''); setNewMedicine('');
+      setNewQuantity(''); setNewNextFollowUp(''); setNewRemarks('');
+      setNewStatus('Scheduled');
+    } catch (error: any) {
+      console.error(error);
+      alert('Failed to save chemist visit: ' + error.message);
+    }
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this record?')) {
-      saveVisits(visits.filter((v) => v.id !== id));
+      try {
+        const success = await chemistVisitService.deleteChemistVisit(id);
+        if (success) {
+          setVisits(visits.filter((v) => v.id !== id));
+          alert('Chemist visit record deleted successfully.');
+        } else {
+          alert('Failed to delete chemist visit record.');
+        }
+      } catch (error: any) {
+        alert('Failed to delete visit: ' + error.message);
+      }
     }
   };
 
@@ -781,34 +877,45 @@ const authUser = JSON.parse(localStorage.getItem('authUser') || 'null');
       <Drawer open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title="Log Chemist Visit & RCPA">
         <form onSubmit={(e) => e.preventDefault()} className="space-y-4">
 
+          <div>
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Select Chemist *</label>
+            <select value={selectedChemId} onChange={(e) => handleSelectChemist(e.target.value)}
+              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm bg-white focus:outline-none focus:border-violet-500">
+              <option value="">-- Select Chemist --</option>
+              <option value="NEW_CHEMIST">+ Create New Chemist...</option>
+              {chemists.map((c) => (
+                <option key={c.id} value={String(c.id)}>{c.name} ({c.territory})</option>
+              ))}
+            </select>
+          </div>
+
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Chemist Name *</label>
-              <input type="text" value={newChemistName} onChange={(e) => setNewChemistName(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
-                placeholder="e.g. Rajesh Kumar" />
+              <input type="text" value={newChemistName} readOnly={selectedChemId !== 'NEW_CHEMIST'} onChange={(e) => setNewChemistName(e.target.value)}
+                className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none ${selectedChemId === 'NEW_CHEMIST' ? 'bg-white focus:border-violet-500 text-slate-900' : 'bg-slate-50 text-slate-500'}`}
+                placeholder={selectedChemId === 'NEW_CHEMIST' ? 'Enter Chemist Name' : 'Select a chemist above'} />
             </div>
             <div>
               <label className="block text-sm font-semibold text-slate-700 mb-1">Shop / Pharmacy Name *</label>
-              <input type="text" value={newShopName} onChange={(e) => setNewShopName(e.target.value)}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
-                placeholder="e.g. Apollo Pharmacy" />
+              <input type="text" value={newShopName} readOnly={selectedChemId !== 'NEW_CHEMIST'} onChange={(e) => setNewShopName(e.target.value)}
+                className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none ${selectedChemId === 'NEW_CHEMIST' ? 'bg-white focus:border-violet-500 text-slate-900' : 'bg-slate-50 text-slate-500'}`}
+                placeholder={selectedChemId === 'NEW_CHEMIST' ? 'Enter Shop Name' : 'Select a chemist above'} />
             </div>
           </div>
 
           <div>
-            <label className="block text-sm font-semibold text-slate-700 mb-1">Mobile Number <span className="text-slate-400 font-normal text-xs">(10 digits)</span></label>
-            <input type="tel" value={newMobile}
-              onChange={(e) => setNewMobile(e.target.value.replace(/[^0-9]/g, '').slice(0, 10))}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
-              placeholder="e.g. 9876543210" maxLength={10} />
+            <label className="block text-sm font-semibold text-slate-700 mb-1">Mobile Number</label>
+            <input type="tel" value={newMobile} readOnly={selectedChemId !== 'NEW_CHEMIST'} onChange={(e) => setNewMobile(e.target.value)}
+              className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none ${selectedChemId === 'NEW_CHEMIST' ? 'bg-white focus:border-violet-500 text-slate-900' : 'bg-slate-50 text-slate-500'}`}
+              placeholder={selectedChemId === 'NEW_CHEMIST' ? 'Enter Mobile Number' : 'e.g. 9876543210'} />
           </div>
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Area / Location *</label>
-            <input type="text" value={newLocation} onChange={(e) => setNewLocation(e.target.value)}
-              className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500"
-              placeholder="e.g. Hyderabad, Banjara Hills" />
+            <input type="text" value={newLocation} readOnly={selectedChemId !== 'NEW_CHEMIST'} onChange={(e) => setNewLocation(e.target.value)}
+              className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none ${selectedChemId === 'NEW_CHEMIST' ? 'bg-white focus:border-violet-500 text-slate-900' : 'bg-slate-50 text-slate-500'}`}
+              placeholder={selectedChemId === 'NEW_CHEMIST' ? 'Enter Location/Address' : 'e.g. Hyderabad, Banjara Hills'} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

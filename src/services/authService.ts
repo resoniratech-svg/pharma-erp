@@ -13,7 +13,13 @@ export interface UserRecord {
 }
 
 export class AuthService {
-  async login(email: string, password: string): Promise<UserRecord> {
+  async login(email: string, password: string, force = false): Promise<UserRecord> {
+    let deviceId = localStorage.getItem('deviceId');
+    if (!deviceId) {
+      deviceId = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
+      localStorage.setItem('deviceId', deviceId);
+    }
+
     const response = await apiRequest<{
       success: boolean;
       message: string;
@@ -34,7 +40,7 @@ export class AuthService {
       };
     }>('/auth/login', {
       method: 'POST',
-      bodyData: { email, password },
+      bodyData: { email, password, deviceId, force },
     });
 
     if (!response.success || !response.data) {
@@ -59,21 +65,33 @@ export class AuthService {
     localStorage.setItem('authUser', JSON.stringify(userRecord));
     localStorage.setItem('activeRole', user.role);
     localStorage.setItem('userId', String(user.id));
+    if (mr) {
+      localStorage.setItem('mrId', String(mr.id));
+      localStorage.setItem('mrCode', mr.mrCode);
+      localStorage.setItem('mrTerritory', mr.territory || '');
+    }
 
     return userRecord;
   }
 
   getCurrentUser(): UserRecord | null {
-    const user = localStorage.getItem('authUser');
-    return user ? JSON.parse(user) : null;
+    return localStorage.getItem('authUser') ? JSON.parse(localStorage.getItem('authUser')!) : null;
   }
 
-  logout() {
+  async logout() {
+    try {
+      await apiRequest('/auth/logout', { method: 'POST' });
+    } catch (e) {
+      console.warn("Failed to notify logout to backend:", e);
+    }
     localStorage.removeItem('authToken');
     localStorage.removeItem('authUser');
     localStorage.removeItem('activeRole');
     localStorage.removeItem('workspaceRole');
     localStorage.removeItem('userId');
+    localStorage.removeItem('mrId');
+    localStorage.removeItem('mrCode');
+    localStorage.removeItem('mrTerritory');
   }
 
   updateProfile(updatedData: any) {

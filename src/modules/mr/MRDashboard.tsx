@@ -13,37 +13,57 @@ import {
   ArrowRight
 } from 'lucide-react';
 import { dashboardService } from '../../services/dashboardService';
+import { doctorVisitService } from '../../services/doctorVisitService';
+import { chemistVisitService } from '../../services/chemistVisitService';
+import { tourPlanService } from '../../services/tourPlanService';
+import { attendanceService } from '../../services/attendanceService';
+import { retailerOrderService } from '../../services/retailerOrderService';
 
 export default function MRDashboard() {
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
-    // Load all data from service
-    const attendance = dashboardService.getAttendanceStatus();
-    const docVisits = dashboardService.getTodayDoctorVisits();
-    const chemVisits = dashboardService.getTodayChemistVisits();
-    const orders = dashboardService.getTodayOrders();
-    const targets = dashboardService.getMonthlyTargetProgress();
-    const followUps = dashboardService.getPendingFollowUps();
-    const schedule = dashboardService.getTodaySchedule();
-    const recentOrders = dashboardService.getRecentOrders();
-    const recentVisits = dashboardService.getRecentVisits();
+    async function loadAllData() {
+      const mrId = Number(localStorage.getItem('mrId') || '1');
+      try {
+        await Promise.all([
+          doctorVisitService.loadDoctorVisits(mrId),
+          chemistVisitService.loadChemistVisits(mrId),
+          tourPlanService.loadTourPlans(mrId),
+          attendanceService.loadAttendance(mrId),
+          retailerOrderService.getRetailerOrders(),
+        ]);
+      } catch (error) {
+        console.error("Failed to pre-cache backend dashboard data:", error);
+      }
+      
+      const attendance = dashboardService.getAttendanceStatus();
+      const docVisits = dashboardService.getTodayDoctorVisits();
+      const chemVisits = dashboardService.getTodayChemistVisits();
+      const orders = dashboardService.getTodayOrders();
+      const targets = dashboardService.getMonthlyTargetProgress();
+      const followUps = dashboardService.getPendingFollowUps();
+      const schedule = dashboardService.getTodaySchedule();
+      const recentOrders = dashboardService.getRecentOrders();
+      const recentVisits = dashboardService.getRecentVisits();
       const notifications = dashboardService.getTodayNotifications();
-    const routeSummary = dashboardService.getTodayRouteSummary();
+      const routeSummary = dashboardService.getTodayRouteSummary();
 
-    setData({
-      attendance,
-      docVisits,
-      chemVisits,
-      orders,
-      targets,
-      followUps,
-      schedule,
-      recentOrders,
-      recentVisits,
-       notifications, 
-      routeSummary 
-    });
+      setData({
+        attendance,
+        docVisits,
+        chemVisits,
+        orders,
+        targets,
+        followUps,
+        schedule,
+        recentOrders,
+        recentVisits,
+        notifications, 
+        routeSummary 
+      });
+    }
+    loadAllData();
   }, []);
 
   if (!data) return <div className="p-8 text-center text-slate-500">Loading Dashboard...</div>;
