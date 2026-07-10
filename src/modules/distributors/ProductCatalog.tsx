@@ -291,7 +291,7 @@ export default function ProductCatalog() {
       render: (row) => (
         <button
           onClick={(e) => { e.stopPropagation(); setSelectedProduct(row); }}
-          className="text-slate-400 hover:text-violet-600 transition-colors p-1"
+          className="text-slate-400 hover:text-[#163c78] transition-colors p-1"
           title="View Details"
         >
           <Eye className="w-4 h-4" />
@@ -335,8 +335,8 @@ export default function ProductCatalog() {
           value={kpis.totalProducts.toString()}
           subtitle="In catalog"
           icon={<PackageSearch className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Available Products"

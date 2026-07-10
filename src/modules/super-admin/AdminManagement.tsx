@@ -162,7 +162,7 @@ export default function AdminManagement() {
             setSelectedAdminForPermissions(row);
             setTempPermissions([...row.permissions]);
           }}
-          className="p-2 text-violet-600 hover:bg-violet-50 rounded-lg transition-colors flex items-center justify-center border border-transparent hover:border-violet-100"
+          className="p-2 text-[#163c78] hover:bg-[#163c78]/10 rounded-lg transition-colors flex items-center justify-center border border-transparent hover:border-violet-100"
           title="Manage Permissions"
         >
           <Shield className="w-5 h-5" />
@@ -358,12 +358,12 @@ export default function AdminManagement() {
                         e.preventDefault();
                         toggleModulePermission(mod);
                       }}
-                      className={`flex items-center p-3 rounded-xl border transition-all cursor-pointer ${isChecked ? 'border-violet-200 bg-violet-50/50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                      className={`flex items-center p-3 rounded-xl border transition-all cursor-pointer ${isChecked ? 'border-violet-200 bg-[#163c78]/10/50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
                     >
-                      <div className={`w-5 h-5 rounded flex items-center justify-center mr-3 border ${isChecked ? 'bg-violet-600 border-violet-600 text-white' : 'border-slate-300 bg-white'}`}>
+                      <div className={`w-5 h-5 rounded flex items-center justify-center mr-3 border ${isChecked ? 'bg-[#163c78] border-[#163c78] text-white' : 'border-slate-300 bg-white'}`}>
                         {isChecked && <Check className="w-3.5 h-3.5" />}
                       </div>
-                      <span className={`text-sm font-medium ${isChecked ? 'text-violet-900' : 'text-slate-700'}`}>{mod}</span>
+                      <span className={`text-sm font-medium ${isChecked ? 'text-[#081529]' : 'text-slate-700'}`}>{mod}</span>
                     </label>
                   );
                 })}
@@ -418,7 +418,7 @@ export default function AdminManagement() {
                         filteredCompanySuggestions.map(c => (
                           <button
                             key={c}
-                            className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-violet-50 hover:text-violet-700 transition-colors"
+                            className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-[#163c78]/10 hover:text-violet-700 transition-colors"
                             onClick={() => {
                               setFormCompanySearch(c);
                               setShowCompanyDropdown(false);
@@ -430,7 +430,7 @@ export default function AdminManagement() {
                       ) : (
                         <div className="px-4 py-3 text-sm text-slate-500 italic flex flex-col">
                           <span>No matches found.</span>
-                          <span className="text-violet-600 font-medium mt-1">Press enter or save to use "{formCompanySearch}" as a new company.</span>
+                          <span className="text-[#163c78] font-medium mt-1">Press enter or save to use "{formCompanySearch}" as a new company.</span>
                         </div>
                       )}
                     </div>

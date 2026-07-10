@@ -49,7 +49,7 @@
 //     {
 //       key: 'action',
 //       label: '',
-//       render: (row) => row.location !== '-' ? <button className="text-violet-600 hover:text-violet-700 p-1"><MapPin className="w-4 h-4" /></button> : null
+//       render: (row) => row.location !== '-' ? <button className="text-[#163c78] hover:text-violet-700 p-1"><MapPin className="w-4 h-4" /></button> : null
 //     }
 //   ];
 
@@ -188,7 +188,7 @@ export default function Attendance() {
     {
       key: 'action',
       label: '',
-      render: (row) => row.location !== '-' ? <button className="text-violet-600 hover:text-violet-700 p-1"><MapPin className="w-4 h-4" /></button> : null
+      render: (row) => row.location !== '-' ? <button className="text-[#163c78] hover:text-violet-700 p-1"><MapPin className="w-4 h-4" /></button> : null
     }
   ];
 

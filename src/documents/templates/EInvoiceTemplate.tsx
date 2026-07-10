@@ -20,7 +20,7 @@ export const applyEInvoiceTemplate = (doc: jsPDF, invoice: any) => {
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(24);
   doc.setFont('helvetica', 'bold');
-  doc.text('PHARMA ERP', 15, 20);
+  doc.text('MJ Healthcare ERP', 15, 20);
 
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');

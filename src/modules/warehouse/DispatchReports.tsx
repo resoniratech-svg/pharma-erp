@@ -387,8 +387,8 @@ export default function DispatchReports() {
           value={totalDispatches.toLocaleString()}
           subtitle="Selected Period"
           icon={<Package className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
 
         <SummaryCard
@@ -441,7 +441,7 @@ export default function DispatchReports() {
                   </div>
                   <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
                     <div
-                      className="h-full bg-violet-600 rounded-full transition-all duration-500"
+                      className="h-full bg-[#163c78] rounded-full transition-all duration-500"
                       style={{
                         width: `${(item.value / maxVolume) * 100}%`,
                       }}
@@ -492,7 +492,7 @@ export default function DispatchReports() {
                     ) : transporterStats.map((item, index) => (
                       <tr
                         key={index}
-                        className="transition-colors hover:bg-violet-50/40"
+                        className="transition-colors hover:bg-[#163c78]/10/40"
                       >
                         <td className="px-4 py-3 text-sm font-medium text-slate-900 whitespace-nowrap">
                           {item.transporter}

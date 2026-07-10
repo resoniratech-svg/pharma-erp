@@ -469,7 +469,7 @@ export default function BankReconciliation() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-200">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
                <h3 className="text-lg font-bold text-slate-900 flex items-center gap-2">
-                 <CheckCircle2 className="w-5 h-5 text-violet-600" /> Confirm Reconciliation
+                 <CheckCircle2 className="w-5 h-5 text-[#163c78]" /> Confirm Reconciliation
                </h3>
                <button onClick={() => setReconcileRow(null)} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors">
                  <X className="w-5 h-5" />
@@ -510,7 +510,7 @@ export default function BankReconciliation() {
               </button>
               <button 
                 onClick={handleConfirmReconcile}
-                className="px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg shadow-sm shadow-violet-200 hover:bg-violet-700 transition-colors flex items-center gap-2 focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 focus:outline-none"
+                className="px-4 py-2 text-sm font-medium text-white bg-[#163c78] rounded-lg shadow-sm shadow-[#163c78]/30 hover:bg-[#112d59] transition-colors flex items-center gap-2 focus:ring-2 focus:ring-violet-500 focus:ring-offset-1 focus:outline-none"
               >
                 <CheckCircle2 className="w-4 h-4" /> Confirm Reconciliation
               </button>

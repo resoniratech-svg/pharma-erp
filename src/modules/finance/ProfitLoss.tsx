@@ -147,7 +147,7 @@ export default function ProfitLoss() {
           {item.isDrilldown ? (
             <button 
               onClick={() => setDrilldownItem(item)}
-              className="text-violet-600 hover:text-violet-800 hover:underline flex items-center gap-1 text-left"
+              className="text-[#163c78] hover:text-[#0c1f3d] hover:underline flex items-center gap-1 text-left"
             >
               {item.name}
             </button>
@@ -310,8 +310,8 @@ export default function ProfitLoss() {
           value="₹18,30,000" 
           subtitle="+51.2% vs last year"
           icon={<TrendingUp className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard 
           title="Net Profit Margin" 
@@ -326,7 +326,7 @@ export default function ProfitLoss() {
       <div className="bg-white p-4 sm:p-8 rounded-2xl border border-slate-200 shadow-sm w-full overflow-x-auto">
          <div className="min-w-[1000px]">
            <div className="text-center mb-8">
-              <h2 className="text-xl font-bold text-slate-900">Pharma ERP Pvt. Ltd.</h2>
+              <h2 className="text-xl font-bold text-slate-900">MJ Healthcare ERP Pvt. Ltd.</h2>
               <p className="text-slate-500">Profit & Loss Account for the period {fromDate} to {toDate}</p>
               {branch !== 'All' && <p className="text-slate-400 text-sm mt-1">Branch: {branch} | Division: {division}</p>}
            </div>
@@ -372,7 +372,7 @@ export default function ProfitLoss() {
         {drilldownItem && (
           <div className="flex flex-col h-full">
             <div className="mb-6 p-4 bg-slate-50 rounded-xl border border-slate-100 flex items-start gap-3">
-              <Info className="w-5 h-5 text-violet-600 mt-0.5" />
+              <Info className="w-5 h-5 text-[#163c78] mt-0.5" />
               <div>
                 <h3 className="font-semibold text-slate-900">{drilldownItem.name.replace('To ', '').replace('By ', '')} Account</h3>
                 <p className="text-sm text-slate-500 mt-1">Showing underlying general ledger transactions contributing to the total balance of <span className="font-bold text-slate-700">{formatCurrency(drilldownItem.current)}</span> for the current period.</p>

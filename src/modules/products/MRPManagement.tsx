@@ -102,7 +102,7 @@ export default function MRPManagement() {
     { key: 'updatedAt', label: 'Last Updated', render: (row) => formatDate(row.updatedAt) },
     { key: 'id', label: 'Actions', render: (row) => (
         <div className="flex gap-3">
-          <button onClick={(e) => { e.stopPropagation(); setSelectedItem(row); }} className="text-violet-600 font-medium hover:text-violet-800">View</button>
+          <button onClick={(e) => { e.stopPropagation(); setSelectedItem(row); }} className="text-[#163c78] font-medium hover:text-[#0c1f3d]">View</button>
           {canDelete && (
           <button onClick={(e) => { e.stopPropagation(); setItemToDelete(row); }} className="text-rose-600 font-medium hover:text-rose-800" title="Delete">
             <Trash2 className="w-4 h-4" />

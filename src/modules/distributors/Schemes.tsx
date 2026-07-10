@@ -268,7 +268,7 @@ export default function Schemes() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewScheme(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View">
+          <button onClick={() => setViewScheme(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View">
             <Eye className="w-4 h-4" />
           </button>
         </div>
@@ -387,9 +387,9 @@ export default function Schemes() {
 
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Benefit Details</h3>
-              <div className="bg-violet-50 rounded-xl p-4 border border-violet-100 text-center py-6">
-                <div className="text-sm text-violet-600 font-medium mb-1">Benefit</div>
-                <div className="text-xl text-violet-900 font-bold">{viewScheme.benefit}</div>
+              <div className="bg-[#163c78]/10 rounded-xl p-4 border border-violet-100 text-center py-6">
+                <div className="text-sm text-[#163c78] font-medium mb-1">Benefit</div>
+                <div className="text-xl text-[#081529] font-bold">{viewScheme.benefit}</div>
               </div>
             </div>
 

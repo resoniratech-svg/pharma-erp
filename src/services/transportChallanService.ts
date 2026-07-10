@@ -210,111 +210,66 @@ let dispatchCache: any[] = [];
 
 export const transportChallanService = {
   async loadDispatches(): Promise<any[]> {
-    const response = await apiRequest<{ success: boolean; data: DbDispatch[] }>('/dispatches');
-    if (response.success && response.data) {
-      dispatchCache = response.data.map(mapDispatchToUi);
-      localStorage.setItem(DISPATCH_STORAGE_KEY, JSON.stringify(dispatchCache));
+    try {
+      const stored = localStorage.getItem(DISPATCH_STORAGE_KEY);
+      if (stored) {
+        dispatchCache = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to parse dispatches from local storage', e);
     }
     return dispatchCache;
   },
 
   async createDispatch(dispatch: any): Promise<any> {
-    const response = await apiRequest<{ success: boolean; data: DbDispatch }>('/dispatches', {
-      method: 'POST',
-      bodyData: {
-        dispatchNo: dispatch.dispatchId,
-        dispatchType: dispatch.dispatchType,
-        orderId: dispatch.orderId,
-        customerName: dispatch.client,
-        sourceWarehouse: dispatch.sourceWarehouse,
-        totalItems: dispatch.totalItems,
-        totalQuantity: dispatch.totalQuantity,
-        status: dispatch.status,
-        transporter: dispatch.transporter,
-        lrNumber: dispatch.lrNumber,
-        vehicleNumber: dispatch.vehicleNumber,
-        driverName: dispatch.driverName,
-        driverMobile: dispatch.driverMobile,
-        remarks: dispatch.remarks,
-        createdBy: dispatch.createdBy,
-        createdDate: dispatch.createdDate,
-        products: dispatch.products
-      }
-    });
-    if (!response.success || !response.data) {
-      throw new Error('Failed to create dispatch');
-    }
-    const created = mapDispatchToUi(response.data);
-    dispatchCache = [created, ...dispatchCache];
+    const newDispatch = {
+      ...dispatch,
+      id: dispatch.id || Date.now().toString(),
+      status: dispatch.status || 'Ready to Ship'
+    };
+    
+    // Ensure we have the latest cache before updating
+    await this.loadDispatches();
+    dispatchCache = [newDispatch, ...dispatchCache];
     localStorage.setItem(DISPATCH_STORAGE_KEY, JSON.stringify(dispatchCache));
-    return created;
+    return newDispatch;
   },
 
   async loadChallans(): Promise<Challan[]> {
-    const response = await apiRequest<{ success: boolean; data: DbChallan[] }>('/transport-challans');
-    if (response.success && response.data) {
-      challanCache = response.data.map(mapChallanToUi);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(challanCache));
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored) {
+        challanCache = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Failed to load challans from local storage', e);
     }
     return challanCache;
   },
 
   async createChallan(challan: Challan): Promise<Challan> {
-    const response = await apiRequest<{ success: boolean; data: DbChallan }>('/transport-challans', {
-      method: 'POST',
-      bodyData: {
-        challanNo: challan.challanNo,
-        challanNumber: challan.challanNo,
-        challanDate: challan.challanDate,
-        dispatchNo: challan.dispatchNo,
-        dispatchDate: challan.dispatchDate,
-        orderNo: challan.orderNo,
-        customer: challan.customer,
-        sourceWarehouse: challan.sourceWarehouse,
-        transporterName: challan.transporter,
-        vehicleNumber: challan.vehicleNo,
-        driverName: challan.driverName,
-        driverMobile: challan.driverMobile,
-        totalItems: challan.totalItems,
-        totalQty: challan.totalQty,
-        status: challan.status,
-        products: challan.products,
-        createdBy: challan.createdBy,
-        createdDate: challan.createdDate,
-        podStatus: challan.podStatus || 'Pending Upload'
-      }
-    });
-    if (!response.success || !response.data) {
-      throw new Error('Failed to create transport challan');
-    }
-    const created = mapChallanToUi(response.data);
-    challanCache = [created, ...challanCache];
+    const newChallan = {
+      ...challan,
+      id: challan.id || Date.now().toString(),
+      status: challan.status || 'Generated',
+      podStatus: challan.podStatus || 'Pending Upload'
+    };
+    
+    await this.loadChallans();
+    challanCache = [newChallan, ...challanCache];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(challanCache));
-    return created;
+    return newChallan;
   },
 
   async updateChallan(id: string, updatedData: Partial<Challan>): Promise<Challan> {
-    const response = await apiRequest<{ success: boolean; data: DbChallan }>(`/transport-challans/${id}`, {
-      method: 'PUT',
-      bodyData: {
-        status: updatedData.status,
-        podStatus: updatedData.podStatus,
-        podUploadedBy: updatedData.podUploadedBy,
-        podUploadedDate: updatedData.podUploadedDate,
-        podReceivedBy: updatedData.podReceivedBy,
-        podDesignation: updatedData.podDesignation,
-        podFileUrl: updatedData.podFileUrl,
-        podFileName: updatedData.podFileName,
-        podFileType: updatedData.podFileType,
-        podRemarks: updatedData.podRemarks,
-        actualDeliveryDate: updatedData.actualDeliveryDate
-      }
-    });
-    if (!response.success || !response.data) {
-      throw new Error('Failed to update transport challan');
+    await this.loadChallans();
+    const index = challanCache.findIndex(c => c.id === id);
+    if (index === -1) {
+      throw new Error('Challan not found');
     }
-    const updated = mapChallanToUi(response.data);
-    challanCache = challanCache.map(c => c.id === id ? updated : c);
+    
+    const updated = { ...challanCache[index], ...updatedData };
+    challanCache[index] = updated;
     localStorage.setItem(STORAGE_KEY, JSON.stringify(challanCache));
     return updated;
   },

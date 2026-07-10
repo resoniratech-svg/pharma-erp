@@ -70,7 +70,7 @@ export default function NotificationDropdown() {
   //     case 'meeting': return <Calendar className="w-4 h-4 text-indigo-500" />;
   //     case 'payment': return <IndianRupee className="w-4 h-4 text-emerald-500" />;
   //     case 'inventory': return <Package className="w-4 h-4 text-rose-500" />;
-  //     case 'mr': return <Activity className="w-4 h-4 text-violet-500" />;
+  //     case 'mr': return <Activity className="w-4 h-4 text-[#163c78]/90" />;
   //     case 'gps': return <MapPin className="w-4 h-4 text-blue-500" />;
   //     case 'crm': return <Stethoscope className="w-4 h-4 text-orange-500" />;
   //     default: return <Bell className="w-4 h-4 text-slate-500" />;
@@ -81,7 +81,7 @@ export default function NotificationDropdown() {
       case 'meeting': return <Calendar className="w-4 h-4 text-indigo-500" />;
       case 'payment': return <IndianRupee className="w-4 h-4 text-emerald-500" />;
       case 'inventory': return <Package className="w-4 h-4 text-rose-500" />;
-      case 'mr': return <Activity className="w-4 h-4 text-violet-500" />;
+      case 'mr': return <Activity className="w-4 h-4 text-[#163c78]/90" />;
       case 'gps': return <MapPin className="w-4 h-4 text-blue-500" />;
       case 'crm': return <Stethoscope className="w-4 h-4 text-orange-500" />;
       case 'dispatch': return <Truck className="w-4 h-4 text-cyan-500" />;

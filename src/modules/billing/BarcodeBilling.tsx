@@ -682,7 +682,7 @@ export default function BarcodeBilling() {
           {/* Customer Information Section */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 print:hidden">
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <UserCircle className="w-5 h-5 text-violet-600" />
+              <UserCircle className="w-5 h-5 text-[#163c78]" />
               Customer Information
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
@@ -726,7 +726,7 @@ export default function BarcodeBilling() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col flex-1 min-h-[400px] print:hidden">
             <div className="p-4 border-b border-slate-200 bg-slate-50 rounded-t-2xl flex items-center gap-4">
                <div className="relative flex-1">
-                  <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-violet-600" />
+                  <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#163c78]" />
                   <input
                     type="text"
                     value={barcodeInput}
@@ -822,7 +822,7 @@ export default function BarcodeBilling() {
           {/* Payment Information Section */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-5 print:hidden">
             <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider mb-4 flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-violet-600" />
+              <CreditCard className="w-5 h-5 text-[#163c78]" />
               Payment Information
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -897,7 +897,7 @@ export default function BarcodeBilling() {
              
              <div className="space-y-3">
                <ActionButton onClick={handleGenerateInvoice} className="w-full justify-center py-4 text-base shadow-md hover:shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700">Complete & Invoice</ActionButton>
-               <ActionButton variant="secondary" onClick={() => handlePrintPreview(true)} className="w-full justify-center border-violet-200 text-violet-700 bg-violet-50 hover:bg-violet-100">Print Bill without Saving</ActionButton>
+               <ActionButton variant="secondary" onClick={() => handlePrintPreview(true)} className="w-full justify-center border-violet-200 text-violet-700 bg-[#163c78]/10 hover:bg-violet-100">Print Bill without Saving</ActionButton>
              </div>
           </div>
         </div>

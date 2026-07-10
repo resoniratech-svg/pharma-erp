@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Download, Filter, ReceiptText, ChevronDown, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { applyPaymentReceiptTemplate } from '../../documents/templates/PaymentReceiptTemplate';
+import authService from '../../services/authService';
 import {
   PageHeader,
   FilterBar,
@@ -17,7 +18,6 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
-import { ROLE_SUPER_ADMIN, ROLE_RETAILER } from '../../constants/roles';
 
 type PaymentStatus = 'Completed' | 'Pending' | 'Failed' | 'Partially Paid';
 
@@ -70,15 +70,19 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function Payments() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_RETAILER;
-  const isRetailer = activeRole === ROLE_RETAILER;
-  
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [viewReceipt, setViewReceipt] = useState<Payment | null>(null);
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  // Dynamic Retailer Identity
+  const loggedInRetailer = useMemo(() => {
+    const user = authService.getCurrentUser();
+    // Assuming the retailer's code is stored in employeeCode (based on mock data RET-892)
+    return user?.employeeCode || 'RET-001'; // Fallback to RET-001 for demonstration if not logged in
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -98,21 +102,26 @@ export default function Payments() {
     return 'neutral';
   };
 
-  // Filter logic
-  const baseData = isRetailer ? mockData.filter(d => d.retailer === 'Apollo Pharmacy') : mockData;
-  const filteredData = baseData.filter((item) => {
-    const searchStr = search.toLowerCase();
-    const matchSearch = item.receiptNo.toLowerCase().includes(searchStr) || item.invoiceNo.toLowerCase().includes(searchStr);
-    const matchStatus = statusFilter ? item.status === statusFilter : true;
-    return matchSearch && matchStatus;
-  });
+  // Filter logic strictly bound to the authenticated retailer
+  const baseData = useMemo(() => {
+    return mockData.filter(d => d.retailerCode === loggedInRetailer);
+  }, [loggedInRetailer]);
+
+  const filteredData = useMemo(() => {
+    return baseData.filter((item) => {
+      const searchStr = search.toLowerCase();
+      const matchSearch = item.receiptNo.toLowerCase().includes(searchStr) || item.invoiceNo.toLowerCase().includes(searchStr);
+      const matchStatus = statusFilter ? item.status === statusFilter : true;
+      return matchSearch && matchStatus;
+    });
+  }, [baseData, search, statusFilter]);
 
   const generatePDF = (payment: Payment | null, isDownload: boolean = true) => {
     if (!payment) return;
     const doc = new jsPDF();
     
-    // Use the shared template instead of inline layout
-    applyPaymentReceiptTemplate(doc, payment, activeRole);
+    // We pass ROLE_RETAILER to ensure the template formats it correctly for a Retailer view.
+    applyPaymentReceiptTemplate(doc, payment, 'ROLE_RETAILER');
     
     if (isDownload) {
       doc.save(`${payment.receiptNo}.pdf`);
@@ -122,31 +131,7 @@ export default function Payments() {
     }
   };
 
-  const adminColumns: Column<Payment>[] = [
-    { key: 'receiptNo', label: 'Receipt No', render: (row) => <span className="font-semibold text-slate-900">{row.receiptNo}</span> },
-    { key: 'retailer', label: 'Retailer Name', render: (row) => <span className="font-semibold text-violet-700">{row.retailer}</span> },
-    { key: 'invoiceNo', label: 'Invoice No', render: (row) => <span className="text-slate-600">{row.invoiceNo}</span> },
-    { key: 'date', label: 'Payment Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
-    { key: 'mode', label: 'Payment Mode', render: (row) => <span className="text-slate-600">{row.mode}</span> },
-    { key: 'amount', label: 'Amount Paid', render: (row) => <span className="font-bold text-emerald-600">{formatCurrency(row.amount)}</span> },
-    { key: 'status', label: 'Payment Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1" onClick={() => setViewReceipt(row)}>
-            <ReceiptText className="w-4 h-4 mr-1" /> View Receipt
-          </ActionButton>
-          <ActionButton variant="ghost" className="text-slate-500 text-xs px-2 py-1" onClick={() => generatePDF(row)}>
-            <Download className="w-4 h-4" />
-          </ActionButton>
-        </div>
-      )
-    }
-  ];
-
-  const retailerColumns: Column<Payment>[] = [
+  const columns: Column<Payment>[] = [
     { key: 'receiptNo', label: 'Receipt No', render: (row) => <span className="font-semibold text-slate-900">{row.receiptNo}</span> },
     { key: 'invoiceNo', label: 'Invoice No', render: (row) => <span className="text-slate-600">{row.invoiceNo}</span> },
     { key: 'date', label: 'Payment Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
@@ -158,10 +143,10 @@ export default function Payments() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1" onClick={() => setViewReceipt(row)}>
+          <ActionButton variant="ghost" className="text-brand-primary text-xs px-2 py-1" onClick={() => setViewReceipt(row)}>
             <ReceiptText className="w-4 h-4 mr-1" /> View Receipt
           </ActionButton>
-          <ActionButton variant="ghost" className="text-slate-500 text-xs px-2 py-1" onClick={() => generatePDF(row)}>
+          <ActionButton variant="ghost" className="text-slate-500 text-xs px-2 py-1 hover:text-brand-primary transition-colors" onClick={() => generatePDF(row)}>
             <Download className="w-4 h-4" />
           </ActionButton>
         </div>
@@ -169,49 +154,43 @@ export default function Payments() {
     }
   ];
 
-  const columns = isRetailer ? retailerColumns : adminColumns;
-
-  // Exports
+  // Exports specifically formatted for the Retailer
   const getExportData = () => {
-    if (activeRole === ROLE_SUPER_ADMIN) {
-      return filteredData.map(item => ({
-        'Receipt Number': item.receiptNo,
-        'Retailer Name': item.retailer,
-        'Invoice Number': item.invoiceNo,
-        'Payment Date': item.date,
-        'Payment Mode': item.mode,
-        'Amount Paid': item.amount,
-        'Payment Status': item.status
-      }));
-    } else {
-      return filteredData.map(item => ({
-        'Receipt Number': item.receiptNo,
-        'Invoice Number': item.invoiceNo,
-        'Payment Date': item.date,
-        'Payment Mode': item.mode,
-        'Amount Paid': item.amount,
-        'Payment Status': item.status
-      }));
-    }
+    return filteredData.map(item => ({
+      'Receipt Number': item.receiptNo,
+      'Invoice Number': item.invoiceNo,
+      'Payment Date': item.date,
+      'Payment Mode': item.mode,
+      'Amount Paid': item.amount,
+      'Payment Status': item.status
+    }));
   };
 
   const handleExportExcel = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Payments");
-    XLSX.writeFile(wb, "Payments.xlsx");
+    XLSX.utils.book_append_sheet(wb, ws, "My Payments");
+    XLSX.writeFile(wb, "My_Payments.xlsx");
     setShowExportMenu(false);
   };
 
   const handleExportCSV = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = "Payments.csv";
+    link.download = "My_Payments.csv";
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -221,20 +200,24 @@ export default function Payments() {
 
   const handleExportPDF = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
     const doc = new jsPDF('landscape');
     const headers = Object.keys(data[0] || {});
     const body = data.map(obj => headers.map(header => (obj as any)[header]));
     
-    doc.text("Payment Register", 14, 15);
+    doc.text("My Payment Register", 14, 15);
     autoTable(doc, {
       startY: 20,
       head: [headers],
       body: body,
       theme: 'striped',
-      headStyles: { fillColor: [124, 58, 237] },
+      headStyles: { fillColor: [22, 60, 120] }, // MJ Healthcare Primary (#163C78)
       styles: { fontSize: 9 }
     });
-    doc.save("Payments.pdf");
+    doc.save("My_Payments.pdf");
     setShowExportMenu(false);
   };
 
@@ -242,7 +225,7 @@ export default function Payments() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Payment Tracking"
-        subtitle="Track payment history, receipt details, outstanding settlements, and payment status."
+        subtitle="Track your payment history, view payment receipts, monitor outstanding settlements, and download payment acknowledgements."
         actions={
           <div className="relative inline-block text-left" ref={exportMenuRef}>
             <ActionButton 
@@ -255,9 +238,9 @@ export default function Payments() {
             {showExportMenu && (
               <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
                 <div className="py-1" role="menu" aria-orientation="vertical">
-                  <button onClick={handleExportCSV} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export CSV</button>
-                  <button onClick={handleExportExcel} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export Excel</button>
-                  <button onClick={handleExportPDF} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export PDF</button>
+                  <button onClick={handleExportCSV} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-brand-primary transition-colors">Export CSV</button>
+                  <button onClick={handleExportExcel} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-brand-primary transition-colors">Export Excel</button>
+                  <button onClick={handleExportPDF} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 hover:text-brand-primary transition-colors">Export PDF</button>
                 </div>
               </div>
             )}
@@ -308,7 +291,7 @@ export default function Payments() {
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Receipt Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
-                <DrawerField label="Receipt Number" value={<span className="font-semibold text-violet-700">{viewReceipt.receiptNo}</span>} />
+                <DrawerField label="Receipt Number" value={<span className="font-semibold text-brand-primary">{viewReceipt.receiptNo}</span>} />
                 <DrawerField label="Invoice Number" value={viewReceipt.invoiceNo} />
                 <DrawerField label="Payment Date" value={viewReceipt.date} />
                 <DrawerField label="Payment Mode" value={viewReceipt.mode} />
@@ -316,18 +299,7 @@ export default function Payments() {
               </div>
             </div>
 
-            {/* Section 2: Retailer Information (Admin only) */}
-            {!isRetailer && (
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Retailer Information</h3>
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <DrawerField label="Retailer Name" value={<span className="font-medium text-slate-900">{viewReceipt.retailer}</span>} />
-                  <DrawerField label="Retailer Code" value={<span className="text-slate-600">{viewReceipt.retailerCode}</span>} />
-                </div>
-              </div>
-            )}
-
-            {/* Section 3: Payment Information */}
+            {/* Section 2: Payment Information */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Payment Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -339,7 +311,7 @@ export default function Payments() {
               </div>
             </div>
 
-            {/* Section 4: Invoice Information */}
+            {/* Section 3: Invoice Information */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Invoice Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
@@ -364,12 +336,12 @@ export default function Payments() {
               </div>
             </div>
 
-            {/* Section 5: Drawer Actions */}
+            {/* Section 4: Drawer Actions */}
             <div className="flex gap-3 pt-4 border-t border-slate-200">
-              <ActionButton className="flex-1" icon={<Download className="w-4 h-4" />} onClick={() => generatePDF(viewReceipt)}>
+              <ActionButton className="flex-1 bg-brand-primary hover:bg-brand-secondary transition-colors text-white" icon={<Download className="w-4 h-4" />} onClick={() => generatePDF(viewReceipt)}>
                 Download Receipt
               </ActionButton>
-              <ActionButton variant="secondary" className="flex-1" icon={<Printer className="w-4 h-4" />} onClick={() => generatePDF(viewReceipt, false)}>
+              <ActionButton variant="secondary" className="flex-1 border-brand-primary text-brand-primary hover:bg-brand-light transition-colors" icon={<Printer className="w-4 h-4" />} onClick={() => generatePDF(viewReceipt, false)}>
                 Print Receipt
               </ActionButton>
             </div>

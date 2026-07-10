@@ -126,8 +126,8 @@ export default function CreditNotes() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewRecord(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View"><Eye className="w-4 h-4" /></button>
-          <button onClick={(e) => downloadPDF(row, e)} className="text-slate-400 hover:text-violet-600 p-1" title="Download PDF"><Download className="w-4 h-4" /></button>
+          <button onClick={() => setViewRecord(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View"><Eye className="w-4 h-4" /></button>
+          <button onClick={(e) => downloadPDF(row, e)} className="text-slate-400 hover:text-[#163c78] p-1" title="Download PDF"><Download className="w-4 h-4" /></button>
           
           {row.status === 'Draft' && (
             <>
@@ -416,12 +416,12 @@ export default function CreditNotes() {
               {/* SUMMARY PANEL */}
               <div className="md:col-span-3 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">6. Summary</h3>
-                <div className="space-y-4 mt-4 bg-violet-50 p-4 rounded-lg border border-violet-100 h-[calc(100%-2.5rem)] flex flex-col justify-center">
-                  <div className="flex justify-between text-violet-900 text-sm">
+                <div className="space-y-4 mt-4 bg-[#163c78]/10 p-4 rounded-lg border border-violet-100 h-[calc(100%-2.5rem)] flex flex-col justify-center">
+                  <div className="flex justify-between text-[#081529] text-sm">
                     <span>Total Credit Amount</span>
                     <span className="font-semibold">{formatCurrency(calcValues.taxable)}</span>
                   </div>
-                  <div className="flex justify-between text-violet-900 text-sm border-b border-violet-200 pb-3">
+                  <div className="flex justify-between text-[#081529] text-sm border-b border-violet-200 pb-3">
                     <span>GST Reversal Amount</span>
                     <span className="font-semibold">{formatCurrency(calcValues.totalGst)}</span>
                   </div>

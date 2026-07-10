@@ -260,7 +260,7 @@ export default function InvoiceDownload() {
         <button
           className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'Purchase'
-              ? 'border-violet-600 text-violet-600'
+              ? 'border-[#163c78] text-[#163c78]'
               : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
           }`}
           onClick={() => setActiveTab('Purchase')}
@@ -270,7 +270,7 @@ export default function InvoiceDownload() {
         <button
           className={`px-6 py-3 text-sm font-medium border-b-2 transition-colors ${
             activeTab === 'Sales'
-              ? 'border-violet-600 text-violet-600'
+              ? 'border-[#163c78] text-[#163c78]'
               : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
           }`}
           onClick={() => setActiveTab('Sales')}

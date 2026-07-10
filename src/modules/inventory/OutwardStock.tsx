@@ -140,7 +140,7 @@ function ClientCombobox({
           ))}
           {!exactMatch && search.trim() && (
             <div
-              className="px-3 py-2 cursor-pointer hover:bg-slate-50 text-sm text-violet-600 font-medium border-t border-slate-100"
+              className="px-3 py-2 cursor-pointer hover:bg-slate-50 text-sm text-[#163c78] font-medium border-t border-slate-100"
               onClick={() => {
                 const newClient = search.trim();
                 onChange(newClient);
@@ -295,7 +295,7 @@ export default function OutwardStock() {
             e.stopPropagation();
             setSelectedRecord(row);
           }}
-          className="text-violet-600 font-medium hover:text-violet-800"
+          className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
         >
           View
         </button>
@@ -816,7 +816,7 @@ export default function OutwardStock() {
                   <button
                     onClick={handleAddProductRow}
                     disabled={!formData.warehouseId}
-                    className={`text-sm font-medium flex items-center ${!formData.warehouseId ? 'text-slate-400 cursor-not-allowed' : 'text-violet-600 hover:text-violet-800'}`}
+                    className={`text-sm font-medium flex items-center ${!formData.warehouseId ? 'text-slate-400 cursor-not-allowed' : 'text-[#163c78] hover:text-[#0c1f3d]'}`}
                     title={!formData.warehouseId ? "Select a warehouse first" : ""}
                   >
                     <Plus className="w-4 h-4 mr-1" /> Add Row
@@ -1037,7 +1037,7 @@ export default function OutwardStock() {
                 <DrawerField
                   label="Dispatch Number"
                   value={
-                    <span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">
+                    <span className="font-mono text-violet-700 bg-[#163c78]/10 px-2 py-1 rounded">
                       {selectedRecord.dispatchNo}
                     </span>
                   }

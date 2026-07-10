@@ -272,7 +272,7 @@
 //       label: 'Actions',
 //       render: (row) => (
 //         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-//           <button onClick={() => setViewRecord(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
+//           <button onClick={() => setViewRecord(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Details">
 //             <Eye className="w-4 h-4" />
 //           </button>
 //           
@@ -770,7 +770,7 @@ export default function EInvoice() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewRecord(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
+          <button onClick={() => setViewRecord(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Details">
             <Eye className="w-4 h-4" />
           </button>
           

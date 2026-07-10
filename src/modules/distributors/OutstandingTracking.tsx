@@ -312,7 +312,7 @@ export default function OutstandingTracking() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setSelectedInvoice(row)} className="text-slate-400 hover:text-violet-600 p-1 transition-colors" title="View Invoice">
+          <button onClick={() => setSelectedInvoice(row)} className="text-slate-400 hover:text-[#163c78] p-1 transition-colors" title="View Invoice">
             <Eye className="w-4 h-4" />
           </button>
           <button onClick={() => handleDownloadInvoice(row)} className="text-slate-400 hover:text-slate-900 transition-colors p-1" title="Download Invoice">
@@ -357,7 +357,7 @@ export default function OutstandingTracking() {
             <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider block mb-1">Total Outstanding</span>
             <span className="text-2xl font-black text-slate-900">{formatCurrency(myRecord.totalOutstanding || 0)}</span>
           </div>
-          {/* <div className="p-3 bg-violet-50 text-violet-600 rounded-xl"><DollarSign className="w-6 h-6" /></div> */}
+          {/* <div className="p-3 bg-[#163c78]/10 text-[#163c78] rounded-xl"><DollarSign className="w-6 h-6" /></div> */}
         </div>
 
         <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm flex items-center justify-between">

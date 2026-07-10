@@ -391,7 +391,7 @@ export default function DispatchManagement() {
             e.stopPropagation();
             setSelectedDispatch(row);
           }}
-          className="text-violet-600 font-medium hover:text-violet-800"
+          className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
         >
           View
         </button>
@@ -1167,7 +1167,7 @@ export default function DispatchManagement() {
                           (t) => t.trim().toLowerCase() === (newTransporter || "").trim().toLowerCase()
                         ) && (
                           <div
-                            className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
+                            className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer rounded flex items-center gap-2"
                             onClick={() => {
                               const newType = (newTransporter || "").trim();
                               const updatedTypes = [...transporters, newType];

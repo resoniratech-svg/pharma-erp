@@ -310,7 +310,7 @@ export default function DispatchTracking() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewDispatch(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
+          <button onClick={() => setViewDispatch(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Details">
             <Eye className="w-4 h-4" />
           </button>
           <button onClick={() => setTrackDispatch(row)} className="text-slate-400 hover:text-blue-600 transition-colors p-1" title="Track Shipment">
@@ -559,7 +559,7 @@ export default function DispatchTracking() {
             <div className="relative pl-4 border-l-2 border-slate-200 ml-2 space-y-6">
               {trackDispatch.milestones.length > 0 ? trackDispatch.milestones.map((ms, idx) => (
                 <div key={idx} className="relative">
-                  <div className={`absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white ${ms.completed ? 'bg-violet-600' : 'bg-slate-300'}`} />
+                  <div className={`absolute -left-[21px] top-1 w-3 h-3 rounded-full border-2 border-white ${ms.completed ? 'bg-[#163c78]' : 'bg-slate-300'}`} />
                   <div className="pl-2">
                     <p className={`font-semibold text-sm ${ms.completed ? 'text-slate-900' : 'text-slate-500'}`}>{ms.status}</p>
                     <p className="text-xs text-slate-500 mt-0.5">{ms.location}</p>

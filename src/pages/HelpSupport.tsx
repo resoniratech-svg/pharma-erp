@@ -100,7 +100,7 @@ export default function HelpSupport() {
               </div>
               <div>
                 <h3 className="font-bold text-slate-800 group-hover:text-primary transition-colors">User Manual</h3>
-                <p className="text-xs text-slate-500 mt-1 line-clamp-2">Complete guide to using all modules in Pharma ERP.</p>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2">Complete guide to using all modules in MJ Healthcare ERP.</p>
               </div>
             </a>
             

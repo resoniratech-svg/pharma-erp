@@ -16,7 +16,6 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
-import { ROLE_SUPER_ADMIN, ROLE_RETAILER } from '../../constants/roles';
 
 interface Offer {
   id: string;
@@ -71,10 +70,7 @@ const mockData: Offer[] = [
 ];
 
 export default function Offers() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_RETAILER;
-  
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   
   const [viewOffer, setViewOffer] = useState<Offer | null>(null);
@@ -91,17 +87,14 @@ export default function Offers() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Retailers can only view Active offers. Admins can view all.
-  const roleFilteredData = activeRole === ROLE_RETAILER 
-    ? mockData.filter(item => item.status === 'Active')
-    : mockData;
+  // Retailer specific business logic: Display only Active offers
+  const activeOffers = mockData.filter(item => item.status === 'Active');
 
-  const filteredData = roleFilteredData.filter((item) => {
+  const filteredData = activeOffers.filter((item) => {
     const searchStr = search.toLowerCase();
     const matchSearch = item.offerCode.toLowerCase().includes(searchStr) || item.offerName.toLowerCase().includes(searchStr);
-    const matchStatus = statusFilter ? item.status === statusFilter : true;
     const matchType = typeFilter ? item.type === typeFilter : true;
-    return matchSearch && matchStatus && matchType;
+    return matchSearch && matchType;
   });
 
   const getStatusVariant = (status: string): BadgeVariant => {
@@ -121,7 +114,7 @@ export default function Offers() {
       label: 'Action',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewOffer(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
+          <button onClick={() => setViewOffer(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Details">
             <Eye className="w-4 h-4" />
           </button>
         </div>
@@ -186,7 +179,7 @@ export default function Offers() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Offer Visibility"
-        subtitle={activeRole === ROLE_SUPER_ADMIN ? "View all trade offers, cash discounts, and bonus deals." : "View active trade offers, cash discounts, and bonus deals for retailers."}
+        subtitle="View active trade offers, promotional schemes, and bonus deals currently available for your purchases."
         actions={
           <div className="relative inline-block text-left" ref={exportMenuRef}>
             <ActionButton 
@@ -227,18 +220,6 @@ export default function Offers() {
           ]}
           placeholder="All Types"
         />
-        {activeRole === ROLE_SUPER_ADMIN && (
-          <SelectFilter
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              { label: 'Active', value: 'Active' },
-              { label: 'Upcoming', value: 'Upcoming' },
-              { label: 'Expired', value: 'Expired' },
-            ]}
-            placeholder="All Status"
-          />
-        )}
       </FilterBar>
 
       <TableCard>

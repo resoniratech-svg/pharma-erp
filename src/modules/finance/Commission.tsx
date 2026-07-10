@@ -245,7 +245,7 @@ export default function Commission() {
       label: 'Action',
       render: (row) => (
         <div className="flex justify-end">
-          <ActionButton variant="ghost" onClick={() => setSelectedRep(row)} className="text-slate-400 hover:text-violet-600 px-2 py-1 flex items-center gap-1">
+          <ActionButton variant="ghost" onClick={() => setSelectedRep(row)} className="text-slate-400 hover:text-[#163c78] px-2 py-1 flex items-center gap-1">
             <Eye className="w-4 h-4" /> <span className="text-xs hidden lg:inline">View</span>
           </ActionButton>
         </div>

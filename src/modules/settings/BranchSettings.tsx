@@ -45,7 +45,7 @@ export default function BranchSettings() {
     {
       key: 'action',
       label: '',
-      render: () => <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1"><MapPin className="w-4 h-4 mr-1" /> Edit Address</ActionButton>
+      render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><MapPin className="w-4 h-4 mr-1" /> Edit Address</ActionButton>
     }
   ];
 

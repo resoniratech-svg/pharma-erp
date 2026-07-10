@@ -270,7 +270,7 @@ export const OrbitalSystem = () => (
         </svg>
       </div>
       <span className="text-[10px] font-black tracking-widest leading-none bg-clip-text text-transparent bg-gradient-to-r from-[#00D9A3] to-[#4F46E5]">
-        PHARMA ERP
+        MJ Healthcare ERP
       </span>
       <span className="text-[9.5px] font-bold tracking-wider opacity-75 mt-1 text-slate-500">
         CORE

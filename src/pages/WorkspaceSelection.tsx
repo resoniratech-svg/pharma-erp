@@ -17,7 +17,7 @@ const RoleCard = ({ role, index }: { role: Role; index: number }) => {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.45, delay: index * 0.07 }}
       onClick={goToLogin}
-      className="group bg-white rounded-[16px] border border-[#E2E8F0] shadow-[0_4px_12px_rgba(15,23,42,0.06)] hover:shadow-[0_12px_24px_rgba(15,23,42,0.10)] transition-all duration-300 hover:-translate-y-[2px] cursor-pointer overflow-hidden flex flex-col"
+      className="group bg-white rounded-[16px] border border-[#E2E8F0] shadow-[0_4px_12px_rgba(15,23,42,0.06)] hover:shadow-[0_12px_24px_rgba(13,44,91,0.15)] hover:border-[#0D2C5B]/30 transition-all duration-300 hover:-translate-y-[2px] cursor-pointer overflow-hidden flex flex-col"
     >
       <div className="p-6 flex-1 flex flex-col">
         {/* Icon */}
@@ -25,10 +25,10 @@ const RoleCard = ({ role, index }: { role: Role; index: number }) => {
           <div
             className="w-12 h-12 rounded-xl flex items-center justify-center shadow-sm"
             style={{
-              background: 'rgba(20,184,166,0.12)',
+              background: 'rgba(13,44,91,0.08)',
             }}
           >
-            <role.Icon className="w-6 h-6 text-[#14B8A6]" />
+            <role.Icon className="w-6 h-6 text-[#0D2C5B]" />
           </div>
         </div>
 
@@ -54,7 +54,7 @@ const RoleCard = ({ role, index }: { role: Role; index: number }) => {
 
         {/* Continue */}
         <button
-          className="w-full flex items-center justify-center gap-2 py-3 mt-auto rounded-xl text-sm font-bold text-white bg-[#14B8A6] hover:bg-[#0F9F8D] transition-colors duration-200 shadow-sm"
+          className="w-full flex items-center justify-center gap-2 py-3 mt-auto rounded-xl text-sm font-bold text-white bg-[#3b82f6] hover:bg-[#105ede] transition-colors duration-200 shadow-sm"
           onClick={(e) => { e.stopPropagation(); goToLogin(); }}
         >
           Enter Workspace
@@ -71,12 +71,11 @@ export default function WorkspaceSelection() {
     <div
       className="min-h-screen font-sans selection:bg-primary/20"
       style={{
-        background:
-          'linear-gradient(160deg, #e8fdf6 0%, #e0f9fb 35%, #f0fdfa 65%, #ffffff 100%)',
+        backgroundColor: '#f7fafc',
       }}
     >
       {/* Header */}
-      <header className="w-full px-8 py-5 flex items-center justify-between">
+      <header className="w-full px-8 py-0 flex items-center justify-between">
         <Link to="/" className="flex items-center gap-2.5">
           <img src={mjLogo} alt="MJ Healthcare" className="h-50 object-contain" />
         </Link>

@@ -70,7 +70,7 @@ export default function ProductProfitability() {
     { key: 'revenue', label: 'Revenue', render: (row) => <span className="font-bold text-slate-700">{row.revenue}</span> },
     { key: 'avgCogs', label: 'Avg. COGS' },
     { key: 'avgSellingPrice', label: 'Avg. Selling Price' },
-    { key: 'grossMargin', label: 'Gross Margin %', render: (row) => <span className="font-bold text-violet-600">{row.grossMargin}</span> },
+    { key: 'grossMargin', label: 'Gross Margin %', render: (row) => <span className="font-bold text-[#163c78]">{row.grossMargin}</span> },
     { key: 'profitAmount', label: 'Profit Amount', render: (row) => <span className="font-bold text-emerald-600">{row.profitAmount}</span> },
     {
       key: 'trend',
@@ -204,14 +204,14 @@ export default function ProductProfitability() {
                 <div className="p-1">
                   <button
                     onClick={handleExportCSV}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-600 rounded-lg transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-[#163c78] rounded-lg transition-colors text-left"
                   >
                     <FileText className="w-4 h-4" />
                     Export CSV
                   </button>
                   <button
                     onClick={handleExportExcel}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-600 rounded-lg transition-colors text-left mt-1"
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-[#163c78] rounded-lg transition-colors text-left mt-1"
                   >
                     <FileSpreadsheet className="w-4 h-4" />
                     Export Excel (.xlsx)
@@ -225,7 +225,7 @@ export default function ProductProfitability() {
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <SummaryCard title="Total Product Revenue" value="₹ 118.4 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Average Gross Margin %" value="38.5%" icon={<Percent className="w-6 h-6" />} colorClass="text-violet-600" bgClass="bg-violet-100" />
+        <SummaryCard title="Average Gross Margin %" value="38.5%" icon={<Percent className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
         <SummaryCard title="Highest Margin Product" value="Amoxicillin 250mg" subtitle="Margin: 51.1%" icon={<TrendingUp className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
         <SummaryCard title="Lowest Margin Product" value="Surgical Masks (Box)" subtitle="Margin: 10.0%" icon={<TrendingDown className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
       </div>

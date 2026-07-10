@@ -219,7 +219,7 @@ export default function GSTReports() {
       render: (row) => (
         <button 
           onClick={() => setSelectedReport(row)}
-          className="text-violet-600 font-medium hover:text-violet-700 flex items-center gap-1"
+          className="text-[#163c78] font-medium hover:text-violet-700 flex items-center gap-1"
         >
           <Eye className="w-4 h-4" />
           View

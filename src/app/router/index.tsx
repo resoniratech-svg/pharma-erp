@@ -1,4 +1,4 @@
-﻿import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter } from 'react-router';
 import { MainLayout } from '../layouts/MainLayout';
 import App from '../../App';
 import LandingPage from '../../pages/LandingPage';
@@ -43,6 +43,7 @@ import DispatchReports from '../../modules/warehouse/DispatchReports';
 import DistributorMaster from '../../modules/distributors/DistributorMaster';
 import DistributorList from '../../modules/distributors/DistributorList';
 import DistributorProductCatalog from '../../modules/distributors/ProductCatalog';
+import CurrentStock from '../../modules/distributors/CurrentStock';
 import AdminDistributorOrders from '../../modules/distributors/DistributorOrders';
 import DistributorOrders from '../../modules/distributors/Orders';
 import DistributorRetailerOrders from '../../modules/distributors/RetailerOrders';
@@ -270,6 +271,7 @@ export const router = createBrowserRouter([
           { path: 'master', element: <DistributorMaster /> },
           { path: 'list', element: <DistributorList /> },
           { path: 'product-catalog', element: <DistributorProductCatalog /> },
+          { path: 'current-stock', element: <CurrentStock /> },
           { path: 'distributor-orders', element: <AdminDistributorOrders /> },
           { path: 'orders', element: <DistributorOrders /> },
           { path: 'retailer-orders', element: <DistributorRetailerOrders /> },

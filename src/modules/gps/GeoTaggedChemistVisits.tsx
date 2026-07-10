@@ -84,8 +84,8 @@
 //           value="845"
 //           subtitle="Monthly cumulative"
 //           icon={<Store className="w-6 h-6" />}
-//           colorClass="text-violet-600"
-//           bgClass="bg-violet-50"
+//           colorClass="text-[#163c78]"
+//           bgClass="bg-[#163c78]/10"
 //         />
 //         <SummaryCard
 //           title="Verified Visits"
@@ -376,8 +376,8 @@ export default function GeoTaggedChemistVisits() {
           value={totalVisits.toString()}
           subtitle="Monthly cumulative"
           icon={<Store className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Verified Visits"

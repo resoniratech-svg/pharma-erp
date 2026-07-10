@@ -147,7 +147,7 @@ export default function ActivityNotifications() {
     {
       key: 'action',
       label: '',
-      render: () => <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1">View Details</ActionButton>
+      render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1">View Details</ActionButton>
     }
   ];
 

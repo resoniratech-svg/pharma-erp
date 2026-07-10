@@ -91,8 +91,8 @@ export default function NotificationCenter() {
           </ActionButton>
           {row.status === 'Unread' && (
             <ActionButton variant="ghost" onClick={() => markAsRead(row.id)}>
-              <Check className="w-4 h-4 text-violet-600" />
-              <span className="text-violet-600">Mark Read</span>
+              <Check className="w-4 h-4 text-[#163c78]" />
+              <span className="text-[#163c78]">Mark Read</span>
             </ActionButton>
           )}
         </div>
@@ -220,14 +220,14 @@ export default function NotificationCenter() {
                 <div className="p-1">
                   <button
                     onClick={handleExportCSV}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-600 rounded-lg transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-[#163c78] rounded-lg transition-colors text-left"
                   >
                     <FileText className="w-4 h-4" />
                     Export CSV
                   </button>
                   <button
                     onClick={handleExportExcel}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-600 rounded-lg transition-colors text-left mt-1"
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-[#163c78] rounded-lg transition-colors text-left mt-1"
                   >
                     <FileSpreadsheet className="w-4 h-4" />
                     Export Excel (.xlsx)
@@ -242,7 +242,7 @@ export default function NotificationCenter() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <SummaryCard title="Critical Alerts" value="1" icon={<AlertTriangle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
         <SummaryCard title="Warnings" value="5" icon={<AlertCircle className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
-        <SummaryCard title="Unread Notifications" value="2" icon={<BellRing className="w-6 h-6" />} colorClass="text-violet-600" bgClass="bg-violet-100" />
+        <SummaryCard title="Unread Notifications" value="2" icon={<BellRing className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
         <SummaryCard title="Today's Alerts" value="12" icon={<Info className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
       </div>
 

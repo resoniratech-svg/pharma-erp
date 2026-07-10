@@ -369,7 +369,7 @@ export default function Payments() {
     {
       key: 'actions', label: 'Actions', render: (row) => (
         <div className="flex items-center justify-end gap-2">
-          <ActionButton variant="ghost" onClick={() => setSelectedTxn(row)} className="text-slate-400 hover:text-violet-600 px-2 py-1 flex items-center gap-1">
+          <ActionButton variant="ghost" onClick={() => setSelectedTxn(row)} className="text-slate-400 hover:text-[#163c78] px-2 py-1 flex items-center gap-1">
             <Eye className="w-4 h-4" /> <span className="text-xs hidden lg:inline">View</span>
           </ActionButton>
         </div>

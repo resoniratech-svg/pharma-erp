@@ -17,7 +17,6 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
-import { ROLE_SUPER_ADMIN, ROLE_RETAILER } from '../../constants/roles';
 
 // Inline Modal component since it's not exported from shared.tsx
 function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
@@ -78,9 +77,6 @@ const initialMockData: Reorder[] = [
 ];
 
 export default function Reorders() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_RETAILER;
-  const isRetailer = activeRole === ROLE_RETAILER;
-  
   const [data, setData] = useState<Reorder[]>(initialMockData);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -112,7 +108,7 @@ export default function Reorders() {
   }, [reorderItem]);
 
   // Filter Data
-  const baseData = isRetailer ? data.filter(d => d.retailer === 'Apollo Pharmacy') : data;
+  const baseData = data.filter(d => d.retailer === 'Apollo Pharmacy');
   const filteredData = baseData.filter((item) => {
     const searchStr = search.toLowerCase();
     const matchSearch = item.productName.toLowerCase().includes(searchStr) || item.productCode.toLowerCase().includes(searchStr);
@@ -143,26 +139,7 @@ export default function Reorders() {
     }
   };
 
-  const adminColumns: Column<Reorder>[] = [
-    { key: 'retailer', label: 'Retailer Name', render: (row) => <span className="font-semibold text-slate-900">{row.retailer}</span> },
-    { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-violet-700">{row.productName}</span> },
-    { key: 'lastOrderDate', label: 'Last Order Date', render: (row) => <span className="text-slate-600">{row.lastOrderDate}</span> },
-    { key: 'suggestedQty', label: 'Suggested Qty', render: (row) => <span className="font-medium text-slate-800">{row.suggestedQty}</span> },
-    { key: 'status', label: 'Reorder Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1" onClick={() => setViewDetails(row)}>
-            View Details
-          </ActionButton>
-        </div>
-      )
-    }
-  ];
-
-  const retailerColumns: Column<Reorder>[] = [
+  const columns: Column<Reorder>[] = [
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-violet-700">{row.productName}</span> },
     { key: 'productCode', label: 'Product Code', render: (row) => <span className="text-slate-600">{row.productCode}</span> },
     { key: 'lastOrderDate', label: 'Last Order Date', render: (row) => <span className="text-slate-600">{row.lastOrderDate}</span> },
@@ -176,12 +153,12 @@ export default function Reorders() {
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
           {row.status === 'Recommended' && (
-            <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1" onClick={() => setReorderItem(row)}>
+            <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1" onClick={() => setReorderItem(row)}>
               <RefreshCcw className="w-3 h-3 mr-1" /> Reorder
             </ActionButton>
           )}
           {row.status === 'Ignored' && (
-            <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1" onClick={() => setReorderItem(row)}>
+            <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1" onClick={() => setReorderItem(row)}>
               <RefreshCcw className="w-3 h-3 mr-1" /> Reorder Again
             </ActionButton>
           )}
@@ -195,29 +172,17 @@ export default function Reorders() {
     }
   ];
 
-  const columns = isRetailer ? retailerColumns : adminColumns;
-
   // Exports
   const getExportData = () => {
-    if (activeRole === ROLE_SUPER_ADMIN) {
-      return filteredData.map(item => ({
-        'Retailer Name': item.retailer,
-        'Product Name': item.productName,
-        'Last Order Date': item.lastOrderDate,
-        'Suggested Qty': item.suggestedQty,
-        'Reorder Status': item.status
-      }));
-    } else {
-      return filteredData.map(item => ({
-        'Product Name': item.productName,
-        'Product Code': item.productCode,
-        'Last Order Date': item.lastOrderDate,
-        'Last Ordered Qty': item.lastOrderedQty,
-        'Suggested Qty': item.suggestedQty,
-        'Availability': item.availability,
-        'Reorder Status': item.status
-      }));
-    }
+    return filteredData.map(item => ({
+      'Product Name': item.productName,
+      'Product Code': item.productCode,
+      'Last Order Date': item.lastOrderDate,
+      'Last Ordered Qty': item.lastOrderedQty,
+      'Suggested Qty': item.suggestedQty,
+      'Availability': item.availability,
+      'Reorder Status': item.status
+    }));
   };
 
   const handleExportExcel = () => {
@@ -267,7 +232,7 @@ export default function Reorders() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Reorder Functionality"
-        subtitle="View and manage automated reorder recommendations based on purchase history."
+        subtitle="View intelligent reorder recommendations based on your purchase history and quickly add products to your cart."
         actions={
           <div className="relative inline-block text-left" ref={exportMenuRef}>
             <ActionButton 
@@ -345,17 +310,7 @@ export default function Reorders() {
               </div>
             </div>
 
-            {/* Section 2: Retailer Information (Admin only) */}
-            {!isRetailer && (
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Retailer Information</h3>
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                  <DrawerField label="Retailer Name" value={<span className="font-medium text-slate-900">{viewDetails.retailer}</span>} />
-                </div>
-              </div>
-            )}
-
-            {/* Section 3: Availability Information */}
+            {/* Section 2: Availability Information */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Availability Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -364,7 +319,7 @@ export default function Reorders() {
               </div>
             </div>
 
-            {/* Section 4: Recommendation Summary */}
+            {/* Section 3: Recommendation Summary */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Recommendation Summary</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">

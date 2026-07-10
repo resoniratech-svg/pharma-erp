@@ -36,9 +36,8 @@ import { warehouseService } from '../../services/warehouseService';
 import { inventoryService } from '../../services/inventoryService';
 import { batchService } from '../../services/batchService';
 
-/* ── Constants ───────────────────────────────────────────────────── */
-const PRIMARY_HEX = '#7c3aed';
-const BG_HEX = '#f8fafc';
+const PRIMARY_HEX = 'var(--color-brand-primary)';
+const BG_HEX = 'var(--color-brand-light)';
 
 export type NavItem = {
   label: string;
@@ -119,6 +118,7 @@ const NAV_ITEMS: NavItem[] = [
     subItems: [
       { label: 'Distributor Master', path: '/workspace/distributors/master' },
       { label: 'Product Catalog Access', path: '/workspace/distributors/product-catalog' },
+      { label: 'Current Stock', path: '/workspace/distributors/current-stock' },
       { label: 'Distributor Orders', path: '/workspace/distributors/distributor-orders' },
       { label: 'Order Placement', path: '/workspace/distributors/orders' },
       { label: 'Outstanding Tracking', path: '/workspace/distributors/outstanding' },
@@ -329,6 +329,7 @@ const Breadcrumbs = () => {
 
 export function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['Products']);
   const location = useLocation();
@@ -394,9 +395,9 @@ export function MainLayout() {
 
 {/* ── Sidebar ── */}
 <aside
-  className={`fixed inset-y-0 left-0 z-50 w-[260px] bg-white border-r border-slate-200 shadow-sm flex flex-col transform transition-transform duration-200 ease-in-out lg:static lg:translate-x-0 ${
+  className={`fixed inset-y-0 left-0 z-50 bg-white border-r border-slate-200 shadow-sm flex flex-col transform transition-all duration-300 ease-in-out lg:static lg:translate-x-0 ${
     sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-  }`}
+  } ${sidebarCollapsed ? 'w-[88px]' : 'w-[260px]'}`}
 >
   {/* Sidebar Header */}
   <div className="h-[90px] flex items-center justify-center border-b border-slate-100 flex-shrink-0 overflow-hidden relative">
@@ -420,7 +421,7 @@ export function MainLayout() {
   </div>
 
   {/* Sidebar Nav */}
-        <nav className="flex-1 overflow-y-auto px-4 py-6 space-y-1">
+        <nav className="flex-1 overflow-y-auto no-scrollbar px-4 py-6 space-y-1">
           {filteredNavItems.sort((a, b) => {
             if (activeRole === ROLE_DISTRIBUTOR) {
               const order = ['Dashboard', 'Distributor/Stockist Portal',  'Orders', 'Alerts & Notifications', 'Settings'];
@@ -456,6 +457,8 @@ export function MainLayout() {
             const isExpanded = expandedMenus.includes(item.label);
 
             const toggleMenu = () => {
+              if (sidebarCollapsed) setSidebarCollapsed(false);
+              
               if (expandedMenus.includes(item.label)) {
                 setExpandedMenus(expandedMenus.filter(m => m !== item.label));
               } else {
@@ -476,8 +479,8 @@ const activeStyle =
                   }`}
                   style={isActive && !hasSubItems ? { color: PRIMARY_HEX } : {}}
                 />
-                <span className="flex-1">{item.label}</span>
-                {hasSubItems && (
+                <span className={`flex-1 transition-all duration-200 overflow-hidden ${sidebarCollapsed ? 'w-0 opacity-0 hidden whitespace-nowrap' : 'opacity-100 block whitespace-normal'}`}>{item.label}</span>
+                {hasSubItems && !sidebarCollapsed && (
                   isExpanded ? (
                     <ChevronDown className="w-4 h-4 text-slate-400" />
                   ) : (
@@ -505,7 +508,7 @@ const activeStyle =
                   </Link>
                 )}
 
-                {hasSubItems && isExpanded && (
+                {hasSubItems && isExpanded && !sidebarCollapsed && (
                   <div className="pl-11 pr-3 space-y-1 mt-1">
                     {item.subItems!.filter(sub => {
                       // Manual Role-Based filtering for Notifications
@@ -548,23 +551,25 @@ const activeStyle =
 
         {/* User Profile Footer */}
         <div className="p-4 border-t border-slate-100 flex-shrink-0">
-          <button className="w-full flex items-center gap-3 p-2 rounded-lg hover:bg-slate-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary text-left group">
+          <button className={`w-full flex items-center p-2 rounded-lg hover:bg-slate-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary text-left group ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
             
-            <div className="w-9 h-9 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0 overflow-hidden">
+            <div className="w-9 h-9 rounded-full bg-brand-light text-brand-primary flex items-center justify-center border border-brand-primary/20 flex-shrink-0 overflow-hidden">
                {authUser?.profileImage ? (
     <img src={authUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
   ) : (
               <User className="w-4 h-4" />
   )}
             </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-800 truncate leading-tight group-hover:text-primary transition-colors">
-                {displayName}
-              </p>
-              <p className="text-xs text-slate-500 truncate mt-0.5">
-                {activeRoleData.title}
-              </p>
-            </div>
+            {!sidebarCollapsed && (
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-slate-800 truncate leading-tight group-hover:text-primary transition-colors">
+                  {displayName}
+                </p>
+                <p className="text-xs text-slate-500 truncate mt-0.5">
+                  {activeRoleData.title}
+                </p>
+              </div>
+            )}
           </button>
         </div>
       </aside>
@@ -577,6 +582,14 @@ const activeStyle =
             <button
               onClick={() => setSidebarOpen(true)}
               className="p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors lg:hidden outline-none focus-visible:ring-2 focus-visible:ring-primary"
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            {/* Desktop Sidebar Toggle */}
+            <button
+              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="hidden lg:flex p-2 -ml-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-md transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
             >
               <Menu className="w-5 h-5" />
             </button>
@@ -602,7 +615,7 @@ const activeStyle =
                 {/* <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0 overflow-hidden">
                   <User className="w-4 h-4" />
                 </div> */}
-                         <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0 overflow-hidden">
+                         <div className="w-8 h-8 rounded-full bg-brand-light text-brand-primary flex items-center justify-center border border-brand-primary/20 flex-shrink-0 overflow-hidden">
                   {authUser?.profileImage ? (
                     <img src={authUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
@@ -635,7 +648,7 @@ const activeStyle =
                           <User className="w-6 h-6" />
                         </div> */}
 
-                        <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0 overflow-hidden">
+                        <div className="w-12 h-12 rounded-full bg-brand-light text-brand-primary flex items-center justify-center border border-brand-primary/20 flex-shrink-0 overflow-hidden">
                           {authUser?.profileImage ? (
                             <img src={authUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
                           ) : (

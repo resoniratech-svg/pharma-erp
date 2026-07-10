@@ -54,7 +54,7 @@
 //     {
 //       key: 'action',
 //       label: '',
-//       render: () => <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1"><Store className="w-4 h-4 mr-1" /> Profile</ActionButton>
+//       render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><Store className="w-4 h-4 mr-1" /> Profile</ActionButton>
 //     }
 //   ];
 
@@ -317,7 +317,7 @@ export default function DistributorCRM() {
     {
       key: 'action',
       label: '',
-      render: () => <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1"><Store className="w-4 h-4 mr-1" /> Profile</ActionButton>
+      render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><Store className="w-4 h-4 mr-1" /> Profile</ActionButton>
     }
   ];
 
@@ -388,7 +388,7 @@ export default function DistributorCRM() {
                   placeholder="e.g. Metro Distributors"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                 />
               </div>
             </div>
@@ -403,7 +403,7 @@ export default function DistributorCRM() {
                   placeholder="e.g. North Zone, Mumbai South"
                   value={formData.region}
                   onChange={(e) => setFormData({ ...formData, region: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                 />
               </div>
             </div>
@@ -415,7 +415,7 @@ export default function DistributorCRM() {
                   required
                   value={formData.tier}
                   onChange={(e) => setFormData({ ...formData, tier: e.target.value as 'Tier 1' | 'Tier 2' | 'Tier 3' })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                 >
                   <option value="Tier 1">Tier 1 (Premium)</option>
                   <option value="Tier 2">Tier 2 (Standard)</option>
@@ -428,7 +428,7 @@ export default function DistributorCRM() {
                   required
                   value={formData.status}
                   onChange={(e) => setFormData({ ...formData, status: e.target.value as 'Active' | 'Inactive' })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -446,7 +446,7 @@ export default function DistributorCRM() {
                     placeholder="10-digit number"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                   />
                 </div>
               </div>
@@ -459,7 +459,7 @@ export default function DistributorCRM() {
                     placeholder="Contact email"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                   />
                 </div>
               </div>
@@ -476,7 +476,7 @@ export default function DistributorCRM() {
             </button>
             <button
               type="submit"
-              className="flex-1 bg-violet-600 text-white font-semibold py-2.5 rounded-lg hover:bg-violet-700 transition-colors"
+              className="flex-1 bg-[#163c78] text-white font-semibold py-2.5 rounded-lg hover:bg-[#112d59] transition-colors"
             >
               Save Profile
             </button>

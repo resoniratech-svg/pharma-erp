@@ -186,7 +186,7 @@ export default function MultiLocationStock() {
             setSelectedWarehouse(row);
             setProductSearch('');
           }}
-          className="text-violet-600 font-medium hover:text-violet-800"
+          className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
         >
           View
         </button>
@@ -323,7 +323,7 @@ export default function MultiLocationStock() {
             e.stopPropagation();
             setSelectedProduct(row);
           }}
-          className="text-violet-600 font-medium hover:text-violet-800"
+          className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
         >
           View
         </button>

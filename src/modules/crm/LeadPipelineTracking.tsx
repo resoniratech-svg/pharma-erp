@@ -95,8 +95,8 @@
 //           value="450"
 //           subtitle="Pipeline volume"
 //           icon={<Layers className="w-6 h-6" />}
-//           colorClass="text-violet-600"
-//           bgClass="bg-violet-50"
+//           colorClass="text-[#163c78]"
+//           bgClass="bg-[#163c78]/10"
 //         />
 //         <SummaryCard
 //           title="Qualified Leads"
@@ -393,8 +393,8 @@ export default function LeadPipelineTracking() {
           value={totalLeads.toString()}
           subtitle="Pipeline volume"
           icon={<Layers className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Qualified / Proposal"
@@ -467,7 +467,7 @@ export default function LeadPipelineTracking() {
                           <h4 className="font-semibold text-slate-900 text-sm mb-1">{lead.name}</h4>
                           <p className="text-xs text-slate-500 mb-3 flex items-center justify-between">
                             {lead.assignedTo || 'Unassigned'}
-                            <span className="font-mono font-bold text-violet-600">{prob}</span>
+                            <span className="font-mono font-bold text-[#163c78]">{prob}</span>
                           </p>
                         </div>
                       )

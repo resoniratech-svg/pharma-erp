@@ -49,7 +49,7 @@
 //     {
 //       key: 'action',
 //       label: '',
-//       render: () => <button className="text-violet-600 hover:text-violet-700 p-1"><ShoppingBag className="w-4 h-4" /></button>
+//       render: () => <button className="text-[#163c78] hover:text-violet-700 p-1"><ShoppingBag className="w-4 h-4" /></button>
 //     }
 //   ];
 
@@ -575,7 +575,7 @@ export default function OrderBooking() {
                   key={type}
                   type="button"
                   onClick={() => setCustomerType(type)}
-                  className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${customerType === type ? 'bg-violet-600 text-white border-violet-600' : 'bg-white text-slate-600 border-slate-200'}`}
+                  className={`flex-1 py-2 text-sm font-medium rounded-lg border transition-colors ${customerType === type ? 'bg-[#163c78] text-white border-[#163c78]' : 'bg-white text-slate-600 border-slate-200'}`}
                 >
                   {type}
                 </button>

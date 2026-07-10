@@ -273,7 +273,7 @@ export default function CompanyWiseInventoryTracking() {
             e.stopPropagation();
             setSelectedRecord(row);
           }}
-          className="text-violet-600 font-medium hover:text-violet-800"
+          className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
         >
           View
         </button>
@@ -387,8 +387,8 @@ export default function CompanyWiseInventoryTracking() {
           value={dashboardMetrics.totalCompanies.toString()}
           subtitle="Companies with active inventory"
           icon={<Building2 className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Total Stock Value"
@@ -458,7 +458,7 @@ export default function CompanyWiseInventoryTracking() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Company Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Company Name" value={selectedRecord.companyName} />
-                <DrawerField label="Company Code" value={<span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">{selectedRecord.companyCode}</span>} />
+                <DrawerField label="Company Code" value={<span className="font-mono text-violet-700 bg-[#163c78]/10 px-2 py-1 rounded">{selectedRecord.companyCode}</span>} />
                 <DrawerField label="Status" value={<Badge variant={selectedRecord.status === 'Active' ? 'success' : 'danger'}>{selectedRecord.status}</Badge>} />
               </div>
             </div>

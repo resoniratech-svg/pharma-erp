@@ -297,8 +297,8 @@ export default function CheckIn() {
 
       <div className="max-w-xl mx-auto mt-8">
         <div className="bg-white rounded-[24px] border border-slate-200 shadow-sm overflow-hidden p-8 text-center">
-            <div className="w-20 h-20 bg-violet-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                <Navigation className="w-10 h-10 text-violet-600" />
+            <div className="w-20 h-20 bg-[#163c78]/10 rounded-full flex items-center justify-center mx-auto mb-6">
+                <Navigation className="w-10 h-10 text-[#163c78]" />
             </div>
             
             <h2 className="text-2xl font-bold text-slate-900 mb-2">Ready to start your day?</h2>
@@ -315,7 +315,7 @@ export default function CheckIn() {
                 {/* Error Resolution Buttons */}
                 {!isReady && locationText !== 'Fetching accurate location...' && (
                   <div className="flex flex-col gap-3 mt-3">
-                    <button onClick={fetchLocation} className="text-sm font-semibold text-violet-600 hover:text-violet-700 underline transition-colors">
+                    <button onClick={fetchLocation} className="text-sm font-semibold text-[#163c78] hover:text-violet-700 underline transition-colors">
                       Retry GPS Connection
                     </button>
                     {/* ✅ DEV BYPASS: Click this if you are stuck testing! */}

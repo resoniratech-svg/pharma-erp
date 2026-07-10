@@ -222,7 +222,7 @@ export default function UserActivityLogs() {
                   <div className="p-1">
                     <button
                       onClick={handleExportCSV}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-600 rounded-lg transition-colors text-left"
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-[#163c78] rounded-lg transition-colors text-left"
                     >
                       <FileText className="w-4 h-4" />
                       Export CSV
@@ -230,7 +230,7 @@ export default function UserActivityLogs() {
 
                     <button
                       onClick={handleExportExcel}
-                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-600 rounded-lg transition-colors text-left mt-1"
+                      className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-[#163c78] rounded-lg transition-colors text-left mt-1"
                     >
                       <FileSpreadsheet className="w-4 h-4" />
                       Export Excel (.xlsx)
@@ -249,7 +249,7 @@ export default function UserActivityLogs() {
           title="Total Events Today"
           value={logs.length.toString()}
           icon={<Activity className="w-6 h-6" />}
-          colorClass="text-violet-600"
+          colorClass="text-[#163c78]"
           bgClass="bg-violet-100"
         />
         <SummaryCard

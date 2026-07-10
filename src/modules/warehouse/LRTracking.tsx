@@ -144,14 +144,14 @@ export default function LRTracking() {
         <div className="flex items-center gap-3">
           <button
             onClick={(e) => { e.stopPropagation(); handleOpenDrawer(row, 'view'); }}
-            className="text-slate-400 hover:text-violet-600 transition-colors"
+            className="text-slate-400 hover:text-[#163c78] transition-colors"
             title="View Details"
           >
             <Eye className="w-4 h-4" />
           </button>
           <button
             onClick={(e) => { e.stopPropagation(); handleOpenDrawer(row, 'track'); }}
-            className="text-slate-400 hover:text-violet-600 transition-colors"
+            className="text-slate-400 hover:text-[#163c78] transition-colors"
             title="Track Shipment"
           >
             <MapPin className="w-4 h-4" />
@@ -238,9 +238,9 @@ export default function LRTracking() {
                             <div className="absolute left-1.5 top-6 bottom-[-24px] w-0.5 bg-slate-200" />
                           )}
                           <div className="relative">
-                            <div className={`w-3 h-3 mt-1.5 rounded-full ring-4 ring-white relative z-10 shrink-0 ${isLast ? 'bg-violet-600' : 'bg-slate-300'}`} />
+                            <div className={`w-3 h-3 mt-1.5 rounded-full ring-4 ring-white relative z-10 shrink-0 ${isLast ? 'bg-[#163c78]' : 'bg-slate-300'}`} />
                             {isLast && (
-                              <div className="absolute top-1.5 left-0 w-3 h-3 rounded-full bg-violet-600 animate-ping opacity-75" />
+                              <div className="absolute top-1.5 left-0 w-3 h-3 rounded-full bg-[#163c78] animate-ping opacity-75" />
                             )}
                           </div>
                           <div>

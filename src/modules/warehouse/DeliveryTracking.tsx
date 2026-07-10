@@ -294,10 +294,10 @@ export default function DeliveryTracking() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-3">
-          <button onClick={(e) => { e.stopPropagation(); handleOpenDrawer(row, 'view'); }} className="text-slate-400 hover:text-violet-600 transition-colors" title="View Delivery">
+          <button onClick={(e) => { e.stopPropagation(); handleOpenDrawer(row, 'view'); }} className="text-slate-400 hover:text-[#163c78] transition-colors" title="View Delivery">
             <Eye className="w-4 h-4" />
           </button>
-          <button onClick={(e) => { e.stopPropagation(); handleOpenDrawer(row, 'track'); }} className="text-slate-400 hover:text-violet-600 transition-colors" title="Track Location">
+          <button onClick={(e) => { e.stopPropagation(); handleOpenDrawer(row, 'track'); }} className="text-slate-400 hover:text-[#163c78] transition-colors" title="Track Location">
             <MapPin className="w-4 h-4" />
           </button>
           {row.podStatus !== 'Pending Upload' ? (
@@ -310,7 +310,7 @@ export default function DeliveryTracking() {
               </button>
             </>
           ) : (
-            <button onClick={(e) => { e.stopPropagation(); handleOpenUpload(row); }} className="text-slate-400 hover:text-violet-600 transition-colors" title="Upload POD">
+            <button onClick={(e) => { e.stopPropagation(); handleOpenUpload(row); }} className="text-slate-400 hover:text-[#163c78] transition-colors" title="Upload POD">
               <UploadCloud className="w-4 h-4" />
             </button>
           )}
@@ -398,9 +398,9 @@ export default function DeliveryTracking() {
                             <div className="absolute left-1.5 top-6 bottom-[-24px] w-0.5 bg-slate-200" />
                           )}
                           <div className="relative">
-                            <div className={`w-3 h-3 mt-1.5 rounded-full ring-4 ring-white relative z-10 shrink-0 ${isLast ? 'bg-violet-600' : 'bg-slate-300'}`} />
+                            <div className={`w-3 h-3 mt-1.5 rounded-full ring-4 ring-white relative z-10 shrink-0 ${isLast ? 'bg-[#163c78]' : 'bg-slate-300'}`} />
                             {isLast && (
-                              <div className="absolute top-1.5 left-0 w-3 h-3 rounded-full bg-violet-600 animate-ping opacity-75" />
+                              <div className="absolute top-1.5 left-0 w-3 h-3 rounded-full bg-[#163c78] animate-ping opacity-75" />
                             )}
                           </div>
                           <div>
@@ -565,8 +565,8 @@ export default function DeliveryTracking() {
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     onChange={(e) => setPodFile(e.target.files?.[0] || null)}
                   />
-                  <UploadCloud className={`w-8 h-8 mb-2 transition-colors ${podFile ? 'text-emerald-500' : 'text-slate-400 group-hover:text-violet-500'}`} />
-                  <span className={`text-sm font-medium ${podFile ? 'text-emerald-600' : 'text-violet-600'}`}>
+                  <UploadCloud className={`w-8 h-8 mb-2 transition-colors ${podFile ? 'text-emerald-500' : 'text-slate-400 group-hover:text-[#163c78]/90'}`} />
+                  <span className={`text-sm font-medium ${podFile ? 'text-emerald-600' : 'text-[#163c78]'}`}>
                     {podFile ? podFile.name : 'Click to upload'}
                   </span>
                   <span className="text-xs text-slate-500 mt-1">PDF, JPG, PNG, WEBP (Max 5MB)</span>
@@ -580,7 +580,7 @@ export default function DeliveryTracking() {
             </div>
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
               <button onClick={() => setShowUploadModal(false)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
-              <button onClick={handleUploadPOD} className="px-4 py-2 text-sm font-medium bg-violet-600 text-white rounded-lg hover:bg-violet-700 shadow-sm transition-all active:scale-[0.98]">Upload POD</button>
+              <button onClick={handleUploadPOD} className="px-4 py-2 text-sm font-medium bg-[#163c78] text-white rounded-lg hover:bg-[#112d59] shadow-sm transition-all active:scale-[0.98]">Upload POD</button>
             </div>
           </div>
         </div>

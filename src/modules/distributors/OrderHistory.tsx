@@ -312,7 +312,7 @@ export default function OrderHistory() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View">
+          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View">
             <Eye className="w-4 h-4" />
           </button>
         </div>
@@ -361,8 +361,8 @@ export default function OrderHistory() {
           value={metrics.totalOrders.toString()}
           subtitle="Matching visible scope"
           icon={<ShoppingCart className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Delivered Orders"

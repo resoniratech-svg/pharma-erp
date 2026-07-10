@@ -127,7 +127,7 @@ export default function RoleBasedAccess() {
       render: (row) => (
         <ActionButton
           variant="ghost"
-          className="text-violet-600 px-2 py-1"
+          className="text-[#163c78] px-2 py-1"
           onClick={() => {
             setSelectedUser(row);
             setAssignedRole(row.role);
@@ -204,7 +204,7 @@ export default function RoleBasedAccess() {
           title="Total Users"
           value="26"
           icon={<Users className="w-6 h-6" />}
-          colorClass="text-violet-600"
+          colorClass="text-[#163c78]"
           bgClass="bg-violet-100"
         />
 
@@ -244,7 +244,7 @@ export default function RoleBasedAccess() {
               onClick={() => setSelectedRole(role.name)}
               className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${
                 selectedRole === role.name
-                  ? "bg-violet-50 text-violet-700 border-violet-200 font-semibold"
+                  ? "bg-[#163c78]/10 text-violet-700 border-violet-200 font-semibold"
                   : "text-slate-700 border-transparent hover:border-slate-200 hover:bg-slate-50"
               }`}
             >
@@ -289,7 +289,7 @@ export default function RoleBasedAccess() {
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg p-6">
             <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-violet-600">
+                <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-[#163c78]">
                   <Shield className="w-5 h-5" />
                 </div>
                 <h2 className="text-xl font-bold text-slate-800">Add Role</h2>

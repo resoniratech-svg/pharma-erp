@@ -213,7 +213,7 @@ export default function ExpiryReturns() {
     const doc = new jsPDF('landscape');
     
     doc.setFontSize(16);
-    doc.text('Pharma ERP - Expiry Return Register', 14, 15);
+    doc.text('MJ Healthcare ERP - Expiry Return Register', 14, 15);
     
     doc.setFontSize(10);
     doc.text(`Export Date: ${new Date().toLocaleDateString()}`, 14, 25);
@@ -297,7 +297,7 @@ export default function ExpiryReturns() {
         
         return (
           <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-            <button onClick={() => setViewRecord(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View"><Eye className="w-4 h-4" /></button>
+            <button onClick={() => setViewRecord(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View"><Eye className="w-4 h-4" /></button>
             
             {row.status === 'Pending Vendor' && (
               <button onClick={(e) => handleAction(row.id, 'Process Settlement', e)} className="text-amber-600 hover:text-amber-700 p-1 font-semibold flex items-center gap-1 text-xs" title="Settlement"><Settings2 className="w-3.5 h-3.5" /> Settlement</button>

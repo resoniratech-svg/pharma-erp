@@ -8,7 +8,7 @@ const badgeStyles: Record<BadgeVariant, string> = {
   danger: 'bg-rose-50 text-rose-700 border-rose-200',
   info: 'bg-cyan-50 text-cyan-700 border-cyan-200',
   neutral: 'bg-slate-100 text-slate-600 border-slate-200',
-  purple: 'bg-violet-50 text-violet-700 border-violet-200',
+  purple: 'bg-[#163c78]/10 text-violet-700 border-violet-200',
 };
 
 export function Badge({ variant, children }: { variant: BadgeVariant; children: ReactNode }) {
@@ -86,7 +86,7 @@ export function ActionButton({
   className?: string;
 }) {
   const styles = {
-    primary: 'bg-violet-600 hover:bg-violet-700 text-white shadow-sm shadow-violet-200',
+    primary: 'bg-[#163c78] hover:bg-[#112d59] text-white shadow-sm shadow-[#163c78]/30',
     secondary: 'bg-white hover:bg-slate-50 text-slate-700 border border-slate-200',
     ghost: 'bg-transparent hover:bg-slate-100 text-slate-600',
   };
@@ -151,7 +151,7 @@ export function DataTable<T extends { id: string | number }>({
             <tr
               key={row.id}
               onClick={() => onRowClick?.(row)}
-              className={`transition-colors hover:bg-violet-50/40 ${onRowClick ? 'cursor-pointer' : ''}`}
+              className={`transition-colors hover:bg-[#163c78]/10/40 ${onRowClick ? 'cursor-pointer' : ''}`}
             >
               {columns.map((col) => (
                 <td key={String(col.key)} className="py-3.5 px-4 text-sm text-slate-700 whitespace-nowrap">

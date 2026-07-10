@@ -7,7 +7,7 @@ export const applyPODTemplate = (doc: jsPDF, delivery: any) => {
   doc.text('PROOF OF DELIVERY (POD)', 105, 20, { align: 'center' });
   
   doc.setFontSize(14);
-  doc.text('Pharma ERP Company', 105, 28, { align: 'center' });
+  doc.text('MJ Healthcare ERP Company', 105, 28, { align: 'center' });
   
   doc.setFontSize(10);
   doc.setTextColor(100, 100, 100);

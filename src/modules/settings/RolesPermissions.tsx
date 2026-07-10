@@ -129,11 +129,11 @@ export default function RolesPermissions() {
                 onClick={() => setSelectedRole(role)}
                 className={`w-full text-left flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 ${
                   isSelected 
-                    ? 'bg-violet-50 text-violet-700 font-bold border border-violet-200 shadow-sm ring-1 ring-violet-500/10' 
+                    ? 'bg-[#163c78]/10 text-violet-700 font-bold border border-violet-200 shadow-sm ring-1 ring-violet-500/10' 
                     : 'text-slate-600 font-medium border border-transparent hover:bg-slate-50 hover:text-slate-900 hover:border-slate-200'
                 }`}
               >
-                <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-white text-violet-600 shadow-sm' : 'text-slate-400'}`}>
+                <div className={`p-1.5 rounded-lg ${isSelected ? 'bg-white text-[#163c78] shadow-sm' : 'text-slate-400'}`}>
                   <RoleIcon className="w-4 h-4" />
                 </div>
                 <span className="truncate">{role.title}</span>
@@ -146,7 +146,7 @@ export default function RolesPermissions() {
         <div className="lg:col-span-3 bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex flex-col h-[calc(100vh-14rem)]">
           <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80 sticky top-0 z-10">
             <div className="flex items-center gap-3">
-              <div className="p-2 bg-white rounded-lg shadow-sm text-violet-600 border border-slate-100">
+              <div className="p-2 bg-white rounded-lg shadow-sm text-[#163c78] border border-slate-100">
                 <selectedRole.Icon className="w-5 h-5" />
               </div>
               <div>
@@ -169,17 +169,17 @@ export default function RolesPermissions() {
                     return (
                       <label 
                         key={action} 
-                        className={`flex items-center gap-3 cursor-pointer group/checkbox p-2 rounded-lg transition-colors ${isChecked ? 'bg-violet-50/50' : 'hover:bg-slate-50'}`}
+                        className={`flex items-center gap-3 cursor-pointer group/checkbox p-2 rounded-lg transition-colors ${isChecked ? 'bg-[#163c78]/10/50' : 'hover:bg-slate-50'}`}
                       >
                         <div className="relative flex items-center justify-center">
                           <input 
                             type="checkbox" 
                             checked={isChecked}
                             onChange={() => handleToggle(module, action)}
-                            className="peer w-4.5 h-4.5 text-violet-600 border-slate-300 rounded focus:ring-violet-500 focus:ring-offset-0 transition-all cursor-pointer" 
+                            className="peer w-4.5 h-4.5 text-[#163c78] border-slate-300 rounded focus:ring-violet-500 focus:ring-offset-0 transition-all cursor-pointer" 
                           />
                         </div>
-                        <span className={`text-sm select-none transition-colors ${isChecked ? 'font-semibold text-violet-900' : 'font-medium text-slate-600 group-hover/checkbox:text-slate-900'}`}>
+                        <span className={`text-sm select-none transition-colors ${isChecked ? 'font-semibold text-[#081529]' : 'font-medium text-slate-600 group-hover/checkbox:text-slate-900'}`}>
                           {action}
                         </span>
                       </label>

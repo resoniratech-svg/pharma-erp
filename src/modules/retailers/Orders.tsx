@@ -16,7 +16,6 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
-import { ROLE_SUPER_ADMIN, ROLE_RETAILER } from '../../constants/roles';
 import { AnimatePresence, motion } from 'framer-motion';
 
 function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
@@ -104,9 +103,6 @@ const initialMockData: Order[] = [
 ];
 
 export default function Orders() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_RETAILER;
-  const isRetailer = activeRole === ROLE_RETAILER;
-  
   const [data, setData] = useState<Order[]>(initialMockData);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -161,7 +157,7 @@ export default function Orders() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const baseData = isRetailer ? data.filter(d => d.retailer === 'Apollo Pharmacy') : data;
+  const baseData = data.filter(d => d.retailer === 'Apollo Pharmacy');
   const filteredData = baseData.filter((item) => {
     const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
@@ -229,28 +225,7 @@ export default function Orders() {
   };
 
   // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
-  const adminColumns: Column<Order>[] = [
-    { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
-    { key: 'retailer', label: 'Retailer', render: (row) => <span className="text-slate-900">{row.retailer}</span> },
-    { key: 'date', label: 'Order Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
-    { key: 'amount', label: 'Order Value', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.netAmount)}</span> },
-    { key: 'paymentStatus', label: 'Payment Status', render: (row) => <span className={`font-medium ${row.paymentStatus === 'Paid' ? 'text-emerald-600' : 'text-amber-600'}`}>{row.paymentStatus}</span> },
-    { key: 'status', label: 'Order Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Order">
-            <Eye className="w-4 h-4" />
-          </button>
-        </div>
-      )
-    }
-  ];
-
-  // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
-  const retailerColumns: Column<Order>[] = [
+  const columns: Column<Order>[] = [
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
     { key: 'date', label: 'Order Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
     { key: 'amount', label: 'Order Value', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.netAmount)}</span> },
@@ -262,7 +237,7 @@ export default function Orders() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Order">
+          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Order">
             <Eye className="w-4 h-4" />
           </button>
           {row.status === 'Pending' && (
@@ -275,27 +250,14 @@ export default function Orders() {
     }
   ];
 
-  const columns = isRetailer ? retailerColumns : adminColumns;
-
   const getExportData = () => {
-    if (activeRole === ROLE_SUPER_ADMIN) {
-      return filteredData.map(item => ({
-        'Order Number': item.orderNo,
-        'Retailer Name': item.retailer,
-        'Order Date': item.date,
-        'Order Value': formatCurrency(item.netAmount),
-        'Payment Status': item.paymentStatus,
-        'Order Status': item.status
-      }));
-    } else {
-      return filteredData.map(item => ({
-        'Order Number': item.orderNo,
-        'Order Date': item.date,
-        'Order Value': formatCurrency(item.netAmount),
-        'Payment Status': item.paymentStatus,
-        'Order Status': item.status
-      }));
-    }
+    return filteredData.map(item => ({
+      'Order Number': item.orderNo,
+      'Order Date': item.date,
+      'Order Value': formatCurrency(item.netAmount),
+      'Payment Status': item.paymentStatus,
+      'Order Status': item.status
+    }));
   };
 
   const handleExportExcel = () => {
@@ -365,7 +327,7 @@ export default function Orders() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Order Placement"
-        subtitle={isRetailer ? "Create and manage your purchase orders." : "Manage and track incoming purchase orders from retailers."}
+        subtitle="Create, submit, and track your purchase orders placed with your assigned distributor."
         actions={
           <div className="flex items-center gap-3">
             <div className="relative inline-block text-left" ref={exportMenuRef}>
@@ -386,11 +348,9 @@ export default function Orders() {
                 </div>
               )}
             </div>
-            {isRetailer && (
-              <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateOpen(true)}>
-                Create Order
-              </ActionButton>
-            )}
+            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateOpen(true)}>
+              Create Order
+            </ActionButton>
           </div>
         }
       />
@@ -445,15 +405,6 @@ export default function Orders() {
                 <DrawerField label="Expected Delivery Date" value={<span className="text-slate-600">{viewOrder.expectedDeliveryDate || 'TBD'}</span>} />
               </div>
             </div>
-
-            {!isRetailer && (
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Retailer Information</h3>
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                  <DrawerField label="Retailer Name" value={<span className="font-medium text-slate-900">{viewOrder.retailer}</span>} />
-                </div>
-              </div>
-            )}
 
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Delivery Information</h3>

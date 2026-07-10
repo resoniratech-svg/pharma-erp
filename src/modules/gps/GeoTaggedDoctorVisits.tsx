@@ -86,8 +86,8 @@
 //           value="1,245"
 //           subtitle="All territories"
 //           icon={<Users className="w-6 h-6" />}
-//           colorClass="text-violet-600"
-//           bgClass="bg-violet-50"
+//           colorClass="text-[#163c78]"
+//           bgClass="bg-[#163c78]/10"
 //         />
 //         <SummaryCard
 //           title="Verified Visits"
@@ -385,8 +385,8 @@ export default function GeoTaggedDoctorVisits() {
           value={totalVisits.toString()}
           subtitle="All territories"
           icon={<Users className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Verified Visits"

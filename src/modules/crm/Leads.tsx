@@ -47,7 +47,7 @@
 //     {
 //       key: 'action',
 //       label: '',
-//       render: () => <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1"><User className="w-4 h-4" /></ActionButton>
+//       render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><User className="w-4 h-4" /></ActionButton>
 //     }
 //   ];
 
@@ -300,7 +300,7 @@ export default function Leads() {
     {
       key: 'action',
       label: '',
-      render: () => <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1"><User className="w-4 h-4" /></ActionButton>
+      render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><User className="w-4 h-4" /></ActionButton>
     }
   ];
 
@@ -334,7 +334,7 @@ export default function Leads() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <SummaryCard title="Total Leads" value={totalLeads.toString()} subtitle="All recorded leads" icon={<Users className="w-6 h-6" />} colorClass="text-violet-600" bgClass="bg-violet-50" />
+        <SummaryCard title="Total Leads" value={totalLeads.toString()} subtitle="All recorded leads" icon={<Users className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-[#163c78]/10" />
         <SummaryCard title="New Leads" value={newLeads.toString()} subtitle="Awaiting first contact" icon={<Target className="w-6 h-6" />} colorClass="text-sky-600" bgClass="bg-sky-50" />
         <SummaryCard title="Contacted" value={contactedLeads.toString()} subtitle="Currently in pipeline" icon={<PhoneCall className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-50" />
         <SummaryCard title="Qualified" value={qualifiedLeads.toString()} subtitle="Ready for conversion" icon={<CheckCircle2 className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
@@ -448,7 +448,7 @@ export default function Leads() {
           </div>
           
           <div className="pt-4 border-t border-slate-100 mt-6">
-            <button type="submit" className="w-full bg-violet-600 text-white font-semibold py-2.5 rounded-lg hover:bg-violet-700 transition-colors">
+            <button type="submit" className="w-full bg-[#163c78] text-white font-semibold py-2.5 rounded-lg hover:bg-[#112d59] transition-colors">
               Save Lead
             </button>
           </div>

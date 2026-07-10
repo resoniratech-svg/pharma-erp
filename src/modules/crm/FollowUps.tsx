@@ -255,7 +255,7 @@ export default function FollowUps() {
       label: 'Actions',
       render: (row) => (
         <div className="flex gap-2">
-          <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1">
+          <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1">
             <PhoneCall className="w-4 h-4" />
           </ActionButton>
 
@@ -418,7 +418,7 @@ export default function FollowUps() {
             <button
               type="submit"
               disabled={leads.length === 0}
-              className="flex-1 bg-violet-600 text-white font-semibold py-2.5 rounded-lg hover:bg-violet-700 transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
+              className="flex-1 bg-[#163c78] text-white font-semibold py-2.5 rounded-lg hover:bg-[#112d59] transition-colors disabled:bg-slate-300 disabled:cursor-not-allowed"
             >
               Save Follow-Up
             </button>

@@ -583,7 +583,7 @@ export default function GSTBilling() {
               });
               alert("Invoice preview printed successfully.");
             }}
-            className="text-violet-600 hover:text-violet-750 p-1"
+            className="text-[#163c78] hover:text-violet-750 p-1"
             title="Print Preview Invoice"
           >
             <ReceiptText className="w-4 h-4" />
@@ -702,7 +702,7 @@ export default function GSTBilling() {
           <div>
             <div className="flex justify-between items-center mb-2">
               <label className="block text-sm font-bold text-slate-800">Product Details</label>
-              <button type="button" onClick={addLineItem} className="text-xs font-semibold text-violet-600 hover:text-violet-800 flex items-center gap-1">
+              <button type="button" onClick={addLineItem} className="text-xs font-semibold text-[#163c78] hover:text-[#0c1f3d] flex items-center gap-1">
                 <Plus className="w-3 h-3" /> Add Product
               </button>
             </div>
@@ -839,7 +839,7 @@ export default function GSTBilling() {
           </div>
 
           <div className="pt-2 flex gap-3">
-            <button type="submit" className="flex-1 bg-violet-600 text-white px-4 py-3 rounded-xl font-bold hover:bg-violet-700 transition-colors shadow-sm">
+            <button type="submit" className="flex-1 bg-[#163c78] text-white px-4 py-3 rounded-xl font-bold hover:bg-[#112d59] transition-colors shadow-sm">
               Generate GST Invoice
             </button>
             <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 bg-white border border-slate-300 text-slate-700 px-4 py-3 rounded-xl font-bold hover:bg-slate-50 transition-colors">

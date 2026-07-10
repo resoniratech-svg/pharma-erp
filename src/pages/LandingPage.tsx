@@ -1,6 +1,8 @@
 import { Link } from 'react-router';
 import { motion } from 'framer-motion';
 import mjLogo from '../assets/logo/pharmaLOGO.png';
+import realisticDna from '../assets/images/realistic-dna.png';
+import capsulePill from '../assets/images/capsule-pill.png';
 import {
   ArrowRight, CheckCircle2, Package, Warehouse, Receipt, Users, 
   Navigation, Zap, Globe2, Activity, ShieldCheck,
@@ -23,13 +25,13 @@ const Navbar = () => (
   <nav className="fixed top-0 left-0 right-0 z-50 bg-white/70 backdrop-blur-xl border-b border-white/50 shadow-sm shadow-slate-100/50 transition-all">
     <div className="max-w-7xl mx-auto px-6 h-[80px] flex items-center justify-between">
       {/* Logo */}
-      <Link to="/" className="flex items-center gap-3">
+      <Link to="/" className="flex items-center gap-3 -ml-8 -mb-4">
         <img src={mjLogo} alt="MJ Healthcare" className="h-50 object-contain" />
       </Link>
 
       {/* Nav links */}
       <div className="hidden md:flex items-center gap-8">
-        {['Platform', 'Workflow', 'Modules', 'Analytics'].map((item) => (
+        {['Platform', 'Workflow', 'Modules'].map((item) => (
           <a key={item} href={`#${item.toLowerCase()}`}
             className="text-sm font-medium text-slate-600 hover:text-primary transition-colors duration-200 relative group">
             {item}
@@ -48,10 +50,11 @@ const Navbar = () => (
   </nav>
 );
 
+
 const HeroFeatureGrid = () => (
   <div className="flex flex-col items-center justify-center w-full mt-10 lg:mt-0">
-    <h3 className="text-2xl font-bold mb-12 tracking-tight text-center drop-shadow-sm text-transparent bg-clip-text bg-gradient-to-r from-[#2563EB] to-[#4F46E5]">
-      India's No. 1 Trusted Pharma ERP
+    <h3 className="text-2xl font-bold mb-12 tracking-tight text-center drop-shadow-sm text-[#3B82F6]">
+      India's No. 1 Trusted MJ Healthcare ERP
     </h3>
     <div className="grid grid-cols-3 gap-x-8 gap-y-10 w-full max-w-xl">
       {/* Row 1 */}
@@ -75,8 +78,8 @@ const HeroFeatureGrid = () => (
       </div>
       {/* Row 2 */}
       <div className="flex flex-col items-center text-center gap-4">
-        <div className="w-20 h-20 rounded-3xl bg-violet-50/80 flex items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-1 transition-all">
-          <User className="w-8 h-8 text-violet-500" />
+        <div className="w-20 h-20 rounded-3xl bg-[#163c78]/10/80 flex items-center justify-center shadow-sm hover:shadow-md hover:-translate-y-1 transition-all">
+          <User className="w-8 h-8 text-[#163c78]/90" />
         </div>
         <span className="text-sm font-bold text-slate-800 leading-tight">Medical<br/>Representative</span>
       </div>
@@ -101,18 +104,64 @@ const HeroFeatureGrid = () => (
 ═══════════════════════════════════════════════════════════════════ */
 const Hero = () => (
   <section className="relative min-h-screen flex items-center pt-[80px] overflow-hidden">
-    {/* Gradient background */}
+    {/* Background color */}
     <div className="absolute inset-0"
       style={{
-        background: 'radial-gradient(120% 120% at 50% -10%, #ffffff 0%, #f0f9ff 50%, #e0f2fe 100%)',
+        backgroundColor: '#f7fafc',
       }} />
 
-    {/* Decorative blobs */}
+    {/* Realistic Animated DNA Graphics */}
+    <div className="absolute inset-0 overflow-hidden pointer-events-none flex items-center justify-center">
+      <motion.div 
+        animate={{ y: [-30, 30, -30], x: [-15, 15, -15], rotate: [-2, 2, -2] }}
+        transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute w-full h-[120%] opacity-40 mix-blend-multiply pointer-events-none z-0 flex items-center justify-center"
+      >
+        <img 
+          src={realisticDna} 
+          alt="Realistic DNA Graphic" 
+          className="w-full h-full object-cover object-center max-w-[1400px]" 
+        />
+      </motion.div>
+    </div>
+
+    {/* Floating Capsule Pills Animation */}
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      <div className="absolute -top-32 right-0 w-[700px] h-[700px] rounded-full blur-[120px] opacity-30"
-        style={{ background: 'radial-gradient(circle, #00BCD4 0%, transparent 70%)' }} />
-      <div className="absolute top-1/3 -left-32 w-[500px] h-[500px] rounded-full blur-[100px] opacity-20"
-        style={{ background: 'radial-gradient(circle, #4F46E5 0%, transparent 70%)' }} />
+      {/* Capsule 1 - top-left, large, tilted */}
+      <motion.div
+        animate={{ y: [-20, 30, -20], x: [-10, 20, -10], rotate: [-15, -5, -15] }}
+        transition={{ duration: 18, repeat: Infinity, ease: "easeInOut" }}
+        className="absolute top-[5%] left-[2%] opacity-30 mix-blend-multiply pointer-events-none z-0"
+      >
+        <img src={capsulePill} alt="" className="w-48 h-auto" />
+      </motion.div>
+
+      {/* Capsule 2 - top-right, medium, slightly rotated */}
+      <motion.div
+        animate={{ y: [20, -30, 20], x: [10, -20, 10], rotate: [30, 45, 30] }}
+        transition={{ duration: 22, repeat: Infinity, ease: "easeInOut", delay: 3 }}
+        className="absolute top-[8%] right-[5%] opacity-25 mix-blend-multiply pointer-events-none z-0"
+      >
+        <img src={capsulePill} alt="" className="w-36 h-auto" />
+      </motion.div>
+
+      {/* Capsule 3 - bottom-left, small, steep angle */}
+      <motion.div
+        animate={{ y: [-15, 25, -15], x: [15, -10, 15], rotate: [60, 75, 60] }}
+        transition={{ duration: 20, repeat: Infinity, ease: "easeInOut", delay: 6 }}
+        className="absolute bottom-[10%] left-[8%] opacity-25 mix-blend-multiply pointer-events-none z-0"
+      >
+        <img src={capsulePill} alt="" className="w-32 h-auto" />
+      </motion.div>
+
+      {/* Capsule 4 - bottom-right, medium, near-vertical */}
+      <motion.div
+        animate={{ y: [25, -20, 25], x: [-15, 10, -15], rotate: [80, 95, 80] }}
+        transition={{ duration: 16, repeat: Infinity, ease: "easeInOut", delay: 9 }}
+        className="absolute bottom-[5%] right-[10%] opacity-20 mix-blend-multiply pointer-events-none z-0"
+      >
+        <img src={capsulePill} alt="" className="w-40 h-auto" />
+      </motion.div>
     </div>
 
     <div className="max-w-7xl mx-auto px-6 w-full relative z-10 grid lg:grid-cols-[1.1fr_0.9fr] gap-12 items-center py-16">
@@ -120,17 +169,16 @@ const Hero = () => (
       <motion.div {...{ initial: { opacity: 0, y: 36 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.8 } }}>
         {/* Headline */}
         <h1 className="text-5xl lg:text-[72px] font-black leading-[1.05] mb-4 tracking-tight">
-          <span className="text-[#0D1B3D]">MJ</span>{' '}
-          <span className="text-[#5B6BC6]">Healthcare</span>
+          <span className="text-[#163C78]">MJ</span>{' '}
+          <span className="text-[#3B82F6]">Healthcare</span>
         </h1>
-        <h2 className="text-3xl lg:text-4xl font-bold text-[#333333] mb-8 tracking-tight">
+        <h2 className="text-3xl lg:text-4xl font-bold text-[#0D2C5B] mb-8 tracking-tight">
           Care. Innovate. Cure.
         </h2>
 
         {/* Sub-copy */}
-        <p className="text-xl text-slate-600 mb-10 leading-relaxed max-w-[560px] font-medium">
-          Products, inventory, warehouses, billing, CRM <br/>
-          unified into a single, intelligent enterprise platform.
+        <p className="text-xl text-[#163C78] mb-10 leading-relaxed max-w-[560px] font-medium">
+          Powering Pharmaceutical Distribution, Inventory, Sales, Billing, CRM, Compliance and Medical Representative Operations from one intelligent platform.
         </p>
 
         {/* CTAs */}
@@ -138,7 +186,7 @@ const Hero = () => (
           <Link to="/workspace"
             className="inline-flex items-center gap-2.5 px-8 py-4 rounded-full text-base font-bold text-white shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/30"
             style={{
-              background: 'linear-gradient(135deg, #00D9A3 0%, #00BCD4 50%, #4F46E5 100%)',
+              backgroundColor: '#0D2C5B',
             }}>
             Enter Platform <ArrowRight className="w-5 h-5" />
           </Link>
@@ -375,11 +423,7 @@ const DashboardPreview = () => (
             {/* Sidebar */}
             <div className="hidden md:flex w-56 border-r border-white/5 p-5 flex-col gap-1 flex-shrink-0 bg-slate-900/50">
               <div className="flex items-center gap-2.5 mb-8">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-md"
-                  style={{ background: 'linear-gradient(135deg,#00D9A3,#00BCD4)' }}>
-                  <span className="text-white font-black text-sm">P</span>
-                </div>
-                <span className="text-white font-bold text-sm tracking-wide">Pharma ERP</span>
+                <span className="text-white font-bold text-sm tracking-wide">MJ Healthcare ERP</span>
               </div>
               <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest mb-3 ml-2">Main Menu</p>
               {[
@@ -545,65 +589,6 @@ const DashboardPreview = () => (
 );
 
 /* ═══════════════════════════════════════════════════════════════════
-   ANALYTICS SECTION
-═══════════════════════════════════════════════════════════════════ */
-const AnalyticsSection = () => (
-  <section id="analytics" className="py-24 bg-slate-50 border-t border-slate-200">
-    <div className="max-w-7xl mx-auto px-6">
-      <motion.div {...fadeUp()} className="text-center mb-16">
-        <h2 className="text-3xl lg:text-4xl font-black text-slate-900 tracking-tight mb-4">
-          Enterprise Analytics
-        </h2>
-        <p className="text-slate-500 text-lg max-w-2xl mx-auto">
-          Harness the power of business intelligence. Make data-driven decisions with deep insights across your entire pharmaceutical operation.
-        </p>
-      </motion.div>
-
-      {/* Executive KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-6 mb-12">
-        {[
-          { title: 'Revenue Growth', val: '+24.8%', sub: 'vs last year', icon: LineChart, color: 'text-[#00D9A3]' },
-          { title: 'Order Fulfillment Rate', val: '99.2%', sub: 'SLA compliant', icon: Package, color: 'text-[#00BCD4]' },
-          { title: 'Inventory Turnover', val: '12.4x', sub: 'ratio / year', icon: Database, color: 'text-[#4F46E5]' },
-          { title: 'Collection Efficiency', val: '94%', sub: 'within 30 days', icon: Receipt, color: 'text-[#F59E0B]' },
-        ].map((kpi, i) => (
-          <motion.div key={kpi.title} {...fadeUp(i * 0.1)} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-shadow">
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center">
-                <kpi.icon className={`w-5 h-5 ${kpi.color}`} />
-              </div>
-              <h4 className="text-sm font-semibold text-slate-600 leading-tight">{kpi.title}</h4>
-            </div>
-            <p className="text-3xl font-black text-slate-900 mb-1">{kpi.val}</p>
-            <p className="text-xs text-slate-400 font-medium">{kpi.sub}</p>
-          </motion.div>
-        ))}
-      </div>
-
-      {/* Analytics Cards */}
-      <div className="grid md:grid-cols-3 gap-6">
-        {[
-          { title: 'Sales Analytics', desc: 'Track state-wise, territory-wise, and product-wise revenue performance.' },
-          { title: 'Inventory Analytics', desc: 'Monitor stock aging, expiry risks, dead stock, and reorder levels.' },
-          { title: 'Distributor Analytics', desc: 'Evaluate distributor performance, outstanding ledgers, and order fulfillment.' },
-          { title: 'Retail Analytics', desc: 'Analyze scheme ROI, retail sales trends, and primary vs secondary sales.' },
-          { title: 'CRM Analytics', desc: 'Measure MR productivity, doctor visit effectiveness, and lead conversion rates.' },
-          { title: 'Finance Analytics', desc: 'Review profitability, pending collections, tax compliance, and cash flow.' },
-        ].map((card, i) => (
-          <motion.div key={card.title} {...fadeUp(0.3 + (i * 0.1))} className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm group hover:border-indigo-100 hover:shadow-lg transition-all cursor-pointer">
-            <h4 className="text-lg font-bold text-slate-800 mb-2 group-hover:text-indigo-600 transition-colors">{card.title}</h4>
-            <p className="text-sm text-slate-500 leading-relaxed mb-4">{card.desc}</p>
-            <div className="flex items-center text-xs font-bold text-indigo-600 opacity-0 group-hover:opacity-100 transition-opacity -translate-x-2 group-hover:translate-x-0 transform duration-300">
-              View Reports <ArrowRight className="w-3.5 h-3.5 ml-1" />
-            </div>
-          </motion.div>
-        ))}
-      </div>
-    </div>
-  </section>
-);
-
-/* ═══════════════════════════════════════════════════════════════════
    CTA BANNER
 ═══════════════════════════════════════════════════════════════════ */
 const CTABanner = () => (
@@ -617,9 +602,9 @@ const CTABanner = () => (
 
     <div className="max-w-4xl mx-auto px-6 text-center relative z-10">
       <motion.div {...fadeUp()}>
-        <h2 className="text-4xl lg:text-5xl font-black text-slate-900 mb-6 tracking-tight leading-tight">
-          Ready to digitize your <br/>
-          <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#00D9A3] to-[#4F46E5]">pharmaceutical operations?</span>
+        <h2 className="text-4xl md:text-5xl font-black text-[#0D2C5B] mb-6 tracking-tight leading-[1.1]">
+          Ready to digitize your <br />
+          <span className="text-[#3B82F6]">pharmaceutical operations?</span>
         </h2>
         <p className="text-slate-500 text-lg mb-10 max-w-xl mx-auto leading-relaxed">
           Join leading enterprises optimizing products, inventory, billing, and CRM in a single unified platform.
@@ -628,14 +613,11 @@ const CTABanner = () => (
           <Link to="/workspace"
             className="inline-flex items-center gap-3 px-8 py-4 rounded-full text-base font-bold text-white transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
             style={{
-              background: 'linear-gradient(135deg, #00D9A3, #4F46E5)',
+              backgroundColor: '#0D2C5B',
               boxShadow: '0 8px 32px rgba(0,217,163,0.3)',
             }}>
             Enter Platform <ArrowRight className="w-5 h-5" />
           </Link>
-          <a href="#" className="inline-flex items-center gap-2 px-8 py-4 rounded-full text-base font-bold text-slate-700 bg-white border border-slate-200 hover:bg-slate-50 transition-all duration-300 shadow-sm hover:shadow-md">
-            Book Demo
-          </a>
         </div>
       </motion.div>
     </div>
@@ -653,11 +635,7 @@ const Footer = () => (
         {/* Column 1 - Brand */}
         <div className="lg:col-span-1">
           <div className="flex items-center gap-2.5 mb-6">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-lg"
-              style={{ background: 'linear-gradient(135deg, #00D9A3, #00BCD4)' }}>
-              <span className="text-white font-black text-sm">P</span>
-            </div>
-            <span className="text-lg font-extrabold text-white tracking-tight">Pharma ERP</span>
+            <span className="text-lg font-extrabold text-white tracking-tight">MJ Healthcare ERP</span>
           </div>
           <p className="text-sm text-slate-400 leading-relaxed mb-6">
             The intelligent operating system engineered specifically for modern pharmaceutical enterprises.
@@ -675,9 +653,7 @@ const Footer = () => (
           <ul className="space-y-3 text-sm text-slate-400">
             <li><a href="#" className="hover:text-white transition-colors">Dashboard</a></li>
             <li><a href="#workflow" className="hover:text-white transition-colors">Workflow</a></li>
-            <li><a href="#analytics" className="hover:text-white transition-colors">Analytics</a></li>
             <li><a href="#modules" className="hover:text-white transition-colors">Modules</a></li>
-            <li><a href="#" className="hover:text-white transition-colors font-semibold text-[#00D9A3]">Book Demo</a></li>
           </ul>
         </div>
 
@@ -706,7 +682,7 @@ const Footer = () => (
             <li><a href="#" className="hover:text-white transition-colors">Retailer</a></li>
             <li><a href="#" className="hover:text-white transition-colors">Medical Representative</a></li>
             <li><a href="#" className="hover:text-white transition-colors">Accountant</a></li>
-            <li><a href="#" className="hover:text-white transition-colors">Transport Staff</a></li>
+            {/* <li><a href="#" className="hover:text-white transition-colors">Transport Staff</a></li> */}
           </ul>
         </div>
 
@@ -725,7 +701,7 @@ const Footer = () => (
       </div>
 
       <div className="pt-8 border-t border-slate-800 flex flex-col md:flex-row justify-between items-center gap-4 text-xs font-medium text-slate-500">
-        <p>&copy; {new Date().getFullYear()} Pharma ERP Technologies Pvt. Ltd. All rights reserved.</p>
+        <p>&copy; {new Date().getFullYear()} MJ Healthcare ERP Technologies Pvt. Ltd. All rights reserved.</p>
         <div className="flex gap-6 items-center">
            <span className="flex items-center gap-1.5"><Globe2 className="w-3.5 h-3.5" /> Made for Enterprise Scale</span>
         </div>
@@ -747,7 +723,6 @@ export default function LandingPage() {
       <BusinessWorkflow />
       <DashboardPreview />
       <Modules />
-      <AnalyticsSection />
       <CTABanner />
       <Footer />
     </div>

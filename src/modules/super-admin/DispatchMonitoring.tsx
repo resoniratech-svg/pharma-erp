@@ -209,14 +209,14 @@ export default function DispatchMonitoring() {
                 <div className="p-1">
                   <button
                     onClick={handleExportCSV}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-600 rounded-lg transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-[#163c78] rounded-lg transition-colors text-left"
                   >
                     <FileText className="w-4 h-4" />
                     Export CSV
                   </button>
                   <button
                     onClick={handleExportExcel}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-600 rounded-lg transition-colors text-left mt-1"
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-[#163c78] rounded-lg transition-colors text-left mt-1"
                   >
                     <FileSpreadsheet className="w-4 h-4" />
                     Export Excel (.xlsx)
@@ -229,7 +229,7 @@ export default function DispatchMonitoring() {
       />
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <SummaryCard title="Total Dispatches (MTD)" value="1,245" icon={<Truck className="w-6 h-6" />} colorClass="text-violet-600" bgClass="bg-violet-100" />
+        <SummaryCard title="Total Dispatches (MTD)" value="1,245" icon={<Truck className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
         <SummaryCard title="In Transit" value="128" icon={<Clock className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
         <SummaryCard title="Delivered Successfully" value="1,117" icon={<CheckCircle2 className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
         <SummaryCard title="Delayed Shipments" value="24" icon={<AlertTriangle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />

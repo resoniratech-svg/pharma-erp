@@ -223,14 +223,14 @@ export default function AllIndiaSales() {
                 <div className="p-1">
                   <button
                     onClick={handleExportCSV}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-600 rounded-lg transition-colors text-left"
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-[#163c78] rounded-lg transition-colors text-left"
                   >
                     <FileText className="w-4 h-4" />
                     Export CSV
                   </button>
                   <button
                     onClick={handleExportExcel}
-                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-600 rounded-lg transition-colors text-left mt-1"
+                    className="w-full flex items-center gap-3 px-3 py-2 text-sm text-slate-700 hover:bg-slate-50 hover:text-[#163c78] rounded-lg transition-colors text-left mt-1"
                   >
                     <FileSpreadsheet className="w-4 h-4" />
                     Export Excel (.xlsx)
@@ -246,7 +246,7 @@ export default function AllIndiaSales() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
         <SummaryCard title="Total Sales Revenue" value="₹ 158.2 Cr" subtitle="Source: Sales Invoices / Billing" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
         <SummaryCard title="Total Orders" value="46,000" subtitle="Source: Orders Module" icon={<ShoppingCart className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Sales Growth %" value="+8.5%" subtitle="Current vs Previous Period" icon={<TrendingUp className="w-6 h-6" />} colorClass="text-violet-600" bgClass="bg-violet-100" />
+        <SummaryCard title="Sales Growth %" value="+8.5%" subtitle="Current vs Previous Period" icon={<TrendingUp className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
         <SummaryCard title="Active Customers" value="4,175" subtitle="Purchased in selected period" icon={<Users className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
         <SummaryCard title="Outstanding Receivables" value="₹ 15.9 Cr" subtitle="Source: Outstanding Tracking" icon={<AlertCircle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
         <SummaryCard title="Top Performing State" value="Maharashtra" subtitle="Highest revenue generating state" icon={<MapPin className="w-6 h-6" />} colorClass="text-indigo-600" bgClass="bg-indigo-100" />

@@ -144,8 +144,8 @@
 //           value="1,248"
 //           subtitle="This Month"
 //           icon={<Receipt className="w-6 h-6" />}
-//           colorClass="text-violet-600"
-//           bgClass="bg-violet-50"
+//           colorClass="text-[#163c78]"
+//           bgClass="bg-[#163c78]/10"
 //         />
 //         <SummaryCard
 //           title="Total Billing Amount"
@@ -400,8 +400,8 @@
 //           value="1,248"
 //           subtitle="This Month"
 //           icon={<Receipt className="w-6 h-6" />}
-//           colorClass="text-violet-600"
-//           bgClass="bg-violet-50"
+//           colorClass="text-[#163c78]"
+//           bgClass="bg-[#163c78]/10"
 //         />
 //         <SummaryCard
 //           title="Total Billing Amount"
@@ -811,7 +811,7 @@ export default function MultiRateBilling() {
     { key: 'batchCount', label: 'Batches', render: (row) => <span className="text-slate-500">{row.batchCount}</span> },
     { key: 'mrp', label: 'MRP', render: (row) => <span>{formatCurrency(row.mrp)}</span> },
     { key: 'ptr', label: 'PTR', render: (row) => <span>{formatCurrency(row.ptr)}</span> },
-    { key: 'gstRate', label: 'GST', render: (row) => <span className="font-semibold text-violet-600">{row.gstRate}</span> },
+    { key: 'gstRate', label: 'GST', render: (row) => <span className="font-semibold text-[#163c78]">{row.gstRate}</span> },
     { key: 'effectiveRate', label: 'Effective Rate', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.effectiveRate)}</span> },
   ];
 
@@ -846,8 +846,8 @@ export default function MultiRateBilling() {
           value={kpi.totalInvoices.toString()}
           subtitle="Generated"
           icon={<Receipt className="w-5 h-5" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Total Billing"

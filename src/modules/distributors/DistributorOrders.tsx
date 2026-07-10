@@ -148,7 +148,7 @@ export default function DistributorOrders() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2">
-          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View">
+          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View">
             <Eye className="w-4 h-4" />
           </button>
         </div>
@@ -273,7 +273,7 @@ export default function DistributorOrders() {
         <SummaryCard title="Pending Orders" value={summary.pendingCount.toString()} icon={<Clock className="w-5 h-5 text-amber-600" />} colorClass="text-amber-600" bgClass="bg-amber-50" />
         <SummaryCard title="Approved Today" value={summary.approvedToday.toString()} icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
         <SummaryCard title="Rejected Today" value={summary.rejectedToday.toString()} icon={<XCircle className="w-5 h-5 text-rose-600" />} colorClass="text-rose-600" bgClass="bg-rose-50" />
-        <SummaryCard title="Pending Order Value" value={formatCurrency(summary.pendingValue)} icon={<IndianRupee className="w-5 h-5 text-violet-600" />} colorClass="text-violet-600" bgClass="bg-violet-50" />
+        <SummaryCard title="Pending Order Value" value={formatCurrency(summary.pendingValue)} icon={<IndianRupee className="w-5 h-5 text-[#163c78]" />} colorClass="text-[#163c78]" bgClass="bg-[#163c78]/10" />
       </div>
 
       <FilterBar>

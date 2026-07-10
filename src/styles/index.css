@@ -1,40 +1,61 @@
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-@import url('https://api.fontshare.com/v2/css?f[]=satoshi@900,700,500,300,400&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap');
 @import "tailwindcss";
 
 @theme {
-  --color-primary: #00D9A3;
-  --color-primary-dark: #00b386;
-  --color-secondary: #00BCD4;
-  --color-accent: #4F46E5;
-  --color-teal: #14B8A6;
-  --color-purple: #7C3AED;
-  --color-orange: #FF9500;
+  --color-brand-primary: #163C78;
+  --color-brand-secondary: #0D2C5B;
+  --color-brand-accent: #3B82F6;
+  --color-brand-success: #16A34A;
+  --color-brand-warning: #F59E0B;
+  --color-brand-danger: #DC2626;
+  --color-brand-light: #F8FAFC;
+  --color-brand-border: #E5E7EB;
+
+  --color-primary: var(--color-brand-primary);
+  --color-primary-dark: var(--color-brand-secondary);
+  --color-secondary: var(--color-brand-accent);
+  --color-accent: var(--color-brand-accent);
+  --color-teal: var(--color-brand-success);
+  --color-purple: var(--color-brand-primary);
+  --color-orange: var(--color-brand-warning);
   --color-charcoal: #1F2937;
-  --color-background-start: #e0fcf5;
-  --color-background-mid: #e0f7fa;
-  --color-background-end: #ffffff;
-  --font-heading: 'Plus Jakarta Sans', sans-serif;
-  --font-body: 'Satoshi', sans-serif;
+  
+  --color-background-start: #F8FAFC;
+  --color-background-mid: #F1F5F9;
+  --color-background-end: #E2E8F0;
+  
+  --font-heading: 'Poppins', sans-serif;
+  --font-body: 'Inter', sans-serif;
 }
 
 body {
-  @apply bg-white text-charcoal;
+  @apply bg-brand-light text-charcoal;
   font-family: var(--font-body);
   overflow-x: hidden;
 }
 
+/* Hide scrollbar for Chrome, Safari and Opera */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+/* Hide scrollbar for IE, Edge and Firefox */
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
 /* Glassmorphism Utilities */
 .glass {
-  @apply bg-white/70 backdrop-blur-md border border-white/40 shadow-sm;
+  @apply bg-white/70 backdrop-blur-md border border-brand-border shadow-sm;
 }
 
 .glass-dark {
-  @apply bg-slate-900/80 backdrop-blur-lg border border-slate-700/50 shadow-xl;
+  @apply bg-brand-secondary/90 backdrop-blur-lg border border-brand-primary/50 shadow-xl;
 }
 
 .text-gradient {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-primary to-secondary;
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-brand-primary to-brand-accent;
 }
 
 .bg-gradient-premium {

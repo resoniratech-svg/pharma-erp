@@ -489,7 +489,7 @@ export default function ProductMaster() {
     { key: "status", label: "Status", width: "10%", render: (row) => { const variant = row.status === "Active" ? "success" : row.status === "Inactive" ? "warning" : "danger"; return <Badge variant={variant}>{row.status}</Badge>; } },
     { key: "actions", label: "Actions", width: "120px", render: (row) => (
         <div className="flex gap-3">
-          <button onClick={(e) => { e.stopPropagation(); setSelectedProduct(row); }} className="text-violet-600 font-medium hover:text-violet-800">View</button>
+          <button onClick={(e) => { e.stopPropagation(); setSelectedProduct(row); }} className="text-[#163c78] font-medium hover:text-[#0c1f3d]">View</button>
           {canDelete && (<button onClick={(e) => { e.stopPropagation(); setProductToDelete(row); }} className="text-rose-600 font-medium hover:text-rose-800"><Trash2 className="w-4 h-4" /></button>)}
         </div>
       )
@@ -626,7 +626,7 @@ export default function ProductMaster() {
                             <div key={cat} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, category: cat }); setShowCategoryDropdown(false); }}>{cat}</div>
                           ))}
                           {(newProduct.category || "").trim() !== "" && !categories.some((c) => c.trim().toLowerCase() === (newProduct.category || "").trim().toLowerCase()) && (
-                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newCat = (newProduct.category || "").trim(); const updatedCategories = [...categories, newCat]; setCategories(updatedCategories); setNewProduct({ ...newProduct, category: newCat }); setShowCategoryDropdown(false); }}>
+                            <div className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newCat = (newProduct.category || "").trim(); const updatedCategories = [...categories, newCat]; setCategories(updatedCategories); localStorage.setItem("product_categories", JSON.stringify(updatedCategories)); setNewProduct({ ...newProduct, category: newCat }); setShowCategoryDropdown(false); }}>
                               <Plus className="w-4 h-4" /> Add "{newProduct.category.trim()}"
                             </div>
                           )}
@@ -649,7 +649,7 @@ export default function ProductMaster() {
                             <div key={cat} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, type: cat }); setShowTypeDropdown(false); }}>{cat}</div>
                           ))}
                           {(newProduct.type || "").trim() !== "" && !productTypes.some((c) => c.trim().toLowerCase() === (newProduct.type || "").trim().toLowerCase()) && (
-                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newType = (newProduct.type || "").trim(); const updatedTypes = [...productTypes, newType]; setProductTypes(updatedTypes); setNewProduct({ ...newProduct, type: newType }); setShowTypeDropdown(false); }}>
+                            <div className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newType = (newProduct.type || "").trim(); const updatedTypes = [...productTypes, newType]; setProductTypes(updatedTypes); localStorage.setItem("product_types", JSON.stringify(updatedTypes)); setNewProduct({ ...newProduct, type: newType }); setShowTypeDropdown(false); }}>
                               <Plus className="w-4 h-4" /> Add "{newProduct.type.trim()}"
                             </div>
                           )}
@@ -760,7 +760,7 @@ export default function ProductMaster() {
                             <div key={cat} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, manufacturer: cat }); setShowManufacturerDropdown(false); }}>{cat}</div>
                           ))}
                           {(newProduct.manufacturer || "").trim() !== "" && !manufacturers.some((c) => c.trim().toLowerCase() === (newProduct.manufacturer || "").trim().toLowerCase()) && (
-                            <div className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newManuf = (newProduct.manufacturer || "").trim(); const updatedManufs = [...manufacturers, newManuf]; setManufacturers(updatedManufs); setNewProduct({ ...newProduct, manufacturer: newManuf }); setShowManufacturerDropdown(false); }}>
+                            <div className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newManuf = (newProduct.manufacturer || "").trim(); const updatedManufs = [...manufacturers, newManuf]; setManufacturers(updatedManufs); localStorage.setItem("product_manufacturers", JSON.stringify(updatedManufs)); setNewProduct({ ...newProduct, manufacturer: newManuf }); setShowManufacturerDropdown(false); }}>
                               <Plus className="w-4 h-4" /> Add "{newProduct.manufacturer.trim()}"
                             </div>
                           )}
@@ -912,11 +912,11 @@ export default function ProductMaster() {
                     <input type="text" value={newProduct.reorderLevel} onChange={(e) => handleNumericChange("reorderLevel", e.target.value, 6)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <input type="checkbox" id="batchTracking" checked={newProduct.batchTracking} onChange={(e) => setNewProduct({ ...newProduct, batchTracking: e.target.checked })} className="w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500" />
+                    <input type="checkbox" id="batchTracking" checked={newProduct.batchTracking} onChange={(e) => setNewProduct({ ...newProduct, batchTracking: e.target.checked })} className="w-4 h-4 text-[#163c78] border-slate-300 rounded focus:ring-violet-500" />
                     <label htmlFor="batchTracking" className="text-sm text-slate-700">Enable Batch Tracking</label>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <input type="checkbox" id="expiryTracking" checked={newProduct.expiryTracking} onChange={(e) => setNewProduct({ ...newProduct, expiryTracking: e.target.checked })} className="w-4 h-4 text-violet-600 border-slate-300 rounded focus:ring-violet-500" />
+                    <input type="checkbox" id="expiryTracking" checked={newProduct.expiryTracking} onChange={(e) => setNewProduct({ ...newProduct, expiryTracking: e.target.checked })} className="w-4 h-4 text-[#163c78] border-slate-300 rounded focus:ring-violet-500" />
                     <label htmlFor="expiryTracking" className="text-sm text-slate-700">Enable Expiry Tracking</label>
                   </div>
                 </div>

@@ -232,7 +232,7 @@ export default function ExpiryStock() {
       render: (row) => (
         <button
           onClick={() => setSelectedRecord(row)}
-          className="text-violet-600 font-medium hover:text-violet-800"
+          className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
         >
           View
         </button>
@@ -409,8 +409,8 @@ export default function ExpiryStock() {
           value={formatCurrency(dashboardMetrics.expiryStockValue)}
           subtitle="Value nearing expiry"
           icon={<IndianRupee className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Estimated Loss"

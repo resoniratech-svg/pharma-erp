@@ -244,7 +244,7 @@ export default function ExpiryTracking() {
               e.stopPropagation();
               setSelectedItem(row);
             }}
-            className="text-violet-600 font-medium hover:text-violet-800"
+            className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
           >
             View
           </button>

@@ -109,7 +109,7 @@ export default function PackingTypeManagement() {
               e.stopPropagation();
               setSelectedPacking(row);
             }}
-            className="text-violet-600 font-medium hover:text-violet-800"
+            className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
           >
             View
           </button>
@@ -569,7 +569,7 @@ export default function PackingTypeManagement() {
                     {Array.from(new Set([...baseUoms, ...customUoms, ...data.map(d => d.uom)])).map(uom => (
                       <option key={uom} value={uom}>{uom}</option>
                     ))}
-                    <option value="ADD_NEW" className="font-semibold text-violet-600">+ Add New Unit</option>
+                    <option value="ADD_NEW" className="font-semibold text-[#163c78]">+ Add New Unit</option>
                   </select>
                 ) : (
                   <div className="flex gap-2">
@@ -585,7 +585,7 @@ export default function PackingTypeManagement() {
                     <button
                       type="button"
                       onClick={handleSaveNewUom}
-                      className="px-3 py-2 bg-violet-600 text-white rounded-lg hover:bg-violet-700 text-sm font-medium whitespace-nowrap"
+                      className="px-3 py-2 bg-[#163c78] text-white rounded-lg hover:bg-[#112d59] text-sm font-medium whitespace-nowrap"
                     >
                       Add
                     </button>

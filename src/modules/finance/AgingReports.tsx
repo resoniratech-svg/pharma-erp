@@ -427,7 +427,7 @@ export default function AgingReports() {
           <ActionButton 
             variant="ghost" 
             onClick={() => setSelectedParty(row)} 
-            className="text-slate-400 hover:text-violet-600 px-2 py-1 flex items-center gap-1"
+            className="text-slate-400 hover:text-[#163c78] px-2 py-1 flex items-center gap-1"
           >
             <Eye className="w-4 h-4" /> <span className="text-xs">View Details</span>
           </ActionButton>

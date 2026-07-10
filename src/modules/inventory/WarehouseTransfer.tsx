@@ -206,7 +206,7 @@ export default function WarehouseTransfer() {
             e.stopPropagation();
             setSelectedRecord(row);
           }}
-          className="text-violet-600 font-medium hover:text-violet-800"
+          className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
         >
           View
         </button>
@@ -751,7 +751,7 @@ export default function WarehouseTransfer() {
                   <button 
                     onClick={handleAddProductRow} 
                     disabled={!formData.fromWarehouseId}
-                    className={`text-sm font-medium flex items-center ${!formData.fromWarehouseId ? 'text-slate-400 cursor-not-allowed' : 'text-violet-600 hover:text-violet-800'}`}
+                    className={`text-sm font-medium flex items-center ${!formData.fromWarehouseId ? 'text-slate-400 cursor-not-allowed' : 'text-[#163c78] hover:text-[#0c1f3d]'}`}
                     title={!formData.fromWarehouseId ? "Select 'From Location' first" : ""}
                   >
                     <Plus className="w-4 h-4 mr-1" /> Add Row
@@ -863,7 +863,7 @@ export default function WarehouseTransfer() {
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Transfer Information</h3>
               <div className="space-y-2">
-                <DrawerField label="Transfer Number" value={<span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">{selectedRecord.transferNo}</span>} />
+                <DrawerField label="Transfer Number" value={<span className="font-mono text-violet-700 bg-[#163c78]/10 px-2 py-1 rounded">{selectedRecord.transferNo}</span>} />
                 <DrawerField label="Transfer Date" value={formatDate(selectedRecord.date)} />
                 <DrawerField label="From Location" value={selectedRecord.fromWarehouseName} />
                 <DrawerField label="To Location" value={selectedRecord.toWarehouseName} />

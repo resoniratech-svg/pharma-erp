@@ -120,8 +120,8 @@
 //           value="450"
 //           subtitle="All active leads"
 //           icon={<Users className="w-6 h-6" />}
-//           colorClass="text-violet-600"
-//           bgClass="bg-violet-50"
+//           colorClass="text-[#163c78]"
+//           bgClass="bg-[#163c78]/10"
 //         />
 //         <SummaryCard
 //           title="Assigned Leads"
@@ -481,7 +481,7 @@ export default function LeadAssignment() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <SummaryCard title="Total Leads" value={totalLeads.toString()} subtitle="All active leads" icon={<Users className="w-6 h-6" />} colorClass="text-violet-600" bgClass="bg-violet-50" />
+        <SummaryCard title="Total Leads" value={totalLeads.toString()} subtitle="All active leads" icon={<Users className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-[#163c78]/10" />
         <SummaryCard title="Assigned Leads" value={assignedLeads.toString()} subtitle="Currently allocated" icon={<UserPlus className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
         <SummaryCard title="Unassigned Leads" value={unassignedLeads.toString()} subtitle="Needs attention" icon={<UserMinus className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-50" />
         <SummaryCard title="Assignment Rate" value={`${successRate}%`} subtitle="Overall completion" icon={<Percent className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-50" />
@@ -550,7 +550,7 @@ export default function LeadAssignment() {
                         value={p}
                         checked={assignForm.priority === p}
                         onChange={(e) => setAssignForm({...assignForm, priority: e.target.value as any})}
-                        className="text-violet-600 focus:ring-violet-500"
+                        className="text-[#163c78] focus:ring-violet-500"
                       />
                       <span className="text-sm text-slate-700 font-medium">{p}</span>
                     </label>
@@ -570,7 +570,7 @@ export default function LeadAssignment() {
               </button>
               <button 
                 type="submit" 
-                className="flex-1 bg-violet-600 text-white font-semibold py-2.5 rounded-lg hover:bg-violet-700 transition-colors"
+                className="flex-1 bg-[#163c78] text-white font-semibold py-2.5 rounded-lg hover:bg-[#112d59] transition-colors"
               >
                 Confirm Assignment
               </button>

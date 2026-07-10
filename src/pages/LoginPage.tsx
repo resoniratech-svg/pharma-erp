@@ -4,12 +4,40 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   Mail, Lock, Eye, EyeOff, ChevronLeft,
   ArrowRight, CheckCircle2, ShieldCheck,
-  Activity, Dna,
+  Package, ShoppingCart, ClipboardCheck, Users,
+  Dna, Network, Pill, Activity
 } from 'lucide-react';
 import { ROLES } from '../constants/roles';
 import { USERS } from '../mock-data/mockUsers';
 import activityLogService from '../services/activityLogService';
 import mjLogo from '../assets/logo/pharmaLOGO.png';
+
+const MolecularNetwork = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <circle cx="100" cy="100" r="15" fill="currentColor" opacity="0.8"/>
+    <circle cx="50" cy="50" r="10" fill="currentColor" opacity="0.6"/>
+    <circle cx="150" cy="40" r="8" fill="currentColor" opacity="0.5"/>
+    <circle cx="170" cy="120" r="12" fill="currentColor" opacity="0.7"/>
+    <circle cx="60" cy="150" r="9" fill="currentColor" opacity="0.6"/>
+    <path d="M100 100 L50 50 M100 100 L150 40 M100 100 L170 120 M100 100 L60 150 M50 50 L150 40 M170 120 L60 150" stroke="currentColor" strokeWidth="2" opacity="0.4"/>
+    <circle cx="20" cy="100" r="6" fill="currentColor" opacity="0.5"/>
+    <path d="M50 50 L20 100 M60 150 L20 100" stroke="currentColor" strokeWidth="1.5" opacity="0.3"/>
+  </svg>
+);
+
+const DNAHelix = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 100 300" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path d="M20 20 Q50 60 80 100 T20 180 T80 260" stroke="currentColor" strokeWidth="4" opacity="0.6" fill="none"/>
+    <path d="M80 20 Q50 60 20 100 T80 180 T20 260" stroke="currentColor" strokeWidth="4" opacity="0.4" fill="none"/>
+    <path d="M30 35 L70 35 M20 60 L80 60 M20 80 L80 80 M30 110 L70 110 M20 140 L80 140 M20 160 L80 160 M30 190 L70 190 M20 220 L80 220" stroke="currentColor" strokeWidth="2" opacity="0.5"/>
+  </svg>
+);
+
+const HospitalCross = ({ className }: { className?: string }) => (
+  <svg viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg" className={className}>
+    <path d="M35 15 H65 V35 H85 V65 H65 V85 H35 V65 H15 V35 H35 V15 Z" fill="currentColor" opacity="0.8"/>
+  </svg>
+);
 
 /* ── Types ──────────────────────────────────────────────────────── */
 interface LocationState {
@@ -38,17 +66,13 @@ const Field = ({
       {label}
     </label>
     <div
-      className="flex items-center gap-3 bg-[#F7FAFC] border rounded-xl px-4 py-3.5 transition-all duration-200 shadow-sm"
+      className="flex items-center gap-3 bg-white border rounded-[10px] h-[50px] px-4 transition-all duration-200 shadow-sm focus-within:ring-2 focus-within:ring-[#163C78]/20 focus-within:border-[#163C78]"
       style={{
-        borderColor: error ? '#EF4444' : value ? '#14B8A680' : '#DDE3EC',
-        boxShadow: value && !error
-          ? `0 0 0 3px #14B8A614`
-          : error
-          ? '0 0 0 3px rgba(239,68,68,0.10)'
-          : undefined,
+        borderColor: error ? 'var(--color-brand-danger)' : undefined,
+        boxShadow: error ? '0 0 0 3px rgba(220, 38, 38, 0.10)' : undefined,
       }}
     >
-      <Icon className="w-4 h-4 flex-shrink-0" style={{ color: value ? '#14B8A6' : '#94A3B8' }} />
+      <Icon className="w-4 h-4 flex-shrink-0" style={{ color: value ? '#163C78' : '#94A3B8' }} />
       <input
         id={id}
         type={type}
@@ -219,10 +243,17 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex font-sans bg-[#EEF2F7]">
+    <>
+      <style>{`
+        input[type="password"]::-ms-reveal,
+        input[type="password"]::-ms-clear {
+          display: none;
+        }
+      `}</style>
+      <div className="min-h-screen flex font-sans bg-brand-light">
       {/* ── Left Brand Panel (Desktop Only) ─────────────────────── */}
       <div className="hidden lg:flex w-[40%] relative flex-col justify-between p-12 overflow-hidden"
-           style={{ background: 'linear-gradient(135deg, #14B8A6 0%, #06B6D4 50%, #4F46E5 100%)' }}>
+           style={{ backgroundColor: '#3b82f6' }}>
         {/* Abstract Background Elements */}
         <motion.div 
           animate={{ y: [0, -20, 0], rotate: [0, 10, 0] }} 
@@ -232,38 +263,87 @@ export default function LoginPage() {
         <motion.div 
           animate={{ x: [0, 30, 0], scale: [1, 1.1, 1] }} 
           transition={{ duration: 10, repeat: Infinity, ease: "easeInOut" }}
-          className="absolute bottom-10 left-10 w-80 h-80 bg-[#4F46E5]/30 rounded-full blur-3xl pointer-events-none"
+          className="absolute bottom-10 left-10 w-80 h-80 bg-brand-accent/30 rounded-full blur-3xl pointer-events-none"
         />
         
         {/* Particles */}
         <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSIyMCIgaGVpZ2h0PSIyMCI+CjxjaXJjbGUgY3g9IjIiIGN5PSIyIiByPSIxIiBmaWxsPSJyZ2JhKDI1NSwyNTUsMjU1LDAuMSkiLz4KPC9zdmc+')] opacity-30 pointer-events-none" />
 
-        <div className="relative z-10">
+        {/* Animated Healthcare Graphics */}
+        <motion.div 
+          animate={{ y: [0, -40, 0], rotate: [0, 15, 0] }}
+          transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute top-10 right-[-5%] opacity-15 text-white pointer-events-none z-0"
+        >
+          <MolecularNetwork className="w-[500px] h-[500px]" />
+        </motion.div>
+        
+        <motion.div 
+          animate={{ y: [0, 40, 0], rotate: [0, -15, 0] }}
+          transition={{ duration: 16, repeat: Infinity, ease: "easeInOut", delay: 2 }}
+          className="absolute bottom-[-10%] right-10 opacity-15 text-white pointer-events-none z-0"
+        >
+          <DNAHelix className="w-[400px] h-[400px]" />
+        </motion.div>
+
+        <motion.div 
+          animate={{ y: [0, -30, 0], x: [0, 30, 0] }}
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          className="absolute top-1/2 left-20 opacity-15 text-white pointer-events-none z-0"
+        >
+          <HospitalCross className="w-48 h-48" />
+        </motion.div>
+
+        <motion.div 
+          animate={{ y: [0, 30, 0], x: [0, -30, 0], rotate: [45, 90, 45] }}
+          transition={{ duration: 14, repeat: Infinity, ease: "easeInOut", delay: 3 }}
+          className="absolute bottom-1/3 left-1/3 opacity-15 text-white pointer-events-none z-0"
+        >
+          <Pill className="w-32 h-32" strokeWidth={1} />
+        </motion.div>
+
+        <div className="absolute top-8 left-8 z-20">
           <Link to="/" className="flex items-center gap-3 w-fit">
-            <img src={mjLogo} alt="MJ Healthcare" className="h-50 object-contain" />
+            <img src={mjLogo} alt="MJ Healthcare" className="h-50 object-contain drop-shadow-[0_0_15px_rgba(255,255,255,0.9)]" />
           </Link>
         </div>
 
-        <div className="relative z-10 mt-auto mb-16">
+        <div className="relative z-10 mt-32 mb-16">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
           >
-            <div className="flex gap-4 mb-8">
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 shadow-xl">
-                <Activity className="w-6 h-6 text-white" />
-              </div>
-              <div className="w-12 h-12 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center border border-white/20 shadow-xl">
-                <Dna className="w-6 h-6 text-white" />
-              </div>
-            </div>
-            <h1 className="text-4xl lg:text-5xl font-black text-white mb-6 leading-tight tracking-tight">
-              Enterprise Pharmaceutical Management Platform
+            <h1 className="text-4xl lg:text-5xl font-black text-[#163c78] mb-2 leading-tight tracking-tight">
+              MJ Healthcare ERP
             </h1>
-            <p className="text-white/80 text-lg leading-relaxed max-w-md">
-              Streamline inventory, finance, billing, logistics, analytics and business operations through a unified ERP ecosystem.
+            <h2 className="text-xl font-bold text-[#163c78] opacity-90 mb-6">
+              Enterprise Pharmaceutical Management Platform
+            </h2>
+            <p className="text-[#163c78] text-lg font-bold italic mb-4">
+              Care. Innovate. Cure.
             </p>
+            <p className="text-[#163c78] text-sm leading-relaxed max-w-md font-medium mb-9 opacity-100">
+              Empowering pharmaceutical enterprises with integrated solutions for streamlined operations, data-driven insights, and regulatory adherence.
+            </p>
+
+            <div className="flex flex-col gap-3">
+              {[
+                { icon: Package, text: 'Inventory Management' },
+                { icon: ShoppingCart, text: 'Sales & Billing' },
+                { icon: ClipboardCheck, text: 'Purchase Management' },
+                { icon: Users, text: 'Medical Representatives' },
+              ].map((feature, idx) => (
+                <div key={idx} className="flex items-center gap-3">
+                  <div className="flex items-center justify-center w-8 h-8 rounded-lg border border-[#163c78]/20 bg-white/50 text-[#163c78]">
+                    <feature.icon className="w-4 h-4" />
+                  </div>
+                  <span className="font-semibold text-sm text-[#163c78]">
+                    {feature.text}
+                  </span>
+                </div>
+              ))}
+            </div>
           </motion.div>
         </div>
 
@@ -278,7 +358,7 @@ export default function LoginPage() {
         <div className="absolute top-6 left-6 z-10">
           <Link
             to="/workspace"
-            className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors bg-white/80 backdrop-blur px-3 py-1.5 rounded-full shadow-sm border border-slate-100"
+            className="flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors bg-white/80 backdrop-blur px-3 py-1.5 rounded-full shadow-sm border border-brand-border"
           >
             <ChevronLeft className="w-4 h-4" />
             Back to workspace
@@ -290,17 +370,16 @@ export default function LoginPage() {
             initial={{ opacity: 0, scale: 0.96 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.4 }}
-            className="w-full max-w-[450px] bg-white rounded-[16px] shadow-[0_20px_60px_rgba(0,0,0,0.08),0_4px_16px_rgba(0,0,0,0.04)] border border-[#E8EDF2] p-10 lg:p-12"
+            className="w-full max-w-[450px] bg-white rounded-[16px] shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-brand-border p-10 lg:p-12 font-['Inter']"
           >
             {/* ── Role header ────────────────────────────────────── */}
             <div className="flex flex-col items-center mb-8 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-[#E6FAF8] flex items-center justify-center mb-5 shadow-sm border border-[#CCEFEC]">
-                <RoleIcon className="w-8 h-8 text-[#14B8A6]" />
+              <h2 className="text-2xl font-bold text-[#1A1A1A] tracking-tight mb-2">Welcome Back</h2>
+              <p className="text-slate-500 mb-6 text-lg">Sign in to MJ Healthcare ERP</p>
+              <div className="inline-flex items-center gap-2 px-5 py-2 rounded-full bg-slate-100 text-slate-700 text-base font-semibold">
+                <RoleIcon className="w-5 h-5" />
+                {role.title}
               </div>
-              <p className="text-xs font-bold uppercase tracking-widest text-slate-400 mb-1">
-                Signing in as
-              </p>
-              <h2 className="text-2xl font-black text-[#1A1A1A] tracking-tight">{role.title}</h2>
             </div>
 
             {/* ── Form body ───────────────────────────────────────────── */}
@@ -312,7 +391,7 @@ export default function LoginPage() {
                 type="email"
                 value={email}
                 onChange={setEmail}
-                placeholder="you@pharmaerp.com"
+                placeholder="you@mjhealthcare.com"
                 error={emailErr}
                 icon={Mail}
               />
@@ -344,7 +423,7 @@ export default function LoginPage() {
               {/* Remember Me & Forgot Password */}
               <div className="flex items-center justify-between pt-1">
                 <label className="flex items-center gap-2 cursor-pointer group">
-                  <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${rememberMe ? 'bg-[#14B8A6] border-[#14B8A6]' : 'border-slate-300 group-hover:border-[#14B8A6]'}`}>
+                  <div className={`w-4 h-4 rounded flex items-center justify-center border transition-colors ${rememberMe ? 'bg-brand-primary border-brand-primary' : 'border-slate-300 group-hover:border-brand-primary'}`}>
                     {rememberMe && <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>}
                   </div>
                   <input type="checkbox" className="hidden" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />
@@ -352,7 +431,7 @@ export default function LoginPage() {
                 </label>
                 <button
                   type="button"
-                  className="text-sm font-semibold text-[#14B8A6] hover:text-[#0F9F8D] hover:underline transition-colors"
+                  className="text-sm font-semibold text-brand-primary hover:text-brand-secondary hover:underline transition-colors"
                 >
                   Forgot Password?
                 </button>
@@ -363,7 +442,7 @@ export default function LoginPage() {
                 id="login-btn"
                 type="submit"
                 disabled={loading || success}
-                className={`w-full flex items-center justify-center gap-2.5 py-4 rounded-[12px] font-bold text-white text-sm transition-all duration-200 disabled:opacity-80 disabled:cursor-not-allowed mt-4 shadow-sm hover:-translate-y-[2px] active:scale-[0.98] ${success ? 'bg-[#10B981]' : 'bg-[#14B8A6] hover:bg-[#0F9F8D] hover:shadow-[0_4px_12px_rgba(20,184,166,0.25)]'}`}
+                className={`w-full flex items-center justify-center gap-2.5 h-[50px] rounded-[10px] font-bold text-white text-sm transition-all duration-200 disabled:opacity-80 disabled:cursor-not-allowed mt-4 shadow-sm hover:-translate-y-[2px] active:scale-[0.98] ${success ? 'bg-brand-success' : 'bg-[#163C78] hover:bg-[#0D2C5B]'}`}
               >
                 <AnimatePresence mode="wait">
                   {loading ? (
@@ -411,12 +490,13 @@ export default function LoginPage() {
           {/* Mobile Footer branding */}
           <div className="absolute bottom-6 left-0 right-0 flex justify-center lg:hidden">
              <div className="flex items-center gap-2 opacity-50 text-xs text-slate-500 font-bold">
-               <div className="w-5 h-5 bg-gradient-to-br from-[#14B8A6] to-[#06B6D4] rounded flex items-center justify-center text-white">P</div>
-               Pharma ERP
+               <img src={mjLogo} alt="MJ Healthcare" className="h-6 object-contain grayscale" />
+               MJ Healthcare ERP
              </div>
           </div>
         </div>
       </div>
     </div>
+    </>
   );
 }

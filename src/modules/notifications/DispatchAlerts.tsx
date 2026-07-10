@@ -47,7 +47,7 @@
 //     {
 //       key: 'action',
 //       label: '',
-//       render: () => <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1"><MapPin className="w-4 h-4 mr-1" /> Track</ActionButton>
+//       render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><MapPin className="w-4 h-4 mr-1" /> Track</ActionButton>
 //     }
 //   ];
 
@@ -155,7 +155,7 @@ export default function DispatchAlerts() {
       key: 'action',
       label: '',
       // 🛡️ Enterprise Feature: Changed to "Track Shipment"
-      render: () => <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1"><MapPin className="w-4 h-4 mr-1" /> Track Shipment</ActionButton>
+      render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><MapPin className="w-4 h-4 mr-1" /> Track Shipment</ActionButton>
     }
   ];
 

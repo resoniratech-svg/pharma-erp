@@ -51,7 +51,7 @@ function ActionMenu({ row, onEdit, onToggleStatus }: { row: AppUser, onEdit: (ro
     <div className="relative" ref={menuRef}>
       <button 
         onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
-        className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition-colors"
+        className="p-2 text-slate-400 hover:text-[#163c78] hover:bg-[#163c78]/10 rounded-lg transition-colors"
       >
         <MoreVertical className="w-5 h-5" />
       </button>
@@ -282,7 +282,7 @@ useEffect(() => {
             >
               <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-violet-600">
+                  <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-[#163c78]">
                     <UserPlus className="w-5 h-5" />
                   </div>
                   <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Edit User' : 'Add New User'}</h2>
@@ -352,16 +352,16 @@ useEffect(() => {
                         <div className="flex items-center gap-6">
                           <label className="flex items-center gap-2 cursor-pointer group">
                             <div className="relative flex items-center justify-center w-5 h-5">
-                              <input checked={status === 'Active'} onChange={() => setStatus('Active')} type="radio" name="status" className="peer w-4 h-4 text-violet-600 border-slate-300 focus:ring-violet-500 transition-all opacity-0 absolute" />
-                              <div className="w-4 h-4 rounded-full border border-slate-300 peer-checked:border-violet-600 peer-checked:bg-violet-600 transition-all group-hover:border-violet-400"></div>
+                              <input checked={status === 'Active'} onChange={() => setStatus('Active')} type="radio" name="status" className="peer w-4 h-4 text-[#163c78] border-slate-300 focus:ring-violet-500 transition-all opacity-0 absolute" />
+                              <div className="w-4 h-4 rounded-full border border-slate-300 peer-checked:border-[#163c78] peer-checked:bg-[#163c78] transition-all group-hover:border-violet-400"></div>
                               <div className="absolute w-1.5 h-1.5 bg-white rounded-full opacity-0 peer-checked:opacity-100 transition-opacity"></div>
                             </div>
                             <span className="text-sm text-slate-700 font-medium">Active</span>
                           </label>
                           <label className="flex items-center gap-2 cursor-pointer group">
                             <div className="relative flex items-center justify-center w-5 h-5">
-                              <input checked={status === 'Inactive'} onChange={() => setStatus('Inactive')} type="radio" name="status" className="peer w-4 h-4 text-violet-600 border-slate-300 focus:ring-violet-500 transition-all opacity-0 absolute" />
-                              <div className="w-4 h-4 rounded-full border border-slate-300 peer-checked:border-violet-600 peer-checked:bg-violet-600 transition-all group-hover:border-violet-400"></div>
+                              <input checked={status === 'Inactive'} onChange={() => setStatus('Inactive')} type="radio" name="status" className="peer w-4 h-4 text-[#163c78] border-slate-300 focus:ring-violet-500 transition-all opacity-0 absolute" />
+                              <div className="w-4 h-4 rounded-full border border-slate-300 peer-checked:border-[#163c78] peer-checked:bg-[#163c78] transition-all group-hover:border-violet-400"></div>
                               <div className="absolute w-1.5 h-1.5 bg-white rounded-full opacity-0 peer-checked:opacity-100 transition-opacity"></div>
                             </div>
                             <span className="text-sm text-slate-700 font-medium">Inactive</span>

@@ -393,7 +393,7 @@
 //       label: 'Actions',
 //       render: (row) => (
 //         <div className="flex items-center gap-2">
-//           <button title="Map Check-In Location" className="text-violet-600 hover:text-violet-700 hover:bg-violet-50 p-1.5 rounded-lg transition-colors">
+//           <button title="Map Check-In Location" className="text-[#163c78] hover:text-violet-700 hover:bg-[#163c78]/10 p-1.5 rounded-lg transition-colors">
 //             <MapPin className="w-4 h-4" />
 //           </button>
 //           <button title="Delete record" onClick={() => handleDelete(row.id)} className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition-colors">
@@ -911,7 +911,7 @@ export default function DoctorVisits() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2">
-          <button title="Map Check-In Location" className="text-violet-600 hover:text-violet-700 hover:bg-violet-50 p-1.5 rounded-lg transition-colors">
+          <button title="Map Check-In Location" className="text-[#163c78] hover:text-violet-700 hover:bg-[#163c78]/10 p-1.5 rounded-lg transition-colors">
             <MapPin className="w-4 h-4" />
           </button>
           <button title="Delete record" onClick={() => handleDelete(row.id)} className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 p-1.5 rounded-lg transition-colors">

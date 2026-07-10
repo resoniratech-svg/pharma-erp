@@ -15,7 +15,7 @@ export default function CompanySettings() {
       <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden mb-6">
         <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
           <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
-            <Building2 className="w-4 h-4 text-violet-600" />
+            <Building2 className="w-4 h-4 text-[#163c78]" />
           </div>
           <h2 className="text-lg font-semibold text-slate-800">Basic Information</h2>
         </div>

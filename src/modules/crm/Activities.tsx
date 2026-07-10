@@ -234,7 +234,7 @@
 //       case 'visit': return <MapPin className="w-4 h-4 text-cyan-600" />;
 //       case 'order': return <ShoppingCart className="w-4 h-4 text-emerald-600" />;
 //       case 'expense': return <Banknote className="w-4 h-4 text-amber-600" />;
-//       case 'attendance': return <CheckCircle2 className="w-4 h-4 text-violet-600" />;
+//       case 'attendance': return <CheckCircle2 className="w-4 h-4 text-[#163c78]" />;
 //       case 'meeting': return <Users className="w-4 h-4 text-indigo-600" />;
 //       default: return <Activity className="w-4 h-4 text-slate-600" />;
 //     }
@@ -645,7 +645,7 @@ export default function ActivityTracking() {
       case 'visit': return <MapPin className="w-4 h-4 text-cyan-600" />;
       case 'order': return <ShoppingCart className="w-4 h-4 text-emerald-600" />;
       case 'expense': return <Banknote className="w-4 h-4 text-amber-600" />;
-      case 'attendance': return <CheckCircle2 className="w-4 h-4 text-violet-600" />;
+      case 'attendance': return <CheckCircle2 className="w-4 h-4 text-[#163c78]" />;
       case 'meeting': return <Users className="w-4 h-4 text-indigo-600" />;
       case 'followup': return <Bell className="w-4 h-4 text-rose-600" />;
       case 'report': return <FileText className="w-4 h-4 text-blue-600" />;

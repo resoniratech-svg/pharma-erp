@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Download, Filter, ReceiptText, ChevronDown, Printer, Plus, Trash2, SquarePen } from 'lucide-react';
+import { Download, Filter, ReceiptText, ChevronDown, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -17,7 +17,6 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
-import { ROLE_SUPER_ADMIN, ROLE_RETAILER } from '../../constants/roles';
 
 type InvoiceStatus = 'Paid' | 'Unpaid' | 'Partially Paid' | 'Overdue';
 
@@ -111,9 +110,6 @@ const formatCurrency = (amount: number) => {
 };
 
 export default function Invoices() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
-  const isRetailer = activeRole === ROLE_RETAILER;
-  
   // --- Persistent State Layer Pipeline ---
   const [invoices, setInvoices] = useState<Invoice[]>(() => {
     const saved = localStorage.getItem('pharma_erp_invoices');
@@ -125,25 +121,6 @@ export default function Invoices() {
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
-
-  // --- Invoice Editing Pipeline States ---
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [editingInvoice, setEditingInvoice] = useState<Invoice | null>(null);
-
-  // --- New Invoice Creation Modal Form Matrix States ---
-  const [showCreateModal, setShowCreateModal] = useState(false);
-  const [newInvoice, setNewInvoice] = useState({
-    invoiceNo: '',
-    orderNo: '',
-    retailer: '',
-    retailerCode: '',
-    billingAddress: '',
-    gstNumber: '',
-    dueDate: ''
-  });
-  const [formItems, setFormItems] = useState<InvoiceItem[]>([
-    { id: '1', productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }
-  ]);
 
   // Sync mutations back to local database references
   useEffect(() => {
@@ -203,108 +180,21 @@ export default function Invoices() {
 
   // --- Filtering Protocols ---
   const filteredData = useMemo(() => {
-    const base = isRetailer ? invoices.filter(d => d.retailer === 'Apollo Pharmacy') : invoices;
+    const base = invoices.filter(d => d.retailer === 'Apollo Pharmacy');
     return base.filter((item) => {
       const searchStr = search.toLowerCase();
       const matchSearch = item.invoiceNo.toLowerCase().includes(searchStr) || 
-                          item.orderNo.toLowerCase().includes(searchStr) ||
-                          item.retailer.toLowerCase().includes(searchStr);
+                          item.orderNo.toLowerCase().includes(searchStr);
       const matchStatus = statusFilter ? item.status === statusFilter : true;
       return matchSearch && matchStatus;
     });
-  }, [invoices, isRetailer, search, statusFilter]);
-
-  // --- Auto Calculating Line Item Computations ---
-  const handleItemChange = (index: number, fields: Partial<InvoiceItem>) => {
-    const updated = [...formItems];
-    const current = { ...updated[index], ...fields };
-    current.lineAmount = Number((current.quantity * current.unitPrice).toFixed(2));
-    updated[index] = current;
-    setFormItems(updated);
-  };
-
-  const handleAddFormItem = () => {
-    setFormItems([...formItems, { id: Date.now().toString(), productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }]);
-  };
-
-  const handleRemoveFormItem = (index: number) => {
-    if (formItems.length > 1) {
-      setFormItems(formItems.filter((_, i) => i !== index));
-    }
-  };
-
-  // --- Form Creation Request Executions ---
-  const handleCreateInvoiceSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newInvoice.invoiceNo || !newInvoice.retailer) return;
-
-    const totalLineAmount = formItems.reduce((sum, item) => sum + item.lineAmount, 0);
-    const calculatedSubtotal = Number((totalLineAmount / 1.12).toFixed(2));
-    const calculatedGst = Number((totalLineAmount - calculatedSubtotal).toFixed(2));
-
-    const invoicePayload: Invoice = {
-      id: Date.now().toString(),
-      invoiceNo: newInvoice.invoiceNo.startsWith('INV-') ? newInvoice.invoiceNo : `INV-${newInvoice.invoiceNo}`,
-      orderNo: newInvoice.orderNo.startsWith('ORD-') ? newInvoice.orderNo : `ORD-${newInvoice.orderNo}`,
-      retailer: newInvoice.retailer,
-      retailerCode: newInvoice.retailerCode || 'RET-CUSTOM',
-      billingAddress: newInvoice.billingAddress || 'Corporate Distribution Hub Address',
-      gstNumber: newInvoice.gstNumber || '29ABCDXXXXX1Z5',
-      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
-      dueDate: newInvoice.dueDate || '30-Oct-2026',
-      amount: totalLineAmount,
-      subtotal: calculatedSubtotal,
-      gstAmount: calculatedGst,
-      paidAmount: 0,
-      outstandingAmount: totalLineAmount,
-      status: 'Unpaid',
-      items: formItems
-    };
-
-    setInvoices([invoicePayload, ...invoices]);
-    setShowCreateModal(false);
-    
-    // Reset inputs
-    setNewInvoice({ invoiceNo: '', orderNo: '', retailer: '', retailerCode: '', billingAddress: '', gstNumber: '', dueDate: '' });
-    setFormItems([{ id: '1', productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }]);
-  };
-
-  // --- Form Edit Request Executions ---
-  const handleOpenEdit = (invoice: Invoice) => {
-    setEditingInvoice({ ...invoice });
-    setShowEditModal(true);
-  };
-
-  const handleEditInvoiceSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!editingInvoice) return;
-
-    let updatedInvoice = { ...editingInvoice };
-    if (!updatedInvoice.invoiceNo.startsWith('INV-')) {
-      updatedInvoice.invoiceNo = `INV-${updatedInvoice.invoiceNo}`;
-    }
-    if (!updatedInvoice.orderNo.startsWith('ORD-')) {
-      updatedInvoice.orderNo = `ORD-${updatedInvoice.orderNo}`;
-    }
-
-    // Auto balance calculations based on status mapping
-    if (updatedInvoice.status === 'Paid') {
-      updatedInvoice.paidAmount = updatedInvoice.amount;
-      updatedInvoice.outstandingAmount = 0;
-    } else if (updatedInvoice.status === 'Unpaid' || updatedInvoice.status === 'Overdue') {
-      updatedInvoice.paidAmount = 0;
-      updatedInvoice.outstandingAmount = updatedInvoice.amount;
-    }
-
-    setInvoices(invoices.map(inv => inv.id === updatedInvoice.id ? updatedInvoice : inv));
-    setShowEditModal(false);
-    setEditingInvoice(null);
-  };
+  }, [invoices, search, statusFilter]);
 
   const generatePDF = (invoice: Invoice | null, isDownload: boolean = true) => {
     if (!invoice) return;
     const doc = new jsPDF();
-    applyInvoiceTemplate(doc, invoice, activeRole);
+    // Enforcing RETAILER role format for PDF template
+    applyInvoiceTemplate(doc, invoice, 'ROLE_RETAILER');
     
     if (isDownload) {
       doc.save(`${invoice.invoiceNo}.pdf`);
@@ -315,34 +205,7 @@ export default function Invoices() {
   };
 
   // --- Table View Definitions ---
-  const adminColumns: Column<Invoice>[] = [
-    { key: 'invoiceNo', label: 'Invoice No', render: (row) => <span className="font-semibold text-slate-900">{row.invoiceNo}</span> },
-    { key: 'retailer', label: 'Retailer Name', render: (row) => <span className="font-semibold text-violet-700">{row.retailer}</span> },
-    { key: 'orderNo', label: 'Order No', render: (row) => <span className="text-slate-600">{row.orderNo}</span> },
-    { key: 'date', label: 'Invoice Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
-    { key: 'dueDate', label: 'Due Date', render: (row) => <span className={row.status === 'Overdue' ? 'text-rose-600 font-medium' : 'text-slate-600'}>{row.dueDate}</span> },
-    { key: 'amount', label: 'Invoice Amount', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.amount)}</span> },
-    { key: 'status', label: 'Payment Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (row) => (
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewInvoice(row)} className="text-violet-600 hover:text-violet-800 text-xs px-2 py-1 flex items-center bg-violet-50 rounded-md font-medium">
-            <ReceiptText className="w-3.5 h-3.5 mr-1" /> View
-          </button>
-          <button onClick={() => handleOpenEdit(row)} className="text-amber-600 hover:text-amber-800 p-1 bg-amber-50 rounded-md" title="Edit Invoice">
-            <SquarePen className="w-3.5 h-3.5" />
-          </button>
-          <button onClick={() => generatePDF(row)} className="text-slate-500 hover:text-slate-700 p-1">
-            <Download className="w-4 h-4" />
-          </button>
-        </div>
-      )
-    }
-  ];
-
-  const retailerColumns: Column<Invoice>[] = [
+  const columns: Column<Invoice>[] = [
     { key: 'invoiceNo', label: 'Invoice No', render: (row) => <span className="font-semibold text-slate-900">{row.invoiceNo}</span> },
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="text-slate-600">{row.orderNo}</span> },
     { key: 'date', label: 'Invoice Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
@@ -354,7 +217,7 @@ export default function Invoices() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewInvoice(row)} className="text-violet-600 hover:text-violet-800 text-xs px-2 py-1 flex items-center bg-violet-50 rounded-md font-medium">
+          <button onClick={() => setViewInvoice(row)} className="text-[#163c78] hover:text-[#0c1f3d] text-xs px-2 py-1 flex items-center bg-[#163c78]/10 rounded-md font-medium">
             <ReceiptText className="w-3.5 h-3.5 mr-1" /> View
           </button>
           <button onClick={() => generatePDF(row)} className="text-slate-500 hover:text-slate-700 p-1">
@@ -364,8 +227,6 @@ export default function Invoices() {
       )
     }
   ];
-
-  const columns = isRetailer ? retailerColumns : adminColumns;
 
   const invoiceItemColumns: Column<InvoiceItem>[] = [
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
@@ -380,7 +241,6 @@ export default function Invoices() {
   const getExportData = () => {
     return filteredData.map(item => ({
       'Invoice Number': item.invoiceNo,
-      ...(!isRetailer && { 'Retailer Name': item.retailer }),
       'Order Number': item.orderNo,
       'Invoice Date': item.date,
       'Due Date': item.dueDate,
@@ -414,7 +274,7 @@ export default function Invoices() {
     const headers = Object.keys(data[0] || {});
     const body = data.map(obj => headers.map(header => (obj as any)[header]));
     
-    doc.text("Pharma ERP - Invoice Balances Ledger", 14, 15);
+    doc.text("MJ Healthcare ERP - Invoice Balances Ledger", 14, 15);
     autoTable(doc, {
       startY: 22,
       head: [headers],
@@ -430,14 +290,9 @@ export default function Invoices() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Invoice Manager"
-        subtitle="View corporate invoices, configure billing options, tax margins, and log transaction balances."
+        subtitle="View, download, and print invoices issued for your completed purchases and monitor their payment status."
         actions={
           <div className="flex items-center gap-3">
-            {!isRetailer && (
-              <ActionButton variant="primary" icon={<Plus className="w-4 h-4" />} onClick={() => setShowCreateModal(true)}>
-                Create Invoice
-              </ActionButton>
-            )}
             <div className="relative inline-block text-left" ref={exportMenuRef}>
               <ActionButton 
                 variant="secondary" 
@@ -461,7 +316,7 @@ export default function Invoices() {
       />
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by invoice number, order id or retailer..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by invoice number or order id..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
@@ -491,130 +346,6 @@ export default function Invoices() {
         </div>
       </TableCard>
 
-      {/* --- Dialog Component Window: Create New Invoice Form --- */}
-      {showCreateModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-y-auto p-4">
-          <div className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Compile Fresh Distribution Invoice</h3>
-                <p className="text-xs text-slate-500">Add billing details and parameters to push invoice into pipeline logs.</p>
-              </div>
-              <button onClick={() => setShowCreateModal(false)} className="text-slate-400 hover:text-slate-600 font-medium text-sm">✕</button>
-            </div>
-
-            <form onSubmit={handleCreateInvoiceSubmit} className="overflow-y-auto p-5 space-y-4 flex-1 text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">Invoice Number *</label>
-                  <input required placeholder="INV-RET-XXXX" value={newInvoice.invoiceNo} onChange={e => setNewInvoice({...newInvoice, invoiceNo: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">Order Reference Mapping *</label>
-                  <input required placeholder="ORD-XXXXX" value={newInvoice.orderNo} onChange={e => setNewInvoice({...newInvoice, orderNo: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">Retailer Profile Name *</label>
-                  <input required placeholder="e.g. Apollo Pharmacy" value={newInvoice.retailer} onChange={e => setNewInvoice({...newInvoice, retailer: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">Retailer Account ID Code</label>
-                  <input placeholder="RET-001" value={newInvoice.retailerCode} onChange={e => setNewInvoice({...newInvoice, retailerCode: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">Tax Matrix Identification (GSTIN)</label>
-                  <input placeholder="29ABCDE1234F1Z5" value={newInvoice.gstNumber} onChange={e => setNewInvoice({...newInvoice, gstNumber: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">Payment Target Due Date</label>
-                  <input type="date" value={newInvoice.dueDate} onChange={e => setNewInvoice({...newInvoice, dueDate: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-slate-600 font-semibold mb-1">Billing Destination Address</label>
-                  <input placeholder="Enter full primary business address coordinates..." value={newInvoice.billingAddress} onChange={e => setNewInvoice({...newInvoice, billingAddress: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-              </div>
-
-              {/* --- Line Items Segment Matrix --- */}
-              <div className="pt-2">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="text-slate-800 font-bold uppercase tracking-wider">Line Items Allocation Table</h4>
-                  <button type="button" onClick={handleAddFormItem} className="text-violet-600 hover:text-violet-800 font-bold flex items-center gap-0.5">+ Add Line</button>
-                </div>
-
-                <div className="space-y-2 max-h-[180px] overflow-y-auto pr-1">
-                  {formItems.map((item, index) => (
-                    <div key={item.id} className="flex items-center gap-2 bg-slate-50 p-2 rounded-lg border border-slate-100">
-                      <input required placeholder="Product Name" value={item.productName} onChange={e => handleItemChange(index, { productName: e.target.value })} className="flex-2 border border-slate-200 rounded p-1.5 bg-white min-w-[120px]" />
-                      <input required placeholder="Code" value={item.productCode} onChange={e => handleItemChange(index, { productCode: e.target.value })} className="w-16 border border-slate-200 rounded p-1.5 bg-white font-mono" />
-                      <input required type="number" min="1" placeholder="Qty" value={item.quantity} onChange={e => handleItemChange(index, { quantity: Number(e.target.value) })} className="w-14 border border-slate-200 rounded p-1.5 bg-white" />
-                      <input required type="number" step="0.01" placeholder="Price" value={item.unitPrice} onChange={e => handleItemChange(index, { unitPrice: Number(e.target.value) })} className="w-16 border border-slate-200 rounded p-1.5 bg-white" />
-                      <span className="font-bold text-slate-700 min-w-[50px] text-right">₹{item.lineAmount}</span>
-                      <button type="button" onClick={() => handleRemoveFormItem(index)} className="text-slate-400 hover:text-rose-600 p-1"><Trash2 className="w-4 h-4" /></button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
-                <button type="button" onClick={() => setShowCreateModal(false)} className="px-4 py-2 border border-slate-200 rounded-lg font-medium text-slate-600 hover:bg-slate-50 transition-colors">Dismiss</button>
-                <button type="submit" className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-bold shadow-sm transition-colors">Generate Pipeline Invoice</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* --- Dialog Component Window: Edit Invoice Form --- */}
-      {showEditModal && editingInvoice && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/50 backdrop-blur-sm overflow-y-auto p-4">
-          <div className="bg-white rounded-2xl max-w-xl w-full shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col my-auto animate-in fade-in zoom-in-95 duration-200">
-            <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50 rounded-t-2xl">
-              <div>
-                <h3 className="text-base font-bold text-slate-900">Modify Existing Pipeline Invoice</h3>
-                <p className="text-xs text-slate-500">Update metadata attributes and log transaction allocations.</p>
-              </div>
-              <button onClick={() => { setShowEditModal(false); setEditingInvoice(null); }} className="text-slate-400 hover:text-slate-600 font-medium text-sm">✕</button>
-            </div>
-
-            <form onSubmit={handleEditInvoiceSubmit} className="p-5 space-y-4 text-xs">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">Invoice Number *</label>
-                  <input required placeholder="INV-XXXX" value={editingInvoice.invoiceNo} onChange={e => setEditingInvoice({...editingInvoice, invoiceNo: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">Order Reference Mapping *</label>
-                  <input required placeholder="ORD-XXXXX" value={editingInvoice.orderNo} onChange={e => setEditingInvoice({...editingInvoice, orderNo: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-                <div className="col-span-2">
-                  <label className="block text-slate-600 font-semibold mb-1">Retailer Profile Name *</label>
-                  <input required placeholder="e.g. Apollo Pharmacy" value={editingInvoice.retailer} onChange={e => setEditingInvoice({...editingInvoice, retailer: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">Payment Target Due Date</label>
-                  <input type="text" placeholder="YYYY-MM-DD or DD-MMM-YYYY" value={editingInvoice.dueDate} onChange={e => setEditingInvoice({...editingInvoice, dueDate: e.target.value})} className="w-full border border-slate-200 rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none" />
-                </div>
-                <div>
-                  <label className="block text-slate-600 font-semibold mb-1">Payment Status *</label>
-                  <select value={editingInvoice.status} onChange={e => setEditingInvoice({...editingInvoice, status: e.target.value as InvoiceStatus})} className="w-full border border-slate-200 bg-white rounded-lg p-2 focus:ring-1 focus:ring-violet-500 outline-none h-[34px]">
-                    <option value="Paid">Paid</option>
-                    <option value="Unpaid">Unpaid</option>
-                    <option value="Partially Paid">Partially Paid</option>
-                    <option value="Overdue">Overdue</option>
-                  </select>
-                </div>
-              </div>
-
-              <div className="pt-4 border-t border-slate-100 flex justify-end gap-3">
-                <button type="button" onClick={() => { setShowEditModal(false); setEditingInvoice(null); }} className="px-4 py-2 border border-slate-200 rounded-lg font-medium text-slate-600 hover:bg-slate-50 transition-colors">Cancel</button>
-                <button type="submit" className="px-5 py-2 bg-violet-600 hover:bg-violet-700 text-white rounded-lg font-bold shadow-sm transition-colors">Save Updates</button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
       {/* --- View Invoice Detail Layout Side Drawer --- */}
       <Drawer open={!!viewInvoice} onClose={() => setViewInvoice(null)} title="Invoice Details">
         {viewInvoice && (
@@ -629,16 +360,6 @@ export default function Invoices() {
                 <DrawerField label="Payment Status" value={<Badge variant={getStatusVariant(viewInvoice.status)}>{viewInvoice.status}</Badge>} />
               </div>
             </div>
-
-            {!isRetailer && (
-              <div>
-                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Retailer Information</h3>
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <DrawerField label="Retailer Name" value={<span className="font-medium text-slate-900">{viewInvoice.retailer}</span>} />
-                  <DrawerField label="Retailer Code" value={<span className="text-slate-600">{viewInvoice.retailerCode}</span>} />
-                </div>
-              </div>
-            )}
 
             <div>
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Billing Information</h3>

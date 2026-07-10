@@ -153,7 +153,7 @@ function SearchableDropdown({
               ))
             ) : allowAdd && search.trim() ? (
               <div
-                className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer flex items-center gap-2"
+                className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer flex items-center gap-2"
                 onClick={(e) => {
                   e.stopPropagation();
                   onAdd?.(search.trim());
@@ -295,7 +295,7 @@ export default function InwardStock() {
             e.stopPropagation();
             setSelectedRecord(row);
           }}
-          className="text-violet-600 font-medium hover:text-violet-800"
+          className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
         >
           View
         </button>
@@ -887,7 +887,7 @@ export default function InwardStock() {
                   </h3>
                   <button
                     onClick={handleAddProductRow}
-                    className="text-sm text-violet-600 font-medium hover:text-violet-800 flex items-center"
+                    className="text-sm text-[#163c78] font-medium hover:text-[#0c1f3d] flex items-center"
                   >
                     <Plus className="w-4 h-4 mr-1" /> Add Row
                   </button>
@@ -1135,7 +1135,7 @@ export default function InwardStock() {
                 <DrawerField
                   label="GRN Number"
                   value={
-                    <span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">
+                    <span className="font-mono text-violet-700 bg-[#163c78]/10 px-2 py-1 rounded">
                       {selectedRecord.grnNo}
                     </span>
                   }

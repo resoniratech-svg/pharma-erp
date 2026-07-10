@@ -639,7 +639,7 @@ const calculateAgingDays = (invoiceDate: string) => {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View">
+          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View">
             <Eye className="w-4 h-4" />
           </button>
           
@@ -930,18 +930,28 @@ const calculateAgingDays = (invoiceDate: string) => {
                       <div className="fixed inset-0 z-10" onClick={() => setProductSearch('')} />
                       <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-80 flex flex-col overflow-y-auto">
                         {filteredProducts.map(p => (
-                          <div key={p.productCode} onClick={() => { setSelectedProduct(p); setProductSearch(''); setProductError(''); }} className="px-4 py-3 text-sm hover:bg-slate-50 cursor-pointer border-b last:border-0 flex flex-col">
-                            <div className="flex justify-between font-medium text-slate-900">
-                              <span>{p.productName} ({p.productCode})</span>
-                              <span>{formatCurrency(p.ptr)}</span>
+                          <div key={p.productCode} onClick={() => { setSelectedProduct(p); setProductSearch(''); setProductError(''); }} className="px-4 py-3 text-sm hover:bg-slate-50 cursor-pointer border-b last:border-0 flex flex-col gap-1">
+                            <div className="flex justify-between font-bold text-slate-900">
+                              <span>{p.productName} <span className="font-normal text-slate-500">({p.productCode})</span></span>
+                              <span>PTR : {formatCurrency(p.ptr)}</span>
                             </div>
-                            <div className="flex justify-between text-xs text-slate-500 mt-1">
-                              <span>{p.manufacturer} • {p.packType}</span>
-                              <span>Stock: {p.availableStock}</span>
+                            <div className="text-xs text-slate-500">
+                              {p.manufacturer} • {p.packType}
                             </div>
-                            {p.schemeAvailable !== 'No Scheme' && (
-                              <div className="text-xs text-emerald-600 mt-1 font-medium">{p.schemeAvailable}</div>
-                            )}
+                            <div className="text-xs text-slate-500">
+                              MRP : {formatCurrency(p.mrp)}
+                            </div>
+                            <div className="text-xs text-slate-500">
+                              Available Qty : {p.availableStock} Units
+                            </div>
+                            <div className="text-xs font-medium">
+                              Status : <span className={p.availableStock === 0 ? 'text-red-500' : (p.availableStock <= 50 ? 'text-orange-500' : 'text-emerald-500')}>
+                                {p.availableStock === 0 ? 'Out of Stock' : (p.availableStock <= 50 ? 'Low Stock' : 'Available')}
+                              </span>
+                            </div>
+                            <div className="text-xs font-medium text-indigo-600">
+                              Scheme : {p.schemeAvailable !== 'No Scheme' ? p.schemeAvailable : 'No Active Scheme'}
+                            </div>
                           </div>
                         ))}
                         {filteredProducts.length === 0 && (
@@ -978,7 +988,7 @@ const calculateAgingDays = (invoiceDate: string) => {
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">Line Amount</label>
-                  <div className="font-medium text-violet-600">
+                  <div className="font-medium text-[#163c78]">
                     {formatCurrency(selectedProduct.ptr * (typeof orderQuantity === 'number' ? orderQuantity : 1))}
                   </div>
                 </div>

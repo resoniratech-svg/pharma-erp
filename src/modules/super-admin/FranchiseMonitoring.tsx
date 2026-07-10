@@ -57,7 +57,7 @@ export default function FranchiseMonitoring() {
       />
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-        <SummaryCard title="Active Franchises" value="48" icon={<Store className="w-6 h-6" />} colorClass="text-violet-600" bgClass="bg-violet-100" />
+        <SummaryCard title="Active Franchises" value="48" icon={<Store className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
         <SummaryCard title="Total Franchise Revenue" value="₹ 5.2 Cr" icon={<TrendingUp className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
         <SummaryCard title="New Franchises (YTD)" value="12" icon={<Users className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
       </div>

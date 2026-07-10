@@ -158,7 +158,7 @@ export default function BarcodeManagement() {
               e.stopPropagation();
               setSelectedBarcode(row);
             }}
-            className="text-violet-600 font-medium hover:text-violet-800"
+            className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
           >
             View
           </button>
@@ -689,7 +689,7 @@ export default function BarcodeManagement() {
                         const autoCode = generateAutoBarcode(newBarcode.type);
                         setNewBarcode({ ...newBarcode, barcodeNumber: autoCode });
                       }}
-                      className="px-3 py-2 bg-violet-50 text-violet-600 border border-violet-200 rounded-lg text-sm font-medium hover:bg-violet-100 transition-colors"
+                      className="px-3 py-2 bg-[#163c78]/10 text-[#163c78] border border-violet-200 rounded-lg text-sm font-medium hover:bg-violet-100 transition-colors"
                     >
                       Auto-Generate
                     </button>

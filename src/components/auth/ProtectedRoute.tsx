@@ -19,7 +19,7 @@ export function ProtectedRoute({ moduleLabel }: { moduleLabel: string }) {
         </p>
         <Link 
           to="/workspace/dashboard" 
-          className="flex items-center gap-2 px-6 py-3 bg-violet-600 hover:bg-violet-700 text-white font-bold rounded-xl shadow-lg shadow-violet-200 transition-all duration-200"
+          className="flex items-center gap-2 px-6 py-3 bg-[#163c78] hover:bg-[#112d59] text-white font-bold rounded-xl shadow-lg shadow-[#163c78]/30 transition-all duration-200"
         >
           <ArrowLeft className="w-5 h-5" />
           Back to Dashboard

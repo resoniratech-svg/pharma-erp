@@ -18,7 +18,7 @@ export const applyProfitLossTemplate = (doc: jsPDF, data: any) => {
   // Header
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text(`Pharma ERP Pvt. Ltd.`, 14, 15);
+  doc.text(`MJ Healthcare ERP Pvt. Ltd.`, 14, 15);
   
   doc.setFontSize(12);
   doc.setFont('helvetica', 'normal');

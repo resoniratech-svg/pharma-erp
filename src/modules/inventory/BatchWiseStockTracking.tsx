@@ -217,7 +217,7 @@ export default function BatchWiseStockTracking() {
             e.stopPropagation();
             setSelectedBatch(row);
           }}
-          className="text-violet-600 font-medium hover:text-violet-800"
+          className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
         >
           View
         </button>
@@ -427,7 +427,7 @@ export default function BatchWiseStockTracking() {
                 <DrawerField
                   label="Batch Number"
                   value={
-                    <span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">
+                    <span className="font-mono text-violet-700 bg-[#163c78]/10 px-2 py-1 rounded">
                       {selectedBatch.batchNo}
                     </span>
                   }

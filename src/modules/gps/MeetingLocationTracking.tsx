@@ -82,8 +82,8 @@
 //           value="24"
 //           subtitle="This Month"
 //           icon={<Calendar className="w-6 h-6" />}
-//           colorClass="text-violet-600"
-//           bgClass="bg-violet-50"
+//           colorClass="text-[#163c78]"
+//           bgClass="bg-[#163c78]/10"
 //         />
 //         <SummaryCard
 //           title="Total Meetings"
@@ -297,8 +297,8 @@ export default function MeetingLocationTracking() {
           value={totalEvents.toString()}
           subtitle="All scheduled events"
           icon={<Calendar className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Pending Approvals"

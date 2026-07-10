@@ -318,7 +318,7 @@ export default function Invoice() {
               <div className="border-t pt-3">
                 <div className="flex justify-between mb-2">
                   <span className="font-bold">Item Lines Matrix</span>
-                  <button type="button" onClick={() => setFormItems([...formItems, { id: Date.now().toString(), productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }])} className="text-violet-600 font-bold">+ Line</button>
+                  <button type="button" onClick={() => setFormItems([...formItems, { id: Date.now().toString(), productName: '', productCode: '', quantity: 1, unitPrice: 0, gstPct: 12, lineAmount: 0 }])} className="text-[#163c78] font-bold">+ Line</button>
                 </div>
                 {formItems.map((item, index) => (
                   <div key={item.id} className="flex gap-2 mb-2 items-center">
@@ -331,7 +331,7 @@ export default function Invoice() {
 
               <div className="flex justify-end gap-2 pt-3 border-t">
                 <button type="button" onClick={() => setShowCreateModal(false)} className="px-3 py-1.5 border rounded">Cancel</button>
-                <button type="submit" className="px-4 py-1.5 bg-violet-600 text-white rounded font-medium">Issue Document</button>
+                <button type="submit" className="px-4 py-1.5 bg-[#163c78] text-white rounded font-medium">Issue Document</button>
               </div>
             </form>
           </div>

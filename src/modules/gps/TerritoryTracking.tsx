@@ -973,7 +973,7 @@ export default function TerritoryTracking() {
                 <h4 className="text-sm font-bold text-slate-800 uppercase tracking-wider">Field Engagement History</h4>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg">
-                    <p className="text-xs text-slate-400 font-semibold flex items-center gap-1"><Calendar className="w-3 h-3 text-violet-500" /> Last Doctor Visit</p>
+                    <p className="text-xs text-slate-400 font-semibold flex items-center gap-1"><Calendar className="w-3 h-3 text-[#163c78]/90" /> Last Doctor Visit</p>
                     <p className="text-sm text-slate-700 font-medium mt-1">{selectedTerritory.lastDoctorVisit}</p>
                   </div>
                   <div className="p-3 bg-slate-50 border border-slate-100 rounded-lg">

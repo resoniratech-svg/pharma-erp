@@ -273,7 +273,7 @@ export default function RetailerMaster() {
               setSelectedRetailer(row);
               setIsViewDrawerOpen(true);
             }}
-            className="text-violet-600 font-medium hover:text-violet-800"
+            className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
           >
             View
           </button>
@@ -453,7 +453,7 @@ export default function RetailerMaster() {
                                 setFormData({ ...formData, assignedDistributors: formData.assignedDistributors.filter(ad => ad.code !== d.code) });
                               }
                             }}
-                            className="w-4 h-4 text-violet-600 rounded border-slate-300 focus:ring-violet-500"
+                            className="w-4 h-4 text-[#163c78] rounded border-slate-300 focus:ring-violet-500"
                           />
                           <div>
                             <p className="text-sm font-medium text-slate-900">{d.name}</p>

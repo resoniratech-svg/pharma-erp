@@ -228,7 +228,7 @@ export default function SchemeManagement() {
   };
 
   const columns: Column<Scheme>[] = [
-    { key: 'schemeCode', label: 'Scheme Code', render: (row) => <span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">{row.schemeCode}</span> },
+    { key: 'schemeCode', label: 'Scheme Code', render: (row) => <span className="font-mono text-violet-700 bg-[#163c78]/10 px-2 py-1 rounded">{row.schemeCode}</span> },
     { key: 'name', label: 'Scheme Name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
     { key: 'type', label: 'Type' },
     { key: 'applicableTo', label: 'Applicable To', render: (row) => <span>{row.applicableTo || '-'}</span> },
@@ -253,7 +253,7 @@ export default function SchemeManagement() {
               e.stopPropagation();
               setSelectedScheme(row);
             }}
-            className="text-violet-600 font-medium hover:text-violet-800"
+            className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
           >
             View
           </button>
@@ -654,7 +654,7 @@ export default function SchemeManagement() {
                 <DrawerField
                   label="Scheme Code"
                   value={
-                    <span className="font-mono text-violet-700 bg-violet-50 px-2 py-1 rounded">
+                    <span className="font-mono text-violet-700 bg-[#163c78]/10 px-2 py-1 rounded">
                       {selectedScheme.schemeCode}
                     </span>
                   }
@@ -952,7 +952,7 @@ export default function SchemeManagement() {
                             {categorySearch.trim() !== "" &&
                               !categories.some((c) => c.toLowerCase() === categorySearch.trim().toLowerCase()) && (
                                 <div
-                                  className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
+                                  className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer rounded flex items-center gap-2"
                                   onClick={() => {
                                     const newCat = categorySearch.trim();
                                     const updatedCategories = [...categories, newCat];
@@ -1012,7 +1012,7 @@ export default function SchemeManagement() {
                             {brandSearch.trim() !== "" &&
                               !brands.some((b) => b.toLowerCase() === brandSearch.trim().toLowerCase()) && (
                                 <div
-                                  className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
+                                  className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer rounded flex items-center gap-2"
                                   onClick={() => {
                                     const newBrand = brandSearch.trim();
                                     const updatedBrands = [...brands, newBrand];
@@ -1082,7 +1082,7 @@ export default function SchemeManagement() {
                         {benefitTypeSearch.trim() !== "" &&
                           !benefitTypes.some((bt) => bt.toLowerCase() === benefitTypeSearch.trim().toLowerCase()) && (
                             <div
-                              className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
+                              className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer rounded flex items-center gap-2"
                               onClick={() => {
                                 const newBenefitType = benefitTypeSearch.trim();
                                 const updatedTypes = [...benefitTypes, newBenefitType];

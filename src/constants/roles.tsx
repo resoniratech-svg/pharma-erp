@@ -115,7 +115,7 @@ export const ROLES: Role[] = [
     gradTo: '#7C3AED',
     accentHex: '#8B5CF6',
     skeletonBar: 'bg-violet-100',
-    skeletonBarLight: 'bg-violet-50',
+    skeletonBarLight: 'bg-[#163c78]/10',
     userName: 'Arun Patel',
     userEmail: 'retailer@pharmaerp.com',
     capabilities: [

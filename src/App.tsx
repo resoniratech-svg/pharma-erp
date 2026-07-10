@@ -83,8 +83,8 @@ const primaryKpiData = [
     trend: '-2.4%',
     isPositive: false,
     icon: TrendingDown,
-    iconColor: 'text-violet-600',
-    iconBg: 'bg-violet-50',
+    iconColor: 'text-brand-primary',
+    iconBg: 'bg-brand-light',
     glowColor: 'rgba(99, 102, 241, 0.55)',
     glowColorIdle: 'rgba(99, 102, 241, 0.22)',
     borderGradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c7d2fe 100%)',
@@ -146,8 +146,8 @@ const secondaryKpiData = [
     trend: '+8%',
     isPositive: false,
     icon: ArrowRight,
-    iconColor: 'text-indigo-600',
-    iconBg: 'bg-indigo-50',
+    iconColor: 'text-brand-primary',
+    iconBg: 'bg-brand-light',
     glowColor: 'rgba(79, 70, 229, 0.55)',
     glowColorIdle: 'rgba(79, 70, 229, 0.22)',
     borderGradient: 'linear-gradient(135deg, #4f46e5 0%, #818cf8 50%, #c7d2fe 100%)',
@@ -207,7 +207,7 @@ const distributorOrders = [
 
 const distributorNotifications = [
   { id: 'N1', icon: CheckCircle2, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50', message: 'Your order ORD-2026-1001 has been dispatched.', time: '2 hours ago' },
-  { id: 'N2', icon: IndianRupee, iconColor: 'text-violet-600', iconBg: 'bg-violet-50', message: 'Payment of ₹9,100 received for INV-2026-089.', time: '5 hours ago' },
+  { id: 'N2', icon: IndianRupee, iconColor: 'text-brand-primary', iconBg: 'bg-brand-light', message: 'Payment of ₹9,100 received for INV-2026-089.', time: '5 hours ago' },
   { id: 'N3', icon: FileText, iconColor: 'text-blue-600', iconBg: 'bg-blue-50', message: 'Invoice INV-2026-095 has been generated for your account.', time: '1 day ago' },
   { id: 'N4', icon: Bell, iconColor: 'text-amber-600', iconBg: 'bg-amber-50', message: 'New scheme available for your account: Monsoon Offer 2026.', time: '2 days ago' },
   { id: 'N5', icon: AlertTriangle, iconColor: 'text-rose-600', iconBg: 'bg-rose-50', message: 'Low stock alert: Amoxicillin 500mg (PRD-001) is running low.', time: '3 days ago' },
@@ -224,7 +224,7 @@ const retailerOrders = [
 const retailerNotifications = [
   { id: 'R1', icon: Truck, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50', message: 'Your order ORD-2026-9081 has been dispatched.', time: '1 hour ago' },
   { id: 'R2', icon: FileText, iconColor: 'text-blue-600', iconBg: 'bg-blue-50', message: 'Invoice INV-2026-550 has been generated.', time: '4 hours ago' },
-  { id: 'R3', icon: IndianRupee, iconColor: 'text-violet-600', iconBg: 'bg-violet-50', message: 'Payment of ₹14,200 received successfully.', time: '1 day ago' },
+  { id: 'R3', icon: IndianRupee, iconColor: 'text-brand-primary', iconBg: 'bg-brand-light', message: 'Payment of ₹14,200 received successfully.', time: '1 day ago' },
   { id: 'R4', icon: Bell, iconColor: 'text-amber-600', iconBg: 'bg-amber-50', message: 'New promotional scheme available: Winter Wellness.', time: '2 days ago' },
   { id: 'R5', icon: CheckCircle2, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50', message: 'Order ORD-2026-9085 delivered successfully.', time: '3 days ago' },
 ];
@@ -286,7 +286,7 @@ function MRDashboard() {
         
         {/* Attendance */}
         <div className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className={`p-4 rounded-full ${data.attendance.status === 'Absent' ? 'bg-rose-50 text-rose-600' : data.attendance.status === 'Completed' ? 'bg-indigo-50 text-indigo-600' : 'bg-emerald-50 text-emerald-600'}`}>
+          <div className={`p-4 rounded-full ${data.attendance.status === 'Absent' ? 'bg-rose-50 text-rose-600' : data.attendance.status === 'Completed' ? 'bg-brand-light text-brand-primary' : 'bg-emerald-50 text-emerald-600'}`}>
             <MapPin className="w-6 h-6" />
           </div>
           <div>
@@ -304,7 +304,7 @@ function MRDashboard() {
 
         {/* Doctor Visits */}
         <div className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="p-4 rounded-full bg-violet-50 text-violet-600">
+          <div className="p-4 rounded-full bg-brand-light text-brand-primary">
             <Stethoscope className="w-6 h-6" />
           </div>
           <div>
@@ -343,7 +343,7 @@ function MRDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm">
           <h2 className="text-lg font-bold text-slate-800 mb-6 flex items-center gap-2">
-            <Target className="w-5 h-5 text-indigo-600" /> Monthly Target Progress
+            <Target className="w-5 h-5 text-brand-primary" /> Monthly Target Progress
           </h2>
           <div className="space-y-6">
             {/* Sales Target */}
@@ -387,17 +387,17 @@ function MRDashboard() {
         </div>
 
         {/* Incentive Estimator */}
-        <div className="bg-indigo-50 p-6 rounded-[24px] border border-indigo-100 shadow-sm flex flex-col justify-center text-center">
-          <h2 className="text-lg font-bold text-indigo-900 mb-2">Incentive Estimator</h2>
+        <div className="bg-brand-light p-6 rounded-[24px] border border-brand-primary shadow-sm flex flex-col justify-center text-center">
+          <h2 className="text-lg font-bold text-brand-primary mb-2">Incentive Estimator</h2>
           <div className="my-4">
             <span className={`inline-block px-3 py-1 rounded-full text-sm font-semibold ${isEligibleForIncentive ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-700'}`}>
               Eligible: {isEligibleForIncentive ? 'Yes' : 'No'}
             </span>
           </div>
           <p className="text-slate-600 text-sm mb-2">Estimated Incentive</p>
-          <p className="text-3xl font-extrabold text-indigo-700">₹{estimatedIncentive.toLocaleString()}</p>
+          <p className="text-3xl font-extrabold text-brand-primary">₹{estimatedIncentive.toLocaleString()}</p>
           {!isEligibleForIncentive && (
-            <p className="text-xs text-indigo-400 mt-4">Complete 100% of all active targets to unlock incentives.</p>
+            <p className="text-xs text-brand-primary mt-4">Complete 100% of all active targets to unlock incentives.</p>
           )}
         </div>
       </div>
@@ -730,8 +730,8 @@ export default function Dashboard() {
         trend: 'Needs review',
         isPositive: false,
         icon: FileText,
-        iconColor: 'text-violet-600',
-        iconBg: 'bg-violet-50',
+        iconColor: 'text-brand-primary',
+        iconBg: 'bg-brand-light',
         glowColor: 'rgba(99, 102, 241, 0.55)',
         glowColorIdle: 'rgba(99, 102, 241, 0.22)',
         borderGradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c7d2fe 100%)',
@@ -788,8 +788,8 @@ export default function Dashboard() {
         trend: 'Needs review',
         isPositive: false,
         icon: FileText,
-        iconColor: 'text-violet-600',
-        iconBg: 'bg-violet-50',
+        iconColor: 'text-brand-primary',
+        iconBg: 'bg-brand-light',
         glowColor: 'rgba(99, 102, 241, 0.55)',
         glowColorIdle: 'rgba(99, 102, 241, 0.22)',
         borderGradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c7d2fe 100%)',
@@ -905,7 +905,7 @@ export default function Dashboard() {
               >
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-bold text-slate-800">Sales Performance Trend</h2>
-                  <button className="text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
+                  <button className="text-sm font-medium text-brand-primary hover:text-brand-primary transition-colors">
                     View Full Report
                   </button>
                 </div>
@@ -996,9 +996,9 @@ export default function Dashboard() {
           <motion.div variants={itemVariants} className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm flex flex-col mb-6">
             <h2 className="text-lg font-bold text-slate-800 mb-6">Quick Access</h2>
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
-              <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 hover:bg-violet-50 rounded-2xl transition-colors group">
+              <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 hover:bg-brand-light rounded-2xl transition-colors group">
                 <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Search className="w-6 h-6 text-violet-600" />
+                  <Search className="w-6 h-6 text-brand-primary" />
                 </div>
                 <span className="text-xs font-semibold text-slate-700">Browse Products</span>
               </button>
@@ -1064,7 +1064,7 @@ export default function Dashboard() {
       navigate('/workspace/distributors/orders');
     }
   }}
-  className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors"
+  className="flex items-center gap-1 text-sm font-medium text-brand-primary hover:text-brand-primary transition-colors"
 >
   View All <ArrowRight className="w-4 h-4" />
 </button>
@@ -1128,8 +1128,8 @@ export default function Dashboard() {
                   {isWarehouseManager ? (
                     wmActivities.length > 0 ? wmActivities.map((act) => {
                       let StatusIcon = act.activity === 'Inward Stock' ? ArrowRight : (act.activity === 'Outward Stock' ? TrendingUp : Package);
-                      let statusColor = act.activity === 'Inward Stock' ? 'text-emerald-600' : (act.activity === 'Outward Stock' ? 'text-violet-600' : 'text-blue-600');
-                      let statusBg = act.activity === 'Inward Stock' ? 'bg-emerald-50' : (act.activity === 'Outward Stock' ? 'bg-violet-50' : 'bg-blue-50');
+                      let statusColor = act.activity === 'Inward Stock' ? 'text-emerald-600' : (act.activity === 'Outward Stock' ? 'text-brand-primary' : 'text-blue-600');
+                      let statusBg = act.activity === 'Inward Stock' ? 'bg-emerald-50' : (act.activity === 'Outward Stock' ? 'bg-brand-light' : 'bg-blue-50');
                       return (
                         <tr key={act.id} className="hover:bg-slate-50/80 transition-colors">
                           <td className="py-4 px-6 text-sm font-medium text-slate-500">{new Date(act.date).toLocaleDateString()}</td>
@@ -1261,7 +1261,7 @@ export default function Dashboard() {
           <motion.div variants={itemVariants} className="bg-white rounded-[24px] border border-slate-100 shadow-sm overflow-hidden">
             <div className="p-6 border-b border-slate-100 flex items-center justify-between">
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
-                <Bell className="w-5 h-5 text-violet-500" />
+                <Bell className="w-5 h-5 text-brand-primary" />
                 Recent Notifications
               </h2>
             </div>
@@ -1288,7 +1288,7 @@ export default function Dashboard() {
               <h2 className="text-lg font-bold text-slate-800 flex items-center gap-2">
                 <AlertTriangle className="w-5 h-5 text-rose-500" /> Critical Alerts
               </h2>
-              <button className="flex items-center gap-1 text-sm font-medium text-violet-600 hover:text-violet-700 transition-colors">
+              <button className="flex items-center gap-1 text-sm font-medium text-brand-primary hover:text-brand-primary transition-colors">
                 View Action Center <ArrowRight className="w-4 h-4" />
               </button>
             </div>
@@ -1322,7 +1322,7 @@ export default function Dashboard() {
                         <td className="py-4 px-6 text-sm font-medium text-slate-500">{alert.date}</td>
                         <td className="py-4 px-6 text-sm font-medium text-slate-600">{alert.status}</td>
                         <td className="py-4 px-6 text-right">
-                          <button className="p-2 text-slate-400 hover:text-violet-600 hover:bg-violet-50 rounded-full transition-colors outline-none">
+                          <button className="p-2 text-slate-400 hover:text-brand-primary hover:bg-brand-light rounded-full transition-colors outline-none">
                             <Eye className="w-5 h-5" />
                           </button>
                         </td>
@@ -1338,3 +1338,4 @@ export default function Dashboard() {
     </div>
   );
 }
+

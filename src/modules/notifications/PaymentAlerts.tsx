@@ -476,15 +476,15 @@ export default function PaymentAlerts() {
               <p className="text-sm text-slate-600 mb-4">Select a method to send a payment reminder to <strong>{remindRow.customerName}</strong> for Invoice <strong>{remindRow.invoiceNo}</strong>.</p>
               
               <div className="space-y-2">
-                <button onClick={() => handleSendReminder('Email')} className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl hover:border-violet-300 hover:bg-violet-50 transition-all text-left group">
+                <button onClick={() => handleSendReminder('Email')} className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl hover:border-violet-300 hover:bg-[#163c78]/10 transition-all text-left group">
                   <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 group-hover:bg-violet-200">
+                    <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-[#163c78] group-hover:bg-violet-200">
                       <Mail className="w-4 h-4" />
                     </div>
                     <span className="font-medium text-slate-700 group-hover:text-violet-700">Send via Email</span>
                   </div>
                 </button>
-                <button onClick={() => handleSendReminder('SMS')} className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl hover:border-violet-300 hover:bg-violet-50 transition-all text-left group">
+                <button onClick={() => handleSendReminder('SMS')} className="w-full flex items-center justify-between px-4 py-3 bg-white border border-slate-200 rounded-xl hover:border-violet-300 hover:bg-[#163c78]/10 transition-all text-left group">
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 group-hover:bg-blue-200">
                       <MessageSquare className="w-4 h-4" />
@@ -549,7 +549,7 @@ export default function PaymentAlerts() {
               <button 
                 onClick={handleSaveFollowUp}
                 disabled={!followUpDate}
-                className="px-4 py-2 text-sm font-medium text-white bg-violet-600 rounded-lg shadow-sm shadow-violet-200 hover:bg-violet-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-4 py-2 text-sm font-medium text-white bg-[#163c78] rounded-lg shadow-sm shadow-[#163c78]/30 hover:bg-[#112d59] transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 <Calendar className="w-4 h-4" /> Save Follow-Up
               </button>

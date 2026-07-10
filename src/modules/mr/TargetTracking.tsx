@@ -214,8 +214,8 @@ export default function TargetTracking() {
           value={`${docsVisited}`}
           subtitle={`${docsPercent}% of ${DOCS_TARGET} Visits`}
           icon={<Target className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Chemist Meets"

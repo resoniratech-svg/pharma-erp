@@ -383,7 +383,7 @@ export default function Ledgers() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewEntry(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View">
+          <button onClick={() => setViewEntry(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View">
             <Eye className="w-4 h-4" />
           </button>
         </div>
@@ -403,7 +403,7 @@ export default function Ledgers() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewEntry(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View">
+          <button onClick={() => setViewEntry(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View">
             <Eye className="w-4 h-4" />
           </button>
         </div>

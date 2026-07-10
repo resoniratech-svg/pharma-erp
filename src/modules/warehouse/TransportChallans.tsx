@@ -171,7 +171,7 @@ export default function TransportChallans() {
               e.stopPropagation();
               setSelectedChallan(row);
             }}
-            className="text-slate-400 hover:text-violet-600 transition-colors"
+            className="text-slate-400 hover:text-[#163c78] transition-colors"
             title="View Challan"
           >
             <Eye className="w-4 h-4" />
@@ -181,7 +181,7 @@ export default function TransportChallans() {
               e.stopPropagation();
               handleDownloadPDF(row);
             }}
-            className="text-slate-400 hover:text-violet-600 transition-colors"
+            className="text-slate-400 hover:text-[#163c78] transition-colors"
             title="Download PDF"
           >
             <FileDown className="w-4 h-4" />
@@ -191,7 +191,7 @@ export default function TransportChallans() {
               e.stopPropagation();
               handlePrint(row);
             }}
-            className="text-slate-400 hover:text-violet-600 transition-colors"
+            className="text-slate-400 hover:text-[#163c78] transition-colors"
             title="Print Challan"
           >
             <Printer className="w-4 h-4" />

@@ -244,7 +244,7 @@ export default function TourPlanning() {
               <button onClick={() => handleStatusChange(row.id, 'Rejected')} className="text-rose-600 hover:text-rose-800 p-1 bg-rose-50 rounded-md transition-colors" title="Reject"><XCircle className="w-4 h-4" /></button>
             </>
           )}
-          <button onClick={() => setViewPlan(row)} className="text-violet-600 hover:text-violet-800 p-1 bg-violet-50 rounded-md transition-colors" title="View"><Calendar className="w-4 h-4" /></button>
+          <button onClick={() => setViewPlan(row)} className="text-[#163c78] hover:text-[#0c1f3d] p-1 bg-[#163c78]/10 rounded-md transition-colors" title="View"><Calendar className="w-4 h-4" /></button>
           <button onClick={() => openForm(row)} className="text-slate-600 hover:text-slate-800 p-1 bg-slate-50 rounded-md transition-colors" title="Edit"><Edit className="w-4 h-4" /></button>
           <button onClick={() => handleDelete(row.id)} className="text-rose-600 hover:text-rose-800 p-1 bg-rose-50 rounded-md transition-colors" title="Delete"><Trash2 className="w-4 h-4" /></button>
         </div>
@@ -289,7 +289,7 @@ export default function TourPlanning() {
           <p className="text-2xl font-bold text-amber-700 mt-1">{pendingPlans}</p>
         </div>
         <div className="bg-white p-4 rounded-xl border border-violet-100 shadow-sm border-l-4 border-l-violet-500">
-          <p className="text-sm font-medium text-violet-600">Total Planned Calls</p>
+          <p className="text-sm font-medium text-[#163c78]">Total Planned Calls</p>
           <p className="text-2xl font-bold text-violet-700 mt-1">{plannedCalls}</p>
         </div>
       </div>
@@ -409,7 +409,7 @@ export default function TourPlanning() {
 
               <div className="pt-4 flex justify-end gap-3 sticky bottom-0 bg-white">
                 <button type="button" onClick={closeForm} className="px-4 py-2 font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors">Cancel</button>
-                <button type="submit" className="px-4 py-2 font-bold text-white bg-violet-600 hover:bg-violet-700 rounded-lg shadow-sm transition-colors">{editingId ? 'Update Plan' : 'Submit Tour Plan'}</button>
+                <button type="submit" className="px-4 py-2 font-bold text-white bg-[#163c78] hover:bg-[#112d59] rounded-lg shadow-sm transition-colors">{editingId ? 'Update Plan' : 'Submit Tour Plan'}</button>
               </div>
             </form>
           </div>
@@ -420,12 +420,12 @@ export default function TourPlanning() {
       {viewPlan && (
         <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden animate-in zoom-in-95 duration-200 flex flex-col max-h-[90vh]">
-            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-violet-50 flex-shrink-0">
+            <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center bg-[#163c78]/10 flex-shrink-0">
               <div className="flex items-center gap-2">
                 <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
-                  <MapPin className="w-4 h-4 text-violet-600" />
+                  <MapPin className="w-4 h-4 text-[#163c78]" />
                 </div>
-                <h2 className="text-lg font-bold text-violet-900">Tour Details</h2>
+                <h2 className="text-lg font-bold text-[#081529]">Tour Details</h2>
               </div>
               <button onClick={() => setViewPlan(null)} className="text-violet-400 hover:text-violet-700 bg-white p-1.5 rounded-full shadow-sm"><X className="w-5 h-5" /></button>
             </div>

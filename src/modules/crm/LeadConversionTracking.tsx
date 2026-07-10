@@ -79,8 +79,8 @@
 //           value="450"
 //           subtitle="Cumulative total"
 //           icon={<Target className="w-6 h-6" />}
-//           colorClass="text-violet-600"
-//           bgClass="bg-violet-50"
+//           colorClass="text-[#163c78]"
+//           bgClass="bg-[#163c78]/10"
 //         />
 //         <SummaryCard
 //           title="Converted Leads"
@@ -337,8 +337,8 @@ export default function LeadConversionTracking() {
           value={totalLeads.toString()}
           subtitle="Cumulative total"
           icon={<Target className="w-6 h-6" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Converted Leads"
@@ -369,7 +369,7 @@ export default function LeadConversionTracking() {
       {/* Charts Section Placeholder */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[160px]">
-          <BarChart3 className="w-8 h-8 text-violet-600 mb-3 opacity-80" />
+          <BarChart3 className="w-8 h-8 text-[#163c78] mb-3 opacity-80" />
           <h3 className="text-sm font-semibold text-slate-800 mb-1">Monthly Conversion Trend</h3>
         </div>
         <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[160px]">

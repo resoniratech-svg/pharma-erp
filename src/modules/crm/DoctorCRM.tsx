@@ -46,7 +46,7 @@
 //     {
 //       key: 'action',
 //       label: '',
-//       render: () => <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1"><Stethoscope className="w-4 h-4 mr-1" /> Profile</ActionButton>
+//       render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><Stethoscope className="w-4 h-4 mr-1" /> Profile</ActionButton>
 //     }
 //   ];
 
@@ -314,7 +314,7 @@ export default function DoctorCRM() {
     {
       key: 'action',
       label: '',
-      render: () => <ActionButton variant="ghost" className="text-violet-600 text-xs px-2 py-1"><Stethoscope className="w-4 h-4 mr-1" /> Profile</ActionButton>
+      render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><Stethoscope className="w-4 h-4 mr-1" /> Profile</ActionButton>
     }
   ];
 
@@ -382,7 +382,7 @@ export default function DoctorCRM() {
                   placeholder="e.g. Arvind Rao"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                 />
               </div>
             </div>
@@ -397,7 +397,7 @@ export default function DoctorCRM() {
                   placeholder="e.g. Cardiology, Pediatrics"
                   value={formData.specialty}
                   onChange={(e) => setFormData({ ...formData, specialty: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                 />
               </div>
             </div>
@@ -412,7 +412,7 @@ export default function DoctorCRM() {
                   placeholder="e.g. Apollo Hospitals"
                   value={formData.hospital}
                   onChange={(e) => setFormData({ ...formData, hospital: e.target.value })}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                 />
               </div>
             </div>
@@ -425,7 +425,7 @@ export default function DoctorCRM() {
                   required
                   value={formData.docClass}
                   onChange={(e) => setFormData({ ...formData, docClass: e.target.value as 'Class A' | 'Class B' | 'Class C' })}
-                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none appearance-none"
+                  className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none appearance-none"
                 >
                   <option value="Class A">Class A (High Priority)</option>
                   <option value="Class B">Class B (Medium Priority)</option>
@@ -444,7 +444,7 @@ export default function DoctorCRM() {
                     placeholder="10-digit number"
                     value={formData.phone}
                     onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                   />
                 </div>
               </div>
@@ -457,7 +457,7 @@ export default function DoctorCRM() {
                     placeholder="Email address"
                     value={formData.email}
                     onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-violet-600 outline-none"
+                    className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                   />
                 </div>
               </div>
@@ -474,7 +474,7 @@ export default function DoctorCRM() {
             </button>
             <button
               type="submit"
-              className="flex-1 bg-violet-600 text-white font-semibold py-2.5 rounded-lg hover:bg-violet-700 transition-colors"
+              className="flex-1 bg-[#163c78] text-white font-semibold py-2.5 rounded-lg hover:bg-[#112d59] transition-colors"
             >
               Save Profile
             </button>

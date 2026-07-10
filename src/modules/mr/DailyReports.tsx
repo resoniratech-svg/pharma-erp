@@ -430,7 +430,7 @@ export default function DailyReports() {
       render: (row) => (
         <button 
           onClick={() => setSelectedReport(row)}
-          className="text-violet-600 hover:text-violet-800 p-1 bg-violet-50 rounded-lg hover:bg-violet-100 transition-all"
+          className="text-[#163c78] hover:text-[#0c1f3d] p-1 bg-[#163c78]/10 rounded-lg hover:bg-violet-100 transition-all"
         >
           <FileText className="w-4 h-4" />
         </button>
@@ -530,10 +530,10 @@ export default function DailyReports() {
               <button
                 onClick={handleStartCompile} 
                 disabled={isCompiling}
-                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 text-white shadow-sm shadow-violet-200 transition-colors ${
+                className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500 focus-visible:ring-offset-1 text-white shadow-sm shadow-[#163c78]/30 transition-colors ${
                   isCompiling 
                     ? 'bg-slate-300 cursor-not-allowed' 
-                    : 'bg-violet-600 hover:bg-violet-700 cursor-pointer'
+                    : 'bg-[#163c78] hover:bg-[#112d59] cursor-pointer'
                 }`}
               >
                 <Activity className="w-4 h-4" />
@@ -629,7 +629,7 @@ export default function DailyReports() {
               {/* KPI Calculations Info */}
               <div className="grid grid-cols-3 gap-4 text-xs font-medium text-slate-600 border-b border-slate-100 pb-4">
                 <div className="flex items-center gap-1.5 justify-center">
-                  <Award className="w-4 h-4 text-violet-500" />
+                  <Award className="w-4 h-4 text-[#163c78]/90" />
                   <span>Score: <b className="text-slate-800">{tempReport.activityScore} pts</b></span>
                 </div>
                 <div className="text-center">
@@ -689,7 +689,7 @@ export default function DailyReports() {
               
               <button 
                 onClick={() => handleSaveDCR('Draft')}
-                className="px-4 py-2 border border-violet-200 text-violet-600 rounded-lg text-sm hover:bg-violet-50 font-bold transition-all"
+                className="px-4 py-2 border border-violet-200 text-[#163c78] rounded-lg text-sm hover:bg-[#163c78]/10 font-bold transition-all"
               >
                 Save as Draft
               </button>
@@ -700,7 +700,7 @@ export default function DailyReports() {
                 className={`px-5 py-2 rounded-lg text-sm font-bold text-white transition-all ${
                   isStillCheckedIn || remarks.trim().length === 0
                     ? 'bg-slate-300 cursor-not-allowed'
-                    : 'bg-violet-600 hover:bg-violet-700 shadow-md shadow-violet-100 shadow-violet-100'
+                    : 'bg-[#163c78] hover:bg-[#112d59] shadow-md shadow-violet-100 shadow-violet-100'
                 }`}
               >
                 Submit DCR
@@ -782,7 +782,7 @@ export default function DailyReports() {
                 </div>
                 <div className="text-right">
                   <span className="text-xs text-slate-400 block">Activity Score</span>
-                  <span className="text-lg font-black text-violet-600">{selectedReport.activityScore || 0} pts</span>
+                  <span className="text-lg font-black text-[#163c78]">{selectedReport.activityScore || 0} pts</span>
                 </div>
               </div>
 

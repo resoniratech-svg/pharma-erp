@@ -244,7 +244,7 @@ export default function ActivityTracking() {
     else if (act.activityType === 'Chemist Visit') { icon = Store; color = 'text-emerald-500'; }
     else if (act.activityType === 'Order Booking') { icon = ClipboardList; color = 'text-amber-500'; }
     else if (act.activityType === 'Meeting') { icon = Users; color = 'text-purple-500'; }
-    else if (act.activityType === 'Attendance') { icon = CheckCircle2; color = 'text-violet-500'; }
+    else if (act.activityType === 'Attendance') { icon = CheckCircle2; color = 'text-[#163c78]/90'; }
     else if (act.activityType === 'Follow-Up') { icon = Bell; color = 'text-rose-500'; }
     else if (act.activityType === 'Target Achievement') { icon = Target; color = 'text-emerald-600'; }
 
@@ -274,8 +274,8 @@ export default function ActivityTracking() {
           value={totalActivities.toString()}
           subtitle="All reps"
           icon={<Activity className="w-5 h-5" />}
-          colorClass="text-violet-600"
-          bgClass="bg-violet-50"
+          colorClass="text-[#163c78]"
+          bgClass="bg-[#163c78]/10"
         />
         <SummaryCard
           title="Doctor Visits Completed"

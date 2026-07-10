@@ -99,7 +99,7 @@ export default function CompositionManagement() {
         return <Badge variant={variant}>{row.schedule}</Badge>;
       },
     },
-    { key: 'associatedProducts', label: 'Linked Products', render: (row) => <span className="text-violet-600 font-medium">{row.associatedProducts} Products</span> },
+    { key: 'associatedProducts', label: 'Linked Products', render: (row) => <span className="text-[#163c78] font-medium">{row.associatedProducts} Products</span> },
     {
       key: 'status',
       label: 'Status',
@@ -118,7 +118,7 @@ export default function CompositionManagement() {
               e.stopPropagation();
               setSelectedComp(row);
             }}
-            className="text-violet-600 font-medium hover:text-violet-800"
+            className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
           >
             View
           </button>

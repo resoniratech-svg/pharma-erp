@@ -98,7 +98,7 @@ export default function MRDashboard() {
 
         {/* Doctor Visits */}
         <div className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm flex items-center gap-4">
-          <div className="p-4 rounded-full bg-violet-50 text-violet-600">
+          <div className="p-4 rounded-full bg-[#163c78]/10 text-[#163c78]">
             <Stethoscope className="w-6 h-6" />
           </div>
           <div>

@@ -7,7 +7,6 @@ import {
   PageHeader,
   FilterBar,
   SearchInput,
-  SelectFilter,
   ActionButton,
   TableCard,
   DataTable,
@@ -16,7 +15,6 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
-import { ROLE_SUPER_ADMIN, ROLE_RETAILER } from '../../constants/roles';
 
 interface SchemeItem {
   id: string;
@@ -70,10 +68,7 @@ const mockSchemes: SchemeItem[] = [
 ];
 
 export default function SchemeVisibility() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_RETAILER;
-  
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
   
   const [viewScheme, setViewScheme] = useState<SchemeItem | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -89,11 +84,13 @@ export default function SchemeVisibility() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const filteredSchemes = mockSchemes.filter((item) => {
+  // Retailer specific business logic: Display only Active schemes
+  const activeSchemes = mockSchemes.filter(item => item.status === 'Active');
+
+  const filteredSchemes = activeSchemes.filter((item) => {
     const searchStr = search.toLowerCase();
     const matchSearch = item.schemeCode.toLowerCase().includes(searchStr) || item.schemeName.toLowerCase().includes(searchStr);
-    const matchStatus = statusFilter ? item.status === statusFilter : true;
-    return matchSearch && matchStatus;
+    return matchSearch;
   });
 
   const getStatusVariant = (status: string): BadgeVariant => {
@@ -118,28 +115,7 @@ export default function SchemeVisibility() {
     return row.applicableTo;
   };
 
-  const adminColumns: Column<SchemeItem>[] = [
-    { key: 'schemeCode', label: 'Scheme Code', render: (row) => <span className="font-semibold text-violet-700">{row.schemeCode}</span> },
-    { key: 'schemeName', label: 'Scheme Name', render: (row) => <span className="font-semibold text-slate-900">{row.schemeName}</span> },
-    { key: 'schemeType', label: 'Scheme Type', render: (row) => <span className="text-slate-600">{row.schemeType}</span> },
-    { key: 'applicableTo', label: 'Applicable To', render: (row) => <span className="text-slate-600">{row.applicableTo}</span> },
-    { key: 'validFrom', label: 'Valid From', render: (row) => <span className="text-slate-600">{row.validFrom}</span> },
-    { key: 'validTo', label: 'Valid To', render: (row) => <span className="text-slate-600">{row.validTo}</span> },
-    { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
-    {
-      key: 'actions',
-      label: 'Action',
-      render: (row) => (
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewScheme(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
-            <Eye className="w-4 h-4" />
-          </button>
-        </div>
-      )
-    }
-  ];
-
-  const retailerColumns: Column<SchemeItem>[] = [
+  const columns: Column<SchemeItem>[] = [
     { key: 'schemeCode', label: 'Scheme Code', render: (row) => <span className="font-semibold text-violet-700">{row.schemeCode}</span> },
     { key: 'schemeName', label: 'Scheme Name', render: (row) => <span className="font-semibold text-slate-900">{row.schemeName}</span> },
     { key: 'schemeType', label: 'Scheme Type', render: (row) => <span className="text-slate-600">{row.schemeType}</span> },
@@ -152,7 +128,7 @@ export default function SchemeVisibility() {
       label: 'Action',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewScheme(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
+          <button onClick={() => setViewScheme(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Details">
             <Eye className="w-4 h-4" />
           </button>
         </div>
@@ -160,30 +136,16 @@ export default function SchemeVisibility() {
     }
   ];
 
-  const columns = activeRole === ROLE_SUPER_ADMIN ? adminColumns : retailerColumns;
-
   const getExportData = () => {
-    if (activeRole === ROLE_SUPER_ADMIN) {
-      return filteredSchemes.map(item => ({
-        'Scheme Code': item.schemeCode,
-        'Scheme Name': item.schemeName,
-        'Scheme Type': item.schemeType,
-        'Applicable To': item.applicableTo,
-        'Valid From': item.validFrom,
-        'Valid To': item.validTo,
-        'Status': item.status
-      }));
-    } else {
-      return filteredSchemes.map(item => ({
-        'Scheme Code': item.schemeCode,
-        'Scheme Name': item.schemeName,
-        'Scheme Type': item.schemeType,
-        'Benefit': getAggregatedBenefit(item),
-        'Applicable Products / Category': getAggregatedApplicability(item),
-        'Valid Till': item.validTo,
-        'Status': item.status
-      }));
-    }
+    return filteredSchemes.map(item => ({
+      'Scheme Code': item.schemeCode,
+      'Scheme Name': item.schemeName,
+      'Scheme Type': item.schemeType,
+      'Benefit': getAggregatedBenefit(item),
+      'Applicable Products / Category': getAggregatedApplicability(item),
+      'Valid Till': item.validTo,
+      'Status': item.status
+    }));
   };
 
   const handleExportExcel = () => {
@@ -238,7 +200,7 @@ export default function SchemeVisibility() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Scheme Visibility"
-        subtitle="View trade schemes, volume discounts, and operational commercial deals."
+        subtitle="View active trade schemes, quantity discounts, PTR discounts, and promotional benefits currently available for your purchases."
         actions={
           <div className="relative inline-block text-left" ref={exportMenuRef}>
             <ActionButton 
@@ -264,21 +226,6 @@ export default function SchemeVisibility() {
 
       <FilterBar>
         <SearchInput value={search} onChange={setSearch} placeholder="Search scheme code or scheme name..." />
-        <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
-        <div className="flex items-center gap-2">
-          <Filter className="w-4 h-4 text-slate-400" />
-          <span className="text-sm font-medium text-slate-600">Filters:</span>
-        </div>
-        <SelectFilter
-          value={statusFilter}
-          onChange={setStatusFilter}
-          options={[
-            { label: 'Active', value: 'Active' },
-            { label: 'Upcoming', value: 'Upcoming' },
-            { label: 'Expired', value: 'Expired' },
-          ]}
-          placeholder="Status"
-        />
       </FilterBar>
 
       <TableCard>

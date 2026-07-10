@@ -16,7 +16,6 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
-import { ROLE_SUPER_ADMIN, ROLE_RETAILER } from '../../constants/roles';
 
 // Import services to fetch live entries from local storage / service pipelines
 import { productService } from "../../services/productService";
@@ -43,8 +42,6 @@ interface Product {
 }
 
 export default function ProductCatalog() {
-  const activeRole = localStorage.getItem('activeRole') || ROLE_RETAILER;
-  
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -169,19 +166,17 @@ export default function ProductCatalog() {
       label: 'id',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setSelectedProduct(row)} className="text-slate-400 hover:text-violet-600 transition-colors p-1" title="View Details">
+          <button onClick={() => setSelectedProduct(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Details">
             <Eye className="w-4 h-4" />
           </button>
-          {activeRole === ROLE_RETAILER && (
-            <button 
-              onClick={() => { setCartProduct(row); setOrderQty('1'); }} 
-              disabled={row.status === 'Out Of Stock'}
-              className="text-slate-400 hover:text-emerald-600 transition-colors p-1 disabled:opacity-30 disabled:cursor-not-allowed" 
-              title="Add To Cart"
-            >
-              <ShoppingCart className="w-4 h-4" />
-            </button>
-          )}
+          <button 
+            onClick={() => { setCartProduct(row); setOrderQty('1'); }} 
+            disabled={row.status === 'Out Of Stock'}
+            className="text-slate-400 hover:text-emerald-600 transition-colors p-1 disabled:opacity-30 disabled:cursor-not-allowed" 
+            title="Add To Cart"
+          >
+            <ShoppingCart className="w-4 h-4" />
+          </button>
         </div>
       )
     }
@@ -288,7 +283,7 @@ export default function ProductCatalog() {
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="Product Browsing"
-        subtitle={activeRole === ROLE_SUPER_ADMIN ? "View and manage retailer catalog visibility." : "Browse products, check availability, and add to cart."}
+        subtitle="Browse available products, view active schemes, check stock availability, and add items to your cart."
         actions={
           <div className="relative inline-block text-left" ref={exportMenuRef}>
             <ActionButton 
@@ -409,7 +404,7 @@ export default function ProductCatalog() {
               </div>
             </div>
             
-            {activeRole === ROLE_RETAILER && selectedProduct.status !== 'Out Of Stock' && (
+            {selectedProduct.status !== 'Out Of Stock' && (
               <div className="mt-6 pt-6 border-t border-slate-200">
                 <ActionButton 
                   onClick={() => {
@@ -428,7 +423,7 @@ export default function ProductCatalog() {
       </Drawer>
 
       {/* Add To Cart Modal */}
-      {cartProduct && activeRole === ROLE_RETAILER && (
+      {cartProduct && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 sm:p-0">
           <div className="absolute inset-0 bg-slate-900/50 backdrop-blur-sm transition-opacity" onClick={() => setCartProduct(null)}></div>
           <div className="bg-white rounded-xl shadow-xl w-full max-w-sm overflow-hidden animate-in zoom-in-95 duration-200 relative z-10 flex flex-col">
@@ -468,7 +463,7 @@ export default function ProductCatalog() {
             </div>
             <div className="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3 shrink-0">
               <button onClick={() => setCartProduct(null)} className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors">Cancel</button>
-              <button onClick={handleAddToCart} className="px-4 py-2 text-sm font-medium bg-violet-600 text-white rounded-lg hover:bg-violet-700 shadow-sm transition-all active:scale-[0.98] flex items-center gap-2">
+              <button onClick={handleAddToCart} className="px-4 py-2 text-sm font-medium bg-[#163c78] text-white rounded-lg hover:bg-[#112d59] shadow-sm transition-all active:scale-[0.98] flex items-center gap-2">
                 <ShoppingCart className="w-4 h-4" /> Add To Cart
               </button>
             </div>

@@ -57,7 +57,7 @@ export const applyPaymentReceiptVoucherTemplate = (doc: jsPDF, txn: any) => {
   // --- Company Details ---
   doc.setFontSize(16);
   doc.setFont('helvetica', 'bold');
-  doc.text('PHARMA ERP LTD.', margin + 5, margin + 35);
+  doc.text('MJ Healthcare ERP LTD.', margin + 5, margin + 35);
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text('123 Health Avenue, Medical District', margin + 5, margin + 41);
