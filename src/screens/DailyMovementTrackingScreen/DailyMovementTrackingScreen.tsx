@@ -797,10 +797,7 @@ console.log('TYPE:', typeof selectedDate);
                 thumbColor={isSimulating ? '#2563EB' : '#94A3B8'}
               />
             </View>
-            <TouchableOpacity style={styles.seedBtn} onPress={loadMockRouteDemo}>
-              <Ionicons name="color-wand-outline" size={16} color="#FFFFFF" />
-              <Text style={styles.seedBtnText}>Seed Demo Route Trace</Text>
-            </TouchableOpacity>
+            {/* Seed Demo Route Trace button removed for production */}
           </View>
         )}
       </View>

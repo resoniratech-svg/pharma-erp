@@ -535,7 +535,13 @@ const BookOrderScreen = () => {
         >
 
 
-      <Text style={styles.title}>📦 Book Order</Text>
+      <View style={styles.headerRow}>
+        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
+          <Text style={styles.backButtonText}>⬅️ Back</Text>
+        </TouchableOpacity>
+        <Text style={styles.title}>📦 Book Order</Text>
+        <View style={{ width: 60 }} /> {/* Balance the back button spacing */}
+      </View>
 
       {loadingMaster ? (
         <View style={styles.loaderCard}>
@@ -935,8 +941,27 @@ const styles = StyleSheet.create({
     fontSize: 24,
     fontWeight: 'bold',
     color: '#333',
-    marginBottom: 20,
     textAlign: 'center',
+    flex: 1,
+  },
+  headerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+    width: '100%',
+  },
+  backButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+    backgroundColor: '#E3F2FD',
+    alignSelf: 'center',
+  },
+  backButtonText: {
+    fontSize: 14,
+    color: '#1E88E5',
+    fontWeight: 'bold',
   },
   loaderCard: {
     backgroundColor: '#fff',

@@ -48,7 +48,7 @@ const ProductCatalogScreen = () => {
   const [expandedCards, setExpandedCards] = useState<{ [key: number]: boolean }>({});
   const [products, setProducts] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  const [sampleQty, setSampleQty] = useState<{ [key: number]: number }>();
+  const [sampleQty, setSampleQty] = useState<{ [key: number]: number }>({});
 
   const loadProducts = async () => {
     try {
