@@ -161,26 +161,39 @@ const token = await AsyncStorage.getItem('@token');
 console.log('MR ID:', mrId);
 console.log('TOKEN:', token);
 
-const attendanceResponse =
-  await checkInAttendance(
-    Number(mrId),
-    latVal,
-    lngVal
-  );
+      const attendanceResponse =
+        await checkInAttendance(
+          Number(mrId),
+          latVal,
+          lngVal
+        );
 
-console.log(
-  'Attendance Saved:',
-  attendanceResponse
-);
+      console.log(
+        'Attendance Saved:',
+        attendanceResponse
+      );
 
-await AsyncStorage.setItem(
-  '@attendanceId',
-  attendanceResponse.data.id.toString()
-);
-console.log(
-  'Attendance ID:',
-  attendanceResponse.data.id
-);
+      let resolvedId = 'temp-id';
+      if (attendanceResponse) {
+        if (attendanceResponse.data && attendanceResponse.data.id) {
+          resolvedId = attendanceResponse.data.id.toString();
+        } else if (attendanceResponse.id) {
+          resolvedId = attendanceResponse.id.toString();
+        } else if (attendanceResponse.data && typeof attendanceResponse.data === 'object' && attendanceResponse.data.data && attendanceResponse.data.data.id) {
+          resolvedId = attendanceResponse.data.data.id.toString();
+        } else {
+          resolvedId = Date.now().toString();
+        }
+      }
+
+      await AsyncStorage.setItem(
+        '@attendanceId',
+        resolvedId
+      );
+      console.log(
+        'Attendance ID:',
+        resolvedId
+      );
 
       await AsyncStorage.setItem('@checked_in', 'true');
       await AsyncStorage.setItem('@check_in_time', time);
@@ -197,12 +210,13 @@ console.log(
           { text: 'OK', onPress: () => navigation.goBack() }
         ]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('handleConfirmCheckIn save error:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Failed to save Check-In.';
       if (Platform.OS === 'web') {
-        window.alert('Error\n\nFailed to save Check-In.');
+        window.alert(`Error\n\n${errMsg}`);
       } else {
-        Alert.alert('Error', 'Failed to save Check-In.');
+        Alert.alert('Error', errMsg);
       }
     } finally {
       setLoading(false);
