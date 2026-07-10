@@ -193,10 +193,10 @@ const GeoTaggedDoctorVisitsScreen = () => {
                   </View>
 
                   <View style={styles.locationDetailRow}>
-                    <Text style={styles.locationCity}>📍 {readableLoc}</Text>
+                    <Text style={styles.locationCity}>📍 Nearest Hub: {readableLoc} (Info Only)</Text>
                     {item.latitude !== null && item.longitude !== null && (
                       <Text style={styles.locationCoords}>
-                        🛰️ {item.latitude.toFixed(4)}° N, {item.longitude.toFixed(4)}° E
+                        🛰️ GPS Audit Coords: {item.latitude.toFixed(4)}° N, {item.longitude.toFixed(4)}° E
                       </Text>
                     )}
                   </View>
