@@ -192,30 +192,26 @@ const CheckOutScreen = () => {
       setLoading(true);
       const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-     const attendanceId =
-  await AsyncStorage.getItem('@attendanceId');
+      const attendanceId = await AsyncStorage.getItem('@attendanceId');
+      console.log('Attendance ID:', attendanceId);
 
-console.log(
-  'Attendance ID:',
-  attendanceId
-);
+      if (!attendanceId) {
+        console.log('Warning: No attendanceId found in storage — checkout API skipped.');
+      }
 
-if (
-  attendanceId &&
-  checkoutCoords
-) {
-  const response =
-    await checkOutAttendance(
-      Number(attendanceId),
-      checkoutCoords.latitude,
-      checkoutCoords.longitude
-    );
-
-  console.log(
-    'Checkout Response:',
-    response
-  );
-}
+      if (attendanceId && checkoutCoords) {
+        try {
+          const response = await checkOutAttendance(
+            Number(attendanceId),
+            checkoutCoords.latitude,
+            checkoutCoords.longitude
+          );
+          console.log('Checkout Response:', response);
+        } catch (checkoutApiError: any) {
+          // Log API error but continue with local session clear
+          console.log('Checkout API error (local session will still be cleared):', checkoutApiError?.response?.data?.message || checkoutApiError?.message);
+        }
+      }
 
 
 
@@ -277,12 +273,13 @@ if (
           { text: 'OK', onPress: () => navigation.navigate('Dashboard') }
         ]);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.log('Error during checkout logging:', error);
+      const errMsg = error?.response?.data?.message || error?.message || 'Failed to save Check-Out.';
       if (Platform.OS === 'web') {
-        window.alert('Error\n\nFailed to save Check-Out.');
+        window.alert(`Error\n\n${errMsg}`);
       } else {
-        Alert.alert('Error', 'Failed to save Check-Out.');
+        Alert.alert('Error', errMsg);
       }
     } finally {
       setLoading(false);
