@@ -97,9 +97,9 @@ const TerritoryTrackingScreen = () => {
       // 2. Load HQ dynamically from the logged-in user profile
       const userRaw = await AsyncStorage.getItem('@user');
       const userObj = userRaw ? safeJsonParse(userRaw, null) : null;
-      setHqZone(userObj?.hq || userObj?.headquarters || 'Hyderabad');
+      setHqZone(userObj?.hq || userObj?.headquarters || 'N/A');
 
-      // 3. Load Beats from backend or fall back to mock beats
+      // 3. Load Beats from backend or fall back to empty beat array
       let serverBeats = [];
       try {
         const beatRes = await getTerritoryBeats();
@@ -108,22 +108,18 @@ const TerritoryTrackingScreen = () => {
         console.log('Beats load error from server:', e);
       }
 
-      const activeTerritories: BeatTerritory[] = serverBeats.length > 0 ? serverBeats.map((b: any, idx: number) => ({
+      const activeBeats = Array.isArray(serverBeats) ? serverBeats : [];
+      const activeTerritories: BeatTerritory[] = activeBeats.map((b: any, idx: number) => ({
         id: b.id?.toString() || `beat-${idx}`,
-        area: b.area || 'Unknown Area',
-        district: b.district || 'Hyderabad',
-        state: b.state || 'Telangana',
+        area: b.area || 'N/A',
+        district: b.district || 'N/A',
+        state: b.state || 'N/A',
         doctorsCount: b.doctorsCount || 0,
         chemistsCount: b.chemistsCount || 0,
-        coverage: b.coverage || 80,
-        lastActivity: b.lastActivity || 'Today',
-        status: b.status || 'Active Beat'
-      })) : [
-        { id: 'beat-1', area: 'Koti & Abids Beat', district: 'Hyderabad', state: 'Telangana', doctorsCount: 15, chemistsCount: 18, coverage: 85, lastActivity: 'Yesterday', status: 'Active Beat' },
-        { id: 'beat-2', area: 'Secunderabad Beat', district: 'Hyderabad', state: 'Telangana', doctorsCount: 12, chemistsCount: 15, coverage: 70, lastActivity: 'Today', status: 'Active Beat' },
-        { id: 'beat-3', area: 'Nampally Beat', district: 'Hyderabad', state: 'Telangana', doctorsCount: 10, chemistsCount: 12, coverage: 90, lastActivity: 'Yesterday', status: 'Active Beat' },
-        { id: 'beat-4', area: 'Himayatnagar Beat', district: 'Hyderabad', state: 'Telangana', doctorsCount: 8, chemistsCount: 8, coverage: 60, lastActivity: '2 days ago', status: 'Secondary Beat' }
-      ];
+        coverage: b.coverage || 0,
+        lastActivity: b.lastActivity || 'N/A',
+        status: b.status || 'Secondary Beat'
+      }));
 
       // 4. Load actual logged visits today to compute dynamic stats
       const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
@@ -250,8 +246,8 @@ const TerritoryTrackingScreen = () => {
         matches[t.area] = {
           doctors: matchedDocs.length,
           chemists: matchedChems.length,
-          docNames: matchedDocs.map((v: any) => v.doctorName || 'Unknown Doctor'),
-          chemNames: matchedChems.map((v: any) => v.shopName || 'Unknown Shop'),
+          docNames: matchedDocs.map((v: any) => v.doctorName || 'N/A'),
+          chemNames: matchedChems.map((v: any) => v.shopName || 'N/A'),
         };
       });
 
