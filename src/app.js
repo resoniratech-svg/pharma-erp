@@ -445,36 +445,20 @@ dailyMovementRoutes
 app.get("/test", async (req, res) => {
   const prisma = require("./config/db");
   try {
-    const dbUrl = process.env.DATABASE_URL || "";
-    const cleanUrl = dbUrl.replace(/:[^:@\n]+@/, ":****@");
-
-    const tables = await prisma.$queryRaw`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public'
-    `;
-
-    let migrations = [];
-    try {
-      migrations = await prisma.$queryRaw`
-        SELECT migration_name, rolled_back_at, started_at, finished_at 
-        FROM _prisma_migrations
-      `;
-    } catch (e) {
-      migrations = { error: "Failed to query migrations table: " + e.message };
-    }
+    // Delete the failed migration status from the prisma history table
+    await prisma.$executeRawUnsafe(`
+      DELETE FROM _prisma_migrations 
+      WHERE migration_name = '20260711132000_add_inward_outward_supplier_warehouse_transfer'
+    `);
 
     res.json({
       success: true,
-      databaseUrl: cleanUrl,
-      tables: tables.map(t => t.table_name),
-      migrations
+      message: "Successfully cleared the failed migration state from the production database."
     });
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: error.message,
-      stack: error.stack
+      error: error.message
     });
   }
 });

@@ -3,6 +3,10 @@ const prisma = require("../../config/db");
 const createProductRepo = async (data) => {
   return prisma.product.create({
     data,
+    include: {
+      category: true,
+      company: true,
+    }
   });
 };
 
@@ -12,6 +16,9 @@ const getProductsRepo = async () => {
       category: true,
       company: true,
     },
+    orderBy: {
+      createdAt: 'desc',
+    }
   });
 };
 
@@ -36,6 +43,10 @@ const updateProduct = async (
       id,
     },
     data,
+    include: {
+      category: true,
+      company: true,
+    }
   });
 };
 

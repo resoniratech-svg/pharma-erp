@@ -11,7 +11,11 @@ class InwardStockRepository {
         } : undefined
       },
       include: {
-        items: true,
+        items: {
+          include: {
+            product: true
+          }
+        },
         warehouse: true,
         supplier: true
       }
@@ -21,7 +25,11 @@ class InwardStockRepository {
   async findAll() {
     return prisma.inwardStock.findMany({
       include: {
-        items: true,
+        items: {
+          include: {
+            product: true
+          }
+        },
         warehouse: true,
         supplier: true
       },
@@ -35,7 +43,11 @@ class InwardStockRepository {
     return prisma.inwardStock.findUnique({
       where: { id: parseInt(id, 10) },
       include: {
-        items: true,
+        items: {
+          include: {
+            product: true
+          }
+        },
         warehouse: true,
         supplier: true
       }

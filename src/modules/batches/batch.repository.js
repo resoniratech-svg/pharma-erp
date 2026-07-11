@@ -30,6 +30,9 @@ const getBatchesRepo = async () => {
     include: {
       product: true,
     },
+    orderBy: {
+      createdAt: 'desc',
+    }
   });
 };
 
@@ -56,7 +59,7 @@ const updateBatch = async (
 
 const deleteBatch = async (id) => {
   // 1. Check if the batch is referenced in WarehouseTransfer or Dispatch
-  const linkedTransfers = await prisma.warehouseTransfer.findFirst({
+  const linkedTransfers = await prisma.warehouseTransferItem.findFirst({
     where: { batchId: id }
   });
   if (linkedTransfers) {

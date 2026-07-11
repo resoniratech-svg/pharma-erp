@@ -59,7 +59,7 @@ const getInventoryById = async (
   try {
 
     const result =
-      await inventoryService.getInventoryById(
+      await inventoryService.getInventoryByIdService(
         Number(req.params.id)
       );
 
@@ -93,7 +93,7 @@ const updateInventory = async (
   try {
 
     const result =
-      await inventoryService.updateInventory(
+      await inventoryService.updateInventoryService(
         Number(req.params.id),
         req.body
       );
@@ -119,7 +119,7 @@ const deleteInventory = async (
 ) => {
   try {
 
-    await inventoryService.deleteInventory(
+    await inventoryService.deleteInventoryService(
       Number(req.params.id)
     );
 
