@@ -23,9 +23,17 @@ export interface OutwardStockRecord {
 export const outwardStockService = {
   async getAll(): Promise<OutwardStockRecord[]> {
     try {
-      const response = await apiRequest<{ success: boolean; data: any[] }>('/outward-stock');
-      if (response.success) {
-        return response.data;
+      const response = await apiRequest<any>('/outward-stock');
+      let data = response;
+      if (response && response.success && response.data) {
+        data = response.data;
+      }
+      if (Array.isArray(data)) {
+        return data.map(item => ({
+          ...item,
+          warehouseCode: item.warehouse ? item.warehouse.code : "",
+          warehouseName: item.warehouse ? item.warehouse.name : "",
+        }));
       }
       return [];
     } catch (e) {
@@ -36,11 +44,17 @@ export const outwardStockService = {
 
   async add(record: OutwardStockRecord): Promise<boolean> {
     try {
-      const response = await apiRequest<{ success: boolean }>('/outward-stock', {
+      const response = await apiRequest<any>('/outward-stock', {
         method: 'POST',
         bodyData: record,
       });
-      return response.success;
+      if (response && response.id) {
+        return true;
+      }
+      if (response && response.success) {
+        return true;
+      }
+      return false;
     } catch (e) {
       console.error("Failed to save outward stock:", e);
       return false;

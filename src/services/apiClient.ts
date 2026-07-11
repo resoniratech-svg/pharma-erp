@@ -64,7 +64,7 @@ export async function apiRequest<T = any>(
       window.location.href = '/workspace';
     }
 
-    throw new Error(errorBody.message || `Request failed with status ${response.status}`);
+    throw new Error(errorBody.message || errorBody.error || `Request failed with status ${response.status}`);
   }
 
   return response.json();

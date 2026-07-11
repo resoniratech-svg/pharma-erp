@@ -20,9 +20,13 @@ export interface WarehouseTransferRecord {
 export const warehouseTransferService = {
   async getAll(): Promise<WarehouseTransferRecord[]> {
     try {
-      const response = await apiRequest<{ success: boolean; data: any[] }>('/warehouse-transfers');
-      if (response.success) {
-        return response.data;
+      const response = await apiRequest<any>('/warehouse-transfers');
+      let data = response;
+      if (response && response.success && response.data) {
+        data = response.data;
+      }
+      if (Array.isArray(data)) {
+        return data;
       }
       return [];
     } catch (e) {
@@ -33,11 +37,17 @@ export const warehouseTransferService = {
 
   async add(record: WarehouseTransferRecord): Promise<boolean> {
     try {
-      const response = await apiRequest<{ success: boolean }>('/warehouse-transfers', {
+      const response = await apiRequest<any>('/warehouse-transfers', {
         method: 'POST',
         bodyData: record,
       });
-      return response.success;
+      if (response && response.id) {
+        return true;
+      }
+      if (response && response.success) {
+        return true;
+      }
+      return false;
     } catch (e) {
       console.error("Failed to save warehouse transfer:", e);
       return false;

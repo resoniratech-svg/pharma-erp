@@ -22,6 +22,7 @@ import { inventoryService } from "../../services/inventoryService";
 import { warehouseService } from "../../services/warehouseService";
 import { productService } from "../../services/productService";
 import { stockLedgerService } from "../../services/stockLedgerService";
+import { batchService } from "../../services/batchService";
 import activityLogService from "../../services/activityLogService";
 import authService from "../../services/authService";
 
@@ -171,8 +172,8 @@ export default function OutwardStock() {
         date: r.date,
         client: r.client,
         warehouseId: String(r.warehouseId),
-        warehouseCode: '',
-        warehouseName: '',
+        warehouseCode: r.warehouseCode || '',
+        warehouseName: r.warehouseName || '',
         referenceNumber: r.referenceNumber,
         itemsCount: r.itemsCount,
         totalQuantity: r.totalQuantity,
@@ -186,6 +187,11 @@ export default function OutwardStock() {
       })));
     }
     loadOutward();
+  }, []);
+
+  useEffect(() => {
+    batchService.loadBatches();
+    inventoryService.loadInventory();
   }, []);
   
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -522,13 +528,23 @@ export default function OutwardStock() {
       totalQuantity: autoCalculatedMetrics.totalQuantity,
       totalValue: autoCalculatedMetrics.totalValue,
       status: formData.status,
-      items: formProducts.map(p => ({
-        productId: productService.getProducts().find(prod => prod.name === p.product)?.id || 0,
-        batchId: inventoryService.getAll().find(s => s.batchNo === p.batchNo && s.warehouseId === formData.warehouseId)?.id || 0,
-        quantity: Number(p.dispatchQty),
-        rate: Number(p.rate)
-      }))
+      items: formProducts.map(p => {
+        const productId = productService.getProducts().find(prod => prod.name === p.product)?.id || 0;
+        const batchId = batchService.getAll().find(b => b.batchNo === p.batchNo && b.productId === String(productId))?.id || 0;
+        return {
+          productId: Number(productId),
+          batchId: Number(batchId),
+          quantity: Number(p.dispatchQty),
+          rate: Number(p.rate)
+        };
+      })
     };
+
+    const invalidItems = newRecord.items.filter((item: any) => !item.productId || !item.batchId);
+    if (invalidItems.length > 0) {
+      alert("Failed to find valid Product ID or Batch ID in database. Please ensure product and batch exist.");
+      return;
+    }
 
     outwardStockService.add(newRecord).then(async success => {
       if (success) {

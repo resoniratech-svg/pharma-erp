@@ -555,7 +555,7 @@ export default function InwardStock() {
     const newRecord: any = {
       grnNo: newGrnNo,
       date: new Date(formData.date).toISOString(),
-      supplierId: supplierId,
+      supplierId: Number(supplierId),
       warehouseId: Number(location),
       itemsCount: autoCalculatedMetrics.totalItems,
       totalQuantity: autoCalculatedMetrics.totalQuantity,
@@ -563,7 +563,7 @@ export default function InwardStock() {
       status: formData.status,
       remarks: remarks,
       items: formProducts.map(p => ({
-        productId: products.find(prod => prod.name === p.product)?.id || 0,
+        productId: Number(products.find(prod => prod.name === p.product)?.id || 0),
         batchNo: p.batchNo,
         mfgDate: p.mfgDate ? new Date(p.mfgDate).toISOString() : undefined,
         expiryDate: p.expiryDate ? new Date(p.expiryDate).toISOString() : undefined,

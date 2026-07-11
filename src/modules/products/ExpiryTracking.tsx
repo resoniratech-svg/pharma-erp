@@ -86,8 +86,8 @@ export default function ExpiryTracking() {
 
   const currentUser = authService.getCurrentUser();
 
-  const loadExpiryData = () => {
-    const batches = batchService.getAll() as unknown as Batch[];
+  const loadExpiryData = async () => {
+    const batches = await batchService.loadBatches() as unknown as Batch[];
     const expiryData: ExpiryItem[] = batches.map((batch) => {
       const daysLeft = getDaysToExpiry(batch.expDate);
       const status = getExpiryStatus(batch.expDate);

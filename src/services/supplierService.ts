@@ -11,8 +11,11 @@ export interface Supplier {
 export const supplierService = {
   async getAll(): Promise<Supplier[]> {
     try {
-      const response = await apiRequest<{ success: boolean; data: Supplier[] }>('/suppliers');
-      if (response.success) {
+      const response = await apiRequest<any>('/suppliers');
+      if (Array.isArray(response)) {
+        return response;
+      }
+      if (response && response.success && response.data) {
         return response.data;
       }
       return [];
@@ -24,11 +27,14 @@ export const supplierService = {
 
   async add(name: string): Promise<Supplier | null> {
     try {
-      const response = await apiRequest<{ success: boolean; data: Supplier }>('/suppliers', {
+      const response = await apiRequest<any>('/suppliers', {
         method: 'POST',
         bodyData: { name },
       });
-      if (response.success) {
+      if (response && response.id) {
+        return response;
+      }
+      if (response && response.success && response.data) {
         return response.data;
       }
       return null;

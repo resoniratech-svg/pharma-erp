@@ -90,14 +90,23 @@ export default function WarehouseTransfer() {
         toWarehouseId: String(r.toWarehouseId),
         fromWarehouseName: `Warehouse ${r.fromWarehouseId}`,
         toWarehouseName: `Warehouse ${r.toWarehouseId}`,
-        status: r.status,
+        status: r.status as WarehouseTransfer['status'] || 'Processing',
         itemsCount: r.itemsCount,
         totalQuantity: r.totalQuantity,
         remarks: r.remarks,
         products: [],
+        createdBy: '',
+        createdDate: r.date,
+        lastUpdatedBy: '',
+        lastUpdatedDate: r.date,
       })));
     }
     loadTransfers();
+  }, []);
+
+  useEffect(() => {
+    batchService.loadBatches();
+    inventoryService.loadInventory();
   }, []);
 
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -403,12 +412,22 @@ export default function WarehouseTransfer() {
       itemsCount: autoCalculatedMetrics.totalItems,
       totalQuantity: autoCalculatedMetrics.totalQuantity,
       status: formData.status,
-      items: formProducts.map(p => ({
-        productId: products.find(prod => prod.code === p.product)?.id || 0,
-        batchId: inventoryService.getAll().find(s => s.productCode === p.product && s.batchNo === p.batchNo && s.warehouseId === formData.fromWarehouseId)?.id || 0,
-        quantity: Number(p.transferQty)
-      }))
+      items: formProducts.map(p => {
+        const productId = products.find(prod => prod.code === p.product)?.id || 0;
+        const batchId = batchService.getAll().find(b => b.productCode === p.product && b.batchNo === p.batchNo)?.id || 0;
+        return {
+          productId: Number(productId),
+          batchId: Number(batchId),
+          quantity: Number(p.transferQty)
+        };
+      })
     };
+
+    const invalidItems = newRecord.items.filter((item: any) => !item.productId || !item.batchId);
+    if (invalidItems.length > 0) {
+      alert("Failed to find valid Product ID or Batch ID in database. Please ensure product and batch exist.");
+      return;
+    }
 
     warehouseTransferService.add(newRecord).then(async success => {
       if (success) {

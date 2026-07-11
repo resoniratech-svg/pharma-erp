@@ -38,14 +38,19 @@ export interface BatchRecord {
 let batchCache: BatchRecord[] = [];
 
 function mapToUi(b: any): BatchRecord {
+  const products = productService.getProducts();
+  const productCode = b.product ? b.product.code : (b.productCode || "");
+  const matchedProduct = products.find(p => p.code === productCode || p.id === String(b.productId));
+  const resolvedType = matchedProduct ? matchedProduct.type : (b.product ? b.product.type : b.unit) || "Pack";
+
   return {
     id: String(b.id),
     productId: String(b.productId),
-    productCode: b.product ? b.product.code : (b.productCode || ""),
+    productCode: productCode,
     productName: b.product ? b.product.name : (b.productName || ""),
     hsnCode: b.product ? b.product.hsnCode : (b.hsnCode || ""),
     barcode: b.product ? b.product.barcode : (b.barcode || ""),
-    unit: b.unit || "Pack",
+    unit: resolvedType,
     manufacturer: b.product ? b.product.manufacturer : (b.manufacturer || ""),
     batchNo: b.batchNumber || b.batchNo || "",
     mfgDate: b.manufacturingDate || b.mfgDate || new Date().toISOString(),
@@ -53,7 +58,7 @@ function mapToUi(b: any): BatchRecord {
     ptr: b.product ? Number(b.product.ptr || 0) : Number(b.ptr || 0),
     mrp: b.product ? Number(b.product.mrp || 0) : Number(b.mrp || 0),
     availableQty: Number(b.quantity || b.availableQty || 0),
-    receivedQty: Number(b.receivedQty || 0),
+    receivedQty: Number(b.receivedQty || b.quantity || 0),
     status: b.status || "Active",
     createdBy: b.createdBy || "System",
     createdDate: b.createdAt || b.createdDate || new Date().toISOString(),

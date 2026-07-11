@@ -29,7 +29,20 @@ export const inwardStockService = {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/inward-stock');
       if (response.success) {
-        return response.data;
+        return response.data.map(item => ({
+          ...item,
+          supplier: item.supplier ? item.supplier.name : "Unknown",
+          warehouseCode: item.warehouse ? item.warehouse.code : "",
+          warehouseName: item.warehouse ? item.warehouse.name : "",
+          products: item.items ? item.items.map((i: any) => ({
+             ...i,
+             product: i.product ? i.product.name : "Unknown",
+             batchNo: i.batchNo,
+             quantity: i.quantity,
+             mrp: i.mrp,
+             ptr: i.ptr
+          })) : []
+        }));
       }
       return [];
     } catch (e) {
