@@ -720,9 +720,8 @@ model Doctor {
 
   createdAt DateTime @default(now())
 
-  // doctorVisits DoctorVisit[]
   tourPlanDoctors TourPlanDoctor[]
-  meetings        Meeting[]
+  meetings        Meeting[] @relation("DoctorDirectMeetings")
 }
 
 model Chemist {
@@ -753,7 +752,7 @@ model Chemist {
 
   createdAt        DateTime          @default(now())
   tourPlanChemists TourPlanChemist[]
-  meetings         Meeting[]
+  meetings         Meeting[] @relation("ChemistDirectMeetings")
 }
 
 model Attendance {
@@ -954,9 +953,9 @@ model Meeting {
 
   mr MR @relation(fields: [mrId], references: [id])
 
-  doctor Doctor? @relation(fields: [doctorId], references: [id])
+  doctor Doctor? @relation("DoctorDirectMeetings", fields: [doctorId], references: [id])
 
-  chemist         Chemist?         @relation(fields: [chemistId], references: [id])
+  chemist         Chemist?         @relation("ChemistDirectMeetings", fields: [chemistId], references: [id])
   meetingDoctors  MeetingDoctor[]
   meetingChemists MeetingChemist[]
   followUps       FollowUp[]
