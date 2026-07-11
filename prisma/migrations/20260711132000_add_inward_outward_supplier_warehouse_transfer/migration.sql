@@ -8,7 +8,13 @@ ADD COLUMN     "date" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 ADD COLUMN     "itemsCount" INTEGER NOT NULL DEFAULT 0,
 ADD COLUMN     "status" TEXT NOT NULL DEFAULT 'Completed',
 ADD COLUMN     "totalQuantity" INTEGER NOT NULL DEFAULT 0,
-ADD COLUMN     "transferNo" TEXT NOT NULL;
+ADD COLUMN     "transferNo" TEXT;
+
+-- Seed unique values for existing rows
+UPDATE "WarehouseTransfer" SET "transferNo" = 'TRF-' || id WHERE "transferNo" IS NULL;
+
+-- Alter column to NOT NULL
+ALTER TABLE "WarehouseTransfer" ALTER COLUMN "transferNo" SET NOT NULL;
 
 -- CreateTable
 CREATE TABLE "WarehouseTransferItem" (
