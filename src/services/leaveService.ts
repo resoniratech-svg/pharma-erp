@@ -51,3 +51,28 @@ export const getLeavesByMr = async () => {
 
   return response.data.data;
 };
+
+export const updateLeaveRequest = async (
+  id: number,
+  leaveType: string,
+  fromDate: string,
+  toDate: string,
+  reason: string
+) => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.put(
+    `/leaves/${id}`,
+    {
+      leaveType,
+      fromDate,
+      toDate,
+      reason,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  return response.data;
+};

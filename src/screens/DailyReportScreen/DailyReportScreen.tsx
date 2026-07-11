@@ -253,7 +253,7 @@ const DailyReportScreen = () => {
 
       // Sum values from both orders and chemist visit values
       const chemistSalesSum = chemistList.reduce((sum: number, item: any) => {
-        return sum + (parseFloat(item.orderValue) || 0);
+        return sum + (parseFloat(item.pobAmount || item.orderValue) || 0);
       }, 0);
 
       const ordersSalesSum = ordersList.reduce((sum: number, item: any) => {

@@ -18,6 +18,7 @@ import { Ionicons } from '@expo/vector-icons';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import {
   getAllFollowUps,
+  getFollowUpsByMr,
   completeFollowUp,
   rescheduleFollowUp,
 } from '../../services/followUpService';
@@ -73,10 +74,28 @@ const FollowUpRemindersScreen = () => {
   const loadReminders = async () => {
     try {
       const todayStr = new Date().toISOString().split('T')[0];
-      const data = await getAllFollowUps();
+
+      // Step 1: Try MR-specific endpoint first
+      let data: any[] = [];
+      try {
+        const mrResult = await getFollowUpsByMr();
+        data = Array.isArray(mrResult) ? mrResult : [];
+      } catch (mrErr) {
+        console.log('getFollowUpsByMr failed, trying getAllFollowUps:', mrErr);
+      }
+
+      // Step 2: Fallback to global endpoint if MR endpoint returned nothing
+      if (data.length === 0) {
+        const allResult = await getAllFollowUps();
+        data = Array.isArray(allResult) ? allResult : [];
+      }
       
       const loadedReminders: FollowUpReminder[] = (data || []).map((item: any) => {
-        const followDate = item.followUpDate ? item.followUpDate.split('T')[0] : '';
+        const followDate = item.followUpDate
+          ? item.followUpDate.split('T')[0]
+          : item.follow_date
+            ? item.follow_date.split('T')[0]
+            : '';
         const isCompleted = item.status === 'COMPLETED' || item.status === 'Completed';
         const isCancelled = item.status === 'CANCELLED' || item.status === 'Cancelled';
         const daysRemaining = getDaysRemaining(followDate, todayStr);
@@ -85,13 +104,21 @@ const FollowUpRemindersScreen = () => {
         return {
           id: item.id.toString(),
           originalId: item.id.toString(),
-          name: item.doctor?.doctorName || item.doctor?.name || item.chemist?.name || 'Contact',
+          name:
+            item.doctor?.doctorName ||
+            item.doctor?.name ||
+            item.doctorName ||
+            item.chemist?.shopName ||
+            item.chemist?.name ||
+            item.chemistName ||
+            item.shopName ||
+            'Contact',
           type: item.doctorId ? 'Doctor' : 'Chemist',
           date: followDate,
           purpose: item.doctorId ? 'Doctor Follow-Up' : 'Chemist Follow-Up',
           priority: isOverdue || daysRemaining === 0 ? 'High' : (daysRemaining > 7 ? 'Low' : 'Medium'),
           status: isCompleted ? 'Completed' : (isOverdue ? 'Overdue' : 'Pending'),
-          notes: item.remarks || 'Routine check-in regarding recent visit.',
+          notes: item.remarks || item.notes || 'Routine check-in regarding recent visit.',
           contactPerson: item.doctor?.specialization || item.doctor?.hospitalName || item.chemist?.address || 'Clinic',
         };
       });
@@ -202,6 +229,8 @@ const FollowUpRemindersScreen = () => {
       return w[b.priority] - w[a.priority];
     }
     if (sortBy === 'Name') return a.name.localeCompare(b.name);
+    // Default: Date sort — overdue first (negative diffDays = earliest date),
+    // then today (date == today), then future soonest first
     return new Date(a.date).getTime() - new Date(b.date).getTime();
   });
 

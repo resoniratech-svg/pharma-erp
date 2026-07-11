@@ -10,3 +10,25 @@ export const getHospitals = async () => {
   });
   return response.data;
 };
+
+export const createHospital = async (
+  name: string,
+  mobile: string,
+  address: string
+) => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.post(
+    '/hospitals',
+    {
+      name,
+      mobile,
+      address,
+    },
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+  return response.data.data || response.data;
+};

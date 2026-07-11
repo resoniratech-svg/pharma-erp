@@ -125,6 +125,8 @@ const ProfileScreen = () => {
   // Stats & Performance
   const [docCount, setDocCount] = useState(0);
   const [chemistCount, setChemistCount] = useState(0);
+  const [monthlyDocCount, setMonthlyDocCount] = useState(0);
+  const [monthlyChemistCount, setMonthlyChemistCount] = useState(0);
   const [totalOrdersCount, setTotalOrdersCount] = useState(0);
   const [salesProgress, setSalesProgress] = useState(0);
   const [doctorProgress, setDoctorProgress] = useState(0);
@@ -200,35 +202,128 @@ const ProfileScreen = () => {
 
       // ── 5. Dashboard Analytics API (Primary for performance) ──
       let performanceLoadedFromAPI = false;
+      let apiDocVisits: any[] = [];
+      let apiChemVisits: any[] = [];
+      let serverOrders: any[] = [];
+      let stats: any = null;
+
       try {
-        const stats = await getMrDashboardAnalytics();
-        if (stats) {
-          const apiDocCount = stats.todayDoctorVisits?.completed || 0;
-          const apiChemCount = stats.todayChemistVisits?.completed || 0;
-          const apiSalesAmt = stats.monthlyProgress?.sales?.amount || 0;
-          setDocCount(apiDocCount);
-          setChemistCount(apiChemCount);
-          setTotalRevenue(apiSalesAmt);
-          setDoctorProgress(stats.monthlyProgress?.docs?.percent || 0);
-          setChemistProgress(stats.monthlyProgress?.chemists?.percent || 0);
-          setSalesProgress(stats.monthlyProgress?.sales?.percent || 0);
-          performanceLoadedFromAPI = true;
-        }
+        const results = await Promise.allSettled([
+          getMrDashboardAnalytics(),
+          getDoctorVisitsByMr(),
+          getChemistVisitsByMr(),
+          getRetailerOrders()
+        ]);
+
+        if (results[0].status === 'fulfilled') stats = results[0].value;
+        if (results[1].status === 'fulfilled') apiDocVisits = Array.isArray(results[1].value) ? results[1].value : [];
+        if (results[2].status === 'fulfilled') apiChemVisits = Array.isArray(results[2].value) ? results[2].value : [];
+        if (results[3].status === 'fulfilled') serverOrders = Array.isArray(results[3].value) ? results[3].value : [];
       } catch (e) {
-        console.log('Dashboard API failed, falling back to individual APIs:', e);
+        console.log('Profile parallel load failed:', e);
       }
 
-      // ── 6. Doctor Visits via API (fallback if dashboard API failed) ──
+      if (stats) {
+        // Today's counts
+        const apiDocCount = stats.todayDoctorVisits?.completed || 0;
+        const apiChemCount = stats.todayChemistVisits?.completed || 0;
+        setDocCount(apiDocCount);
+        setChemistCount(apiChemCount);
+
+        const targetData = {
+          sales: stats.monthlyProgress?.sales?.target || 50000,
+          doctors: stats.monthlyProgress?.docs?.target || 30,
+          chemists: stats.monthlyProgress?.chemists?.target || 20,
+        };
+        setTargets(targetData);
+
+        // Monthly counts
+        let monthlyDocsDone = stats.monthlyProgress?.docs?.actual
+                           ?? stats.monthlyProgress?.docs?.completed
+                           ?? stats.monthlyProgress?.docs?.count
+                           ?? 0;
+        let monthlyChemistsDone = stats.monthlyProgress?.chemists?.actual
+                               ?? stats.monthlyProgress?.chemists?.completed
+                               ?? stats.monthlyProgress?.chemists?.count
+                               ?? 0;
+        let monthlySalesDone = stats.monthlyProgress?.sales?.actual
+                            ?? stats.monthlyProgress?.sales?.achieved
+                            ?? stats.monthlyProgress?.sales?.amount
+                            ?? stats.todayOrders?.amount
+                            ?? 0;
+
+        // ✅ Dynamic Fallback: Calculate monthly counts if backend returns 0
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); // 0-indexed
+
+        if (monthlyDocsDone === 0 && apiDocVisits.length > 0) {
+          const currentMonthDocVisits = apiDocVisits.filter((v: any) => {
+            const dateStr = v.visitDate || v.createdAt;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return !isNaN(d.getTime()) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+          });
+          monthlyDocsDone = currentMonthDocVisits.length;
+        }
+
+        if (monthlyChemistsDone === 0 && apiChemVisits.length > 0) {
+          const currentMonthChemVisits = apiChemVisits.filter((c: any) => {
+            const dateStr = c.visitDate || c.createdAt;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return !isNaN(d.getTime()) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+          });
+          monthlyChemistsDone = currentMonthChemVisits.length;
+        }
+
+        if (monthlySalesDone === 0 && serverOrders.length > 0) {
+          const currentMonthOrders = serverOrders.filter((o: any) => {
+            const dateStr = o.orderDate || o.createdAt || o.date;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return !isNaN(d.getTime()) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+          });
+          monthlySalesDone = currentMonthOrders.reduce((sum: number, o: any) => sum + (parseFloat(o.totalAmount || o.amount) || 0), 0);
+        }
+
+        setMonthlyDocCount(monthlyDocsDone);
+        setMonthlyChemistCount(monthlyChemistsDone);
+        setTotalRevenue(monthlySalesDone);
+
+        setDoctorProgress(
+          targetData.doctors > 0
+            ? Math.min(Math.round((monthlyDocsDone / targetData.doctors) * 100), 100)
+            : 0
+        );
+        setChemistProgress(
+          targetData.chemists > 0
+            ? Math.min(Math.round((monthlyChemistsDone / targetData.chemists) * 100), 100)
+            : 0
+        );
+        setSalesProgress(
+          targetData.sales > 0
+            ? Math.min(Math.round((monthlySalesDone / targetData.sales) * 100), 100)
+            : 0
+        );
+
+        setTotalOrdersCount(serverOrders.length + apiChemVisits.filter((c: any) => parseFloat(c.orderValue) > 0).length);
+        performanceLoadedFromAPI = true;
+      }
+
+      // ── 6. Fallback if dashboard API failed ──
       if (!performanceLoadedFromAPI) {
         try {
           const docVisits = await getDoctorVisitsByMr();
           const docList = Array.isArray(docVisits) ? docVisits : [];
           setDocCount(docList.length);
+          setMonthlyDocCount(docList.length);
           setDoctorProgress(Math.min(Math.round((docList.length / targetData.doctors) * 100), 100));
         } catch (e) {
           console.log('Doctor visits API failed:', e);
           const docVisitsData = safeJsonParse(await AsyncStorage.getItem('@doctor_visits'), []);
           setDocCount(docVisitsData.length);
+          setMonthlyDocCount(docVisitsData.length);
           setDoctorProgress(Math.min(Math.round((docVisitsData.length / targetData.doctors) * 100), 100));
         }
 
@@ -237,6 +332,7 @@ const ProfileScreen = () => {
           const chemVisits = await getChemistVisitsByMr();
           const chemList = Array.isArray(chemVisits) ? chemVisits : [];
           setChemistCount(chemList.length);
+          setMonthlyChemistCount(chemList.length);
           const chemRevenue = chemList.reduce((s: number, c: any) => s + (parseFloat(c.orderValue || c.pobAmount) || 0), 0);
           setChemistProgress(Math.min(Math.round((chemList.length / targetData.chemists) * 100), 100));
 
@@ -251,6 +347,7 @@ const ProfileScreen = () => {
           console.log('Chemist visits API failed:', e);
           const chemData = safeJsonParse(await AsyncStorage.getItem('@chemist_visits'), []);
           setChemistCount(chemData.length);
+          setMonthlyChemistCount(chemData.length);
           setChemistProgress(Math.min(Math.round((chemData.length / targetData.chemists) * 100), 100));
         }
       }
@@ -451,18 +548,86 @@ const ProfileScreen = () => {
         setTargets(targetData);
         setDocCount(stats.todayDoctorVisits?.completed || 0);
         setChemistCount(stats.todayChemistVisits?.completed || 0);
-        setTotalRevenue(stats.monthlyProgress?.sales?.amount || 0);
-        setDoctorProgress(stats.monthlyProgress?.docs?.percent || 0);
-        setChemistProgress(stats.monthlyProgress?.chemists?.percent || 0);
-        setSalesProgress(stats.monthlyProgress?.sales?.percent || 0);
-      } else if (docResult.status === 'fulfilled') {
-        // Fallback: compute from individual APIs
-        const docList = Array.isArray(docResult.value) ? docResult.value : [];
-        setDocCount(docList.length);
-        if (chemResult.status === 'fulfilled') {
-          const chemList = Array.isArray(chemResult.value) ? chemResult.value : [];
-          setChemistCount(chemList.length);
+
+        let monthlyDocsDone = stats.monthlyProgress?.docs?.actual
+                           ?? stats.monthlyProgress?.docs?.completed
+                           ?? stats.monthlyProgress?.docs?.count
+                           ?? 0;
+        let monthlyChemistsDone = stats.monthlyProgress?.chemists?.actual
+                               ?? stats.monthlyProgress?.chemists?.completed
+                               ?? stats.monthlyProgress?.chemists?.count
+                               ?? 0;
+        let monthlySalesDone = stats.monthlyProgress?.sales?.actual
+                            ?? stats.monthlyProgress?.sales?.achieved
+                            ?? stats.monthlyProgress?.sales?.amount
+                            ?? stats.todayOrders?.amount
+                            ?? 0;
+
+        const apiDocVisits = docResult.status === 'fulfilled' && Array.isArray(docResult.value) ? docResult.value : [];
+        const apiChemVisits = chemResult.status === 'fulfilled' && Array.isArray(chemResult.value) ? chemResult.value : [];
+
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); // 0-indexed
+
+        if (monthlyDocsDone === 0 && apiDocVisits.length > 0) {
+          const currentMonthDocVisits = apiDocVisits.filter((v: any) => {
+            const dateStr = v.visitDate || v.createdAt;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return !isNaN(d.getTime()) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+          });
+          monthlyDocsDone = currentMonthDocVisits.length;
         }
+
+        if (monthlyChemistsDone === 0 && apiChemVisits.length > 0) {
+          const currentMonthChemVisits = apiChemVisits.filter((c: any) => {
+            const dateStr = c.visitDate || c.createdAt;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return !isNaN(d.getTime()) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+          });
+          monthlyChemistsDone = currentMonthChemVisits.length;
+        }
+
+        setMonthlyDocCount(monthlyDocsDone);
+        setMonthlyChemistCount(monthlyChemistsDone);
+        setTotalRevenue(monthlySalesDone);
+
+        setDoctorProgress(
+          targetData.doctors > 0
+            ? Math.min(Math.round((monthlyDocsDone / targetData.doctors) * 100), 100)
+            : 0
+        );
+        setChemistProgress(
+          targetData.chemists > 0
+            ? Math.min(Math.round((monthlyChemistsDone / targetData.chemists) * 100), 100)
+            : 0
+        );
+        setSalesProgress(
+          targetData.sales > 0
+            ? Math.min(Math.round((monthlySalesDone / targetData.sales) * 100), 100)
+            : 0
+        );
+      } else {
+        // Fallback: compute from individual APIs
+        const docList = docResult.status === 'fulfilled' && Array.isArray(docResult.value) ? docResult.value : [];
+        const chemList = chemResult.status === 'fulfilled' && Array.isArray(chemResult.value) ? chemResult.value : [];
+        setDocCount(docList.length);
+        setMonthlyDocCount(docList.length);
+        setChemistCount(chemList.length);
+        setMonthlyChemistCount(chemList.length);
+
+        setDoctorProgress(
+          targets.doctors > 0
+            ? Math.min(Math.round((docList.length / targets.doctors) * 100), 100)
+            : 0
+        );
+        setChemistProgress(
+          targets.chemists > 0
+            ? Math.min(Math.round((chemList.length / targets.chemists) * 100), 100)
+            : 0
+        );
       }
 
       // ── Attendance ──
@@ -652,14 +817,14 @@ const ProfileScreen = () => {
         <ProgressCard
           label="👨‍⚕️ Doctor Visits"
           target={targets.doctors.toString()}
-          achieved={`${docCount} visits`}
+          achieved={`${monthlyDocCount} visits`}
           percent={`${doctorProgress}%`}
           color="#43A047"
         />
         <ProgressCard
           label="💊 Chemist Visits"
           target={targets.chemists.toString()}
-          achieved={`${chemistCount} visits`}
+          achieved={`${monthlyChemistCount} visits`}
           percent={`${chemistProgress}%`}
           color="#FB8C00"
         />

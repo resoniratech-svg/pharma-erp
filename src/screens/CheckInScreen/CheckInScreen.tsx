@@ -21,8 +21,27 @@ const CheckInScreen = () => {
   const [fetchingLocation, setFetchingLocation] = useState(false);
 
   useEffect(() => {
+    checkAlreadyCheckedIn();
     fetchCurrentLocation();
   }, []);
+
+  const checkAlreadyCheckedIn = async () => {
+    try {
+      const isCheckedIn = await AsyncStorage.getItem('@checked_in');
+      if (isCheckedIn === 'true') {
+        if (Platform.OS === 'web') {
+          window.alert('Already Checked In\n\nYou are already checked in for today.');
+          navigation.goBack();
+        } else {
+          Alert.alert('Already Checked In', 'You are already checked in for today.', [
+            { text: 'OK', onPress: () => navigation.goBack() }
+          ]);
+        }
+      }
+    } catch (e) {
+      console.log('Error checking check-in status:', e);
+    }
+  };
 
   const fetchCurrentLocation = async () => {
     setAddress('Fetching current position...');
@@ -151,15 +170,12 @@ const CheckInScreen = () => {
 
       const mrId = await AsyncStorage.getItem('@mrId');
 
-if (!mrId) {
-  Alert.alert('Error', 'MR ID not found');
-  return;
-}
+      if (!mrId) {
+        Alert.alert('Error', 'MR ID not found');
+        return;
+      }
 
-const token = await AsyncStorage.getItem('@token');
-
-console.log('MR ID:', mrId);
-console.log('TOKEN:', token);
+      console.log('MR ID:', mrId);
 
       const attendanceResponse =
         await checkInAttendance(
@@ -173,7 +189,7 @@ console.log('TOKEN:', token);
         attendanceResponse
       );
 
-      let resolvedId = 'temp-id';
+      let resolvedId = null;
       if (attendanceResponse) {
         if (attendanceResponse.data && attendanceResponse.data.id) {
           resolvedId = attendanceResponse.data.id.toString();
@@ -181,9 +197,17 @@ console.log('TOKEN:', token);
           resolvedId = attendanceResponse.id.toString();
         } else if (attendanceResponse.data && typeof attendanceResponse.data === 'object' && attendanceResponse.data.data && attendanceResponse.data.data.id) {
           resolvedId = attendanceResponse.data.data.id.toString();
-        } else {
-          resolvedId = Date.now().toString();
         }
+      }
+
+      // DO NOT fallback to mock IDs (like temp-id or Date.now()) if backend fails to return a valid ID
+      if (!resolvedId) {
+        if (Platform.OS === 'web') {
+          window.alert('Error\n\nAttendance record could not be created. Please try again.');
+        } else {
+          Alert.alert('Error', 'Attendance record could not be created. Please try again.');
+        }
+        return;
       }
 
       await AsyncStorage.setItem(
@@ -195,7 +219,9 @@ console.log('TOKEN:', token);
         resolvedId
       );
 
+      const todayDateStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
       await AsyncStorage.setItem('@checked_in', 'true');
+      await AsyncStorage.setItem('@check_in_date', todayDateStr);
       await AsyncStorage.setItem('@check_in_time', time);
       await AsyncStorage.setItem('@check_in_lat', latVal.toString());
       await AsyncStorage.setItem('@check_in_lng', lngVal.toString());

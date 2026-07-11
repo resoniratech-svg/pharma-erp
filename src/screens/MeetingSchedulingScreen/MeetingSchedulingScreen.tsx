@@ -13,19 +13,23 @@ import {
   TouchableOpacity,
   View,
   Linking,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker'; // Imported cross-platform Picker
+import { Ionicons } from '@expo/vector-icons';
 
 // Added service endpoint imports at the top
 import {
   createMeeting,
   getMeetingsByMr,
+  completeMeeting,
+  cancelMeeting,
 } from '../../services/meetingService';
 import { getDoctors } from '../../services/doctorService';
 import { getChemists } from '../../services/chemistService';
 import { getHospitals } from '../../services/hospitalService';
 import { getStockists } from '../../services/stockistService';
-import { completeMeeting, cancelMeeting } from '../../services/meetingService';
 
 interface Meeting {
   id: number;
@@ -53,16 +57,6 @@ interface Meeting {
   meetingLink?: string;
 }
 
-const safeJsonParse = (data: string | null, fallback: any) => {
-  if (!data) return fallback;
-  try {
-    return JSON.parse(data);
-  } catch (err) {
-    console.error('safeJsonParse error in MeetingSchedulerScreen:', err);
-    return fallback;
-  }
-};
-
 const MeetingSchedulerScreen = () => {
   const navigation = useNavigation<any>();
   const [topic, setTopic] = useState('');
@@ -77,6 +71,10 @@ const MeetingSchedulerScreen = () => {
   const [followUpDate, setFollowUpDate] = useState('');
   const [agenda, setAgenda] = useState('');
   const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [updatingStatusId, setUpdatingStatusId] = useState<number | null>(null);
 
   // Inserted background entity dropdown track data states below meetings hook
   const [selectedDoctorId, setSelectedDoctorId] = useState<number | null>(null);
@@ -108,7 +106,7 @@ const MeetingSchedulerScreen = () => {
 
   // Connected mounting callback to trigger backend fetching loops
   useEffect(() => {
-    loadBackendData();
+    loadBackendData(true);
     const fetchUserName = async () => {
       const storedName = await AsyncStorage.getItem('@user_name');
       if (storedName) setOrganizer(storedName);
@@ -132,32 +130,52 @@ const MeetingSchedulerScreen = () => {
     return Array.isArray(fallback) ? fallback : [];
   };
 
-  const loadBackendData = async () => {
+  const loadBackendData = async (isInitial = false) => {
+    if (isInitial) {
+      setLoading(true);
+    }
     try {
-      const doctorsResponse = await getDoctors();
-      setDoctors(resolveArrayResponse(doctorsResponse, 'doctors'));
+      const results = await Promise.allSettled([
+        getDoctors(),
+        getChemists(),
+        getHospitals(),
+        getStockists(),
+        getMeetingsByMr(),
+      ]);
 
-      const chemistsResponse = await getChemists();
-      setChemists(resolveArrayResponse(chemistsResponse, 'chemists'));
+      if (results[0].status === 'fulfilled') {
+        setDoctors(resolveArrayResponse(results[0].value, 'doctors'));
+      }
+      if (results[1].status === 'fulfilled') {
+        setChemists(resolveArrayResponse(results[1].value, 'chemists'));
+      }
+      if (results[2].status === 'fulfilled') {
+        setHospitals(resolveArrayResponse(results[2].value, 'hospitals'));
+      }
+      if (results[3].status === 'fulfilled') {
+        setStockists(resolveArrayResponse(results[3].value, 'stockists'));
+      }
 
-      try {
-        const hospRes = await getHospitals();
-        setHospitals(resolveArrayResponse(hospRes, 'hospitals'));
-      } catch(e) { console.log('hospitals load err', e); }
-
-      try {
-        const stockRes = await getStockists();
-        setStockists(resolveArrayResponse(stockRes, 'stockists'));
-      } catch(e) { console.log('stockists load err', e); }
-
-      const meetingsData = await getMeetingsByMr();
-      console.log('MEETINGS DATA:', JSON.stringify(meetingsData, null, 2));
-      console.log('Meetings:', meetingsData);
-      
-      const resolvedMeetings = meetingsData.data || meetingsData || [];
-      setMeetings(Array.isArray(resolvedMeetings) ? resolvedMeetings : []);
-    } catch (error) {
-      console.log('Meeting Load Error:', error);
+      if (results[4].status === 'fulfilled') {
+        const meetingsData = results[4].value;
+        const resolvedMeetings = meetingsData.data || meetingsData || [];
+        const sortedMeetings = Array.isArray(resolvedMeetings)
+          ? [...resolvedMeetings].sort((a: any, b: any) => {
+              const dateA = new Date(a.meetingDate || a.date || 0).getTime();
+              const dateB = new Date(b.meetingDate || b.date || 0).getTime();
+              return dateB - dateA;
+            })
+          : [];
+        setMeetings(sortedMeetings);
+      } else {
+        customAlert('Error', 'Unable to load meetings from server.');
+      }
+    } catch (error: any) {
+      customAlert('Error', 'An unexpected error occurred while loading data.');
+    } finally {
+      if (isInitial) {
+        setLoading(false);
+      }
     }
   };
 
@@ -172,10 +190,6 @@ const MeetingSchedulerScreen = () => {
     return dateStr;
   };
 
-  const calculateAttendees = (list: string): number => {
-    if (!list.trim()) return 0;
-    return list.split(',').map((p) => p.trim()).filter((p) => p.length > 0).length;
-  };
 
   const formatTime12to24 = (time12: string) => {
     const match = time12.match(/^(\d{2}):(\d{2})\s*(AM|PM)$/i);
@@ -204,110 +218,113 @@ const MeetingSchedulerScreen = () => {
   };
 
   const handleSubmit = async () => {
-    if (!topic.trim()) {
-      customAlert('Error', 'Please enter a meeting topic.');
-      return;
-    }
-    if ((meetingMode === 'Physical' || meetingMode === 'Hybrid') && !venue.trim()) {
-      customAlert('Error', 'Please enter a meeting venue.');
-      return;
-    }
-    if (meetingMode === 'Online' || meetingMode === 'Hybrid') {
-      if (!meetingLink.trim()) {
-        customAlert('Error', 'Please enter a meeting link.');
-        return;
-      }
-      const trimmedLink = meetingLink.trim().toLowerCase();
-      const linkRegex = /^(https?:\/\/)?([\w\-]+\.)+[\w\-]+(\/[\w\-./?%&=]*)?$/;
-      const isDomainMatch = trimmedLink.includes('meet.google.com') ||
-                            trimmedLink.includes('zoom.us') ||
-                            trimmedLink.includes('teams.microsoft.com') ||
-                            trimmedLink.includes('teams.live.com') ||
-                            trimmedLink.includes('webex.com');
-      
-      if (!linkRegex.test(trimmedLink) && !isDomainMatch) {
-        customAlert('Error', 'Please enter a valid HTTP/HTTPS online meeting URL (e.g. Google Meet, Zoom, Teams, Webex).');
-        return;
-      }
-    }
-    if (!organizer.trim()) {
-      customAlert('Error', 'Please enter an organizer.');
-      return;
-    }
-
-    if (followUpDate && followUpDate < meetingDate) {
-      customAlert(
-        'Invalid Follow-Up Date',
-        'Follow-up date cannot be earlier than meeting date.'
-      );
-      return;
-    }
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    if (meetingDate < todayStr) {
-      customAlert('Scheduling Blocked', 'Cannot schedule a meeting on a past date.');
-      return;
-    }
-
-    if (meetingDate === todayStr) {
-      const now = new Date();
-      const currentHours = now.getHours();
-      const currentMinutes = now.getMinutes();
-      const currentTimeStr = `${currentHours.toString().padStart(2, '0')}:${currentMinutes.toString().padStart(2, '0')}`;
-      const selectedTime24 = formatTime12to24(meetingTime);
-
-      if (selectedTime24 < currentTimeStr) {
-        customAlert('Scheduling Blocked', 'Cannot schedule a meeting at a past time today.');
-        return;
-      }
-    }
-
-    const timeToMinutes = (time12: string): number => {
-      const time24 = formatTime12to24(time12);
-      const [hh, mm] = time24.split(':').map(Number);
-      return hh * 60 + mm;
-    };
-
-    const currentMeetingStart = timeToMinutes(meetingTime);
-    const currentMeetingEnd = currentMeetingStart + 30; // 30-minute assumed meeting length
-
-    const isConflict = meetings.some((m) => {
-      const mDate = m.meetingDate ? m.meetingDate.split('T')[0] : m.date;
-      if (mDate !== meetingDate || m.status === 'Cancelled') return false;
-
-      const mStart = timeToMinutes(m.time);
-      const mEnd = mStart + 30;
-
-      // Overlap logic: startA < endB && startB < endA
-      return currentMeetingStart < mEnd && mStart < currentMeetingEnd;
-    });
-    if (isConflict) {
-      customAlert(
-        'Scheduling Conflict',
-        `You already have another active meeting scheduled within this 30-minute window on ${formatDateDisplay(meetingDate)}.`
-      );
-      return;
-    }
-
-    // Dynamic validations based on Meeting Type
-    if ((meetingType === 'Doctor Group Meeting' || meetingType === 'Clinical Presentation') && !selectedDoctorId) {
-      customAlert('Error', 'Please select a Doctor.');
-      return;
-    }
-    if (meetingType === 'Chemist Meeting' && !selectedChemistId) {
-      customAlert('Error', 'Please select a Chemist.');
-      return;
-    }
-    if (meetingType === 'Hospital Meeting' && !selectedHospitalId) {
-      customAlert('Error', 'Please select a Hospital.');
-      return;
-    }
-    if (meetingType === 'Stockist Review' && !selectedStockistId) {
-      customAlert('Error', 'Please select a Stockist.');
-      return;
-    }
-
+    if (submitting) return;
+    setSubmitting(true);
     try {
+      if (!topic.trim()) {
+        customAlert('Error', 'Please enter a meeting topic.');
+        return;
+      }
+      if ((meetingMode === 'Physical' || meetingMode === 'Hybrid') && !venue.trim()) {
+        customAlert('Error', 'Please enter a meeting venue.');
+        return;
+      }
+      if (meetingMode === 'Online' || meetingMode === 'Hybrid') {
+        if (!meetingLink.trim()) {
+          customAlert('Error', 'Please enter a meeting link.');
+          return;
+        }
+        const trimmedLink = meetingLink.trim();
+        let isValidUrl = false;
+        try {
+          const parsedUrl = new URL(trimmedLink.startsWith('http') ? trimmedLink : `https://${trimmedLink}`);
+          isValidUrl = parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+        } catch (e) {
+          isValidUrl = false;
+        }
+
+        if (!isValidUrl) {
+          customAlert('Error', 'Please enter a valid online meeting URL (e.g. Google Meet, Zoom, Teams, Webex).');
+          return;
+        }
+      }
+      if (!organizer.trim()) {
+        customAlert('Error', 'Please enter an organizer.');
+        return;
+      }
+
+      if (followUpDate && followUpDate < meetingDate) {
+        customAlert(
+          'Invalid Follow-Up Date',
+          'Follow-up date cannot be earlier than meeting date.'
+        );
+        return;
+      }
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      if (meetingDate < todayStr) {
+        customAlert('Scheduling Blocked', 'Cannot schedule a meeting on a past date.');
+        return;
+      }
+
+      if (meetingDate === todayStr) {
+        const now = new Date();
+        const currentHours = now.getHours();
+        const currentMinutes = now.getMinutes();
+        const currentTimeStr = `${currentHours.toString().padStart(2, '0')}:${currentMinutes.toString().padStart(2, '0')}`;
+        const selectedTime24 = formatTime12to24(meetingTime);
+
+        if (selectedTime24 < currentTimeStr) {
+          customAlert('Scheduling Blocked', 'Cannot schedule a meeting at a past time today.');
+          return;
+        }
+      }
+
+      const timeToMinutes = (time12: string): number => {
+        const time24 = formatTime12to24(time12);
+        const [hh, mm] = time24.split(':').map(Number);
+        return hh * 60 + mm;
+      };
+
+      const currentMeetingStart = timeToMinutes(meetingTime);
+      const currentMeetingEnd = currentMeetingStart + 30; // 30-minute assumed meeting length
+
+      const isConflict = meetings.some((m) => {
+        const mDate = m.meetingDate ? m.meetingDate.split('T')[0] : m.date;
+        if (mDate !== meetingDate || m.status === 'Cancelled') return false;
+
+        const mStart = timeToMinutes(m.time);
+        const mEnd = mStart + 30;
+
+        // Overlap logic: startA < endB && startB < endA
+        return currentMeetingStart < mEnd && mStart < currentMeetingEnd;
+      });
+      if (isConflict) {
+        customAlert(
+          'Scheduling Conflict',
+          `You already have another active meeting scheduled within this 30-minute window on ${formatDateDisplay(meetingDate)}.`
+        );
+        return;
+      }
+
+      // Dynamic validations based on Meeting Type
+      if ((meetingType === 'Doctor Group Meeting' || meetingType === 'Clinical Presentation') && !selectedDoctorId) {
+        customAlert('Error', 'Please select a Doctor.');
+        return;
+      }
+      if (meetingType === 'Chemist Meeting' && !selectedChemistId) {
+        customAlert('Error', 'Please select a Chemist.');
+        return;
+      }
+      if (meetingType === 'Hospital Meeting' && !selectedHospitalId) {
+        customAlert('Error', 'Please select a Hospital.');
+        return;
+      }
+      if (meetingType === 'Stockist Review' && !selectedStockistId) {
+        customAlert('Error', 'Please select a Stockist.');
+        return;
+      }
+
       const mrId = await AsyncStorage.getItem('@mrId');
 
       const payload = {
@@ -331,8 +348,6 @@ const MeetingSchedulerScreen = () => {
         organizer: organizer,
       };
 
-      console.log('MEETING PAYLOAD', payload);
-
       await createMeeting(payload);
 
       // Save meeting reminder notification if a reminder is selected
@@ -350,7 +365,7 @@ const MeetingSchedulerScreen = () => {
           });
           await AsyncStorage.setItem('@notifications', JSON.stringify(notifsList.slice(0, 50)));
         } catch (e) {
-          console.log('Failed to save meeting reminder notification:', e);
+          // Silent notification save catch
         }
       }
 
@@ -367,34 +382,61 @@ const MeetingSchedulerScreen = () => {
       setSelectedHospitalId(null);
       setSelectedStockistId(null);
 
-      loadBackendData();
+      loadBackendData(false);
     } catch (error: any) {
-      console.log(
-        'Meeting Create Error:',
-        error?.response?.data || error
-      );
-
-      customAlert(
-        'Error',
-        JSON.stringify(
-          error?.response?.data || error
-        )
-      );
+      const serverMsg = error?.response?.data?.message || error?.message || 'Unknown network error';
+      customAlert('Error', `Failed to schedule meeting: ${serverMsg}`);
+    } finally {
+      setSubmitting(false);
     }
   };
 
+  const getMeetingStatus = (meet: Meeting): 'Completed' | 'Cancelled' | 'Expired' | "Today's Meeting" | 'Scheduled' => {
+    if (meet.status === 'Completed') return 'Completed';
+    if (meet.status === 'Cancelled') return 'Cancelled';
+
+    const meetDateVal = meet.meetingDate ? new Date(meet.meetingDate) : null;
+    if (!meetDateVal || isNaN(meetDateVal.getTime())) {
+      return meet.status || 'Scheduled';
+    }
+
+    const now = new Date();
+    
+    // Check if date and time have already passed
+    if (meetDateVal.getTime() < now.getTime()) {
+      return 'Expired';
+    }
+
+    // Check if it's today (using local date strings to be time-zone safe)
+    const todayStr = now.toLocaleDateString();
+    const meetDateStr = meetDateVal.toLocaleDateString();
+    if (meetDateStr === todayStr) {
+      return "Today's Meeting";
+    }
+
+    return 'Scheduled';
+  };
+
   const handleUpdateStatus = async (id: number, newStatus: 'Completed' | 'Cancelled') => {
+    const meetObj = meetings.find(m => m.id === id);
+    if (meetObj) {
+      const currentStatus = getMeetingStatus(meetObj);
+      if (currentStatus === 'Completed' || currentStatus === 'Cancelled' || currentStatus === 'Expired') {
+        customAlert('Action Blocked', `Cannot update status because the meeting is already ${currentStatus}.`);
+        return;
+      }
+    }
+
+    setUpdatingStatusId(id);
     try {
       if (newStatus === 'Completed') {
         await completeMeeting(id);
       } else {
         await cancelMeeting(id);
       }
-      loadBackendData();
+      await loadBackendData(false);
       customAlert('Status Updated', `Meeting status marked as ${newStatus} on the server.`);
-    } catch (e) {
-      console.log('Failed to sync status update with server:', e);
-      // Fallback local update
+    } catch (e: any) {
       const updated = meetings.map((m) => {
         if (m.id === id) {
           return { ...m, status: newStatus };
@@ -402,7 +444,9 @@ const MeetingSchedulerScreen = () => {
         return m;
       });
       setMeetings(updated);
-      customAlert('Status Updated Locally', `Updated locally, failed to sync with server.`);
+      customAlert('Status Updated Locally', `Updated locally: ${e?.message || 'Sync failed'}`);
+    } finally {
+      setUpdatingStatusId(null);
     }
   };
 
@@ -412,6 +456,10 @@ const MeetingSchedulerScreen = () => {
         return { bg: '#D1FAE5', text: '#059669' };
       case 'Cancelled':
         return { bg: '#FFE4E6', text: '#E11D48' };
+      case 'Expired':
+        return { bg: '#FEE2E2', text: '#EF4444' };
+      case "Today's Meeting":
+        return { bg: '#FEF3C7', text: '#D97706' };
       default:
         return { bg: '#DBEAFE', text: '#2563EB' };
     }
@@ -469,12 +517,28 @@ const MeetingSchedulerScreen = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>⬅️ Back</Text>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Dashboard');
+            }
+          }}
+        >
+          <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>📅 Meeting Scheduler</Text>
         <Text style={styles.headerSubtitle}>Set group meets, presentations & syncs</Text>
       </View>
+
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#4F46E5" />
+          <Text style={styles.loadingText}>Loading meetings...</Text>
+        </View>
+      )}
 
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
@@ -483,6 +547,18 @@ const MeetingSchedulerScreen = () => {
         <ScrollView 
           ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await loadBackendData(false);
+                setRefreshing(false);
+              }}
+              colors={['#4F46E5']}
+              tintColor="#4F46E5"
+            />
+          }
         >
         {/* Scheduler Form */}
         <View style={styles.formCard}>
@@ -761,8 +837,16 @@ const MeetingSchedulerScreen = () => {
         
           />
 
-          <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-            <Text style={styles.submitBtnText}>SCHEDULE MEETING</Text>
+          <TouchableOpacity 
+            style={[styles.submitBtn, submitting && { opacity: 0.7 }]} 
+            onPress={handleSubmit}
+            disabled={submitting}
+          >
+            {submitting ? (
+              <ActivityIndicator size="small" color="#FFFFFF" />
+            ) : (
+              <Text style={styles.submitBtnText}>SCHEDULE MEETING</Text>
+            )}
           </TouchableOpacity>
         </View>
 
@@ -771,8 +855,9 @@ const MeetingSchedulerScreen = () => {
           <>
             <Text style={styles.historyTitle}>Scheduled Meetings ({meetings.length})</Text>
             {meetings.map((meet) => {
-              const statusStyle = getStatusColor(meet.status);
-              const isScheduled = meet.status === 'Scheduled';
+              const currentStatus = getMeetingStatus(meet);
+              const statusStyle = getStatusColor(currentStatus);
+              const isScheduled = currentStatus === 'Scheduled' || currentStatus === "Today's Meeting";
 
               return (
                 <View key={meet.id} style={styles.meetCard}>
@@ -786,14 +871,14 @@ const MeetingSchedulerScreen = () => {
                           {meet.meetingType || 'General'}
                         </Text>
                         <Text style={styles.meetOutcomeBadge}>
-                          {meet.status || 'Scheduled'}
+                          {currentStatus}
                         </Text>
                       </View>
                     </View>
                     <View style={{ gap: 6, alignItems: 'flex-end' }}>
                       <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
                         <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
-                          {meet.status}
+                          {currentStatus}
                         </Text>
                       </View>
                     </View>
@@ -807,6 +892,19 @@ const MeetingSchedulerScreen = () => {
                       meet.meetingDate
                         ? formatDateDisplay(meet.meetingDate)
                         : 'N/A'
+                    }
+                  </Text>
+
+                  <Text style={styles.meetInfo}>
+                    🕒 Time: {
+                      meet.meetingDate
+                        ? (() => {
+                            const d = new Date(meet.meetingDate);
+                            return isNaN(d.getTime())
+                              ? (meet.time || 'N/A')
+                              : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                          })()
+                        : (meet.time || 'N/A')
                     }
                   </Text>
 
@@ -900,8 +998,8 @@ const MeetingSchedulerScreen = () => {
                   {meet.meetingLink ? (
                     <TouchableOpacity
                       onPress={() => {
-                        Linking.openURL(meet.meetingLink!).catch((err) =>
-                          console.error('Failed to open link:', err)
+                        Linking.openURL(meet.meetingLink!).catch(() =>
+                          customAlert('Error', 'Unable to open meeting link.')
                         );
                       }}
                       style={{
@@ -925,35 +1023,43 @@ const MeetingSchedulerScreen = () => {
 
                   {isScheduled && (
                     <View style={styles.cardActionsRow}>
-                      <TouchableOpacity
-                        style={[
-                          styles.cardActionBtn,
-                          styles.completeBtn
-                        ]}
-                        onPress={() =>
-                          handleUpdateStatus(
-                            meet.id,
-                            'Completed'
-                          )
-                        }
-                      >
-                        <Text style={styles.completeBtnText}>✔️ Complete</Text>
-                      </TouchableOpacity>
+                      {updatingStatusId === meet.id ? (
+                        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 }}>
+                          <ActivityIndicator size="small" color="#4F46E5" />
+                        </View>
+                      ) : (
+                        <>
+                          <TouchableOpacity
+                            style={[
+                              styles.cardActionBtn,
+                              styles.completeBtn
+                            ]}
+                            onPress={() =>
+                              handleUpdateStatus(
+                                meet.id,
+                                'Completed'
+                              )
+                            }
+                          >
+                            <Text style={styles.completeBtnText}>✔️ Complete</Text>
+                          </TouchableOpacity>
 
-                      <TouchableOpacity
-                        style={[
-                          styles.cardActionBtn,
-                          styles.cancelBtn
-                        ]}
-                        onPress={() =>
-                          handleUpdateStatus(
-                            meet.id,
-                            'Cancelled'
-                          )
-                        }
-                      >
-                        <Text style={styles.cancelBtnText}>❌ Cancel</Text>
-                      </TouchableOpacity>
+                          <TouchableOpacity
+                            style={[
+                              styles.cardActionBtn,
+                              styles.cancelBtn
+                            ]}
+                            onPress={() =>
+                              handleUpdateStatus(
+                                meet.id,
+                                'Cancelled'
+                              )
+                            }
+                          >
+                            <Text style={styles.cancelBtnText}>❌ Cancel</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
                     </View>
                   )}
                 </View>
@@ -977,7 +1083,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4F46E5',
-    paddingTop: 60,
+    paddingTop: 64,
     paddingBottom: 25,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 24,
@@ -986,18 +1092,13 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    left: 15,
-    top: 50,
+    left: 16,
+    top: 56,
     zIndex: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  backButtonText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 22,
@@ -1228,5 +1329,22 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#E11D48',
     fontWeight: 'bold',
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#4F46E5',
+    fontWeight: '600',
   },
 });

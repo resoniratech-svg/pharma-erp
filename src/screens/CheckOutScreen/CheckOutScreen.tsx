@@ -24,6 +24,14 @@ const safeJsonParse = (data: string | null, fallback: any) => {
   }
 };
 
+const formatDate = (dateObj: Date) => {
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const day = dateObj.getDate().toString().padStart(2, '0');
+  const month = months[dateObj.getMonth()];
+  const year = dateObj.getFullYear();
+  return `${day}-${month}-${year}`;
+};
+
 const CheckOutScreen = () => {
   const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(false);
@@ -94,9 +102,30 @@ const CheckOutScreen = () => {
       const orderData = await AsyncStorage.getItem('@orders');
       const orderList = safeJsonParse(orderData, []);
 
-      setCallsCount(docList.length + chemList.length);
+      const todayStrERP = formatDate(new Date()); // e.g. "10-Jul-2026"
+      const todayStrISO = new Date().toISOString().split('T')[0]; // "2026-07-10"
 
-      const orderSum = orderList.reduce((sum: number, item: any) => sum + (parseFloat(item.totalAmount) || 0), 0);
+      const todayDocs = docList.filter((v: any) => {
+        const vDate = v.visitDate || v.date;
+        return vDate === todayStrERP || vDate === todayStrISO;
+      });
+
+      const todayChems = chemList.filter((v: any) => {
+        const vDate = v.visitDate || v.date;
+        return vDate === todayStrERP || vDate === todayStrISO;
+      });
+
+      const todayOrders = orderList.filter((o: any) => {
+        const oDate = o.dateFormatted || o.date;
+        if (!oDate) return false;
+        // e.g. "10-Jul-2026 05:43 PM" -> splits to "10-Jul-2026"
+        const cleanDate = oDate.split(' ')[0];
+        return cleanDate === todayStrERP || cleanDate === todayStrISO;
+      });
+
+      setCallsCount(todayDocs.length + todayChems.length);
+
+      const orderSum = todayOrders.reduce((sum: number, item: any) => sum + (parseFloat(item.totalAmount) || 0), 0);
       setTotalSales(`₹ ${orderSum.toLocaleString()}`);
     } catch (e) {
       console.log('Error aggregating DCR metrics:', e);
@@ -256,9 +285,8 @@ const CheckOutScreen = () => {
 
       // Clear current check-in session variables
       await AsyncStorage.setItem('@checked_in', 'false');
-      await AsyncStorage.removeItem(
-  '@attendanceId'
-);
+      await AsyncStorage.removeItem('@attendanceId');
+      await AsyncStorage.removeItem('@check_in_date');
       await AsyncStorage.removeItem('@check_in_time');
       await AsyncStorage.removeItem('@check_in_lat');
       await AsyncStorage.removeItem('@check_in_lng');

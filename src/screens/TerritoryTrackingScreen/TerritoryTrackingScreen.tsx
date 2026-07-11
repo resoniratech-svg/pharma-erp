@@ -354,8 +354,17 @@ const TerritoryTrackingScreen = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Dashboard');
+            }
+          }}
+        >
+          <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Territory Beat List</Text>
         <Text style={styles.headerSubtitle}>View assigned operational areas & doctor coverage</Text>
@@ -613,18 +622,18 @@ const TerritoryTrackingScreen = () => {
                         {isExpanded && (
                           <View style={styles.expandedContent}>
                             <View style={styles.expandedSection}>
-                              <Text style={styles.expandedTitle}>≡ƒ⌐║ Assigned Doctors ({t.doctorsCount})</Text>
+                              <Text style={styles.expandedTitle}>🩺 Assigned Doctors ({t.doctorsCount})</Text>
                               {finalDoctors.map((doc, idx) => (
                                 <Text key={idx} style={[styles.expandedItem, doc.visited && { color: '#10B981', fontWeight: '600' }]}>
-                                  ΓÇó {doc.label}
+                                  • {doc.label}
                                 </Text>
                               ))}
                             </View>
                             <View style={styles.expandedSection}>
-                              <Text style={styles.expandedTitle}>≡ƒÆè Assigned Chemists ({t.chemistsCount})</Text>
+                              <Text style={styles.expandedTitle}>💊 Assigned Chemists ({t.chemistsCount})</Text>
                               {finalChemists.map((chem, idx) => (
                                 <Text key={idx} style={[styles.expandedItem, chem.visited && { color: '#10B981', fontWeight: '600' }]}>
-                                  ΓÇó {chem.label}
+                                  • {chem.label}
                                 </Text>
                               ))}
                             </View>
@@ -653,7 +662,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   header: {
     backgroundColor: '#4F46E5',
-    paddingTop: 60,
+    paddingTop: 64,
     paddingBottom: 25,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 24,
@@ -662,17 +671,15 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    left: 15,
-    top: 50,
+    left: 16,
+    top: 56,
     zIndex: 10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.15)',
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
+  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center' },
   headerSubtitle: { fontSize: 12, color: '#E0E7FF', textAlign: 'center', marginTop: 6 },
   searchContainer: { paddingHorizontal: 20, marginTop: -18, zIndex: 10 },
   searchInput: {

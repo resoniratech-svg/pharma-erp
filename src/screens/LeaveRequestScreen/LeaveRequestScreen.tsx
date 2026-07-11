@@ -1,7 +1,4 @@
-import {
-  createLeaveRequest,
-  getLeavesByMr
-} from '../../services/leaveService';import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,10 +9,18 @@ import {
   Alert,
   Platform,
   KeyboardAvoidingView,
+  ActivityIndicator,
+  RefreshControl,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
+import { Ionicons } from '@expo/vector-icons';
+import {
+  createLeaveRequest,
+  getLeavesByMr,
+  updateLeaveRequest,
+} from '../../services/leaveService';
 
 interface LeaveRequest {
   id: number;
@@ -30,16 +35,6 @@ interface LeaveRequest {
   totalDays?: number;
 }
 
-const safeJsonParse = (data: string | null, fallback: any) => {
-  if (!data) return fallback;
-  try {
-    return JSON.parse(data);
-  } catch (err) {
-    console.log('safeJsonParse error in LeaveRequestScreen:', err);
-    return fallback;
-  }
-};
-
 const LeaveRequestScreen = () => {
   const navigation = useNavigation<any>();
   const [leaveType, setLeaveType] = useState<'Casual Leave' | 'Sick Leave' | 'Earned Leave'>('Casual Leave');
@@ -48,6 +43,10 @@ const LeaveRequestScreen = () => {
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [reason, setReason] = useState('');
   const [history, setHistory] = useState<LeaveRequest[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [editingRequestId, setEditingRequestId] = useState<number | null>(null);
 
   const scrollViewRef = React.useRef<ScrollView>(null);
 
@@ -71,16 +70,35 @@ const LeaveRequestScreen = () => {
   };
 
   useEffect(() => {
-    loadLeaveData();
+    loadLeaveData(true);
+    if (Platform.OS === 'web') {
+      const style = document.createElement('style');
+      style.innerHTML = `
+        input[type="date"]::-webkit-calendar-picker-indicator {
+          opacity: 0;
+          cursor: pointer;
+          position: absolute;
+          right: 0;
+          top: 0;
+          bottom: 0;
+          left: 0;
+          width: 100% !important;
+          height: 100% !important;
+          background: transparent;
+        }
+      `;
+      document.head.appendChild(style);
+    }
   }, []);
 
-  const loadLeaveData = async () => {
+  const loadLeaveData = async (isInitial = false) => {
+    if (isInitial) {
+      setLoading(true);
+    }
     try {
       const history = await getLeavesByMr();
-
-      console.log('LEAVES FROM API =>', history);
-
       setHistory(history || []);
+      setEditingRequestId(null);
 
       // Calculate leave balances dynamically from the live leave request list
       let casualUsed = 0;
@@ -88,7 +106,8 @@ const LeaveRequestScreen = () => {
       let earnedUsed = 0;
 
       (history || []).forEach((req: any) => {
-        if (req.status === 'Approved' || req.status === 'Pending Approval') {
+        const statusUpper = (req.status || '').toUpperCase().trim();
+        if (statusUpper.includes('APPROVED') || statusUpper.includes('PENDING')) {
           const from = new Date(req.fromDate || req.startDate);
           const to = new Date(req.toDate || req.endDate);
           const diffTime = Math.abs(to.getTime() - from.getTime());
@@ -110,8 +129,12 @@ const LeaveRequestScreen = () => {
         sick: Math.max(0, 5 - sickUsed),
         earned: Math.max(0, 12 - earnedUsed),
       });
-    } catch (e) {
-      console.log('Failed to load leave data:', e);
+    } catch (e: any) {
+      customAlert('Error', 'Unable to load leave requests.');
+    } finally {
+      if (isInitial) {
+        setLoading(false);
+      }
     }
   };
 
@@ -137,12 +160,12 @@ const LeaveRequestScreen = () => {
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
       return isNaN(diffDays) || diffDays <= 0 ? 1 : diffDays;
     } catch (err) {
-      console.log('calculateDays error:', err);
       return 1;
     }
   };
 
   const handleSubmit = async () => {
+    if (submitting) return;
     if (!reason.trim()) {
       customAlert('Error', 'Please provide a reason for the leave.');
       return;
@@ -153,6 +176,37 @@ const LeaveRequestScreen = () => {
 
     if (!isHalfDay && new Date(currentStartDate) > new Date(currentEndDate)) {
       customAlert('Error', 'Start Date cannot be after End Date.');
+      return;
+    }
+
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (currentStartDate < todayStr) {
+      customAlert('Scheduling Blocked', 'Cannot submit a leave request with a past start date.');
+      return;
+    }
+
+    // Overlapping leave validation
+    const hasOverlap = history.some(req => {
+      // If we are editing, don't flag overlap against the current request itself
+      if (editingRequestId && req.id === editingRequestId) {
+        return false;
+      }
+      const statusUpper = (req.status || '').toUpperCase().trim();
+      if (statusUpper.includes('REJECTED') || statusUpper.includes('DENIED') || statusUpper.includes('CANCEL')) {
+        return false;
+      }
+
+      const reqStart = new Date(req.fromDate);
+      const reqEnd = new Date(req.toDate);
+      const checkStart = new Date(currentStartDate);
+      const checkEnd = new Date(currentEndDate);
+
+      // Overlap condition: startA <= endB && startB <= endA
+      return checkStart <= reqEnd && reqStart <= checkEnd;
+    });
+
+    if (hasOverlap) {
+      customAlert('Scheduling Blocked', 'You already have an active leave request overlapping with the selected date range.');
       return;
     }
 
@@ -167,95 +221,89 @@ const LeaveRequestScreen = () => {
       return;
     }
     
+    setSubmitting(true);
     try {
-      await createLeaveRequest(
-        leaveType,
-        currentStartDate,
-        currentEndDate,
-        reason
-      );
-      console.log('Leave Request Saved Successfully');
-    } catch (error) {
-      console.log('Leave Request API Error:', error);
-      customAlert('Error', 'Failed to submit leave request');
-      return;
-    }
-
-    const newRequest: LeaveRequest = {
-      id: Date.now(),
-      leaveType,
-      fromDate: currentStartDate,
-      toDate: currentEndDate,
-      isHalfDay,
-      reason,
-      status: 'Pending',
-      managerComment: 'Awaiting review from Area Manager',
-      appliedAt: new Date().toLocaleDateString(),
-      totalDays,
-    };
-
-    const updatedHistory = [newRequest, ...history];
-    setHistory(updatedHistory);
-
-    // Update & Save Leave Balances in AsyncStorage
-    const newBalances = { ...balances };
-    if (leaveType === 'Casual Leave') newBalances.casual -= totalDays;
-    else if (leaveType === 'Sick Leave') newBalances.sick -= totalDays;
-    else newBalances.earned -= totalDays;
-    
-    setBalances(newBalances);
-
-    try {
-      await AsyncStorage.setItem('@leave_requests', JSON.stringify(updatedHistory));
-      await AsyncStorage.setItem('@leave_balances', JSON.stringify(newBalances));
-      customAlert('Success', `Leave request for ${totalDays} day(s) submitted successfully.`);
+      if (editingRequestId) {
+        await updateLeaveRequest(
+          editingRequestId,
+          leaveType,
+          currentStartDate,
+          currentEndDate,
+          reason
+        );
+        customAlert('Success', `Leave request updated successfully.`);
+      } else {
+        await createLeaveRequest(
+          leaveType,
+          currentStartDate,
+          currentEndDate,
+          reason
+        );
+        customAlert('Success', `Leave request for ${totalDays} day(s) submitted successfully.`);
+      }
       setReason('');
-    } catch (e) {
-      customAlert('Error', 'Failed to save leave request.');
+      setEditingRequestId(null);
+      await loadLeaveData(false);
+    } catch (error: any) {
+      const errMsg = error?.response?.data?.message || error?.message || 'Server error';
+      customAlert('Error', `Failed to process leave request: ${errMsg}`);
+    } finally {
+      setSubmitting(false);
     }
   };
 
-const getStatusStyle = (status: string) => {
-
-  switch (status?.toUpperCase()) {
-
-    case 'APPROVED':
+  const getStatusStyle = (status: string) => {
+    const upperStatus = (status || '').toUpperCase().trim();
+    if (upperStatus.includes('APPROVED')) {
       return {
         bg: '#D1FAE5',
         text: '#059669',
       };
-
-    case 'REJECTED':
+    }
+    if (upperStatus.includes('REJECTED') || upperStatus.includes('DENIED') || upperStatus.includes('CANCELLED')) {
       return {
         bg: '#FFE4E6',
         text: '#E11D48',
       };
-
-    default:
-      return {
-        bg: '#FEF3C7',
-        text: '#D97706',
-      };
-  }
-};
+    }
+    return {
+      bg: '#FEF3C7',
+      text: '#D97706',
+    };
+  };
 
   const webInputStyle = {
     borderWidth: 1,
-    borderColor: '#E2E8F0',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    backgroundColor: '#F8FAFC',
+    borderColor: '#CBD5E1',
+    borderRadius: 10,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    fontSize: 15,
+    backgroundColor: '#FFFFFF',
+    color: '#1E293B',
     width: '100%',
+    height: 48,
     outlineStyle: 'none',
+    boxSizing: 'border-box',
+    cursor: 'pointer',
+    fontFamily: 'inherit',
   } as any;
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>⬅️ Back</Text>
+        <TouchableOpacity 
+          style={styles.backButton} 
+          onPress={() => {
+            if (navigation.canGoBack()) {
+              navigation.goBack();
+            } else {
+              navigation.navigate('Dashboard');
+            }
+          }}
+        >
+          <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>📝 Leave Request Screen</Text>
         <Text style={styles.headerSubtitle}>Submit leaves & review balances</Text>
@@ -277,6 +325,13 @@ const getStatusStyle = (status: string) => {
         </View>
       </View>
 
+      {loading && (
+        <View style={styles.loadingOverlay}>
+          <ActivityIndicator size="large" color="#4F46E5" />
+          <Text style={styles.loadingText}>Loading leave data...</Text>
+        </View>
+      )}
+
       <KeyboardAvoidingView 
         style={{ flex: 1 }} 
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
@@ -284,6 +339,18 @@ const getStatusStyle = (status: string) => {
         <ScrollView 
           ref={scrollViewRef}
           contentContainerStyle={styles.scrollContent}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={async () => {
+                setRefreshing(true);
+                await loadLeaveData(false);
+                setRefreshing(false);
+              }}
+              colors={['#4F46E5']}
+              tintColor="#4F46E5"
+            />
+          }
         >
           {/* Leave Form */}
           <View style={styles.formCard}>
@@ -328,12 +395,21 @@ const getStatusStyle = (status: string) => {
               <View style={{ flex: 1 }}>
                 <Text style={styles.sectionLabel}>Start Date *</Text>
                 {Platform.OS === 'web' ? (
-                  <input
-                    type="date"
-                    value={startDate}
-                    onChange={(e) => setStartDate(e.target.value)}
-                    style={webInputStyle}
-                  />
+                  <View style={{ position: 'relative', width: '100%' }}>
+                    <input
+                      type="date"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      style={webInputStyle}
+                    />
+                    <Ionicons 
+                      name="calendar-outline" 
+                      size={20} 
+                      color="#64748B" 
+                      style={{ position: 'absolute', right: 12, top: 14 }}
+                      pointerEvents="none"
+                    />
+                  </View>
                 ) : (
                   <TouchableOpacity
                     style={styles.nativeDateBtn}
@@ -359,12 +435,21 @@ const getStatusStyle = (status: string) => {
                 <View style={{ flex: 1 }}>
                   <Text style={styles.sectionLabel}>End Date *</Text>
                   {Platform.OS === 'web' ? (
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      style={webInputStyle}
-                    />
+                    <View style={{ position: 'relative', width: '100%' }}>
+                      <input
+                        type="date"
+                        value={endDate}
+                        onChange={(e) => setEndDate(e.target.value)}
+                        style={webInputStyle}
+                      />
+                      <Ionicons 
+                        name="calendar-outline" 
+                        size={20} 
+                        color="#64748B" 
+                        style={{ position: 'absolute', right: 12, top: 14 }}
+                        pointerEvents="none"
+                      />
+                    </View>
                   ) : (
                     <TouchableOpacity
                       style={styles.nativeDateBtn}
@@ -404,9 +489,46 @@ const getStatusStyle = (status: string) => {
               }}
             />
 
-            <TouchableOpacity style={styles.submitBtn} onPress={handleSubmit}>
-              <Text style={styles.submitBtnText}>SUBMIT LEAVE REQUEST</Text>
-            </TouchableOpacity>
+            {editingRequestId ? (
+              <View style={{ gap: 8 }}>
+                <TouchableOpacity 
+                  style={[styles.submitBtn, submitting && { opacity: 0.7 }]} 
+                  onPress={handleSubmit}
+                  disabled={submitting}
+                >
+                  {submitting ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <Text style={styles.submitBtnText}>UPDATE LEAVE REQUEST</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={styles.cancelEditBtn} 
+                  onPress={() => {
+                    setEditingRequestId(null);
+                    setReason('');
+                    setLeaveType('Casual Leave');
+                    setIsHalfDay(false);
+                    setStartDate(new Date().toISOString().split('T')[0]);
+                    setEndDate(new Date().toISOString().split('T')[0]);
+                  }}
+                >
+                  <Text style={styles.cancelEditBtnText}>Cancel Edit</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity 
+                style={[styles.submitBtn, submitting && { opacity: 0.7 }]} 
+                onPress={handleSubmit}
+                disabled={submitting}
+              >
+                {submitting ? (
+                  <ActivityIndicator size="small" color="#FFFFFF" />
+                ) : (
+                  <Text style={styles.submitBtnText}>SUBMIT LEAVE REQUEST</Text>
+                )}
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* History Log */}
@@ -450,10 +572,40 @@ const getStatusStyle = (status: string) => {
                         <Text style={styles.managerCommentText}>{req.managerComment}</Text>
                       </View>
                     ) : null}
-                    
-                   <Text style={styles.appliedDate}>
-  Applied on: {req.appliedAt ? formatDateDisplay(req.appliedAt) : 'N/A'}
-</Text>
+                    {/* Edit button for Pending requests */}
+                    {(() => {
+                      const statusUpper = (req.status || '').toUpperCase().trim();
+                      const todayStr = new Date().toISOString().split('T')[0];
+                      const isPast = (req.fromDate || '').split('T')[0] < todayStr;
+                      const isEditable = !statusUpper.includes('APPROVED') && 
+                                         !statusUpper.includes('REJECTED') && 
+                                         !statusUpper.includes('DENIED') && 
+                                         !statusUpper.includes('CANCELLED') &&
+                                         !isPast;
+                      if (isEditable) {
+                        return (
+                          <TouchableOpacity
+                            style={styles.editBtn}
+                            onPress={() => {
+                              setEditingRequestId(req.id);
+                              setLeaveType(req.leaveType as any);
+                              setIsHalfDay(!!req.isHalfDay);
+                              setStartDate(req.fromDate.split('T')[0]);
+                              setEndDate(req.toDate.split('T')[0]);
+                              setReason(req.reason);
+                              scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+                            }}
+                          >
+                            <Text style={styles.editBtnText}>✏️ Edit Request</Text>
+                          </TouchableOpacity>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                    <Text style={styles.historyApplied}>
+                      Applied on: {req.appliedAt ? formatDateDisplay(req.appliedAt) : 'N/A'}
+                    </Text>
                   </View>
                 );
               })}
@@ -475,7 +627,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4F46E5',
-    paddingTop: 60,
+    paddingTop: 64,
     paddingBottom: 25,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 24,
@@ -484,18 +636,13 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    left: 15,
-    top: 50,
+    left: 16,
+    top: 56,
     zIndex: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  backButtonText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   headerTitle: {
     fontSize: 22,
@@ -708,5 +855,47 @@ const styles = StyleSheet.create({
     color: '#94A3B8',
     textAlign: 'right',
     marginTop: 8,
+  },
+  loadingOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(255, 255, 255, 0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 999,
+  },
+  loadingText: {
+    marginTop: 10,
+    fontSize: 14,
+    color: '#4F46E5',
+    fontWeight: '600',
+  },
+  editBtn: {
+    alignSelf: 'flex-end',
+    borderColor: '#3B82F6',
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingVertical: 5,
+    paddingHorizontal: 10,
+    marginTop: 8,
+  },
+  editBtnText: {
+    fontSize: 11,
+    color: '#2563EB',
+    fontWeight: 'bold',
+  },
+  cancelEditBtn: {
+    backgroundColor: '#E2E8F0',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  cancelEditBtnText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#475569',
   },
 });

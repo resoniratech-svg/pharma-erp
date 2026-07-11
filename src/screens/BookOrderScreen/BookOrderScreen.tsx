@@ -1,327 +1,454 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  Alert,
-  Platform,
-  ActivityIndicator,
-  KeyboardAvoidingView,
-} from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
-import { getChemists, createChemist } from '../../services/chemistService';
-import { getHospitals } from '../../services/hospitalService';
-import { getStockists } from '../../services/stockistService';
-import { getProducts } from '../../services/productService';
-import { getDistributors } from '../../services/distributorService';
-import { createRetailerOrder, getRetailerOrders } from '../../services/orderService';
+  import React, { useState, useEffect } from 'react';
+  import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    TextInput,
+    ScrollView,
+    Alert,
+    Platform,
+    ActivityIndicator,
+    KeyboardAvoidingView,
+  } from 'react-native';
+  import AsyncStorage from '@react-native-async-storage/async-storage';
+  import { useNavigation, useIsFocused } from '@react-navigation/native';
+  import { getChemists, createChemist } from '../../services/chemistService';
+  import { getHospitals, createHospital } from '../../services/hospitalService';
+  import { getStockists, createStockist } from '../../services/stockistService';
+  import { getProducts } from '../../services/productService';
+  import { getDistributors } from '../../services/distributorService';
+  import { createRetailerOrder, getRetailerOrders } from '../../services/orderService';
 
-const safeJsonParse = (data: string | null, fallback: any) => {
-  if (!data) return fallback;
-  try {
-    return JSON.parse(data);
-  } catch (err) {
-    console.log('safeJsonParse error in BookOrderScreen:', err);
-    return fallback;
-  }
-};
-
-// All customer and product data loaded exclusively from backend APIs.
-// No hardcoded fallback business data allowed in production.
-
-const BookOrderScreen = () => {
-  const navigation = useNavigation<any>();
-  const isFocused = useIsFocused();
-
-  // Predefined lists loaded from API
-  const [chemists, setChemists] = useState<any[]>([]);
-  const [hospitals, setHospitals] = useState<any[]>([]);
-  const [stockists, setStockists] = useState<any[]>([]);
-  const [products, setProducts] = useState<any[]>([]);
-  const [distributors, setDistributors] = useState<any[]>([]);
-
-  // Selected state variables
-  const [customerSource, setCustomerSource] = useState('Existing Customer');
-  const [customerType, setCustomerType] = useState('Chemist');
-  const [customerName, setCustomerName] = useState('');
-  const [customerMobile, setCustomerMobile] = useState('');
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string | number | null>(null);
-
-  const [selectedProduct, setSelectedProduct] = useState('');
-  const [showProductDropdown, setShowProductDropdown] = useState(false);
-  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
-  const [showDistributorDropdown, setShowDistributorDropdown] = useState(false);
-  
-  const [quantity, setQuantity] = useState('');
-  const [rate, setRate] = useState('0.00');
-  const [totalAmount, setTotalAmount] = useState('0.00');
-  const [distributor, setDistributor] = useState('');
-  const [remarks, setRemarks] = useState('');
-  const [orders, setOrders] = useState<any[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [error, setError] = useState<string | null>(null);
-
-  // Editing and Loading states
-  const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
-  const [loadingMaster, setLoadingMaster] = useState(true);
-
-  const scrollViewRef = React.useRef<ScrollView>(null);
-
-  // Web safe alert
-  const customAlert = (title: string, message: string) => {
-    if (Platform.OS === 'web') {
-      window.alert(`${title}\n\n${message}`);
-    } else {
-      Alert.alert(title, message);
-    }
-  };
-
-  useEffect(() => {
-    if (isFocused) {
-      checkAttendanceStatus();
-    }
-  }, [isFocused]);
-
-  const checkAttendanceStatus = async () => {
+  const safeJsonParse = (data: string | null, fallback: any) => {
+    if (!data) return fallback;
     try {
-      const storedCheckedIn = await AsyncStorage.getItem('@checked_in');
-      const attendanceDate = await AsyncStorage.getItem('@attendance_date');
-      const todayStr = new Date().toISOString().split('T')[0];
-
-      let isCheckInValid = false;
-      if (storedCheckedIn === 'true' && attendanceDate) {
-        const storedDateStr = attendanceDate.split('T')[0];
-        if (storedDateStr === todayStr) {
-          isCheckInValid = true;
-        } else {
-          // Forgot to checkout: auto-checkout from previous day
-          await AsyncStorage.removeItem('@checked_in');
-          await AsyncStorage.removeItem('@check_in_time');
-          await AsyncStorage.removeItem('@check_in_lat');
-          await AsyncStorage.removeItem('@check_in_lng');
-          await AsyncStorage.removeItem('@check_in_address');
-          await AsyncStorage.removeItem('@attendance_date');
-        }
-      }
-
-      if (!isCheckInValid) {
-        customAlert(
-          'Check-In Required',
-          'Please check-in first so that attendance is recorded correctly.'
-        );
-        navigation.navigate('Attendance');
-      }
-    } catch (e) {
-      console.log('Failed to verify attendance status', e);
+      return JSON.parse(data);
+    } catch (err) {
+      console.log('safeJsonParse error in BookOrderScreen:', err);
+      return fallback;
     }
   };
 
-  // Load master data on mount/focus
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoadingMaster(true);
+  // All customer and product data loaded exclusively from backend APIs.
+  // No hardcoded fallback business data allowed in production.
+
+  const BookOrderScreen = () => {
+    const navigation = useNavigation<any>();
+    const isFocused = useIsFocused();
+
+    // Predefined lists loaded from API
+    const [chemists, setChemists] = useState<any[]>([]);
+    const [hospitals, setHospitals] = useState<any[]>([]);
+    const [stockists, setStockists] = useState<any[]>([]);
+    const [products, setProducts] = useState<any[]>([]);
+    const [distributors, setDistributors] = useState<any[]>([]);
+
+    // Selected state variables
+    const [customerSource, setCustomerSource] = useState('Existing Customer');
+    const [customerType, setCustomerType] = useState('Chemist');
+    const [customerName, setCustomerName] = useState('');
+    const [customerMobile, setCustomerMobile] = useState('');
+    const [selectedCustomerId, setSelectedCustomerId] = useState<string | number | null>(null);
+
+    const [selectedProduct, setSelectedProduct] = useState('');
+    const [showProductDropdown, setShowProductDropdown] = useState(false);
+    const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+    const [showDistributorDropdown, setShowDistributorDropdown] = useState(false);
+    
+    const [quantity, setQuantity] = useState('');
+    const [rate, setRate] = useState('0.00');
+    const [totalAmount, setTotalAmount] = useState('0.00');
+    const [distributor, setDistributor] = useState('');
+    const [remarks, setRemarks] = useState('');
+    const [orders, setOrders] = useState<any[]>([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [error, setError] = useState<string | null>(null);
+
+    // Editing and Loading states
+    const [editingOrderId, setEditingOrderId] = useState<number | null>(null);
+    const [loadingMaster, setLoadingMaster] = useState(true);
+
+    const scrollViewRef = React.useRef<ScrollView>(null);
+
+    // Web safe alert
+    const customAlert = (title: string, message: string) => {
+      if (Platform.OS === 'web') {
+        window.alert(`${title}\n\n${message}`);
+      } else {
+        Alert.alert(title, message);
+      }
+    };
+
+    useEffect(() => {
+      if (isFocused) {
+        checkAttendanceStatus();
+      }
+    }, [isFocused]);
+
+    const checkAttendanceStatus = async () => {
       try {
-        // Fetch Chemists
+        const storedCheckedIn = await AsyncStorage.getItem('@checked_in');
+        const attendanceDate = await AsyncStorage.getItem('@attendance_date');
+        const todayStr = new Date().toISOString().split('T')[0];
+
+        let isCheckInValid = false;
+        if (storedCheckedIn === 'true' && attendanceDate) {
+          const storedDateStr = attendanceDate.split('T')[0];
+          if (storedDateStr === todayStr) {
+            isCheckInValid = true;
+          } else {
+            // Forgot to checkout: auto-checkout from previous day
+            await AsyncStorage.removeItem('@checked_in');
+            await AsyncStorage.removeItem('@check_in_time');
+            await AsyncStorage.removeItem('@check_in_lat');
+            await AsyncStorage.removeItem('@check_in_lng');
+            await AsyncStorage.removeItem('@check_in_address');
+            await AsyncStorage.removeItem('@attendance_date');
+          }
+        }
+
+        if (!isCheckInValid) {
+          customAlert(
+            'Check-In Required',
+            'Please check-in first so that attendance is recorded correctly.'
+          );
+          navigation.navigate('Attendance');
+        }
+      } catch (e) {
+        console.log('Failed to verify attendance status', e);
+      }
+    };
+
+    const reloadChemists = async () => {
+      try {
         const chemRes = await getChemists();
         const chemData = chemRes.data || chemRes;
         if (Array.isArray(chemData)) setChemists(chemData);
         else if (chemRes.data && Array.isArray(chemRes.data.data)) setChemists(chemRes.data.data);
-
-        // Fetch Hospitals
-        try {
-          const hospRes = await getHospitals();
-          const hospData = hospRes.data || hospRes;
-          if (Array.isArray(hospData)) setHospitals(hospData);
-          else if (hospRes.data && Array.isArray(hospRes.data.data)) setHospitals(hospRes.data.data);
-        } catch(e) { console.log('hospitals load err', e); }
-
-        // Fetch Stockists
-        try {
-          const stockRes = await getStockists();
-          const stockData = stockRes.data || stockRes;
-          if (Array.isArray(stockData)) setStockists(stockData);
-          else if (stockRes.data && Array.isArray(stockRes.data.data)) setStockists(stockRes.data.data);
-        } catch(e) { console.log('stockists load err', e); }
-
-        // Fetch Distributors
-        try {
-          const distRes = await getDistributors();
-          const distData = distRes.data || distRes;
-          if (Array.isArray(distData)) setDistributors(distData);
-          else if (distRes.data && Array.isArray(distRes.data.data)) setDistributors(distRes.data.data);
-        } catch(e) { console.log('distributors load err', e); }
-
-        // Fetch Products
-        const prodRes = await getProducts();
-        const prodData = prodRes.data || prodRes;
-        if (Array.isArray(prodData)) {
-          setProducts(prodData);
-          if (prodData.length > 0) {
-            const defaultProd = prodData[0];
-            const defaultName = defaultProd.name || defaultProd.productName || '';
-            setSelectedProduct(defaultName);
-            setRate((defaultProd.ptr || defaultProd.mrp || 0).toString());
-          }
-        }
       } catch (err) {
-        console.log('Failed to load dynamic data in BookOrderScreen:', err);
-        // No fallback static data — show empty state
-      } finally {
-        setLoadingMaster(false);
+        console.log('Failed to reload Chemists:', err);
       }
     };
-    fetchData();
-  }, [isFocused]);
 
-  // Helper to load dynamic customer selection
-  const getDropdownCustomers = () => {
-    if (customerType === 'Chemist' && chemists.length > 0) {
-      return chemists.map(c => ({
-        id: `chem_${c.id}`,
-        name: c.name || c.chemistName || '',
-        mobile: c.mobile || '',
-      }));
-    }
-    if (customerType === 'Hospital' && hospitals.length > 0) {
-      return hospitals.map(h => ({
-        id: `hosp_${h.id}`,
-        name: h.name || h.hospitalName || '',
-        mobile: h.mobile || '',
-      }));
-    }
-    if (customerType === 'Stockist' && stockists.length > 0) {
-      return stockists.map(s => ({
-        id: `stock_${s.id}`,
-        name: s.name || s.stockistName || '',
-        mobile: s.mobile || '',
-      }));
-    }
-    // No API data available — return empty list (show empty state in UI)
-    return [];
-  };
-
-  // Helper to load dynamic product list
-  const getProductOptions = () => {
-    if (products.length > 0) {
-      return products.map(p => ({
-        name: p.name || p.productName || '',
-        rate: p.ptr || p.mrp || 0,
-      }));
-    }
-    // No API data available — return empty list (show empty state in UI)
-    return [];
-  };
-
-  // Auto pre-fill default rate when product changes
-  useEffect(() => {
-    const list = getProductOptions();
-    const prod = list.find(p => p.name === selectedProduct);
-    if (prod) {
-      setRate(prod.rate.toFixed(2));
-    }
-  }, [selectedProduct, products]);
-
-  // Reset selected customer name/mobile when type changes
-  useEffect(() => {
-    setCustomerName('');
-    setCustomerMobile('');
-    setSelectedCustomerId(null);
-  }, [customerType]);
-
-  // Auto calculate total amount
-  useEffect(() => {
-    const qtyVal = parseFloat(quantity) || 0;
-    const rateVal = parseFloat(rate) || 0;
-    setTotalAmount((qtyVal * rateVal).toFixed(2));
-  }, [quantity, rate]);
-
-  // Load orders from local storage on component mount
-  useEffect(() => {
-    loadOrders();
-  }, []);
-
-  const loadOrders = async () => {
-    setError(null);
-    try {
-      let serverOrders = [];
+    const reloadHospitals = async () => {
       try {
-        serverOrders = await getRetailerOrders();
-      } catch (err) {
-        console.log('Failed to fetch orders from backend:', err);
+        const hospRes = await getHospitals();
+        const hospData = hospRes.data || hospRes;
+        if (Array.isArray(hospData)) setHospitals(hospData);
+        else if (hospRes.data && Array.isArray(hospRes.data.data)) setHospitals(hospRes.data.data);
+      } catch(e) {
+        console.log('Failed to reload Hospitals:', e);
       }
+    };
 
-      if (serverOrders && serverOrders.length > 0) {
-        const mapped = serverOrders.map((o: any, idx: number) => ({
-          id: o.id,
-          orderNumber: o.orderNumber,
-          customerType: 'Retailer',
-          customerName: o.retailer?.name || 'Retailer',
-          customerMobile: o.retailer?.mobile || '',
-          productName: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].product?.name || 'Product' : 'Product',
-          quantity: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].quantity : 0,
-          rate: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].rate : 0,
-          totalAmount: o.totalAmount,
-          distributor: 'Assigned Stockist',
-          remarks: o.remarks || '',
-          status: o.status === 'PENDING' ? 'Booked' : (o.status === 'DELIVERED' ? 'Delivered' : o.status === 'CANCELLED' ? 'Cancelled' : 'Booked'),
-          dateFormatted: o.orderDate ? o.orderDate.split('T')[0] : '',
+    const reloadStockists = async () => {
+      try {
+        const stockRes = await getStockists();
+        const stockData = stockRes.data || stockRes;
+        if (Array.isArray(stockData)) setStockists(stockData);
+        else if (stockRes.data && Array.isArray(stockRes.data.data)) setStockists(stockRes.data.data);
+      } catch(e) {
+        console.log('Failed to reload Stockists:', e);
+      }
+    };
+
+    // Load master data on mount/focus
+    useEffect(() => {
+      const fetchData = async () => {
+        setLoadingMaster(true);
+        try {
+          await reloadChemists();
+          await reloadHospitals();
+          await reloadStockists();
+
+          // Fetch Distributors
+          try {
+            const distRes = await getDistributors();
+            const distData = distRes.data || distRes;
+            if (Array.isArray(distData)) setDistributors(distData);
+            else if (distRes.data && Array.isArray(distRes.data.data)) setDistributors(distRes.data.data);
+          } catch(e) { console.log('distributors load err', e); }
+
+          // Fetch Products
+          const prodRes = await getProducts();
+          const prodData = prodRes.data || prodRes;
+          if (Array.isArray(prodData)) {
+            setProducts(prodData);
+            if (prodData.length > 0) {
+              const defaultProd = prodData[0];
+              const defaultName = defaultProd.name || defaultProd.productName || '';
+              setSelectedProduct(defaultName);
+              setRate((defaultProd.ptr || defaultProd.mrp || 0).toString());
+            }
+          }
+        } catch (err) {
+          console.log('Failed to load dynamic data in BookOrderScreen:', err);
+          // No fallback static data — show empty state
+        } finally {
+          setLoadingMaster(false);
+        }
+      };
+      fetchData();
+    }, [isFocused]);
+
+    // Helper to load dynamic customer selection
+    const getDropdownCustomers = () => {
+      if (customerType === 'Chemist' && chemists.length > 0) {
+        return chemists.map(c => ({
+          id: `chem_${c.id}`,
+          name: c.name || c.chemistName || '',
+          mobile: c.mobile || '',
         }));
-        setOrders(mapped);
-        await AsyncStorage.setItem('@orders', JSON.stringify(mapped));
-      } else {
-        const storedOrders = await AsyncStorage.getItem('@orders');
-        const parsed = safeJsonParse(storedOrders, []);
-        setOrders(parsed);
       }
-    } catch (err) {
-      console.log('Failed to load orders:', err);
-      setError('Failed to load order history.');
-    }
-  };
+      if (customerType === 'Hospital' && hospitals.length > 0) {
+        return hospitals.map(h => ({
+          id: `hosp_${h.id}`,
+          name: h.name || h.hospitalName || '',
+          mobile: h.mobile || '',
+        }));
+      }
+      if (customerType === 'Stockist' && stockists.length > 0) {
+        return stockists.map(s => ({
+          id: `stock_${s.id}`,
+          name: s.name || s.stockistName || '',
+          mobile: s.mobile || '',
+        }));
+      }
+      // No API data available — return empty list (show empty state in UI)
+      return [];
+    };
 
-  const formatOrderDate = (date: Date) => {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const day = date.getDate().toString().padStart(2, '0');
-    const month = months[date.getMonth()];
-    const year = date.getFullYear();
-    
-    let hours = date.getHours();
-    const minutes = date.getMinutes().toString().padStart(2, '0');
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12;
-    hours = hours ? hours : 12;
-    
-    return `${day}-${month}-${year} ${hours}:${minutes} ${ampm}`;
-  };
+    // Helper to load dynamic product list
+    const getProductOptions = () => {
+      if (products.length > 0) {
+        return products.map(p => ({
+          name: p.name || p.productName || '',
+          rate: p.ptr || p.mrp || 0,
+        }));
+      }
+      // No API data available — return empty list (show empty state in UI)
+      return [];
+    };
 
-  const handleSubmit = async () => {
-    if (!customerName.trim()) {
-      customAlert('Error', 'Please enter or select customer name');
-      return;
-    }
-    if (!customerMobile.trim() || customerMobile.length !== 10 || !/^[6-9]\d{9}$/.test(customerMobile)) {
-      customAlert('Error', 'Please enter a valid 10-digit mobile number starting with 6-9');
-      return;
-    }
-    if (!quantity.trim() || parseFloat(quantity) <= 0) {
-      customAlert('Error', 'Please enter a valid quantity');
-      return;
-    }
-    if (!rate.trim() || parseFloat(rate) <= 0) {
-      customAlert('Error', 'Please enter a valid rate');
-      return;
-    }
+    // Auto pre-fill default rate when product changes
+    useEffect(() => {
+      const list = getProductOptions();
+      const prod = list.find(p => p.name === selectedProduct);
+      if (prod) {
+        setRate(prod.rate.toFixed(2));
+      }
+    }, [selectedProduct, products]);
 
-    if (editingOrderId !== null) {
-      // Update existing order (local fallback)
-      const updatedOrders = orders.map(o => {
-        if (o.id === editingOrderId) {
-          return {
-            ...o,
+    // Reset selected customer name/mobile when type changes
+    useEffect(() => {
+      setCustomerName('');
+      setCustomerMobile('');
+      setSelectedCustomerId(null);
+    }, [customerType]);
+
+    // Auto calculate total amount
+    useEffect(() => {
+      const qtyVal = parseFloat(quantity) || 0;
+      const rateVal = parseFloat(rate) || 0;
+      setTotalAmount((qtyVal * rateVal).toFixed(2));
+    }, [quantity, rate]);
+
+    // Load orders from local storage on component mount
+    useEffect(() => {
+      loadOrders();
+    }, []);
+
+    const loadOrders = async () => {
+      setError(null);
+      try {
+        let serverOrders = [];
+        try {
+          serverOrders = await getRetailerOrders();
+        } catch (err) {
+          console.log('Failed to fetch orders from backend:', err);
+        }
+
+        if (serverOrders && serverOrders.length > 0) {
+          const mapped = serverOrders.map((o: any, idx: number) => ({
+            id: o.id,
+            orderNumber: o.orderNumber,
+            customerType: 'Retailer',
+            customerName: o.retailer?.name || 'Retailer',
+            customerMobile: o.retailer?.mobile || '',
+            productName: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].product?.name || 'Product' : 'Product',
+            quantity: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].quantity : 0,
+            rate: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].rate : 0,
+            totalAmount: o.totalAmount,
+            distributor: 'Assigned Stockist',
+            remarks: o.remarks || '',
+            status: o.status === 'PENDING' ? 'Booked' : (o.status === 'DELIVERED' ? 'Delivered' : o.status === 'CANCELLED' ? 'Cancelled' : 'Booked'),
+            dateFormatted: o.orderDate ? o.orderDate.split('T')[0] : '',
+          }));
+          setOrders(mapped);
+          await AsyncStorage.setItem('@orders', JSON.stringify(mapped));
+        } else {
+          const storedOrders = await AsyncStorage.getItem('@orders');
+          const parsed = safeJsonParse(storedOrders, []);
+          setOrders(parsed);
+        }
+      } catch (err) {
+        console.log('Failed to load orders:', err);
+        setError('Failed to load order history.');
+      }
+    };
+
+    const formatOrderDate = (date: Date) => {
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const day = date.getDate().toString().padStart(2, '0');
+      const month = months[date.getMonth()];
+      const year = date.getFullYear();
+      
+      let hours = date.getHours();
+      const minutes = date.getMinutes().toString().padStart(2, '0');
+      const ampm = hours >= 12 ? 'PM' : 'AM';
+      hours = hours % 12;
+      hours = hours ? hours : 12;
+      
+      return `${day}-${month}-${year} ${hours}:${minutes} ${ampm}`;
+    };
+
+    const handleSubmit = async () => {
+      if (!customerName.trim()) {
+        customAlert('Error', 'Please enter or select customer name');
+        return;
+      }
+      if (!customerMobile.trim() || customerMobile.length !== 10 || !/^[6-9]\d{9}$/.test(customerMobile)) {
+        customAlert('Error', 'Please enter a valid 10-digit mobile number starting with 6-9');
+        return;
+      }
+      if (!quantity.trim() || parseFloat(quantity) <= 0) {
+        customAlert('Error', 'Please enter a valid quantity');
+        return;
+      }
+      if (!rate.trim() || parseFloat(rate) <= 0) {
+        customAlert('Error', 'Please enter a valid rate');
+        return;
+      }
+
+      if (editingOrderId !== null) {
+        // Update existing order (local fallback)
+        const updatedOrders = orders.map(o => {
+          if (o.id === editingOrderId) {
+            return {
+              ...o,
+              customerType,
+              customerName,
+              customerMobile,
+              productName: selectedProduct,
+              quantity: parseFloat(quantity),
+              rate: parseFloat(rate),
+              totalAmount: parseFloat(totalAmount),
+              distributor,
+              remarks,
+              isEdited: true, // Mark as edited
+            };
+          }
+          return o;
+        });
+
+        setOrders(updatedOrders);
+        try {
+          await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
+          customAlert('✅ Order Updated!', `Order details updated successfully.`);
+          
+          setEditingOrderId(null);
+          setCustomerName('');
+          setCustomerMobile('');
+          setSelectedCustomerId(null);
+          setQuantity('');
+          setRemarks('');
+          setCustomerSource('Existing Customer');
+          setDistributor('');
+        } catch (error) {
+          customAlert('Error', 'Failed to update order locally.');
+        }
+      } else {
+        let resolvedRetailerId: number | null = null;
+        
+        if (customerSource === 'New Customer') {
+          const checkInAddress = (await AsyncStorage.getItem('@check_in_address')) || 'Registered via Mobile App';
+          let creationResult: any = null;
+
+          try {
+            if (customerType === 'Chemist') {
+              creationResult = await createChemist(customerName, customerName, customerMobile, checkInAddress);
+            } else if (customerType === 'Hospital') {
+              creationResult = await createHospital(customerName, customerMobile, checkInAddress);
+            } else if (customerType === 'Stockist') {
+              creationResult = await createStockist(customerName, customerMobile, checkInAddress);
+            }
+          } catch (createErr: any) {
+            const statusCode = createErr?.response?.status;
+            const resData = createErr?.response?.data;
+            // Extract the most detailed message available (Prisma errors are often in details or error field)
+            const detailMsg = typeof resData === 'object' ? (resData.message || resData.error || resData.details || JSON.stringify(resData)) : resData;
+            const errMsg = detailMsg || createErr?.message || '';
+            console.log(`Failed to create new ${customerType}:`, statusCode, resData);
+
+            customAlert('Error', `Failed to register the new ${customerType} on the server. ${errMsg}`);
+            return;
+          }
+
+          if (creationResult) {
+            const rawData = creationResult.data || creationResult;
+            const parsedId = Number(
+              rawData.id ||
+              rawData.chemistId ||
+              rawData.hospitalId ||
+              rawData.stockistId ||
+              rawData.customerId ||
+              rawData.retailerId
+            );
+            if (!isNaN(parsedId) && parsedId > 0) {
+              resolvedRetailerId = parsedId;
+            }
+          }
+        } else if (selectedCustomerId && typeof selectedCustomerId === 'string' && selectedCustomerId.includes('_')) {
+          const parts = selectedCustomerId.split('_');
+          const parsedId = Number(parts[parts.length - 1]);
+          if (!isNaN(parsedId) && parsedId > 0) {
+            resolvedRetailerId = parsedId;
+          }
+        }
+
+        if (!resolvedRetailerId) {
+          customAlert('Error', 'Please select a valid customer from the database list.');
+          return;
+        }
+
+        // Extract DB product ID
+        const matchedProduct = products.find(p => (p.name || p.productName) === selectedProduct);
+        const resolvedProductId = matchedProduct ? Number(matchedProduct.id) : null;
+
+        if (!resolvedProductId) {
+          customAlert('Error', 'Please select a valid product from the database catalog.');
+          return;
+        }
+
+        const orderPayload = {
+          retailerId: resolvedRetailerId,
+          totalAmount: parseFloat(totalAmount),
+          orderItems: [
+            {
+              productId: resolvedProductId,
+              quantity: parseFloat(quantity),
+              rate: parseFloat(rate),
+              amount: parseFloat(totalAmount)
+            }
+          ]
+        };
+
+        try {
+          const result = await createRetailerOrder(orderPayload);
+          const newOrder = {
+            id: result.id,
+            orderNumber: result.orderNumber || `ORD-${Date.now().toString().slice(-4)}`,
             customerType,
             customerName,
             customerMobile,
@@ -331,986 +458,944 @@ const BookOrderScreen = () => {
             totalAmount: parseFloat(totalAmount),
             distributor,
             remarks,
+            status: 'Booked',
+            dateFormatted: formatOrderDate(new Date()),
           };
+
+          const updatedOrders = [newOrder, ...orders];
+          setOrders(updatedOrders);
+          await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
+          customAlert('✅ Order Booked!', `Order ${newOrder.orderNumber} has been successfully recorded.`);
+
+          // Refresh the corresponding master list so the newly created customer appears immediately
+          if (customerSource === 'New Customer') {
+            if (customerType === 'Chemist') {
+              await reloadChemists();
+            } else if (customerType === 'Hospital') {
+              await reloadHospitals();
+            } else if (customerType === 'Stockist') {
+              await reloadStockists();
+            }
+          }
+          
+          setCustomerName('');
+          setCustomerMobile('');
+          setSelectedCustomerId(null);
+          setQuantity('');
+          setRemarks('');
+          setCustomerSource('Existing Customer');
+          setDistributor('');
+        } catch (error: any) {
+          console.log('Failed to create order on server:', error);
+          const serverMsg = error?.response?.data?.message || error?.response?.data?.error || error?.message || '';
+          customAlert('Error', `Failed to save order to the server. ${serverMsg}`);
         }
-        return o;
+      }
+    };
+
+    const handleEditOrder = (order: any) => {
+      setEditingOrderId(order.id);
+      setCustomerType(order.customerType);
+      setCustomerName(order.customerName);
+      setCustomerMobile(order.customerMobile);
+      setSelectedProduct(order.productName);
+      setQuantity(order.quantity.toString());
+      setRate(order.rate.toString());
+      setDistributor(order.distributor || '');
+      setRemarks(order.remarks);
+      setSelectedCustomerId(null);
+      
+      // Auto-scroll to the top so user can edit the form immediately without alert
+      setTimeout(() => {
+        scrollViewRef.current?.scrollTo({ y: 0, animated: true });
+      }, 50);
+    };
+
+    const handleCancelOrder = async (orderId: number) => {
+      const confirmCancel = Platform.OS === 'web' 
+        ? window.confirm('Are you sure you want to cancel this order?')
+        : true;
+
+      if (Platform.OS === 'web') {
+        if (confirmCancel) {
+          const updatedOrders = orders.map(o => {
+            if (o.id === orderId) {
+              return { ...o, status: 'Cancelled' };
+            }
+            return o;
+          });
+          setOrders(updatedOrders);
+          try {
+            await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
+            customAlert('Success', 'Order cancelled successfully.');
+          } catch (e) {
+            console.log('Failed to cancel order:', e);
+          }
+        }
+      } else {
+        Alert.alert(
+          'Cancel Order',
+          'Are you sure you want to cancel this order?',
+          [
+            { text: 'No', style: 'cancel' },
+            { 
+              text: 'Yes', 
+              onPress: async () => {
+                const updatedOrders = orders.map(o => {
+                  if (o.id === orderId) {
+                    return { ...o, status: 'Cancelled' };
+                  }
+                  return o;
+                });
+                setOrders(updatedOrders);
+                try {
+                  await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
+                  customAlert('Success', 'Order cancelled successfully.');
+                } catch (e) {
+                  console.log('Failed to cancel order:', e);
+                }
+              }
+            }
+          ]
+        );
+      }
+    };
+
+    // Tapping the status badge cycles status (Pending -> Approved -> Delivered -> Cancelled)
+    const cycleStatus = async (orderId: number) => {
+      const updatedOrders = orders.map((order) => {
+        if (order.id === orderId) {
+          let nextStatus = 'Booked';
+          if (order.status === 'Booked' || order.status === 'Pending') nextStatus = 'Forwarded';
+          else if (order.status === 'Forwarded' || order.status === 'Approved') nextStatus = 'Delivered';
+          else if (order.status === 'Delivered') nextStatus = 'Cancelled';
+          else nextStatus = 'Booked';
+          return { ...order, status: nextStatus };
+        }
+        return order;
       });
 
       setOrders(updatedOrders);
       try {
         await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
-        customAlert('✅ Order Updated!', `Order details updated successfully.`);
-        
-        setEditingOrderId(null);
-        setCustomerName('');
-        setCustomerMobile('');
-        setSelectedCustomerId(null);
-        setQuantity('');
-        setRemarks('');
-      } catch (error) {
-        customAlert('Error', 'Failed to update order locally.');
+      } catch (e) {
+        console.log('Failed to update order status');
       }
-    } else {
-      // Extract or create DB retailer ID
-      let resolvedRetailerId = 1;
-      
-      if (customerSource === 'New Customer') {
-        try {
-          // Register the new customer as a Chemist in the database first to get a valid ID
-          const newChemist = await createChemist(customerName, customerName, customerMobile, 'New Shop Address');
-          resolvedRetailerId = Number(newChemist.id || newChemist.data?.id);
-          if (isNaN(resolvedRetailerId) || !resolvedRetailerId) {
-            resolvedRetailerId = 1;
-          }
-        } catch (chemErr: any) {
-          console.log('Failed to create new chemist for the order:', chemErr);
-          const errMsg = chemErr?.response?.data?.message || chemErr?.message || '';
-          customAlert('Error', `Failed to register the new customer on the server. ${errMsg}`);
-          return;
-        }
-      } else if (selectedCustomerId && typeof selectedCustomerId === 'string' && selectedCustomerId.includes('_')) {
-        const parts = selectedCustomerId.split('_');
-        const parsedId = Number(parts[parts.length - 1]);
-        if (!isNaN(parsedId)) {
-          resolvedRetailerId = parsedId;
-        }
+    };
+
+    const getStatusColor = (status: string) => {
+      switch (status) {
+        case 'Approved': return { bg: '#E8F5E9', text: '#2E7D32' };
+        case 'Delivered': return { bg: '#E3F2FD', text: '#1565C0' };
+        case 'Cancelled': return { bg: '#FFEBEE', text: '#C62828' };
+        default: return { bg: '#FFF3E0', text: '#E65100' };
       }
+    };
 
-      // Extract DB product ID
-      const matchedProduct = products.find(p => (p.name || p.productName) === selectedProduct);
-      const resolvedProductId = matchedProduct ? Number(matchedProduct.id) : 1;
-
-      const orderPayload = {
-        retailerId: resolvedRetailerId,
-        totalAmount: parseFloat(totalAmount),
-        orderItems: [
-          {
-            productId: resolvedProductId,
-            quantity: parseFloat(quantity),
-            rate: parseFloat(rate),
-            amount: parseFloat(totalAmount)
-          }
-        ]
-      };
-
-      try {
-        const result = await createRetailerOrder(orderPayload);
-        const newOrder = {
-          id: result.id,
-          orderNumber: result.orderNumber || `ORD-${Date.now().toString().slice(-4)}`,
-          customerType,
-          customerName,
-          customerMobile,
-          productName: selectedProduct,
-          quantity: parseFloat(quantity),
-          rate: parseFloat(rate),
-          totalAmount: parseFloat(totalAmount),
-          distributor,
-          remarks,
-          status: 'Booked',
-          dateFormatted: formatOrderDate(new Date()),
-        };
-
-        const updatedOrders = [newOrder, ...orders];
-        setOrders(updatedOrders);
-        await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
-        customAlert('✅ Order Booked!', `Order ${newOrder.orderNumber} has been successfully recorded.`);
-        
-        setCustomerName('');
-        setCustomerMobile('');
-        setSelectedCustomerId(null);
-        setQuantity('');
-        setRemarks('');
-      } catch (error: any) {
-        console.log('Failed to create order on server:', error);
-        const serverMsg = error?.response?.data?.message || error?.response?.data?.error || error?.message || '';
-        customAlert('Error', `Failed to save order to the server. ${serverMsg}`);
-      }
-    }
-  };
-
-  const handleEditOrder = (order: any) => {
-    setEditingOrderId(order.id);
-    setCustomerType(order.customerType);
-    setCustomerName(order.customerName);
-    setCustomerMobile(order.customerMobile);
-    setSelectedProduct(order.productName);
-    setQuantity(order.quantity.toString());
-    setRate(order.rate.toString());
-    setDistributor(order.distributor || '');
-    setRemarks(order.remarks);
-    setSelectedCustomerId(null);
-    
-    customAlert('Editing Order', `Modifying order ${order.orderNumber}. Adjust fields at the top of the form.`);
-  };
-
-  const handleCancelOrder = async (orderId: number) => {
-    const confirmCancel = Platform.OS === 'web' 
-      ? window.confirm('Are you sure you want to cancel this order?')
-      : true;
-
-    if (Platform.OS === 'web') {
-      if (confirmCancel) {
-        const updatedOrders = orders.map(o => {
-          if (o.id === orderId) {
-            return { ...o, status: 'Cancelled' };
-          }
-          return o;
-        });
-        setOrders(updatedOrders);
-        try {
-          await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
-          customAlert('Success', 'Order cancelled successfully.');
-        } catch (e) {
-          console.log('Failed to cancel order:', e);
-        }
-      }
-    } else {
-      Alert.alert(
-        'Cancel Order',
-        'Are you sure you want to cancel this order?',
-        [
-          { text: 'No', style: 'cancel' },
-          { 
-            text: 'Yes', 
-            onPress: async () => {
-              const updatedOrders = orders.map(o => {
-                if (o.id === orderId) {
-                  return { ...o, status: 'Cancelled' };
-                }
-                return o;
-              });
-              setOrders(updatedOrders);
-              try {
-                await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
-                customAlert('Success', 'Order cancelled successfully.');
-              } catch (e) {
-                console.log('Failed to cancel order:', e);
-              }
-            }
-          }
-        ]
+    // Filter history by search box
+    const filteredOrders = orders.filter(order => {
+      const searchLower = searchQuery.toLowerCase();
+      const orderNo = order.orderNumber || '';
+      const custName = order.customerName || '';
+      const prodName = order.productName || '';
+      return (
+        orderNo.toLowerCase().includes(searchLower) ||
+        custName.toLowerCase().includes(searchLower) ||
+        prodName.toLowerCase().includes(searchLower)
       );
-    }
-  };
-
-  // Tapping the status badge cycles status (Pending -> Approved -> Delivered -> Cancelled)
-  const cycleStatus = async (orderId: number) => {
-    const updatedOrders = orders.map((order) => {
-      if (order.id === orderId) {
-        let nextStatus = 'Booked';
-        if (order.status === 'Booked' || order.status === 'Pending') nextStatus = 'Forwarded';
-        else if (order.status === 'Forwarded' || order.status === 'Approved') nextStatus = 'Delivered';
-        else if (order.status === 'Delivered') nextStatus = 'Cancelled';
-        else nextStatus = 'Booked';
-        return { ...order, status: nextStatus };
-      }
-      return order;
     });
 
-    setOrders(updatedOrders);
-    try {
-      await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
-    } catch (e) {
-      console.log('Failed to update order status');
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'Approved': return { bg: '#E8F5E9', text: '#2E7D32' };
-      case 'Delivered': return { bg: '#E3F2FD', text: '#1565C0' };
-      case 'Cancelled': return { bg: '#FFEBEE', text: '#C62828' };
-      default: return { bg: '#FFF3E0', text: '#E65100' };
-    }
-  };
-
-  // Filter history by search box
-  const filteredOrders = orders.filter(order => {
-    const searchLower = searchQuery.toLowerCase();
-    const orderNo = order.orderNumber || '';
-    const custName = order.customerName || '';
-    const prodName = order.productName || '';
-    return (
-      orderNo.toLowerCase().includes(searchLower) ||
-      custName.toLowerCase().includes(searchLower) ||
-      prodName.toLowerCase().includes(searchLower)
-    );
-  });
-
-    return (
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      >
-        <ScrollView 
-          ref={scrollViewRef}
-          style={styles.container}
-          contentContainerStyle={{ paddingBottom: 280 }}
-          keyboardShouldPersistTaps="handled"
+      return (
+        <KeyboardAvoidingView 
+          style={{ flex: 1 }} 
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         >
-
-
-      <Text style={styles.title}>📦 Book Order</Text>
-
-      {loadingMaster ? (
-        <View style={styles.loaderCard}>
-          <ActivityIndicator size="large" color="#1E88E5" />
-          <Text style={styles.loaderText}>Syncing product & customer registries...</Text>
-        </View>
-      ) : (
-        <View style={styles.form}>
-          {editingOrderId !== null && (
-            <View style={styles.editBanner}>
-              <Text style={styles.editBannerText}>✏️ Editing Order {orders.find(o=>o.id===editingOrderId)?.orderNumber}</Text>
-            </View>
-          )}
-
-          {/* Customer Source Selector */}
-          <Text style={styles.label}>Customer Source *</Text>
-          <View style={styles.selectorRow}>
-            {['Existing Customer', 'New Customer'].map((source) => (
-              <TouchableOpacity
-                key={source}
-                onPress={() => {
-                  setCustomerSource(source);
-                  setCustomerName('');
-                  setCustomerMobile('');
-                  setSelectedCustomerId(null);
-                  setShowCustomerDropdown(false);
-                }}
-                style={[
-                  styles.selectorButton,
-                  customerSource === source && styles.selectorActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.selectorText,
-                    customerSource === source && styles.selectorTextActive,
-                  ]}
-                >
-                  {source}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Customer Type Selector */}
-          <Text style={styles.label}>Order For *</Text>
-          <View style={styles.selectorRow}>
-            {['Chemist', 'Hospital', 'Stockist'].map((type) => (
-              <TouchableOpacity
-                key={type}
-                onPress={() => setCustomerType(type)}
-                style={[
-                  styles.selectorButton,
-                  customerType === type && styles.selectorActive,
-                ]}
-              >
-                <Text
-                  style={[
-                    styles.selectorText,
-                    customerType === type && styles.selectorTextActive,
-                  ]}
-                >
-                  {type}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Customer Dropdown Master List */}
-          {customerSource === 'Existing Customer' && (
-            <>
-              <Text style={styles.label}>Select Predefined Customer *</Text>
-              <TouchableOpacity
-                style={styles.dropdownTrigger}
-                onPress={() => setShowCustomerDropdown(!showCustomerDropdown)}
-              >
-                <Text style={styles.dropdownTriggerText}>
-                  {customerName ? customerName : `-- Choose ${customerType} from Database --`}
-                </Text>
-                <Text style={styles.dropdownArrow}>▼</Text>
-              </TouchableOpacity>
-
-              {showCustomerDropdown && (
-                <View style={styles.dropdownContainer}>
-                  {getDropdownCustomers().map((cust) => (
-                    <TouchableOpacity
-                      key={cust.id}
-                      style={[
-                        styles.dropdownOption,
-                        selectedCustomerId === cust.id && styles.dropdownOptionActive
-                      ]}
-                      onPress={() => {
-                        setSelectedCustomerId(cust.id);
-                        setCustomerName(cust.name);
-                        setCustomerMobile(cust.mobile);
-                        setShowCustomerDropdown(false);
-                      }}
-                    >
-                      <Text style={[
-                        styles.dropdownOptionText,
-                        selectedCustomerId === cust.id && styles.dropdownOptionTextActive
-                      ]}>
-                        👤 {cust.name} {cust.mobile ? `(${cust.mobile})` : ''}
-                      </Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
-            </>
-          )}
-
-          <Text style={styles.label}>Customer Name *</Text>
-          <TextInput
-            style={[
-              styles.input,
-              customerSource === 'Existing Customer' && { backgroundColor: '#F1F5F9', color: '#475569' }
-            ]}
-            placeholder={customerSource === 'Existing Customer' ? "Select from dropdown above" : "Enter customer name"}
-            value={customerName}
-            onChangeText={setCustomerName}
-            editable={customerSource === 'New Customer'}
-          />
-
-          <Text style={styles.label}>Customer Mobile *</Text>
-          <TextInput
-            style={[
-              styles.input,
-              customerSource === 'Existing Customer' && { backgroundColor: '#F1F5F9', color: '#475569' }
-            ]}
-            placeholder={customerSource === 'Existing Customer' ? "Select from dropdown above" : "Enter 10-digit number"}
-            value={customerMobile}
-            onChangeText={(text) => setCustomerMobile(text.replace(/[^0-9]/g, ''))}
-            keyboardType="numeric"
-            maxLength={10}
-            editable={customerSource === 'New Customer'}
-          />
-
-          {/* Product Dropdown Selector */}
-          <Text style={styles.label}>Product Name *</Text>
-          <TouchableOpacity
-            style={styles.dropdownTrigger}
-            onPress={() => setShowProductDropdown(!showProductDropdown)}
+          <ScrollView 
+            ref={scrollViewRef}
+            style={styles.container}
+            contentContainerStyle={{ paddingBottom: 280 }}
+            keyboardShouldPersistTaps="handled"
           >
-            <Text style={styles.dropdownTriggerText}>{selectedProduct || '-- Choose Product --'}</Text>
-            <Text style={styles.dropdownArrow}>▼</Text>
-          </TouchableOpacity>
 
-          {showProductDropdown && (
-            <View style={styles.dropdownContainer}>
-              {getProductOptions().map((prod) => (
+
+        <Text style={styles.title}>📦 Book Order</Text>
+
+        {loadingMaster ? (
+          <View style={styles.loaderCard}>
+            <ActivityIndicator size="large" color="#1E88E5" />
+            <Text style={styles.loaderText}>Syncing product & customer registries...</Text>
+          </View>
+        ) : (
+          <View style={styles.form}>
+            {editingOrderId !== null && (
+              <View style={styles.editBanner}>
+                <Text style={styles.editBannerText}>✏️ Editing Order {orders.find(o=>o.id===editingOrderId)?.orderNumber}</Text>
+              </View>
+            )}
+
+            {/* Customer Source Selector */}
+            <Text style={styles.label}>Customer Source *</Text>
+            <View style={styles.selectorRow}>
+              {['Existing Customer', 'New Customer'].map((source) => (
                 <TouchableOpacity
-                  key={prod.name}
-                  style={[
-                    styles.dropdownOption,
-                    selectedProduct === prod.name && styles.dropdownOptionActive
-                  ]}
+                  key={source}
                   onPress={() => {
-                    setSelectedProduct(prod.name);
-                    setShowProductDropdown(false);
+                    setCustomerSource(source);
+                    setCustomerName('');
+                    setCustomerMobile('');
+                    setSelectedCustomerId(null);
+                    setShowCustomerDropdown(false);
                   }}
+                  style={[
+                    styles.selectorButton,
+                    customerSource === source && styles.selectorActive,
+                  ]}
                 >
-                  <Text style={[
-                    styles.dropdownOptionText,
-                    selectedProduct === prod.name && styles.dropdownOptionTextActive
-                  ]}>
-                    💊 {prod.name} (Rate: ₹{prod.rate.toFixed(2)} / unit)
+                  <Text
+                    style={[
+                      styles.selectorText,
+                      customerSource === source && styles.selectorTextActive,
+                    ]}
+                  >
+                    {source}
                   </Text>
                 </TouchableOpacity>
               ))}
             </View>
-          )}
 
-          <View style={styles.row}>
-            <View style={styles.rowItem}>
-              <Text style={styles.label}>Quantity *</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g. 10"
-                value={quantity}
-                onChangeText={setQuantity}
-                keyboardType="numeric"
-              />
-            </View>
-            <View style={styles.rowItem}>
-              <Text style={styles.label}>Rate (₹) *</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: '#F1F5F9', color: '#475569' }]}
-                placeholder="e.g. 15.00"
-                value={rate}
-                onChangeText={setRate}
-                keyboardType="numeric"
-                editable={false}
-              />
-            </View>
-          </View>
-
-          <Text style={styles.label}>Forward To Distributor</Text>
-          <TouchableOpacity
-            style={styles.dropdownTrigger}
-            onPress={() => setShowDistributorDropdown(!showDistributorDropdown)}
-          >
-            <Text style={styles.dropdownTriggerText}>{distributor || '-- Select Distributor --'}</Text>
-            <Text style={styles.dropdownArrow}>▼</Text>
-          </TouchableOpacity>
-
-          {showDistributorDropdown && (
-            <View style={styles.dropdownContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.dropdownOption,
-                  distributor === '' && styles.dropdownOptionActive
-                ]}
-                onPress={() => {
-                  setDistributor('');
-                  setShowDistributorDropdown(false);
-                }}
-              >
-                <Text style={styles.dropdownOptionText}>-- None --</Text>
-              </TouchableOpacity>
-              {distributors.map((d: any, idx: number) => (
+            {/* Customer Type Selector */}
+            <Text style={styles.label}>Order For *</Text>
+            <View style={styles.selectorRow}>
+              {['Chemist', 'Hospital', 'Stockist'].map((type) => (
                 <TouchableOpacity
-                  key={d.id || idx}
+                  key={type}
+                  onPress={() => setCustomerType(type)}
+                  style={[
+                    styles.selectorButton,
+                    customerType === type && styles.selectorActive,
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.selectorText,
+                      customerType === type && styles.selectorTextActive,
+                    ]}
+                  >
+                    {type}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Customer Dropdown Master List */}
+            {customerSource === 'Existing Customer' && (
+              <>
+                <Text style={styles.label}>Select Predefined Customer *</Text>
+                <TouchableOpacity
+                  style={styles.dropdownTrigger}
+                  onPress={() => setShowCustomerDropdown(!showCustomerDropdown)}
+                >
+                  <Text style={styles.dropdownTriggerText}>
+                    {customerName ? customerName : `-- Choose ${customerType} from Database --`}
+                  </Text>
+                  <Text style={styles.dropdownArrow}>▼</Text>
+                </TouchableOpacity>
+
+                {showCustomerDropdown && (
+                  <View style={styles.dropdownContainer}>
+                    {getDropdownCustomers().map((cust) => (
+                      <TouchableOpacity
+                        key={cust.id}
+                        style={[
+                          styles.dropdownOption,
+                          selectedCustomerId === cust.id && styles.dropdownOptionActive
+                        ]}
+                        onPress={() => {
+                          setSelectedCustomerId(cust.id);
+                          setCustomerName(cust.name);
+                          setCustomerMobile(cust.mobile);
+                          setShowCustomerDropdown(false);
+                        }}
+                      >
+                        <Text style={[
+                          styles.dropdownOptionText,
+                          selectedCustomerId === cust.id && styles.dropdownOptionTextActive
+                        ]}>
+                          👤 {cust.name} {cust.mobile ? `(${cust.mobile})` : ''}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </>
+            )}
+
+            <Text style={styles.label}>Customer Name *</Text>
+            <TextInput
+              style={[
+                styles.input,
+                customerSource === 'Existing Customer' && { backgroundColor: '#F1F5F9', color: '#475569' }
+              ]}
+              placeholder={customerSource === 'Existing Customer' ? "Select from dropdown above" : "Enter customer name"}
+              value={customerName}
+              onChangeText={setCustomerName}
+              editable={customerSource === 'New Customer'}
+            />
+
+            <Text style={styles.label}>Customer Mobile *</Text>
+            <TextInput
+              style={[
+                styles.input,
+                customerSource === 'Existing Customer' && { backgroundColor: '#F1F5F9', color: '#475569' }
+              ]}
+              placeholder={customerSource === 'Existing Customer' ? "Select from dropdown above" : "Enter 10-digit number"}
+              value={customerMobile}
+              onChangeText={(text) => setCustomerMobile(text.replace(/[^0-9]/g, ''))}
+              keyboardType="numeric"
+              maxLength={10}
+              editable={customerSource === 'New Customer'}
+            />
+
+            {/* Product Dropdown Selector */}
+            <Text style={styles.label}>Product Name *</Text>
+            <TouchableOpacity
+              style={styles.dropdownTrigger}
+              onPress={() => setShowProductDropdown(!showProductDropdown)}
+            >
+              <Text style={styles.dropdownTriggerText}>{selectedProduct || '-- Choose Product --'}</Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
+            </TouchableOpacity>
+
+            {showProductDropdown && (
+              <View style={styles.dropdownContainer}>
+                {getProductOptions().map((prod) => (
+                  <TouchableOpacity
+                    key={prod.name}
+                    style={[
+                      styles.dropdownOption,
+                      selectedProduct === prod.name && styles.dropdownOptionActive
+                    ]}
+                    onPress={() => {
+                      setSelectedProduct(prod.name);
+                      setShowProductDropdown(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.dropdownOptionText,
+                      selectedProduct === prod.name && styles.dropdownOptionTextActive
+                    ]}>
+                      💊 {prod.name} (Rate: ₹{prod.rate.toFixed(2)} / unit)
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+            <View style={styles.row}>
+              <View style={styles.rowItem}>
+                <Text style={styles.label}>Quantity *</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g. 10"
+                  value={quantity}
+                  onChangeText={setQuantity}
+                  keyboardType="numeric"
+                />
+              </View>
+              <View style={styles.rowItem}>
+                <Text style={styles.label}>Rate (₹) *</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: '#F1F5F9', color: '#475569' }]}
+                  placeholder="e.g. 15.00"
+                  value={rate}
+                  onChangeText={setRate}
+                  keyboardType="numeric"
+                  editable={false}
+                />
+              </View>
+            </View>
+
+            <Text style={styles.label}>Forward To Distributor</Text>
+            <TouchableOpacity
+              style={styles.dropdownTrigger}
+              onPress={() => setShowDistributorDropdown(!showDistributorDropdown)}
+            >
+              <Text style={styles.dropdownTriggerText}>{distributor || '-- Select Distributor --'}</Text>
+              <Text style={styles.dropdownArrow}>▼</Text>
+            </TouchableOpacity>
+
+            {showDistributorDropdown && (
+              <View style={styles.dropdownContainer}>
+                <TouchableOpacity
                   style={[
                     styles.dropdownOption,
-                    distributor === (d.name || d.distributorName) && styles.dropdownOptionActive
+                    distributor === '' && styles.dropdownOptionActive
                   ]}
                   onPress={() => {
-                    setDistributor(d.name || d.distributorName || '');
+                    setDistributor('');
                     setShowDistributorDropdown(false);
                   }}
                 >
-                  <Text style={[
-                    styles.dropdownOptionText,
-                    distributor === (d.name || d.distributorName) && styles.dropdownOptionTextActive
-                  ]}>
-                    🚚 {d.name || d.distributorName} {d.mobile ? `(${d.mobile})` : ''}
-                  </Text>
+                  <Text style={styles.dropdownOptionText}>-- None --</Text>
                 </TouchableOpacity>
-              ))}
-            </View>
-          )}
-
-          <Text style={styles.label}>Remarks</Text>
-          <TextInput
-            style={[styles.input, styles.textArea]}
-            placeholder="Any additional remarks..."
-            value={remarks}
-            onChangeText={setRemarks}
-            multiline
-            numberOfLines={3}
-            onFocus={() => {
-              setTimeout(() => {
-                scrollViewRef.current?.scrollToEnd({ animated: true });
-              }, 150);
-            }}
-          />
-
-          <View style={styles.buttonRow}>
-            <TouchableOpacity 
-              style={[styles.submitButton, editingOrderId !== null && { flex: 2 }]} 
-              onPress={handleSubmit}
-            >
-              <Text style={styles.submitText}>
-                {editingOrderId !== null ? 'UPDATE ORDER' : 'SUBMIT ORDER'}
-              </Text>
-            </TouchableOpacity>
-            {editingOrderId !== null && (
-              <TouchableOpacity 
-                style={styles.cancelEditButton} 
-                onPress={() => {
-                  setEditingOrderId(null);
-                  setCustomerName('');
-                  setCustomerMobile('');
-                  setQuantity('');
-                  setRemarks('');
-                }}
-              >
-                <Text style={styles.cancelEditText}>CANCEL</Text>
-              </TouchableOpacity>
-            )}
-          </View>
-        </View>
-      )}
-
-      {/* History and Search */}
-      {!loadingMaster && (
-        <>
-          {error ? (
-            <View style={styles.errorContainer}>
-              <Text style={styles.errorText}>⚠️ {error}</Text>
-              <TouchableOpacity style={styles.retryButton} onPress={loadOrders}>
-                <Text style={styles.retryButtonText}>🔄 Retry Loading History</Text>
-              </TouchableOpacity>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.historyTitle}>Booked Orders History ({filteredOrders.length})</Text>
-
-              {/* Search Bar */}
-              <View style={styles.searchContainer}>
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="🔍 Search orders by number, customer, or product..."
-                  value={searchQuery}
-                  onChangeText={setSearchQuery}
-                  onFocus={() => {
-                    setTimeout(() => {
-                      scrollViewRef.current?.scrollToEnd({ animated: true });
-                    }, 150);
-                  }}
-                />
-                {searchQuery ? (
-                  <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearchButton}>
-                    <Text style={styles.clearSearchText}>✕</Text>
+                {distributors.map((d: any, idx: number) => (
+                  <TouchableOpacity
+                    key={d.id || idx}
+                    style={[
+                      styles.dropdownOption,
+                      distributor === (d.name || d.distributorName) && styles.dropdownOptionActive
+                    ]}
+                    onPress={() => {
+                      setDistributor(d.name || d.distributorName || '');
+                      setShowDistributorDropdown(false);
+                    }}
+                  >
+                    <Text style={[
+                      styles.dropdownOptionText,
+                      distributor === (d.name || d.distributorName) && styles.dropdownOptionTextActive
+                    ]}>
+                      🚚 {d.name || d.distributorName} {d.mobile ? `(${d.mobile})` : ''}
+                    </Text>
                   </TouchableOpacity>
-                ) : null}
+                ))}
               </View>
+            )}
 
-              {filteredOrders.length > 0 ? (
-                filteredOrders.map((order) => {
-                  const statusStyle = getStatusColor(order.status);
-                  return (
-                    <View key={order.id} style={styles.orderCard}>
-                      <View style={styles.orderHeader}>
-                        <View>
-                          <Text style={styles.orderNumberText}>{order.orderNumber || 'ORD-Legacy'}</Text>
-                          <Text style={styles.orderName}>{order.customerName || 'N/A'}</Text>
-                        </View>
-                        <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
-                          <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
-                            {order.status || 'Pending'}
-                          </Text>
-                        </View>
-                      </View>
-                      
-                      <Text style={styles.orderInfo}>📱 Mobile: {order.customerMobile || 'N/A'}</Text>
-                      <Text style={styles.orderInfo}>💊 Product: {order.productName || 'N/A'} ({order.quantity || 0} x ₹{order.rate || 0})</Text>
-                      <Text style={styles.orderInfo}>📅 Date: {order.dateFormatted || order.date || 'N/A'}</Text>
-                      {order.remarks ? (
-                        <Text style={styles.orderInfo}>💬 Remarks: {order.remarks}</Text>
-                      ) : null}
-                      
-                      <View style={styles.cardDivider} />
-                      
-                      <View style={styles.cardTotalRow}>
-                        <View>
-                          <Text style={styles.dueBreakdownText}>Fwd To: {order.distributor || 'Not Assigned'}</Text>
-                        </View>
-                        <Text style={styles.orderTotal}>Net: ₹{(order.totalAmount || 0).toLocaleString('en-IN')}</Text>
-                      </View>
+            <Text style={styles.label}>Remarks</Text>
+            <TextInput
+              style={[styles.input, styles.textArea]}
+              placeholder="Any additional remarks..."
+              value={remarks}
+              onChangeText={setRemarks}
+              multiline
+              numberOfLines={3}
+            
+            />
 
-                      {/* Edit and Cancel buttons for Booked orders */}
-                      {order.status === 'Booked' && (
-                        <View style={styles.actionsRow}>
-                          <TouchableOpacity 
-                            onPress={() => handleEditOrder(order)}
-                            style={[styles.actionButtonItem, styles.editBtn]}
-                          >
-                            <Text style={styles.actionButtonText}>✏️ Edit</Text>
-                          </TouchableOpacity>
-                          <TouchableOpacity 
-                            onPress={() => handleCancelOrder(order.id)}
-                            style={[styles.actionButtonItem, styles.cancelBtn]}
-                          >
-                            <Text style={styles.actionButtonText}>❌ Cancel</Text>
-                          </TouchableOpacity>
-                        </View>
-                      )}
-                    </View>
-                  );
-                })
-              ) : (
-                <View style={styles.emptyCard}>
-                  <Text style={styles.emptyText}>No orders found matching your search</Text>
-                </View>
+            <View style={styles.buttonRow}>
+              <TouchableOpacity 
+                style={[styles.submitButton, editingOrderId !== null && { flex: 2 }]} 
+                onPress={handleSubmit}
+              >
+                <Text style={styles.submitText}>
+                  {editingOrderId !== null ? 'UPDATE ORDER' : 'SUBMIT ORDER'}
+                </Text>
+              </TouchableOpacity>
+              {editingOrderId !== null && (
+                <TouchableOpacity 
+                  style={styles.cancelEditButton} 
+                  onPress={() => {
+                    setEditingOrderId(null);
+                    setCustomerName('');
+                    setCustomerMobile('');
+                    setQuantity('');
+                    setRemarks('');
+                  }}
+                >
+                  <Text style={styles.cancelEditText}>CANCEL</Text>
+                </TouchableOpacity>
               )}
-            </>
-          )}
-        </>
-      )}
-      <View style={{ height: 40 }} />
-    </ScrollView>
-     </KeyboardAvoidingView> 
-  );
-};
+            </View>
+          </View>
+        )}
 
-export default BookOrderScreen;
+        {/* History and Search */}
+        {!loadingMaster && (
+          <>
+            {error ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>⚠️ {error}</Text>
+                <TouchableOpacity style={styles.retryButton} onPress={loadOrders}>
+                  <Text style={styles.retryButtonText}>🔄 Retry Loading History</Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <>
+                <Text style={styles.historyTitle}>Booked Orders History ({filteredOrders.length})</Text>
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#F5F7FA',
-    padding: 20,
-    paddingTop: 50,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  loaderCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-  },
-  loaderText: {
-    marginTop: 15,
-    fontSize: 14,
-    color: '#666',
-  },
-  editBanner: {
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-    padding: 10,
-    marginBottom: 15,
-    borderLeftWidth: 4,
-    borderLeftColor: '#1E88E5',
-  },
-  editBannerText: {
-    fontSize: 13,
-    color: '#0D47A1',
-    fontWeight: 'bold',
-  },
-  form: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 20,
-    marginBottom: 20,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 4,
-  },
-  label: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#444',
-    marginBottom: 6,
-    marginTop: 12,
-  },
-  selectorRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginBottom: 8,
-  },
-  selectorButton: {
-    flex: 1,
-    padding: 10,
-    borderRadius: 8,
-    alignItems: 'center',
-    backgroundColor: '#eee',
-  },
-  selectorActive: {
-    backgroundColor: '#1E88E5',
-  },
-  selectorText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#333',
-  },
-  selectorTextActive: {
-    color: '#fff',
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 14,
-    backgroundColor: '#fafafa',
-  },
-  dropdownTrigger: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    padding: 12,
-    backgroundColor: '#fafafa',
-    marginBottom: 4,
-  },
-  dropdownTriggerText: {
-    fontSize: 14,
-    color: '#333',
-  },
-  dropdownArrow: {
-    fontSize: 12,
-    color: '#666',
-  },
-  dropdownContainer: {
-    borderWidth: 1,
-    borderColor: '#ddd',
-    borderRadius: 8,
-    backgroundColor: '#fff',
-    marginTop: -2,
-    marginBottom: 10,
-    overflow: 'hidden',
-    elevation: 3,
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
-  },
-  dropdownOption: {
-    padding: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f0f0f0',
-  },
-  dropdownOptionActive: {
-    backgroundColor: '#E3F2FD',
-  },
-  dropdownOptionText: {
-    fontSize: 13,
-    color: '#555',
-  },
-  dropdownOptionTextActive: {
-    color: '#1565C0',
-    fontWeight: 'bold',
-  },
-  row: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  rowItem: {
-    flex: 1,
-  },
-  dueCard: {
-    backgroundColor: '#E3F2FD',
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 18,
-    marginBottom: 6,
-    borderLeftWidth: 4,
-    borderLeftColor: '#1E88E5',
-  },
-  dueRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  dueLabel: {
-    fontSize: 12,
-    color: '#1565C0',
-  },
-  dueValue: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#0D47A1',
-  },
-  dueTotalRow: {
-    marginTop: 8,
-    borderTopWidth: 1,
-    borderTopColor: '#BBDEFB',
-    paddingTop: 8,
-  },
-  dueTotalLabel: {
-    fontSize: 13,
-    color: '#0D47A1',
-    fontWeight: 'bold',
-  },
-  dueTotalValue: {
-    fontSize: 15,
-    color: '#0D47A1',
-    fontWeight: 'bold',
-  },
-  textArea: {
-    height: 80,
-    textAlignVertical: 'top',
-  },
-  buttonRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 20,
-  },
-  submitButton: {
-    flex: 1,
-    backgroundColor: '#1E88E5',
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  submitText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
-  cancelEditButton: {
-    flex: 1,
-    backgroundColor: '#757575',
-    padding: 16,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelEditText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: 'bold',
-    letterSpacing: 1,
-  },
-  historyTitle: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-    marginBottom: 10,
-  },
-  searchContainer: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#ddd',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    marginBottom: 15,
-  },
-  searchInput: {
-    flex: 1,
-    paddingVertical: 10,
-    fontSize: 14,
-    color: '#333',
-  },
-  clearSearchButton: {
-    padding: 5,
-  },
-  clearSearchText: {
-    fontSize: 14,
-    color: '#999',
-    fontWeight: 'bold',
-  },
-  orderCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 15,
-    marginBottom: 10,
-    elevation: 1,
-    borderLeftWidth: 4,
-    borderLeftColor: '#1E88E5',
-  },
-  orderHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  orderNumberText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#666',
-  },
-  orderName: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#1E88E5',
-    marginTop: 2,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-  },
-  statusBadgeText: {
-    fontSize: 11,
-    fontWeight: 'bold',
-  },
-  orderInfo: {
-    fontSize: 13,
-    color: '#555',
-    marginTop: 3,
-  },
-  cardDivider: {
-    height: 1,
-    backgroundColor: '#f0f0f0',
-    marginVertical: 10,
-  },
-  cardTotalRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-end',
-  },
-  dueBreakdownText: {
-    fontSize: 11,
-    color: '#888',
-  },
-  orderTotal: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  actionsRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 8,
-    marginTop: 12,
-  },
-  actionButtonItem: {
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 6,
-  },
-  editBtn: {
-    backgroundColor: '#E3F2FD',
-  },
-  cancelBtn: {
-    backgroundColor: '#FFEBEE',
-  },
-  actionButtonText: {
-    fontSize: 12,
-    fontWeight: 'bold',
-    color: '#333',
-  },
-  emptyCard: {
-    backgroundColor: '#fff',
-    borderRadius: 10,
-    padding: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    elevation: 1,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#999',
-    fontStyle: 'italic',
-  },
-  errorContainer: {
-    backgroundColor: '#FFEBEE',
-    borderColor: '#FFCDD2',
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 16,
-    marginVertical: 15,
-    alignItems: 'center',
-  },
-  errorText: {
-    color: '#C62828',
-    fontSize: 14,
-    fontWeight: 'bold',
-    marginBottom: 10,
-    textAlign: 'center',
-  },
-  retryButton: {
-    backgroundColor: '#C62828',
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 6,
-  },
-  retryButtonText: {
-    color: '#fff',
-    fontSize: 13,
-    fontWeight: 'bold',
-  },
-});
+                {/* Search Bar */}
+                <View style={styles.searchContainer}>
+                  <TextInput
+                    style={styles.searchInput}
+                    placeholder="🔍 Search orders by number, customer, or product..."
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    onFocus={() => {
+                      setTimeout(() => {
+                        scrollViewRef.current?.scrollToEnd({ animated: true });
+                      }, 150);
+                    }}
+                  />
+                  {searchQuery ? (
+                    <TouchableOpacity onPress={() => setSearchQuery('')} style={styles.clearSearchButton}>
+                      <Text style={styles.clearSearchText}>✕</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+
+                {filteredOrders.length > 0 ? (
+                  filteredOrders.map((order) => {
+                    const statusStyle = getStatusColor(order.status);
+                    return (
+                      <View key={order.id} style={styles.orderCard}>
+                        <View style={styles.orderHeader}>
+                          <View>
+                            <Text style={styles.orderNumberText}>{order.orderNumber || 'ORD-Legacy'}</Text>
+                            <Text style={styles.orderName}>{order.customerName || 'N/A'}</Text>
+                          </View>
+                          <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg }]}>
+                            <Text style={[styles.statusBadgeText, { color: statusStyle.text }]}>
+                              {order.status || 'Pending'}
+                            </Text>
+                          </View>
+                        </View>
+                        
+                        <Text style={styles.orderInfo}>📱 Mobile: {order.customerMobile || 'N/A'}</Text>
+                        <Text style={styles.orderInfo}>💊 Product: {order.productName || 'N/A'} ({order.quantity || 0} x ₹{order.rate || 0})</Text>
+                        <Text style={styles.orderInfo}>📅 Date: {order.dateFormatted || order.date || 'N/A'}</Text>
+                        {order.remarks ? (
+                          <Text style={styles.orderInfo}>💬 Remarks: {order.remarks}</Text>
+                        ) : null}
+                        
+                        <View style={styles.cardDivider} />
+                        
+                        <View style={styles.cardTotalRow}>
+                          <View>
+                            <Text style={styles.dueBreakdownText}>Fwd To: {order.distributor || 'Not Assigned'}</Text>
+                          </View>
+                          <Text style={styles.orderTotal}>Net: ₹{(order.totalAmount || 0).toLocaleString('en-IN')}</Text>
+                        </View>
+
+                        {/* Edit and Cancel buttons for Booked orders */}
+                        {order.status === 'Booked' && (
+                          <View style={styles.actionsRow}>
+                            {order.isEdited && (
+                              <View style={styles.editedLabelContainer}>
+                                <Text style={styles.editedLabelText}>Edited</Text>
+                              </View>
+                            )}
+                            <TouchableOpacity 
+                              onPress={() => handleEditOrder(order)}
+                              style={[styles.actionButtonItem, styles.editBtn]}
+                            >
+                              <Text style={styles.actionButtonText}>✏️ Edit</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity 
+                              onPress={() => handleCancelOrder(order.id)}
+                              style={[styles.actionButtonItem, styles.cancelBtn]}
+                            >
+                              <Text style={styles.actionButtonText}>❌ Cancel</Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      </View>
+                    );
+                  })
+                ) : (
+                  <View style={styles.emptyCard}>
+                    <Text style={styles.emptyText}>No orders found matching your search</Text>
+                  </View>
+                )}
+              </>
+            )}
+          </>
+        )}
+        <View style={{ height: 40 }} />
+      </ScrollView>
+      </KeyboardAvoidingView> 
+    );
+  };
+
+  export default BookOrderScreen;
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: '#F5F7FA',
+      padding: 20,
+      paddingTop: 50,
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      color: '#333',
+      marginBottom: 20,
+      textAlign: 'center',
+    },
+    loaderCard: {
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      padding: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+    },
+    loaderText: {
+      marginTop: 15,
+      fontSize: 14,
+      color: '#666',
+    },
+    editBanner: {
+      backgroundColor: '#E3F2FD',
+      borderRadius: 8,
+      padding: 10,
+      marginBottom: 15,
+      borderLeftWidth: 4,
+      borderLeftColor: '#1E88E5',
+    },
+    editBannerText: {
+      fontSize: 13,
+      color: '#0D47A1',
+      fontWeight: 'bold',
+    },
+    form: {
+      backgroundColor: '#fff',
+      borderRadius: 12,
+      padding: 20,
+      marginBottom: 20,
+      elevation: 2,
+      shadowColor: '#000',
+      shadowOpacity: 0.08,
+      shadowRadius: 4,
+    },
+    label: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: '#444',
+      marginBottom: 6,
+      marginTop: 12,
+    },
+    selectorRow: {
+      flexDirection: 'row',
+      gap: 8,
+      marginBottom: 8,
+    },
+    selectorButton: {
+      flex: 1,
+      padding: 10,
+      borderRadius: 8,
+      alignItems: 'center',
+      backgroundColor: '#eee',
+    },
+    selectorActive: {
+      backgroundColor: '#1E88E5',
+    },
+    selectorText: {
+      fontSize: 13,
+      fontWeight: '600',
+      color: '#333',
+    },
+    selectorTextActive: {
+      color: '#fff',
+    },
+    input: {
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 8,
+      padding: 12,
+      fontSize: 14,
+      backgroundColor: '#fafafa',
+    },
+    dropdownTrigger: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 8,
+      padding: 12,
+      backgroundColor: '#fafafa',
+      marginBottom: 4,
+    },
+    dropdownTriggerText: {
+      fontSize: 14,
+      color: '#333',
+    },
+    dropdownArrow: {
+      fontSize: 12,
+      color: '#666',
+    },
+    dropdownContainer: {
+      borderWidth: 1,
+      borderColor: '#ddd',
+      borderRadius: 8,
+      backgroundColor: '#fff',
+      marginTop: -2,
+      marginBottom: 10,
+      overflow: 'hidden',
+      elevation: 3,
+      shadowColor: '#000',
+      shadowOpacity: 0.1,
+      shadowRadius: 3,
+    },
+    dropdownOption: {
+      padding: 12,
+      borderBottomWidth: 1,
+      borderBottomColor: '#f0f0f0',
+    },
+    dropdownOptionActive: {
+      backgroundColor: '#E3F2FD',
+    },
+    dropdownOptionText: {
+      fontSize: 13,
+      color: '#555',
+    },
+    dropdownOptionTextActive: {
+      color: '#1565C0',
+      fontWeight: 'bold',
+    },
+    row: {
+      flexDirection: 'row',
+      gap: 12,
+    },
+    rowItem: {
+      flex: 1,
+    },
+    dueCard: {
+      backgroundColor: '#E3F2FD',
+      borderRadius: 8,
+      padding: 12,
+      marginTop: 18,
+      marginBottom: 6,
+      borderLeftWidth: 4,
+      borderLeftColor: '#1E88E5',
+    },
+    dueRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      marginBottom: 4,
+    },
+    dueLabel: {
+      fontSize: 12,
+      color: '#1565C0',
+    },
+    dueValue: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: '#0D47A1',
+    },
+    dueTotalRow: {
+      marginTop: 8,
+      borderTopWidth: 1,
+      borderTopColor: '#BBDEFB',
+      paddingTop: 8,
+    },
+    dueTotalLabel: {
+      fontSize: 13,
+      color: '#0D47A1',
+      fontWeight: 'bold',
+    },
+    dueTotalValue: {
+      fontSize: 15,
+      color: '#0D47A1',
+      fontWeight: 'bold',
+    },
+    textArea: {
+      height: 80,
+      textAlignVertical: 'top',
+    },
+    buttonRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: 20,
+    },
+    submitButton: {
+      flex: 1,
+      backgroundColor: '#1E88E5',
+      padding: 16,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    submitText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: 'bold',
+      letterSpacing: 1,
+    },
+    cancelEditButton: {
+      flex: 1,
+      backgroundColor: '#757575',
+      padding: 16,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    cancelEditText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: 'bold',
+      letterSpacing: 1,
+    },
+    historyTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#333',
+      marginBottom: 10,
+    },
+    searchContainer: {
+      flexDirection: 'row',
+      backgroundColor: '#fff',
+      borderRadius: 8,
+      borderWidth: 1,
+      borderColor: '#ddd',
+      alignItems: 'center',
+      paddingHorizontal: 10,
+      marginBottom: 15,
+    },
+    searchInput: {
+      flex: 1,
+      paddingVertical: 10,
+      fontSize: 14,
+      color: '#333',
+    },
+    clearSearchButton: {
+      padding: 5,
+    },
+    clearSearchText: {
+      fontSize: 14,
+      color: '#999',
+      fontWeight: 'bold',
+    },
+    orderCard: {
+      backgroundColor: '#fff',
+      borderRadius: 10,
+      padding: 15,
+      marginBottom: 10,
+      elevation: 1,
+      borderLeftWidth: 4,
+      borderLeftColor: '#1E88E5',
+    },
+    orderHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-start',
+      marginBottom: 8,
+    },
+    orderNumberText: {
+      fontSize: 12,
+      fontWeight: 'bold',
+      color: '#666',
+    },
+    orderName: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#1E88E5',
+      marginTop: 2,
+    },
+    statusBadge: {
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 6,
+    },
+    statusBadgeText: {
+      fontSize: 11,
+      fontWeight: 'bold',
+    },
+    orderInfo: {
+      fontSize: 13,
+      color: '#555',
+      marginTop: 3,
+    },
+    cardDivider: {
+      height: 1,
+      backgroundColor: '#f0f0f0',
+      marginVertical: 10,
+    },
+    cardTotalRow: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'flex-end',
+    },
+    dueBreakdownText: {
+      fontSize: 11,
+      color: '#888',
+    },
+    orderTotal: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#333',
+    },
+    actionsRow: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      gap: 8,
+      marginTop: 12,
+    },
+    actionButtonItem: {
+      paddingVertical: 6,
+      paddingHorizontal: 12,
+      borderRadius: 6,
+    },
+    editBtn: {
+      backgroundColor: '#E3F2FD',
+    },
+    cancelBtn: {
+      backgroundColor: '#FFEBEE',
+    },
+    actionButtonText: {
+      fontSize: 12,
+      fontWeight: 'bold',
+      color: '#333',
+    },
+    emptyCard: {
+      backgroundColor: '#fff',
+      borderRadius: 10,
+      padding: 20,
+      alignItems: 'center',
+      justifyContent: 'center',
+      elevation: 1,
+    },
+    emptyText: {
+      fontSize: 14,
+      color: '#999',
+      fontStyle: 'italic',
+    },
+    errorContainer: {
+      backgroundColor: '#FFEBEE',
+      borderColor: '#FFCDD2',
+      borderWidth: 1,
+      borderRadius: 8,
+      padding: 16,
+      marginVertical: 15,
+      alignItems: 'center',
+    },
+    errorText: {
+      color: '#C62828',
+      fontSize: 14,
+      fontWeight: 'bold',
+      marginBottom: 10,
+      textAlign: 'center',
+    },
+    retryButton: {
+      backgroundColor: '#C62828',
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      borderRadius: 6,
+    },
+    retryButtonText: {
+      color: '#fff',
+      fontSize: 13,
+      fontWeight: 'bold',
+    },
+    editedLabelContainer: {
+      backgroundColor: '#FFF9C4', // light yellow
+      borderColor: '#FBC02D',
+      borderWidth: 1,
+      borderRadius: 6,
+      paddingHorizontal: 8,
+      paddingVertical: 2,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginRight: 4,
+    },
+    editedLabelText: {
+      color: '#F57F17', // dark orange/yellow
+      fontSize: 10,
+      fontWeight: 'bold',
+      textTransform: 'uppercase',
+    },
+  });

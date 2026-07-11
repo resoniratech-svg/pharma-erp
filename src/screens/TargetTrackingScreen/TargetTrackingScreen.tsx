@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -129,6 +130,7 @@ const TargetTrackingScreen = () => {
   };
 
   const getPercentage = (achieved: number, target: number) => {
+    if (!target || target <= 0) return 0;
     return Math.min(Math.round((achieved / target) * 100), 100);
   };
 
@@ -145,7 +147,7 @@ const TargetTrackingScreen = () => {
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>⬅️ Back</Text>
+          <Ionicons name="chevron-back" size={28} color="#FFFFFF" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>📊 Target & Performance</Text>
         <Text style={styles.headerSubtitle}>Track achievements & incentive payouts</Text>
@@ -254,7 +256,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#4F46E5',
-    paddingTop: 60,
+    paddingTop: 64,
     paddingBottom: 25,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 24,
@@ -263,18 +265,13 @@ const styles = StyleSheet.create({
   },
   backButton: {
     position: 'absolute',
-    left: 15,
-    top: 50,
+    left: 16,
+    top: 56,
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
     zIndex: 10,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  backButtonText: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    fontWeight: 'bold',
   },
   headerTitle: {
     fontSize: 22,

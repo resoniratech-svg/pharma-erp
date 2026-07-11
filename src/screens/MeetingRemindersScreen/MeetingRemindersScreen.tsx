@@ -9,6 +9,8 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Modal,
+  Linking,
 } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
@@ -23,6 +25,14 @@ interface MeetingReminder {
   timestamp: number;
   isToday: boolean;
   daysText: string;
+  meetingType: string;
+  meetingMode: string;
+  outcome: string;
+  description: string;
+  organizer: string;
+  meetingLink?: string;
+  rawDoctors?: string;
+  rawChemists?: string;
 }
 
 const getDaysRemaining = (dateStr: string, todayStr: string) => {
@@ -51,6 +61,8 @@ const MeetingRemindersScreen = () => {
   const navigation = useNavigation<any>();
   const [reminders, setReminders] = useState<MeetingReminder[]>([]);
   const [loading, setLoading] = useState(true);
+  const [selectedReminder, setSelectedReminder] = useState<MeetingReminder | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
 
   const fetchMeetingReminders = async () => {
     setLoading(true);
@@ -77,6 +89,16 @@ const MeetingRemindersScreen = () => {
             participantStr = `${m.meetingChemists.length} Chemist(s)`;
           }
 
+          // Resolve names for detail modal
+          let rawDoctors = '';
+          if (m.meetingDoctors && m.meetingDoctors.length > 0) {
+            rawDoctors = m.meetingDoctors.map((d: any) => d.doctor?.name || d.doctor?.doctorName || 'N/A').join(', ');
+          }
+          let rawChemists = '';
+          if (m.meetingChemists && m.meetingChemists.length > 0) {
+            rawChemists = m.meetingChemists.map((c: any) => c.chemist?.name || 'N/A').join(', ');
+          }
+
           upcomingReminders.push({
             id: m.id.toString(),
             topic: m.title || '',               // Hide if not returned by backend
@@ -87,7 +109,15 @@ const MeetingRemindersScreen = () => {
             status: m.status || '',              // Empty, badge hidden if no status
             timestamp: new Date(m.meetingDate).getTime(),
             isToday: meetingDate === todayStr,
-            daysText: getDaysRemaining(meetingDate, todayStr)
+            daysText: getDaysRemaining(meetingDate, todayStr),
+            meetingType: m.meetingType || 'General Meeting',
+            meetingMode: m.meetingMode || 'Physical',
+            outcome: m.outcome || 'General Sync',
+            description: m.description || '',
+            organizer: m.mr?.name || m.organizer || 'N/A',
+            meetingLink: m.meetingLink || '',
+            rawDoctors,
+            rawChemists,
           });
         }
       });
@@ -151,7 +181,10 @@ const MeetingRemindersScreen = () => {
 
       <TouchableOpacity
         style={isToday ? styles.actionButton : styles.actionButtonNeutral}
-        onPress={() => navigation.navigate('MeetingScheduling', { meetingId: reminder.id })}
+        onPress={() => {
+          setSelectedReminder(reminder);
+          setModalVisible(true);
+        }}
       >
         <Text style={isToday ? styles.actionButtonText : styles.actionButtonTextNeutral}>
           View Details
@@ -199,6 +232,109 @@ const MeetingRemindersScreen = () => {
           </View>
         )}
       </ScrollView>
+
+      {/* Modern, Detailed Modal Popup */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={modalVisible}
+        onRequestClose={() => setModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>📋 Meeting Details</Text>
+              <TouchableOpacity onPress={() => setModalVisible(false)} style={styles.closeButton}>
+                <Text style={styles.closeButtonText}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            {selectedReminder && (
+              <ScrollView style={styles.modalScroll}>
+                <Text style={styles.modalTopic}>
+                  {selectedReminder.topic || 'Untitled Meeting'}
+                </Text>
+
+                <View style={styles.modalBadgeRow}>
+                  <View style={[styles.statusBadge, { backgroundColor: getStatusColor(selectedReminder.status) }]}>
+                    <Text style={styles.statusText}>{selectedReminder.status.toUpperCase()}</Text>
+                  </View>
+                  <View style={styles.modeBadge}>
+                    <Text style={styles.modeBadgeText}>{selectedReminder.meetingMode}</Text>
+                  </View>
+                </View>
+
+                <View style={styles.modalDivider} />
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>📅 Date & Time</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedReminder.date} at {selectedReminder.time} ({selectedReminder.daysText})
+                  </Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>👤 Organizer</Text>
+                  <Text style={styles.detailValue}>{selectedReminder.organizer}</Text>
+                </View>
+
+                <View style={styles.detailRow}>
+                  <Text style={styles.detailLabel}>🎯 Type & Purpose</Text>
+                  <Text style={styles.detailValue}>
+                    {selectedReminder.meetingType} • {selectedReminder.outcome}
+                  </Text>
+                </View>
+
+                {selectedReminder.venue ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>📍 Venue / Location</Text>
+                    <Text style={styles.detailValue}>{selectedReminder.venue}</Text>
+                  </View>
+                ) : null}
+
+                {/* Participants details */}
+                {selectedReminder.rawDoctors ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>👨‍⚕️ Doctors Invited</Text>
+                    <Text style={styles.detailValue}>{selectedReminder.rawDoctors}</Text>
+                  </View>
+                ) : null}
+
+                {selectedReminder.rawChemists ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>💊 Chemists Invited</Text>
+                    <Text style={styles.detailValue}>{selectedReminder.rawChemists}</Text>
+                  </View>
+                ) : null}
+
+                {selectedReminder.description ? (
+                  <View style={styles.detailRow}>
+                    <Text style={styles.detailLabel}>📝 Agenda & Notes</Text>
+                    <Text style={styles.detailValue}>{selectedReminder.description}</Text>
+                  </View>
+                ) : null}
+
+                {selectedReminder.meetingLink ? (
+                  <TouchableOpacity
+                    style={styles.joinLinkButton}
+                    onPress={() => {
+                      Linking.openURL(selectedReminder.meetingLink!).catch(() =>
+                        Alert.alert('Error', 'Unable to open meeting link.')
+                      );
+                    }}
+                  >
+                    <Text style={styles.joinLinkText}>💻 Join Online Meeting</Text>
+                  </TouchableOpacity>
+                ) : null}
+              </ScrollView>
+            )}
+
+            <TouchableOpacity style={styles.modalOkButton} onPress={() => setModalVisible(false)}>
+              <Text style={styles.modalOkButtonText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 };
@@ -245,4 +381,25 @@ const styles = StyleSheet.create({
   emptyIcon: { fontSize: 48, marginBottom: 16 },
   emptyTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B', marginBottom: 8 },
   emptySubtitle: { fontSize: 14, color: '#64748B', textAlign: 'center' },
+
+  // Detail Modal styles
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.6)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { backgroundColor: '#FFFFFF', borderRadius: 20, width: '100%', maxHeight: '80%', padding: 20, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 15, elevation: 10 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 15 },
+  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
+  closeButton: { padding: 4 },
+  closeButtonText: { fontSize: 18, color: '#94A3B8', fontWeight: 'bold' },
+  modalScroll: { marginBottom: 15 },
+  modalTopic: { fontSize: 20, fontWeight: 'bold', color: '#1E293B', marginBottom: 10 },
+  modalBadgeRow: { flexDirection: 'row', gap: 8, marginBottom: 15 },
+  modeBadge: { backgroundColor: '#EEF2F6', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  modeBadgeText: { color: '#475569', fontSize: 9, fontWeight: 'bold' },
+  modalDivider: { height: 1, backgroundColor: '#E2E8F0', marginBottom: 15 },
+  detailRow: { marginBottom: 12 },
+  detailLabel: { fontSize: 12, fontWeight: 'bold', color: '#64748B', marginBottom: 3 },
+  detailValue: { fontSize: 14, color: '#334155', lineHeight: 20 },
+  joinLinkButton: { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE', borderWidth: 1, padding: 12, borderRadius: 8, marginTop: 10, alignItems: 'center' },
+  joinLinkText: { color: '#1E40AF', fontWeight: 'bold', fontSize: 13 },
+  modalOkButton: { backgroundColor: '#4F46E5', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  modalOkButtonText: { color: '#FFFFFF', fontSize: 14, fontWeight: 'bold' },
 });

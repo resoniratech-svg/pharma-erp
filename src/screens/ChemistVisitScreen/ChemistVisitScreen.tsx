@@ -9,6 +9,7 @@ import {
 } from '../../services/chemistService'; 
 import { createFollowUp } from '../../services/followUpService'; 
 import { getProducts } from '../../services/productService';
+import { createRetailerOrder } from '../../services/orderService';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -629,7 +630,7 @@ const ChemistVisitScreen = () => {
       distVerified = 'Location Error';
     }
 
-    let chemistId: number;
+    let chemistId = 0;
 
     // ─── API SERVER CONDITIONAL RESOLUTION & SUBMISSION ───
     try {
@@ -777,6 +778,36 @@ const ChemistVisitScreen = () => {
       }
 
       if (Number(pobAmount) > 0) {
+        // Find matching product database ID from preloaded products state
+        const matchedProduct = products.find(p => (p.name || p.productName) === medicine);
+        const resolvedProductId = matchedProduct ? Number(matchedProduct.id) : null;
+
+        let orderNumberVal = `POB-${String(Date.now()).slice(-5)}`;
+        if (resolvedProductId) {
+          const orderPayload = {
+            retailerId: Number(chemistId),
+            totalAmount: Number(pobAmount),
+            orderItems: [
+              {
+                productId: resolvedProductId,
+                quantity: Number(quantity) || 1,
+                rate: Number(pobAmount) || 0,
+                amount: Number(pobAmount) || 0
+              }
+            ]
+          };
+
+          try {
+            const result = await createRetailerOrder(orderPayload);
+            console.log('POB Order Saved to Backend via Chemist Visit Screen:', result);
+            if (result && result.orderNumber) {
+              orderNumberVal = result.orderNumber;
+            }
+          } catch (orderApiErr) {
+            console.log('POB Order API submission failed, logging locally:', orderApiErr);
+          }
+        }
+
         const existingOrders = safeJsonParse(
           await AsyncStorage.getItem('@orders'), []
         );
@@ -790,7 +821,7 @@ const ChemistVisitScreen = () => {
         
         const newOrder = {
           id: Date.now(),
-          orderNumber: `POB-${String(Date.now()).slice(-5)}`,
+          orderNumber: orderNumberVal,
           customerType: 'Chemist',
           customerName: shopName || chemistName,
           customerMobile: mobile || 'N/A',

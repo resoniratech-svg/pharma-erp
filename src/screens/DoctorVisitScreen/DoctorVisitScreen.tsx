@@ -360,7 +360,8 @@ const DoctorVisitScreen = () => {
   };
 
   useEffect(() => {
-    if (rawVisits && rawVisits.length > 0) {
+    // Only map visits if doctors master list has loaded to prevent race conditions showing placeholder strings
+    if (doctors && doctors.length > 0 && rawVisits && rawVisits.length > 0) {
       const mapped: DoctorVisit[] = rawVisits.map((item: any, idx: number) => {
         const doctor = doctors.find((d: any) => d.id === Number(item.doctorId));
         
@@ -595,9 +596,15 @@ const DoctorVisitScreen = () => {
               apiDocId = matchedDoc.id;
             }
           }
+          const parsedApiDocId = Number(apiDocId);
+          if (isNaN(parsedApiDocId) || parsedApiDocId <= 0) {
+            customAlert('Error', 'Invalid Doctor ID. Cannot update visit.');
+            setIsSubmitting(false);
+            return;
+          }
           const result = await updateDoctorVisit(
             numericId,
-            apiDocId || 0,
+            parsedApiDocId,
             remarks,
             productsDiscussed,
             Number(samplesGiven || 0),
@@ -648,17 +655,22 @@ const DoctorVisitScreen = () => {
       setEditingVisitId(null);
     } else {
       // Create mode
-      if (finalDoctorId) {
-        try {
-          const result = await createDoctorVisit(
-            finalDoctorId,
-            remarks,
-            productsDiscussed,
-            Number(samplesGiven || 0),
-            currentLat,
-            currentLon
-          );
-          console.log('Doctor Visit Saved to Backend:', result);
+      const parsedDocId = Number(finalDoctorId);
+      if (isNaN(parsedDocId) || parsedDocId <= 0) {
+        customAlert('Error', 'Invalid Doctor ID. Cannot save visit.');
+        setIsSubmitting(false);
+        return;
+      }
+      try {
+        const result = await createDoctorVisit(
+          parsedDocId,
+          remarks,
+          productsDiscussed,
+          Number(samplesGiven || 0),
+          currentLat,
+          currentLon
+        );
+        console.log('Doctor Visit Saved to Backend:', result);
 
           if (nextFollowUp) {
             await createFollowUp({
@@ -676,7 +688,6 @@ const DoctorVisitScreen = () => {
           setIsSubmitting(false);
           return;
         }
-      }
 
       const newRawVisit = {
         id: Date.now(),

@@ -5,6 +5,10 @@ import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Pla
 import { getMeetingsByMr } from '../../services/meetingService';
 import { getAttendanceLogs } from '../../services/attendanceService';
 import { getMrDashboardAnalytics } from '../../services/dashboardService';
+import { getRetailerOrders } from '../../services/orderService';
+import { getFollowUpsByMr, getAllFollowUps } from '../../services/followUpService';
+import { getDoctorVisitsByMr } from '../../services/doctorService';
+import { getChemistVisitsByMr } from '../../services/chemistService';
 
 interface RecentOrder {
   id: string; client: string; status: 'Shipped' | 'Pending' | 'Failed'; amount: string; date: string;
@@ -42,6 +46,24 @@ const DashboardScreen = () => {
     return new Date(dateStr).getTime() || 0;
   };
 
+  // Helper to format ISO timestamps or raw time strings to user-friendly local format (e.g., 10:08 AM)
+  const formatTimeForDisplay = (rawTime: string): string => {
+    if (!rawTime) return '';
+    const trimmed = rawTime.trim();
+    if (/\d{1,2}:\d{2}\s*(AM|PM|am|pm)/i.test(trimmed)) {
+      return trimmed;
+    }
+    try {
+      const parsedDate = new Date(trimmed);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      }
+    } catch {
+      // Ignore
+    }
+    return trimmed;
+  };
+
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [showMROps, setShowMROps] = useState(false);
   const [showGPS, setShowGPS] = useState(false);
@@ -58,6 +80,10 @@ const DashboardScreen = () => {
   const [salesProgress, setSalesProgress] = useState(0);
   const [doctorProgress, setDoctorProgress] = useState(0);
   const [chemistProgress, setChemistProgress] = useState(0);
+  // Monthly totals shown under the progress bars (separate from today's KPI counts)
+  const [monthlyDocCount, setMonthlyDocCount] = useState(0);
+  const [monthlyChemistCount, setMonthlyChemistCount] = useState(0);
+  const [monthlySalesAmount, setMonthlySalesAmount] = useState(0);
   
   const [followUps, setFollowUps] = useState<any[]>([]);
   const [recentOrdersList, setRecentOrdersList] = useState<RecentOrder[]>([]);
@@ -79,30 +105,145 @@ const DashboardScreen = () => {
     let chemistVisitsList: any[] = [];
     let ordersList: any[] = [];
     let targets = { sales: 50000, docs: 30, chemists: 20 };
+    let determinedCheckedIn = false;
+    let determinedCheckInTime = '';
 
-    // 1. Try to fetch dynamic real-time stats from backend
+    let apiDocVisits: any[] = [];
+    let apiChemVisits: any[] = [];
+    let serverOrders: any[] = [];
+    let stats: any = null;
+
     let loadedFromServer = false;
+
+    // 1. Try to fetch dynamic real-time stats and lists from backend in parallel
     try {
-      const stats = await getMrDashboardAnalytics();
+      const results = await Promise.allSettled([
+        getMrDashboardAnalytics(),
+        getDoctorVisitsByMr(),
+        getChemistVisitsByMr(),
+        getRetailerOrders()
+      ]);
+
+      if (results[0].status === 'fulfilled') {
+        stats = results[0].value;
+      }
+      if (results[1].status === 'fulfilled') {
+        apiDocVisits = Array.isArray(results[1].value) ? results[1].value : [];
+      }
+      if (results[2].status === 'fulfilled') {
+        apiChemVisits = Array.isArray(results[2].value) ? results[2].value : [];
+      }
+      if (results[3].status === 'fulfilled') {
+        serverOrders = Array.isArray(results[3].value) ? results[3].value : [];
+      }
+    } catch (e) {
+      console.log('Dashboard parallel load failed:', e);
+    }
+
+    try {
       if (stats) {
-        setDocCount(stats.todayDoctorVisits?.completed || 0);
-        setDoctorProgress(stats.monthlyProgress?.docs?.percent || 0);
-        setChemistCount(stats.todayChemistVisits?.completed || 0);
-        setChemistProgress(stats.monthlyProgress?.chemists?.percent || 0);
+        // Today's counts
+        const todayDocs = stats.todayDoctorVisits?.completed || 0;
+        const todayChemists = stats.todayChemistVisits?.completed || 0;
+        setDocCount(todayDocs);
+        setChemistCount(todayChemists);
         setOrdersCount(stats.todayOrders?.count || 0);
         setTotalOrders(stats.todayOrders?.amount || 0);
-        setSalesProgress(stats.monthlyProgress?.sales?.percent || 0);
-        setIsCheckedIn(stats.attendance?.status === 'Present');
-        setCheckInTime(stats.attendance?.checkInTime || '');
-        setUserName((await AsyncStorage.getItem('@user_name')) || '');
-        setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
         
+        // Guard: only trust attendance if the date returned by server is today's date
+        const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const attendanceDate = stats.attendance?.date
+          ? String(stats.attendance.date).slice(0, 10)
+          : null;
+        const isCheckedInToday = stats.attendance?.status === 'Present'
+          && (!attendanceDate || attendanceDate === todayStr);
+        if (isCheckedInToday) {
+          determinedCheckedIn = true;
+          determinedCheckInTime = formatTimeForDisplay(stats.attendance?.checkInTime || '');
+        }
+
+        // Targets from backend (with safe fallbacks)
         targets = {
           sales: stats.monthlyProgress?.sales?.target || 50000,
-          docs: stats.monthlyProgress?.docs?.target || 30,
+          docs:  stats.monthlyProgress?.docs?.target  || 30,
           chemists: stats.monthlyProgress?.chemists?.target || 20,
         };
         setDynamicTargets(targets);
+
+        // Monthly achieved values from backend
+        let monthlyDocsDone     = stats.monthlyProgress?.docs?.actual
+                                 ?? stats.monthlyProgress?.docs?.completed
+                                 ?? stats.monthlyProgress?.docs?.count
+                                 ?? 0;
+        let monthlyChemistsDone = stats.monthlyProgress?.chemists?.actual
+                                 ?? stats.monthlyProgress?.chemists?.completed
+                                 ?? stats.monthlyProgress?.chemists?.count
+                                 ?? 0;
+        let monthlySalesDone    = stats.monthlyProgress?.sales?.actual
+                                 ?? stats.monthlyProgress?.sales?.achieved
+                                 ?? stats.monthlyProgress?.sales?.amount
+                                 ?? stats.todayOrders?.amount
+                                 ?? 0;
+
+        // ✅ Dynamic Fallback: Calculate monthly counts if backend returns 0
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth(); // 0-indexed
+
+        if (monthlyDocsDone === 0 && apiDocVisits.length > 0) {
+          const currentMonthDocVisits = apiDocVisits.filter((v: any) => {
+            const dateStr = v.visitDate || v.createdAt;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return !isNaN(d.getTime()) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+          });
+          monthlyDocsDone = currentMonthDocVisits.length;
+        }
+
+        if (monthlyChemistsDone === 0 && apiChemVisits.length > 0) {
+          const currentMonthChemVisits = apiChemVisits.filter((c: any) => {
+            const dateStr = c.visitDate || c.createdAt;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return !isNaN(d.getTime()) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+          });
+          monthlyChemistsDone = currentMonthChemVisits.length;
+        }
+
+        if (monthlySalesDone === 0 && serverOrders.length > 0) {
+          const currentMonthOrders = serverOrders.filter((o: any) => {
+            const dateStr = o.orderDate || o.createdAt || o.date;
+            if (!dateStr) return false;
+            const d = new Date(dateStr);
+            return !isNaN(d.getTime()) && d.getFullYear() === currentYear && d.getMonth() === currentMonth;
+          });
+          monthlySalesDone = currentMonthOrders.reduce((sum: number, o: any) => sum + (parseFloat(o.totalAmount || o.amount) || 0), 0);
+        }
+
+        // Calculate progress percentages ourselves
+        setMonthlyDocCount(monthlyDocsDone);
+        setMonthlyChemistCount(monthlyChemistsDone);
+        setMonthlySalesAmount(monthlySalesDone);
+        setDoctorProgress(
+          targets.docs > 0
+            ? Math.min(Math.round((monthlyDocsDone / targets.docs) * 100), 100)
+            : 0
+        );
+        setChemistProgress(
+          targets.chemists > 0
+            ? Math.min(Math.round((monthlyChemistsDone / targets.chemists) * 100), 100)
+            : 0
+        );
+        setSalesProgress(
+          targets.sales > 0
+            ? Math.min(Math.round((monthlySalesDone / targets.sales) * 100), 100)
+            : 0
+        );
+
+        console.log('[Dashboard] Computed progress — Docs:', monthlyDocsDone, '/', targets.docs,
+          '| Chemists:', monthlyChemistsDone, '/', targets.chemists,
+          '| Sales:', monthlySalesDone, '/', targets.sales);
+
         loadedFromServer = true;
       }
     } catch (err) {
@@ -146,104 +287,121 @@ const DashboardScreen = () => {
       setDynamicTargets(targets);
 
       try {
-        setIsCheckedIn((await AsyncStorage.getItem('@checked_in')) === 'true');
-        setCheckInTime((await AsyncStorage.getItem('@check_in_time')) || '');
-        setUserName((await AsyncStorage.getItem('@user_name')) || '');
-        setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
+        const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        const storedCheckInDate = await AsyncStorage.getItem('@check_in_date');
+        const rawCheckedIn = await AsyncStorage.getItem('@checked_in');
+        // Only treat as checked-in if the stored date matches today
+        const checkedInToday = rawCheckedIn === 'true' && storedCheckInDate === todayStr;
+        if (checkedInToday) {
+          determinedCheckedIn = true;
+          determinedCheckInTime = ((await AsyncStorage.getItem('@check_in_time')) || '');
+        }
       } catch (e) { console.log(e); }
     }
 
     // 3. Load other lists (recent orders list, meetings, follow-ups, GPS logs, notifications)
     try {
       const storedOrders = await AsyncStorage.getItem('@orders');
-      ordersList = storedOrders ? JSON.parse(storedOrders) : [];
-      if (ordersList.length > 0) {
-        setRecentOrdersList(ordersList.slice(0, 4).map((o: any, idx: number) => ({
+      const localOrders = storedOrders ? JSON.parse(storedOrders) : [];
+      
+      // Merge server orders and local orders, filtering duplicates
+      const mergedOrders = [...serverOrders];
+      localOrders.forEach((lo: any) => {
+        const loNum = lo.orderNumber;
+        const exists = mergedOrders.some((so: any) => so.orderNumber === loNum || so.id === lo.id || (so.id && lo.id && String(so.id) === String(lo.id)));
+        if (!exists) {
+          mergedOrders.push(lo);
+        }
+      });
+
+      if (mergedOrders.length > 0) {
+        setRecentOrdersList(mergedOrders.slice(0, 4).map((o: any, idx: number) => ({
           id: o.orderNumber || `ORD-NEW-${idx}`,
-          client: o.customerName || 'Chemist Store',
-          status: o.status === 'Booked' ? 'Pending' : o.status === 'Fulfilled' ? 'Shipped' : 'Failed',
-          amount: `₹${(parseFloat(o.totalAmount) || 0).toLocaleString()}`,
-          date: o.dateFormatted ? o.dateFormatted.split(' ')[0] : 'Today'
+          client: o.customerName || o.customer?.name || 'Chemist Store',
+          status: o.status === 'Booked' || o.status === 'Pending' ? 'Pending' : o.status === 'Fulfilled' || o.status === 'Shipped' ? 'Shipped' : 'Failed',
+          amount: `₹${(parseFloat(o.totalAmount || o.amount) || 0).toLocaleString()}`,
+          date: o.dateFormatted ? o.dateFormatted.split(' ')[0] : o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-GB').replace(/\//g, '-') : 'Today'
         })));
       } else {
         setRecentOrdersList([]);
       }
-    } catch (e) {}
+    } catch (e) {
+      console.log('Dashboard error loading recent orders:', e);
+    }
 
 
 
+    // 4. Consolidate attendance status checks
     try {
-      let isCheckedInVal = false;
-      let checkInTimeVal = '';
-
-      try {
-        const logsList = await getAttendanceLogs();
-        const today = new Date();
-        
-        const checkSameDay = (d1: Date, d2Str: string) => {
-          if (!d2Str) return false;
-          try {
-            const d2 = new Date(d2Str);
-            if (isNaN(d2.getTime())) {
-              const cleaned = d2Str.replace(/-/g, ' ');
-              const parts = cleaned.split(' ');
-              if (parts.length >= 3) {
-                const day = parseInt(parts[0]);
-                const year = parseInt(parts[2]);
-                const monthStr = parts[1].toLowerCase();
-                const monthsAbbr = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
-                const monthIdx = monthsAbbr.findIndex(m => monthStr.startsWith(m));
-                if (day && year && monthIdx !== -1) {
-                  return d1.getDate() === day && d1.getMonth() === monthIdx && d1.getFullYear() === year;
+      // If backend analytics didn't show checked-in, check getAttendanceLogs
+      if (!determinedCheckedIn) {
+        try {
+          const logsList = await getAttendanceLogs();
+          const today = new Date();
+          
+          const checkSameDay = (d1: Date, d2Str: string) => {
+            if (!d2Str) return false;
+            try {
+              const d2 = new Date(d2Str);
+              if (isNaN(d2.getTime())) {
+                const cleaned = d2Str.replace(/-/g, ' ');
+                const parts = cleaned.split(' ');
+                if (parts.length >= 3) {
+                  const day = parseInt(parts[0]);
+                  const year = parseInt(parts[2]);
+                  const monthStr = parts[1].toLowerCase();
+                  const monthsAbbr = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+                  const monthIdx = monthsAbbr.findIndex(m => monthStr.startsWith(m));
+                  if (day && year && monthIdx !== -1) {
+                    return d1.getDate() === day && d1.getMonth() === monthIdx && d1.getFullYear() === year;
+                  }
                 }
+                return false;
               }
+              return d1.getDate() === d2.getDate() && 
+                     d1.getMonth() === d2.getMonth() && 
+                     d1.getFullYear() === d2.getFullYear();
+            } catch (e) {
               return false;
             }
-            return d1.getDate() === d2.getDate() && 
-                   d1.getMonth() === d2.getMonth() && 
-                   d1.getFullYear() === d2.getFullYear();
-          } catch (e) {
-            return false;
-          }
-        };
+          };
 
-        const todayLog = Array.isArray(logsList) ? logsList.find((log: any) => 
-          checkSameDay(today, log.date || log.checkInTime || log.check_in_time || log.createdAt)
-        ) : null;
+          const todayLog = Array.isArray(logsList) ? logsList.find((log: any) => 
+            checkSameDay(today, log.date || log.checkInTime || log.check_in_time || log.createdAt)
+          ) : null;
 
-        if (todayLog) {
-          isCheckedInVal = !todayLog.status || 
-                           String(todayLog.status).toUpperCase() === 'PRESENT' || 
-                           String(todayLog.status).toUpperCase() === 'APPROVED';
-          
-          const rawTime = todayLog.checkInTime || todayLog.check_in_time || '';
-          if (rawTime && !rawTime.includes('AM') && !rawTime.includes('PM') && !rawTime.includes('am') && !rawTime.includes('pm')) {
-            try {
-              const parsedDate = new Date(rawTime);
-              if (!isNaN(parsedDate.getTime())) {
-                checkInTimeVal = parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-              } else {
-                checkInTimeVal = rawTime;
-              }
-            } catch {
-              checkInTimeVal = rawTime;
+          if (todayLog) {
+            const isApprovedOrPresent = !todayLog.status || 
+                             String(todayLog.status).toUpperCase() === 'PRESENT' || 
+                             String(todayLog.status).toUpperCase() === 'APPROVED';
+            
+            if (isApprovedOrPresent) {
+              determinedCheckedIn = true;
+              const rawTime = todayLog.checkInTime || todayLog.check_in_time || '';
+              determinedCheckInTime = formatTimeForDisplay(rawTime);
             }
-          } else {
-            checkInTimeVal = rawTime;
           }
+        } catch (err) {
+          console.log('Dashboard failed to fetch attendance logs from API:', err);
         }
-      } catch (err) {
-        console.log('Dashboard failed to fetch attendance logs from API:', err);
       }
 
-      if (!isCheckedInVal) {
-        isCheckedInVal = (await AsyncStorage.getItem('@checked_in')) === 'true';
-        checkInTimeVal = (await AsyncStorage.getItem('@check_in_time')) || '';
+      // If still not determined, fallback to AsyncStorage today-only check
+      if (!determinedCheckedIn) {
+        const todayDateStr = new Date().toISOString().slice(0, 10);
+        const storedCheckInDate = await AsyncStorage.getItem('@check_in_date');
+        const rawChecked = await AsyncStorage.getItem('@checked_in');
+        const isCheckedInVal = rawChecked === 'true' && storedCheckInDate === todayDateStr;
+        if (isCheckedInVal) {
+          determinedCheckedIn = true;
+          determinedCheckInTime = formatTimeForDisplay((await AsyncStorage.getItem('@check_in_time')) || '');
+        }
       }
 
-      setIsCheckedIn(isCheckedInVal);
-      setCheckInTime(checkInTimeVal);
-      setUserName((await AsyncStorage.getItem('@user_name')) || 'Priya Reddy');
+      // Final state updates (called exactly once)
+      setIsCheckedIn(determinedCheckedIn);
+      setCheckInTime(determinedCheckInTime);
+      setUserName((await AsyncStorage.getItem('@user_name')) || '');
       setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
     } catch (e) { console.log(e); }
     try {
@@ -271,28 +429,174 @@ const DashboardScreen = () => {
       setScheduleList([]);
     }
 
+    // Load Pending Follow-Ups from backend API (primary source)
+    // Helper to map a raw API follow-up item to dashboard display format
+    const mapFollowUpItem = (item: any) => ({
+      id: item.id,
+      followUpType: item.doctorId ? 'Doctor' : 'Chemist',
+      titleName:
+        item.doctor?.doctorName ||
+        item.doctor?.name ||
+        item.doctorName ||
+        item.chemist?.shopName ||
+        item.chemist?.name ||
+        item.chemistName ||
+        item.shopName ||
+        'Contact',
+      followDate: item.followUpDate
+        ? new Date(item.followUpDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+        : item.follow_date
+          ? new Date(item.follow_date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })
+          : '',
+    });
+
+    const filterFollowUpItem = (item: any, todayStr: string) => {
+      const status = (item.status || '').toUpperCase();
+      if (status === 'COMPLETED' || status === 'CANCELLED') return false;
+      // Support both followUpDate and follow_date field names
+      const rawDate = item.followUpDate || item.follow_date || item.scheduledDate || item.nextFollowUp || '';
+      const followDateStr = rawDate ? rawDate.split('T')[0] : '';
+      if (!followDateStr) return false;
+      // Show overdue, today, AND upcoming within next 7 days
+      const today = new Date(todayStr);
+      const followDate = new Date(followDateStr);
+      const diffDays = Math.ceil((followDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+      return diffDays <= 7; // overdue (negative), today (0), next 7 days (1–7)
+    };
+
     try {
-      const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
-      docVisitsList = docVisitsData ? JSON.parse(docVisitsData) : [];
-      const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
-      chemistVisitsList = chemistVisitsData ? JSON.parse(chemistVisitsData) : [];
-      const storedOrders = await AsyncStorage.getItem('@orders');
-      ordersList = storedOrders ? JSON.parse(storedOrders) : [];
+      const todayStr = new Date().toISOString().split('T')[0];
 
-      const combinedFollowUps = [
-        ...docVisitsList.map((v: any) => ({ ...v, followUpType: 'Doctor', titleName: v.doctorName, followDate: v.nextFollowUp || v.followUpDate })),
-        ...chemistVisitsList.map((c: any) => ({ ...c, followUpType: 'Chemist', titleName: c.shopName || c.chemistName, followDate: c.nextFollowUp || c.followUpDate })),
-        ...ordersList.map((o: any) => ({ ...o, followUpType: 'Order', titleName: o.customerName, followDate: o.expectedDelivery || o.followUpDate || o.nextFollowUp }))
-      ];
-      setFollowUps(combinedFollowUps.filter((visit: any) => visit.followDate).slice(0, 3));
+      // Step 1: Try MR-specific endpoint
+      let apiFollowUps: any[] = [];
+      try {
+        const mrResult = await getFollowUpsByMr();
+        apiFollowUps = Array.isArray(mrResult) ? mrResult : [];
+        console.log('[Dashboard] getFollowUpsByMr returned:', apiFollowUps.length, 'records');
+      } catch (mrErr) {
+        console.log('[Dashboard] getFollowUpsByMr failed, will try getAllFollowUps:', mrErr);
+      }
 
-      const combinedVisits = [
-        ...docVisitsList.map((v: any) => ({ id: v.id || Math.random(), name: `Dr. ${v.doctorName}`, type: 'Doctor', time: v.visitTime || '10:00 AM', status: v.status || 'Completed', date: v.visitDate || v.date })),
-        ...chemistVisitsList.map((c: any) => ({ id: c.id || Math.random(), name: c.shopName || c.chemistName, type: 'Chemist', time: c.visitTime || '11:00 AM', status: c.status || 'Completed', date: c.visitDate || c.date }))
-      ];
-      combinedVisits.sort((a, b) => parseCustomDate(b.date) - parseCustomDate(a.date));
+      // Step 2: If MR endpoint returned empty, fallback to global endpoint
+      if (apiFollowUps.length === 0) {
+        try {
+          const allResult = await getAllFollowUps();
+          apiFollowUps = Array.isArray(allResult) ? allResult : [];
+          console.log('[Dashboard] getAllFollowUps returned:', apiFollowUps.length, 'records');
+        } catch (allErr) {
+          console.log('[Dashboard] getAllFollowUps also failed:', allErr);
+        }
+      }
+
+      console.log('[Dashboard] API FollowUps sample:', JSON.stringify(apiFollowUps.slice(0, 2)));
+
+      const pendingFollowUps = apiFollowUps
+        .filter((item: any) => filterFollowUpItem(item, todayStr))
+        .sort((a: any, b: any) => {
+          // Sort by date ascending so overdue (earliest) appears first
+          const dateA = a.followUpDate || a.follow_date || a.scheduledDate || a.nextFollowUp || '';
+          const dateB = b.followUpDate || b.follow_date || b.scheduledDate || b.nextFollowUp || '';
+          return dateA.localeCompare(dateB);
+        })
+        .map(mapFollowUpItem)
+        .slice(0, 5);
+
+      setFollowUps(pendingFollowUps);
+    } catch (followUpErr) {
+      // Fallback: build follow-ups from offline visit data
+      try {
+        const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
+        docVisitsList = docVisitsData ? JSON.parse(docVisitsData) : [];
+        const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
+        chemistVisitsList = chemistVisitsData ? JSON.parse(chemistVisitsData) : [];
+        const storedOrders = await AsyncStorage.getItem('@orders');
+        ordersList = storedOrders ? JSON.parse(storedOrders) : [];
+
+        const combinedFollowUps = [
+          ...docVisitsList.map((v: any) => ({ followUpType: 'Doctor', titleName: v.doctorName, followDate: v.nextFollowUp || v.followUpDate })),
+          ...chemistVisitsList.map((c: any) => ({ followUpType: 'Chemist', titleName: c.shopName || c.chemistName, followDate: c.nextFollowUp || c.followUpDate })),
+          ...ordersList.map((o: any) => ({ followUpType: 'Order', titleName: o.customerName, followDate: o.expectedDelivery || o.followUpDate || o.nextFollowUp }))
+        ];
+        setFollowUps(combinedFollowUps.filter((visit: any) => visit.followDate).slice(0, 5));
+      } catch (e) { console.log('Follow-up fallback error:', e); }
+    }
+
+    // Load Recent Visits — use backend API for correct names and times
+    try {
+      // Helper: parse visit time from ISO date string
+      const parseVisitTime = (dateStr: string): string => {
+        if (!dateStr) return '';
+        try {
+          const d = new Date(dateStr);
+          if (isNaN(d.getTime())) return '';
+          return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        } catch { return ''; }
+      };
+
+      // Helper: parse visit date for sorting
+      const parseVisitDateMs = (dateStr: string): number => {
+        if (!dateStr) return 0;
+        try { return new Date(dateStr).getTime() || 0; } catch { return 0; }
+      };
+
+      let combinedVisits: any[] = [];
+
+      if (apiDocVisits.length > 0 || apiChemVisits.length > 0) {
+        // Use API data — names come from nested doctor/chemist objects
+        combinedVisits = [
+          ...apiDocVisits.map((v: any) => ({
+            id: v.id || Math.random(),
+            name: v.doctor?.doctorName || v.doctor?.name || v.doctorName || 'Doctor',
+            type: 'Doctor',
+            time: parseVisitTime(v.visitDate || v.createdAt),
+            status: v.status || 'Completed',
+            date: v.visitDate || v.createdAt || '',
+            dateMs: parseVisitDateMs(v.visitDate || v.createdAt),
+          })),
+          ...apiChemVisits.map((c: any) => ({
+            id: c.id || Math.random(),
+            name: c.chemist?.shopName || c.chemist?.name || c.shopName || c.chemistName || 'Chemist',
+            type: 'Chemist',
+            time: parseVisitTime(c.visitDate || c.createdAt),
+            status: c.status || 'Completed',
+            date: c.visitDate || c.createdAt || '',
+            dateMs: parseVisitDateMs(c.visitDate || c.createdAt),
+          })),
+        ];
+      } else {
+        // Fallback: AsyncStorage (names may be incomplete, but still try)
+        const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
+        docVisitsList = docVisitsData ? JSON.parse(docVisitsData) : [];
+        const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
+        chemistVisitsList = chemistVisitsData ? JSON.parse(chemistVisitsData) : [];
+
+        combinedVisits = [
+          ...docVisitsList.map((v: any) => ({
+            id: v.id || Math.random(),
+            name: v.doctor?.doctorName || v.doctor?.name || v.doctorName
+              ? `Dr. ${v.doctor?.doctorName || v.doctor?.name || v.doctorName}`
+              : 'Doctor',
+            type: 'Doctor',
+            time: parseVisitTime(v.visitDate) || v.visitTime || '',
+            status: v.status || 'Completed',
+            date: v.visitDate || v.date || '',
+            dateMs: parseVisitDateMs(v.visitDate || v.date),
+          })),
+          ...chemistVisitsList.map((c: any) => ({
+            id: c.id || Math.random(),
+            name: c.chemist?.shopName || c.chemist?.name || c.shopName || c.chemistName || 'Chemist',
+            type: 'Chemist',
+            time: parseVisitTime(c.visitDate) || c.visitTime || '',
+            status: c.status || 'Completed',
+            date: c.visitDate || c.date || '',
+            dateMs: parseVisitDateMs(c.visitDate || c.date),
+          })),
+        ];
+      }
+
+      combinedVisits.sort((a, b) => b.dateMs - a.dateMs);
       setRecentVisitsList(combinedVisits.slice(0, 3));
-    } catch (e) { console.log(e); }
+    } catch (e) { console.log('Dashboard: Recent visits error:', e); }
 
     try {
       const notifsData = await AsyncStorage.getItem('@notifications');
@@ -423,7 +727,7 @@ const DashboardScreen = () => {
               <Text style={[styles.targetValue, { color: '#4F46E5' }]}>{salesProgress}%</Text>
             </View>
             <View style={styles.progressBar}><View style={[styles.progressFill, { width: `${salesProgress}%`, backgroundColor: '#4F46E5' }]} /></View>
-            <Text style={styles.kpiSubText}>₹{totalOrders.toLocaleString()} / ₹{dynamicTargets.sales.toLocaleString()}</Text>
+            <Text style={styles.kpiSubText}>₹{monthlySalesAmount.toLocaleString()} / ₹{dynamicTargets.sales.toLocaleString()}</Text>
             
             <View style={styles.splitTargetsRow}>
               <View style={{ flex: 1, marginRight: 8 }}>
@@ -432,7 +736,7 @@ const DashboardScreen = () => {
                   <Text style={[styles.targetValue, { color: '#10B981' }]}>{doctorProgress}%</Text>
                 </View>
                 <View style={styles.progressBar}><View style={[styles.progressFill, { width: `${doctorProgress}%`, backgroundColor: '#10B981' }]} /></View>
-                <Text style={styles.kpiSubText}>{docCount} / {dynamicTargets.docs}</Text>
+                <Text style={styles.kpiSubText}>{monthlyDocCount} / {dynamicTargets.docs}</Text>
               </View>
               <View style={{ flex: 1, marginLeft: 8 }}>
                 <View style={styles.targetLabelRow}>
@@ -440,7 +744,7 @@ const DashboardScreen = () => {
                   <Text style={[styles.targetValue, { color: '#F59E0B' }]}>{chemistProgress}%</Text>
                 </View>
                 <View style={styles.progressBar}><View style={[styles.progressFill, { width: `${chemistProgress}%`, backgroundColor: '#F59E0B' }]} /></View>
-                <Text style={styles.kpiSubText}>{chemistCount} / {dynamicTargets.chemists}</Text>
+                <Text style={styles.kpiSubText}>{monthlyChemistCount} / {dynamicTargets.chemists}</Text>
               </View>
             </View>
           </View>
@@ -462,15 +766,23 @@ const DashboardScreen = () => {
           </View>
 
           <View style={styles.largeCard}>
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
               <Text style={styles.cardTitle}>⏰ Pending Follow-Ups</Text>
-              <Text style={styles.dueTodayText}>{followUps.length} Due</Text>
+              <View style={{ backgroundColor: followUps.length > 0 ? '#FEE2E2' : '#F1F5F9', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 3 }}>
+                <Text style={{ fontSize: 11, fontWeight: 'bold', color: followUps.length > 0 ? '#DC2626' : '#94A3B8' }}>
+                  {followUps.length} Pending
+                </Text>
+              </View>
             </View>
             {followUps.length > 0 ? (
               followUps.map((visit: any, index: number) => (
-                <View key={index} style={styles.listRow}>
-                  <Text style={styles.listTitleText}>{visit.titleName}</Text>
-                  <Text style={styles.listSubText}>📅 {visit.followDate}</Text>
+                <View key={index} style={[styles.listRow, { alignItems: 'center' }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listTitleText}>{visit.titleName}</Text>
+                    <Text style={styles.listSubText}>
+                      {visit.followUpType === 'Doctor' ? '🩺 Doctor' : '💊 Chemist'} • 📅 {visit.followDate}
+                    </Text>
+                  </View>
                 </View>
               ))
             ) : (
@@ -483,9 +795,14 @@ const DashboardScreen = () => {
             {recentVisitsList.length > 0 ? (
               recentVisitsList.map((visit, index) => (
                 <View key={index} style={styles.listRow}>
-                  <View>
-                    <Text style={styles.listTitleText}>{visit.name}</Text>
-                    <Text style={styles.listSubText}>{visit.type} • {visit.time}</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.listTitleText}>
+                      {visit.type === 'Doctor' ? '🩺 ' : '💊 '}
+                      {visit.name || (visit.type === 'Doctor' ? 'Doctor' : 'Chemist')}
+                    </Text>
+                    <Text style={styles.listSubText}>
+                      {visit.type}{visit.time ? ` • ${visit.time}` : ''}
+                    </Text>
                   </View>
                   <View style={[styles.statusPill, { backgroundColor: visit.status === 'Completed' ? '#DEF7EC' : '#FEF3C7' }]}>
                     <Text style={[styles.statusPillText, { color: visit.status === 'Completed' ? '#03543F' : '#D97706' }]}>{visit.status}</Text>
