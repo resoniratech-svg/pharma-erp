@@ -5,5 +5,6 @@ const router = express.Router();
 const controller = require("./hospital.controller");
 
 router.get("/", authMiddleware, controller.getHospitals);
+router.post("/", authMiddleware, controller.createHospital);
 
 module.exports = router;
