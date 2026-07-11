@@ -442,11 +442,41 @@ dailyMovementRoutes
 
 
 // app.use("/api/company", companyRoutes);
-app.get("/test", (req, res) => {
-  res.json({
-    success: true,
-    message: "API Working",
-  });
+app.get("/test", async (req, res) => {
+  const prisma = require("./config/db");
+  try {
+    const dbUrl = process.env.DATABASE_URL || "";
+    const cleanUrl = dbUrl.replace(/:[^:@\n]+@/, ":****@");
+
+    const tables = await prisma.$queryRaw`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+    `;
+
+    let migrations = [];
+    try {
+      migrations = await prisma.$queryRaw`
+        SELECT migration_name, rolled_back_at, started_at, finished_at 
+        FROM _prisma_migrations
+      `;
+    } catch (e) {
+      migrations = { error: "Failed to query migrations table: " + e.message };
+    }
+
+    res.json({
+      success: true,
+      databaseUrl: cleanUrl,
+      tables: tables.map(t => t.table_name),
+      migrations
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: error.message,
+      stack: error.stack
+    });
+  }
 });
 
 app.use("/api/distributors", distributorRoutes);
