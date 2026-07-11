@@ -1,13 +1,34 @@
 const prisma = require("../../config/db");
 
 const createChemistVisitRepo = async (data) => {
-  return prisma.chemistVisit.create({
+  const visit = await prisma.chemistVisit.create({
     data,
     include: {
       mr: true,
       chemist: true,
     },
   });
+
+  // Automatically increment achieved target count
+  try {
+    const now = new Date(visit.visitDate || visit.createdAt || new Date());
+    const month = now.getMonth() + 1; // 1-indexed
+    const year = now.getFullYear();
+    await prisma.target.updateMany({
+      where: {
+        mrId: Number(visit.mrId),
+        month,
+        year,
+      },
+      data: {
+        achievedChemistVisits: { increment: 1 }
+      }
+    });
+  } catch (err) {
+    console.error("Failed to increment chemist target achievement:", err);
+  }
+
+  return visit;
 };
 
 const getAllChemistVisitsRepo = async () => {

@@ -3,13 +3,34 @@ const prisma =
 
 const createDoctorVisitRepo =
   async (data) => {
-    return prisma.doctorVisit.create({
+    const visit = await prisma.doctorVisit.create({
       data,
       include: {
         mr: true,
         doctor: true,
       },
     });
+
+    // Automatically increment achieved target count
+    try {
+      const now = new Date(visit.visitDate || visit.createdAt || new Date());
+      const month = now.getMonth() + 1; // 1-indexed
+      const year = now.getFullYear();
+      await prisma.target.updateMany({
+        where: {
+          mrId: Number(visit.mrId),
+          month,
+          year,
+        },
+        data: {
+          achievedDoctorVisits: { increment: 1 }
+        }
+      });
+    } catch (err) {
+      console.error("Failed to increment doctor target achievement:", err);
+    }
+
+    return visit;
   };
 
 const getDoctorVisitsRepo =

@@ -9,17 +9,14 @@ const createMeetingRepo = async (data) => {
     location,
     doctorIds = [],
     chemistIds = [],
+    hospitalIds = [],
+    stockistIds = [],
   } = data;
 
-  // ⬅️ Optimization Step: Pre-parsing raw data parameters to Numbers
   const parsedDoctorIds = doctorIds.map(id => Number(id));
   const parsedChemistIds = chemistIds.map(id => Number(id));
-
-  // ⬅️ Optimization Step: Added Required Type Diagnostics Debug Logs
-  console.log('Doctor IDs:', doctorIds);
-  console.log('Chemist IDs:', chemistIds);
-  console.log('Doctor ID Type:', typeof doctorIds[0]);
-  console.log('Chemist ID Type:', typeof chemistIds[0]);
+  const parsedHospitalIds = hospitalIds.map(id => Number(id));
+  const parsedStockistIds = stockistIds.map(id => Number(id));
 
   return prisma.meeting.create({
     data: {
@@ -29,7 +26,6 @@ const createMeetingRepo = async (data) => {
       meetingDate: new Date(meetingDate),
       location,
 
-      // Utilizing parsed numeric arrays to secure proper type connection contexts
       meetingDoctors: {
         create: parsedDoctorIds.map((doctorId) => ({
           doctor: {
@@ -49,6 +45,26 @@ const createMeetingRepo = async (data) => {
           },
         })),
       },
+
+      meetingHospitals: {
+        create: parsedHospitalIds.map((hospitalId) => ({
+          hospital: {
+            connect: {
+              id: hospitalId,
+            },
+          },
+        })),
+      },
+
+      meetingStockists: {
+        create: parsedStockistIds.map((stockistId) => ({
+          stockist: {
+            connect: {
+              id: stockistId,
+            },
+          },
+        })),
+      },
     },
 
     include: {
@@ -63,6 +79,18 @@ const createMeetingRepo = async (data) => {
       meetingChemists: {
         include: {
           chemist: true,
+        },
+      },
+
+      meetingHospitals: {
+        include: {
+          hospital: true,
+        },
+      },
+
+      meetingStockists: {
+        include: {
+          stockist: true,
         },
       },
     },
@@ -83,6 +111,18 @@ const getAllMeetingsRepo = async () => {
       meetingChemists: {
         include: {
           chemist: true,
+        },
+      },
+
+      meetingHospitals: {
+        include: {
+          hospital: true,
+        },
+      },
+
+      meetingStockists: {
+        include: {
+          stockist: true,
         },
       },
     },
@@ -109,6 +149,18 @@ const getMeetingByIdRepo = async (id) => {
           chemist: true,
         },
       },
+
+      meetingHospitals: {
+        include: {
+          hospital: true,
+        },
+      },
+
+      meetingStockists: {
+        include: {
+          stockist: true,
+        },
+      },
     },
   });
 };
@@ -130,6 +182,18 @@ const deleteMeetingRepo = async (id) => {
   });
 
   await prisma.meetingChemist.deleteMany({
+    where: {
+      meetingId: Number(id),
+    },
+  });
+
+  await prisma.meetingHospital.deleteMany({
+    where: {
+      meetingId: Number(id),
+    },
+  });
+
+  await prisma.meetingStockist.deleteMany({
     where: {
       meetingId: Number(id),
     },
@@ -161,6 +225,18 @@ const getMeetingsByMrRepo = async (mrId) => {
       meetingChemists: {
         include: {
           chemist: true,
+        },
+      },
+
+      meetingHospitals: {
+        include: {
+          hospital: true,
+        },
+      },
+
+      meetingStockists: {
+        include: {
+          stockist: true,
         },
       },
     },

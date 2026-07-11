@@ -458,7 +458,7 @@ model Stockist {
 
   name String
 
-  code String @unique
+  code String? @unique
 
   mobile String
 
@@ -473,6 +473,8 @@ model Stockist {
   isActive Boolean @default(true)
 
   retailers Retailer[]
+
+  meetingStockists MeetingStockist[]
 
   createdAt DateTime @default(now())
 }
@@ -958,6 +960,8 @@ model Meeting {
   chemist         Chemist?         @relation("ChemistDirectMeetings", fields: [chemistId], references: [id])
   meetingDoctors  MeetingDoctor[]
   meetingChemists MeetingChemist[]
+  meetingHospitals MeetingHospital[]
+  meetingStockists MeetingStockist[]
   followUps       FollowUp[]
 }
 
@@ -983,6 +987,30 @@ model MeetingChemist {
   meeting Meeting @relation(fields: [meetingId], references: [id])
 
   chemist Chemist @relation(fields: [chemistId], references: [id])
+}
+
+model MeetingHospital {
+  id Int @id @default(autoincrement())
+
+  meetingId Int
+
+  hospitalId Int
+
+  meeting Meeting @relation(fields: [meetingId], references: [id])
+
+  hospital Hospital @relation(fields: [hospitalId], references: [id])
+}
+
+model MeetingStockist {
+  id Int @id @default(autoincrement())
+
+  meetingId Int
+
+  stockistId Int
+
+  meeting Meeting @relation(fields: [meetingId], references: [id])
+
+  stockist Stockist @relation(fields: [stockistId], references: [id])
 }
 
 model FollowUp {
@@ -1134,6 +1162,7 @@ model Hospital {
   name    String
   mobile  String?
   address String?
+  meetingHospitals MeetingHospital[]
 }
 
 model TerritoryBeat {
