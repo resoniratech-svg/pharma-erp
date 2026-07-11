@@ -109,7 +109,7 @@ export default function DailyReports() {
   // Safe JSON parsing for active user context to prevent component crash
   let authUser = null;
   try {
-    const storedUser = JSON.stringify(authService.getCurrentUser() || {});
+    const storedUser = localStorage.getItem('authUser');
     authUser = storedUser ? JSON.parse(storedUser) : null;
   } catch (e) {
     console.error("Error parsing authUser:", e);
@@ -202,8 +202,8 @@ export default function DailyReports() {
         );
         const chemistsVisited = todayChemists.length;
 
-        // Load Orders (MR Filtered)
-        const ordersData = retailerOrderService.getAll();
+        // Load Orders (MR Filtered) — read from localStorage cache populated by getRetailerOrders()
+        const ordersData: any[] = JSON.parse(localStorage.getItem('web_orders') || '[]');
         const todayOrdersList = ordersData.filter(
           (o: any) => (!o.mrId || Number(o.mrId) === mrId || o.userId === currentUserId || o.mrId === currentUserId || o.mrName === activeMRName) && isToday(o.dateFormatted || o.date)
         );
@@ -213,8 +213,8 @@ export default function DailyReports() {
         // Calculate Travel Distance (Haversine Formula)
         let totalKm = 0;
         if (todayAttendance && todayAttendance.latitude && todayAttendance.longitude) {
-          let lastLat = parseFloat(todayAttendance.latitude);
-          let lastLng = parseFloat(todayAttendance.longitude);
+          let lastLat = Number(todayAttendance.latitude);
+          let lastLng = Number(todayAttendance.longitude);
           
           const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
             const R = 6371;
@@ -247,10 +247,13 @@ export default function DailyReports() {
           (chemistsVisited * SCORE_MULTIPLIERS.chemist) + 
           (totalOrders * SCORE_MULTIPLIERS.order);
 
-        // Calculate Shift Overtime
+        // Calculate Shift Overtime from check-in/check-out datetime strings
         let isOvertime = false;
-        if (todayAttendance?.totalMinutes) {
-          isOvertime = todayAttendance.totalMinutes > 540; // 9 hours
+        if (todayAttendance?.checkInDateTime && todayAttendance?.checkOutDateTime) {
+          const checkInMs = new Date(todayAttendance.checkInDateTime).getTime();
+          const checkOutMs = new Date(todayAttendance.checkOutDateTime).getTime();
+          const totalMinutes = (checkOutMs - checkInMs) / 60000;
+          isOvertime = totalMinutes > 540; // 9 hours
         }
 
         const areaName = todayAttendance?.location ? (todayAttendance.location.split(',')[0] || 'HQ Region') : 'HQ Region';
@@ -275,7 +278,7 @@ export default function DailyReports() {
           gpsAttendance: gpsStatus,
           startTime,
           endTime,
-          workingHours: todayAttendance?.workingHours || '0h 0m',      
+          workingHours: todayAttendance?.dayStatus === 'Completed' ? 'Done' : todayAttendance?.dayStatus || '0h 0m',      
           startLocation: todayAttendance?.location || '-',             
           endLocation: todayAttendance?.checkOutLocation || '-',       
           totalKmTravelled: Math.round(totalKm),
@@ -356,8 +359,21 @@ export default function DailyReports() {
       }
 
       setReports(updatedReports);
-      dailyReportService.addDailyReport(mrId, existing).then(() => {
-        dailyReportService.loadDailyReports(mrId).then(setReports);
+      // Refresh from backend after save
+      dailyReportService.loadDailyReports(mrId).then(loaded => {
+        setReports(loaded.map(r => ({
+          id: r.id,
+          date: r.date,
+          repName: r.repName,
+          userId: String(mrId),
+          area: r.route || r.beat || 'Field',
+          doctorsVisited: r.docCalls,
+          chemistsVisited: r.chemCalls,
+          totalOrders: r.orderCollected,
+          orderValue: 0,
+          remarks: r.remarks,
+          status: 'Submitted' as const,
+        })));
       });
 
       // Centralized Service Audit Log

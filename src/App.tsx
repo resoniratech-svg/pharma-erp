@@ -525,13 +525,20 @@ export default function Dashboard() {
   const isSuperAdmin = [ROLE_SUPER_ADMIN, 'Super Admin', 'System Administrator'].includes(activeRole);
   const isWarehouseManager = activeRole === ROLE_WAREHOUSE_MANAGER;
 
-  // Fetch raw data
+  // Fetch raw data — async services loaded into state
   const allInventory = useMemo(() => inventoryService.getAll(), []);
   const allProducts = useMemo(() => productService.getProducts(), []);
   const allBatches = useMemo(() => batchService.getAll(), []);
-  const allInward = useMemo(() => inwardStockService.getAll(), []);
-  const allOutward = useMemo(() => outwardStockService.getAll(), []);
-  const allTransfer = useMemo(() => warehouseTransferService.getAll(), []);
+  const [allInward, setAllInward] = useState<any[]>([]);
+  const [allOutward, setAllOutward] = useState<any[]>([]);
+  const [allTransfer, setAllTransfer] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isWarehouseManager) return;
+    inwardStockService.getAll().then(setAllInward).catch(() => {});
+    outwardStockService.getAll().then(setAllOutward).catch(() => {});
+    warehouseTransferService.getAll().then(setAllTransfer).catch(() => {});
+  }, [isWarehouseManager]);
 
   // Calculate KPIs
   const wmKpis = useMemo(() => {

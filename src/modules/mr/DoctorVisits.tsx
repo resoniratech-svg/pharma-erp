@@ -598,7 +598,7 @@ import { type Column } from './components/shared';
 import { validateCheckIn } from '../../utils/attendanceValidation';
 import { doctorVisitService } from '../../services/doctorVisitService';
 import type { DoctorVisit } from '../../services/doctorVisitService';
-import { doctorService, type DoctorMaster } from '../../services/doctorService';
+import { doctorService } from '../../services/doctorService';
 import { attendanceService } from '../../services/attendanceService';
 import type { DoctorRecord } from '../../services/doctorService';
 

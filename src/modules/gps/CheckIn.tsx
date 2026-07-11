@@ -239,7 +239,7 @@ export default function CheckIn() {
 
     const activeSession = records.find((r: any) => {
       const recordDate = r.date; // already YYYY-MM-DD from service
-      return recordDate === todayDateStr && r.repName === userName && (!r.checkOutTime || r.checkOutTime === '-');
+      return recordDate === todayDateStr && (!r.checkOutTime || r.checkOutTime === '-');
     });
 
     if (activeSession) {
@@ -269,9 +269,8 @@ export default function CheckIn() {
         dayStatus: 'In-Progress'
       };
 
-      const updatedRecords = [newRecord, ...records];
-      localStorage.setItem('web_attendance_records', JSON.stringify(updatedRecords));
-
+      // Backend handles database storage, so we don't need localStorage 'web_attendance_records' here anymore.
+      
       localStorage.setItem(
         'today_checkin',
         JSON.stringify({

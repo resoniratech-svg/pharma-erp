@@ -160,17 +160,39 @@ export default function OutwardStock() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
-  const [outwardRecords, setOutwardRecords] = useState<OutwardStockRecord[]>([]);
+  const [outwardRecords, setOutwardRecords] = useState<Outward[]>([]);
   
   useEffect(() => {
-    setOutwardRecords(outwardStockService.getAll());
+    async function loadOutward() {
+      const records = await outwardStockService.getAll();
+      setOutwardRecords(records.map(r => ({
+        id: r.id || '',
+        dispatchNo: r.dispatchNo,
+        date: r.date,
+        client: r.client,
+        warehouseId: String(r.warehouseId),
+        warehouseCode: '',
+        warehouseName: '',
+        referenceNumber: r.referenceNumber,
+        itemsCount: r.itemsCount,
+        totalQuantity: r.totalQuantity,
+        totalValue: r.totalValue,
+        status: (r.status as Outward['status']) || 'Processing',
+        products: [],
+        createdBy: '',
+        createdDate: r.date,
+        lastUpdatedBy: '',
+        lastUpdatedDate: r.date,
+      })));
+    }
+    loadOutward();
   }, []);
   
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [selectedRecord, setSelectedRecord] = useState<OutwardStockRecord | null>(null);
+  const [selectedRecord, setSelectedRecord] = useState<Outward | null>(null);
   
   // Extract unique clients dynamically + mock defaults
   const knownClients = useMemo(() => {
@@ -508,11 +530,28 @@ export default function OutwardStock() {
       }))
     };
 
-    outwardStockService.add(newRecord).then(success => {
+    outwardStockService.add(newRecord).then(async success => {
       if (success) {
-        outwardStockService.getAll().then(records => {
-          setOutwardRecords(records as Outward[]);
-        });
+        const records = await outwardStockService.getAll();
+        setOutwardRecords(records.map(r => ({
+          id: r.id || '',
+          dispatchNo: r.dispatchNo,
+          date: r.date,
+          client: r.client,
+          warehouseId: String(r.warehouseId),
+          warehouseCode: '',
+          warehouseName: '',
+          referenceNumber: r.referenceNumber,
+          itemsCount: r.itemsCount,
+          totalQuantity: r.totalQuantity,
+          totalValue: r.totalValue,
+          status: (r.status as Outward['status']) || 'Processing',
+          products: [],
+          createdBy: '',
+          createdDate: r.date,
+          lastUpdatedBy: '',
+          lastUpdatedDate: r.date,
+        })));
       } else {
         alert("Failed to save dispatch to backend");
       }

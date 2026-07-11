@@ -165,10 +165,19 @@ export default function MrMeetings() {
     loadData();
   }, [mrId]);
 
-  const handleUpdateStatus = (id: string, newStatus: 'Completed' | 'Cancelled') => {
-    const updated = meetings.map(m => m.id === id ? { ...m, status: newStatus } : m);
-    setMeetings(updated);
-    localStorage.setItem('@mr_meetings', JSON.stringify(updated));
+  const handleUpdateStatus = async (id: string, newStatus: 'Completed' | 'Cancelled') => {
+    try {
+      if (newStatus === 'Completed') {
+        await meetingService.completeMeeting(id);
+      } else if (newStatus === 'Cancelled') {
+        await meetingService.cancelMeeting(id);
+      }
+      const updated = meetings.map(m => m.id === id ? { ...m, status: newStatus } : m);
+      setMeetings(updated);
+    } catch (error) {
+      console.error('Failed to update meeting status:', error);
+      alert('Failed to update meeting status in the database.');
+    }
   };
 
   const openNewMeetingForm = () => {
@@ -325,41 +334,9 @@ export default function MrMeetings() {
         updatedMeetings = [newMeetingData, ...meetings];
       }
 
+      // Backend handles database storage, so we don't need localStorage here anymore.
       setMeetings(updatedMeetings);
-      localStorage.setItem('@mr_meetings', JSON.stringify(updatedMeetings));
       alert('✅ Meeting saved successfully to database!');
-      
-      // --- START OF GLOBAL NOTIFICATION BRIDGE ---
-      try {
-        const storedGlobal = localStorage.getItem('crm_meetings');
-        let globalMeetings = storedGlobal ? JSON.parse(storedGlobal) : [];
-        
-        const newGlobalReminder = {
-          meetingId: newMeetingData.id,
-          meetingTitle: newMeetingData.title,
-          participant: newMeetingData.organizer || newMeetingData.participants,
-          meetingType: newMeetingData.type,
-          date: newMeetingData.date,
-          time: newMeetingData.time,
-          reminderStatus: 'Pending',
-          status: newMeetingData.status
-        };
-        
-        // If we are editing, update the old one. If not, add the new one!
-        if (editMeetingId) {
-          globalMeetings = globalMeetings.map((m: any) => 
-            m.meetingId === editMeetingId ? { ...m, ...newGlobalReminder } : m
-          );
-        } else {
-          globalMeetings.push(newGlobalReminder);
-        }
-        
-        // Send it to the Notification Engine
-        localStorage.setItem('crm_meetings', JSON.stringify(globalMeetings));
-      } catch (e) {
-        console.error("Failed to sync global meeting", e);
-      }
-      // --- END OF GLOBAL NOTIFICATION BRIDGE ---
 
       setIsFormOpen(false);
     } catch (error: any) {

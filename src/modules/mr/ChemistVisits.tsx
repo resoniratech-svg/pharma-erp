@@ -351,7 +351,23 @@ export default function ChemistVisits() {
       });
 
       const updatedList = await chemistVisitService.loadChemistVisits(mrId);
-      setVisits(updatedList);
+      setVisits(updatedList.map(v => ({
+        id: v.id,
+        mrName: '',
+        chemistName: v.chemistName,
+        shopName: v.address || 'Pharmacy',
+        mobile: v.mobile,
+        location: v.address || 'N/A',
+        visitDate: v.visitDate,
+        visitTime: v.visitTime,
+        stockCheck: 'Pending' as const,
+        pobAmount: Number(v.orderValue) || 0,
+        medicine: v.productsDiscussed,
+        quantity: '',
+        nextFollowUp: '',
+        remarks: v.remarks,
+        status: 'Completed' as const,
+      })));
       setIsDrawerOpen(false);
       alert('✅ Chemist Visit saved successfully to database!');
 

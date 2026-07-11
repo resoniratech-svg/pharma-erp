@@ -23,10 +23,7 @@ export interface MRMeeting {
 let meetingsCache: MRMeeting[] = [];
 
 try {
-  const data = localStorage.getItem("@mr_meetings");
-  if (data) {
-    meetingsCache = JSON.parse(data);
-  }
+  // Memory cache only, localStorage removed to prevent state mismatch
 } catch (e) {
   console.error("Failed to parse cached meetings:", e);
 }
@@ -52,14 +49,13 @@ export const meetingService = {
           rawTime: '10:00',
           priority: 'Medium',
           reminder: '15 Minutes',
-          status: 'Scheduled',
+          status: m.status ? m.status.charAt(0).toUpperCase() + m.status.slice(1).toLowerCase() as any : 'Scheduled',
           agenda: m.description || "",
           participants: '',
           attendeesCount: 0,
           followUpDate: '',
           outcome: '',
         }));
-        localStorage.setItem("@mr_meetings", JSON.stringify(meetingsCache));
       }
     } catch (err) {
       console.error("Failed to load meetings from backend:", err);
@@ -108,7 +104,6 @@ export const meetingService = {
     };
 
     meetingsCache = [mapped, ...meetingsCache];
-    localStorage.setItem("@mr_meetings", JSON.stringify(meetingsCache));
     return mapped;
   },
 
@@ -116,6 +111,19 @@ export const meetingService = {
     const response = await apiRequest<{ success: boolean }>(`/meetings/${id}/complete`, {
       method: 'PATCH',
     });
+    if (response.success) {
+      meetingsCache = meetingsCache.map(m => m.id === String(id) ? { ...m, status: 'Completed' } : m);
+    }
+    return response.success;
+  },
+
+  async cancelMeeting(id: number | string): Promise<boolean> {
+    const response = await apiRequest<{ success: boolean }>(`/meetings/${id}/cancel`, {
+      method: 'PATCH',
+    });
+    if (response.success) {
+      meetingsCache = meetingsCache.map(m => m.id === String(id) ? { ...m, status: 'Cancelled' } : m);
+    }
     return response.success;
   }
 };

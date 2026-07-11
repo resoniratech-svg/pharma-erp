@@ -16,7 +16,25 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
-import { warehouseTransferService, type TrackingRecord } from '../../services/warehouseTransferService';
+import { warehouseTransferService } from '../../services/warehouseTransferService';
+
+// Local TrackingRecord type — maps WarehouseTransferRecord to tracking UI shape
+interface TrackingRecord {
+  id: string;
+  transferNo: string;
+  fromWarehouse: string;
+  toWarehouse: string;
+  transferDate: string;
+  expectedDelivery: string;
+  currentStatus: string;
+  itemsCount: number;
+  totalQuantity: number;
+  totalItems: number;
+  vehicleNo?: string;
+  driverName?: string;
+  driverMobile?: string;
+  timeline: Array<{ date: string; time?: string; status: string }>;
+}
 
 export default function WarehouseTransferTracking() {
   const [search, setSearch] = useState('');
@@ -41,7 +59,26 @@ export default function WarehouseTransferTracking() {
   };
 
   useEffect(() => {
-    setTrackingData(warehouseTransferService.getAllTrackingRecords());
+    async function loadTracking() {
+      const records = await warehouseTransferService.getAll();
+      setTrackingData(records.map(r => ({
+        id: r.id || '',
+        transferNo: r.transferNo,
+        fromWarehouse: `Warehouse ${r.fromWarehouseId}`,
+        toWarehouse: `Warehouse ${r.toWarehouseId}`,
+        transferDate: r.date,
+        expectedDelivery: r.date,
+        currentStatus: r.status,
+        itemsCount: r.itemsCount,
+        totalQuantity: r.totalQuantity,
+        totalItems: r.itemsCount,
+        vehicleNo: undefined,
+        driverName: undefined,
+        driverMobile: undefined,
+        timeline: [{ date: r.date, status: r.status }],
+      })));
+    }
+    loadTracking();
 
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -278,7 +315,7 @@ export default function WarehouseTransferTracking() {
                 <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-4">Tracking Timeline</h3>
                 <div className="p-4 bg-slate-50 border border-slate-100 rounded-lg">
                   <div className="space-y-6">
-                    {selectedTransfer.timeline.map((event, idx) => {
+                    {selectedTransfer.timeline.map((event: { date: string; time?: string; status: string }, idx: number) => {
                       const isLast = idx === selectedTransfer.timeline.length - 1;
                       return (
                         <div key={idx} className="relative flex gap-4">

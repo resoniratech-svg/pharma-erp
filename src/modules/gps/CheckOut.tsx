@@ -112,7 +112,7 @@ export default function CheckOut() {
     const now = new Date();
     const todayDateStr = now.toISOString().split('T')[0];
 
-    const recordIndex = records.findIndex((r: any) => r.date === todayDateStr && r.repName === userName);
+    const recordIndex = records.findIndex((r: any) => r.date === todayDateStr);
 
     if (recordIndex === -1) {
       alert('You have not checked in today! Please Check-In first.');
@@ -148,7 +148,7 @@ export default function CheckOut() {
       records[recordIndex].checkOutLongitude = latLng.lng;
       records[recordIndex].dayStatus = "Completed";
 
-      localStorage.setItem('web_attendance_records', JSON.stringify(records));
+      // Backend handles database storage, so we don't need localStorage 'web_attendance_records' here anymore.
 
       localStorage.setItem(
         'today_checkin',

@@ -401,9 +401,11 @@ export default function InwardStock() {
   };
 
   useEffect(() => {
-    const records = inwardStockService.getAll();
-
-    setInwardRecords(records as Inward[]);
+    async function loadInward() {
+      const records = await inwardStockService.getAll();
+      setInwardRecords(records as unknown as Inward[]);
+    }
+    loadInward();
   }, []);
 
   useEffect(() => {
@@ -574,7 +576,7 @@ export default function InwardStock() {
     const success = await inwardStockService.add(newRecord);
     if (success) {
       const updatedRecords = await inwardStockService.getAll();
-      setInwardRecords(updatedRecords as Inward[]);
+      setInwardRecords(updatedRecords as unknown as Inward[]);
     } else {
       alert("Failed to save GRN to backend");
     }
