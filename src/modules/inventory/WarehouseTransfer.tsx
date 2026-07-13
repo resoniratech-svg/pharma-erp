@@ -82,24 +82,29 @@ export default function WarehouseTransfer() {
   useEffect(() => {
     async function loadTransfers() {
       const records: WarehouseTransferRecord[] = await warehouseTransferService.getAll();
-      setTransferRecords(records.map(r => ({
-        id: r.id || '',
-        transferNo: r.transferNo,
-        date: r.date,
-        fromWarehouseId: String(r.fromWarehouseId),
-        toWarehouseId: String(r.toWarehouseId),
-        fromWarehouseName: `Warehouse ${r.fromWarehouseId}`,
-        toWarehouseName: `Warehouse ${r.toWarehouseId}`,
-        status: r.status as WarehouseTransfer['status'] || 'Processing',
-        itemsCount: r.itemsCount,
-        totalQuantity: r.totalQuantity,
-        remarks: r.remarks,
-        products: [],
-        createdBy: '',
-        createdDate: r.date,
-        lastUpdatedBy: '',
-        lastUpdatedDate: r.date,
-      })));
+      const whs = await warehouseService.loadWarehouses();
+      setTransferRecords(records.map(r => {
+        const fromWh = whs.find(w => String(w.id) === String(r.fromWarehouseId));
+        const toWh = whs.find(w => String(w.id) === String(r.toWarehouseId));
+        return {
+          id: r.id || '',
+          transferNo: r.transferNo,
+          date: r.date,
+          fromWarehouseId: String(r.fromWarehouseId),
+          toWarehouseId: String(r.toWarehouseId),
+          fromWarehouseName: fromWh ? fromWh.name : `Warehouse ${r.fromWarehouseId}`,
+          toWarehouseName: toWh ? toWh.name : `Warehouse ${r.toWarehouseId}`,
+          status: r.status as WarehouseTransfer['status'] || 'Processing',
+          itemsCount: r.itemsCount,
+          totalQuantity: r.totalQuantity,
+          remarks: r.remarks,
+          products: [],
+          createdBy: '',
+          createdDate: r.date,
+          lastUpdatedBy: '',
+          lastUpdatedDate: r.date,
+        };
+      }));
     }
     loadTransfers();
   }, []);
@@ -171,7 +176,7 @@ export default function WarehouseTransfer() {
       
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
-  });
+  }).sort((a, b) => new Date(b.createdDate || b.date).getTime() - new Date(a.createdDate || a.date).getTime());
 
   const columns: Column<WarehouseTransfer>[] = [
     { key: 'transferNo', label: 'Transfer ID', render: (row) => <span className="font-semibold text-violet-700">{row.transferNo}</span> },
@@ -432,20 +437,25 @@ export default function WarehouseTransfer() {
     warehouseTransferService.add(newRecord).then(async success => {
       if (success) {
         const records = await warehouseTransferService.getAll();
-        setTransferRecords(records.map(r => ({
-          id: r.id || '',
-          transferNo: r.transferNo,
-          date: r.date,
-          fromWarehouseId: String(r.fromWarehouseId),
-          toWarehouseId: String(r.toWarehouseId),
-          fromWarehouseName: `Warehouse ${r.fromWarehouseId}`,
-          toWarehouseName: `Warehouse ${r.toWarehouseId}`,
-          status: r.status,
-          itemsCount: r.itemsCount,
-          totalQuantity: r.totalQuantity,
-          remarks: r.remarks,
-          products: [],
-        })));
+        const whs = await warehouseService.loadWarehouses();
+        setTransferRecords(records.map(r => {
+          const fromWh = whs.find(w => String(w.id) === String(r.fromWarehouseId));
+          const toWh = whs.find(w => String(w.id) === String(r.toWarehouseId));
+          return {
+            id: r.id || '',
+            transferNo: r.transferNo,
+            date: r.date,
+            fromWarehouseId: String(r.fromWarehouseId),
+            toWarehouseId: String(r.toWarehouseId),
+            fromWarehouseName: fromWh ? fromWh.name : `Warehouse ${r.fromWarehouseId}`,
+            toWarehouseName: toWh ? toWh.name : `Warehouse ${r.toWarehouseId}`,
+            status: r.status,
+            itemsCount: r.itemsCount,
+            totalQuantity: r.totalQuantity,
+            remarks: r.remarks,
+            products: [],
+          };
+        }));
       } else {
         alert("Failed to initiate warehouse transfer in backend");
       }

@@ -185,6 +185,10 @@ export default function BarcodeManagement() {
                         item.productCode.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
+  }).sort((a, b) => {
+    const dateA = new Date(a.assignedDate || 0).getTime();
+    const dateB = new Date(b.assignedDate || 0).getTime();
+    return dateB - dateA;
   });
 
   const handleExport = () => {

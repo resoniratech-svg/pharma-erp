@@ -25,6 +25,9 @@ import { transportChallanService } from '../../services/transportChallanService'
 
 import { orderService } from '../../services/orderService';
 import { distributorDispatchService } from '../../services/distributorDispatchService';
+import { productService } from '../../services/productService';
+import { batchService } from '../../services/batchService';
+import authService from '../../services/authService';
 
 
 const formatDate = (dateString: string) => {
@@ -91,6 +94,10 @@ export default function DispatchManagement() {
 
   const [showTransporterDropdown, setShowTransporterDropdown] = useState(false);
   const [transporters, setTransporters] = useState<string[]>(['Blue Dart', 'Delhivery', 'DTDC', 'VRL Logistics']);
+  const [showDriverDropdown, setShowDriverDropdown] = useState(false);
+  const [showVehicleDropdown, setShowVehicleDropdown] = useState(false);
+  const [knownDrivers, setKnownDrivers] = useState<{name: string, mobile: string}[]>([]);
+  const [knownVehicles, setKnownVehicles] = useState<string[]>([]);
 
   const [eligibleWarehouses, setEligibleWarehouses] = useState<any[]>([]);
   const [showEligibleWarehouseDropdown, setShowEligibleWarehouseDropdown] = useState(false);
@@ -122,13 +129,59 @@ export default function DispatchManagement() {
   useEffect(() => {
     transportChallanService.loadDispatches().then((data) => {
       setDispatches(data);
+      const vehicles = Array.from(new Set(data.map((d: any) => d.vehicleNumber).filter(Boolean))) as string[];
+      setKnownVehicles(vehicles);
+      
+      const driversMap = new Map<string, string>();
+      data.forEach((d: any) => {
+        if (d.driverName) {
+          driversMap.set(d.driverName, d.driverMobile || '');
+        }
+      });
+      setKnownDrivers(Array.from(driversMap.entries()).map(([name, mobile]) => ({name, mobile})));
     });
     
     const whs = warehouseService.getAll();
     setWarehouses(whs.filter((w: any) => w.status === 'Active'));
 
-    setAllTransfers(warehouseTransferService.getAll());
-    setAllOutwards(outwardStockService.getAll());
+    warehouseTransferService.getAll().then(async (data) => {
+      const products = await productService.loadProducts();
+      const batches = await batchService.loadBatches();
+      const whsAll = warehouseService.getAll();
+      const enrichedData = data.map((r: any) => {
+        const fromWh = whsAll.find((w: any) => String(w.id) === String(r.fromWarehouseId));
+        const toWh = whsAll.find((w: any) => String(w.id) === String(r.toWarehouseId));
+        return {
+          ...r,
+          fromWarehouseName: fromWh ? fromWh.name : `Warehouse ${r.fromWarehouseId}`,
+          toWarehouseName: toWh ? toWh.name : `Warehouse ${r.toWarehouseId}`
+        };
+      });
+      setAllTransfers(enrichedData);
+    });
+    outwardStockService.getAll().then(async (data) => {
+      const products = await productService.loadProducts();
+      const batches = await batchService.loadBatches();
+      const whsAll = warehouseService.getAll();
+
+      const enrichedData = data.map((r: any) => {
+        const wh = whsAll.find((w: any) => String(w.id) === String(r.warehouseId));
+        return {
+          ...r,
+          warehouseName: wh ? wh.name : r.warehouseName || `Warehouse ${r.warehouseId}`,
+          items: (r.items || []).map((item: any) => {
+            const product = products.find((p: any) => String(p.id) === String(item.productId));
+            const batch = batches.find((b: any) => String(b.id) === String(item.batchId));
+            return {
+              ...item,
+              productName: product ? product.name : `Product ${item.productId}`,
+              batchNo: batch ? batch.batchNumber : `Batch ${item.batchId}`
+            };
+          })
+        };
+      });
+      setAllOutwards(enrichedData);
+    });
     setAllApprovedOrders(distributorDispatchService.getApprovedOrders());
 
     function handleClickOutside(event: MouseEvent) {
@@ -173,13 +226,20 @@ export default function DispatchManagement() {
       setNewOrder(record.transferNo);
       setNewWarehouse(record.fromWarehouseName);
       setDestinationWarehouse(record.toWarehouseName);
-      const mapped = (record.products || []).map((p: any) => ({
-        productName: p.productName || p.product,
-        batchNo: p.batchNo || p.batchNumber,
-        availableQty: p.availableQty || p.quantity || p.transferQty || 0,
-        dispatchQty: p.dispatchQty || p.transferQty || p.quantity || 0
-      }));
-      setNewProducts(mapped);
+
+      const sourceInv = inventoryService.getByWarehouse(String(record.fromWarehouseId));
+      setAvailableInventory(sourceInv);
+      
+      if (sourceInv.length === 1) {
+        setNewProducts([{
+          productName: sourceInv[0].productName,
+          batchNo: sourceInv[0].batchNo,
+          availableQty: sourceInv[0].availableQty,
+          dispatchQty: sourceInv[0].availableQty,
+        }]);
+      } else {
+        setNewProducts([]);
+      }
     } else if (dispatchType === 'Distributor Order') {
       setReferenceSearch(record.orderNo);
       setNewOrder(record.orderNo);
@@ -209,7 +269,7 @@ export default function DispatchManagement() {
       setNewWarehouse(record.warehouseName);
       setNewCustomer(record.client);
       setDispatchAddress(record.address || '');
-      const mapped = (record.products || []).map((p: any) => ({
+      const mapped = (record.items || record.products || []).map((p: any) => ({
         productName: p.productName || p.product,
         batchNo: p.batchNo || p.batchNumber,
         availableQty: p.availableQty || p.stock || p.quantity || 0,
@@ -973,7 +1033,7 @@ export default function DispatchManagement() {
               <div className="md:col-span-2 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Product Details</h3>
                 
-                {selectedReference && newProducts.length > 0 ? (
+                {selectedReference && (newProducts.length > 0 || (dispatchType === 'Warehouse Transfer' && availableInventory.length > 1)) ? (
                   <div className="overflow-x-auto border border-slate-200 rounded-lg">
                     <table className="w-full text-left text-sm">
                       <thead>
@@ -982,6 +1042,7 @@ export default function DispatchManagement() {
                           <th className="py-2 px-3 font-semibold text-slate-600">Batch No (FEFO)</th>
                           <th className="py-2 px-3 font-semibold text-slate-600 text-right">Available Qty</th>
                           <th className="py-2 px-3 font-semibold text-slate-600 text-right w-40">Dispatch Qty *</th>
+                          <th className="py-2 px-3 font-semibold text-slate-600 w-16"></th>
                         </tr>
                       </thead>
                       <tbody>
@@ -996,16 +1057,64 @@ export default function DispatchManagement() {
                                 min="0"
                                 max={p.availableQty}
                                 value={p.dispatchQty}
-                                disabled
-                                className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-right bg-slate-50 text-slate-500 cursor-not-allowed"
+                                onChange={e => {
+                                  const val = Math.min(Number(e.target.value) || 0, p.availableQty);
+                                  const updated = [...newProducts];
+                                  updated[i].dispatchQty = val;
+                                  setNewProducts(updated);
+                                }}
+                                className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-right focus:outline-none focus:border-violet-400"
                               />
+                            </td>
+                            <td className="py-2 px-3 text-center">
+                              <button onClick={() => {
+                                const updated = newProducts.filter((_, idx) => idx !== i);
+                                setNewProducts(updated);
+                              }} className="text-red-500 hover:text-red-700 font-medium text-xs">Remove</button>
                             </td>
                           </tr>
                         ))}
+                        {selectedReference && dispatchType === 'Warehouse Transfer' && availableInventory.length > 1 && (
+                          <tr className="border-b border-slate-100 last:border-0 bg-slate-50/50">
+                            <td className="py-2 px-3">
+                              <select 
+                                className="w-full border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:border-violet-400"
+                                value={selectedInventoryId}
+                                onChange={e => {
+                                  setSelectedInventoryId(e.target.value);
+                                  if (e.target.value) {
+                                    const inv = availableInventory.find(i => i.id === e.target.value);
+                                    if (inv) {
+                                      setNewProducts([...newProducts, {
+                                        productName: inv.productName,
+                                        batchNo: inv.batchNo,
+                                        availableQty: inv.availableQty,
+                                        dispatchQty: inv.availableQty
+                                      }]);
+                                      setSelectedInventoryId('');
+                                    }
+                                  }
+                                }}
+                              >
+                                <option value="">Select Product...</option>
+                                {availableInventory.filter(inv => !newProducts.some(np => np.batchNo === inv.batchNo && np.productName === inv.productName)).map(inv => (
+                                  <option key={inv.id} value={inv.id}>
+                                    {inv.productName} (Batch: {inv.batchNo})
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="py-2 px-3 text-slate-400 text-xs italic">-</td>
+                            <td className="py-2 px-3 text-right text-slate-400 italic">-</td>
+                            <td className="py-2 px-3"></td>
+                            <td className="py-2 px-3"></td>
+                          </tr>
+                        )}
                         <tr className="bg-slate-50 font-semibold text-slate-900 border-t border-slate-200">
                           <td colSpan={2} className="py-2 px-3 text-right">Total Summary:</td>
                           <td className="py-2 px-3 text-right text-slate-500 font-normal">{newProducts.length} Items</td>
                           <td className="py-2 px-3 text-right text-lg text-violet-700">{newProducts.reduce((acc, curr) => acc + curr.dispatchQty, 0)}</td>
+                          <td></td>
                         </tr>
                       </tbody>
                     </table>
@@ -1080,22 +1189,111 @@ export default function DispatchManagement() {
                 <label className="block text-sm font-medium mb-1">LR Number *</label>
                 <input type="text" value={newLRNumber} onChange={e => setNewLRNumber(e.target.value)} placeholder="e.g. LR-2026-45896" className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-sm" />
               </div>
-              <div>
-                <label className="block text-sm font-medium mb-1">Vehicle Number *</label>
-                <input type="text" value={newVehicle} onChange={e => setNewVehicle(e.target.value)} placeholder="Enter Vehicle Number" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
-              </div>
-              <div>
+              <div className="relative">
                 <label className="block text-sm font-medium mb-1">Driver Name *</label>
-                <input 
-                  type="text" 
-                  value={newDriverName} 
-                  onChange={e => {
-                    const val = e.target.value.replace(/[^A-Za-z\s]/g, '');
-                    setNewDriverName(val);
-                  }} 
-                  placeholder="e.g. John Doe" 
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2" 
-                />
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    value={newDriverName} 
+                    onChange={e => {
+                      const val = e.target.value.replace(/[^A-Za-z\s]/g, '');
+                      setNewDriverName(val);
+                      setShowDriverDropdown(true);
+                    }}
+                    onFocus={() => setShowDriverDropdown(true)}
+                    placeholder="e.g. John Doe" 
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white focus:outline-none focus:border-violet-400" 
+                  />
+                  <ChevronDown
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+                    onClick={() => setShowDriverDropdown(!showDriverDropdown)}
+                  />
+                </div>
+                {showDriverDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowDriverDropdown(false)} />
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                      {knownDrivers
+                        .filter((d) => d.name.toLowerCase().includes((newDriverName || "").toLowerCase()))
+                        .map((driver) => (
+                          <div
+                            key={driver.name}
+                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
+                            onClick={() => {
+                              setNewDriverName(driver.name);
+                              if (driver.mobile) setNewDriverMobile(driver.mobile);
+                              setShowDriverDropdown(false);
+                            }}
+                          >
+                            {driver.name}
+                          </div>
+                        ))}
+                      {(newDriverName || "").trim() !== "" &&
+                        !knownDrivers.some(
+                          (d) => d.name.trim().toLowerCase() === (newDriverName || "").trim().toLowerCase()
+                        ) && (
+                          <div
+                            className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
+                            onClick={() => setShowDriverDropdown(false)}
+                          >
+                            <Plus className="w-4 h-4" /> Add "{newDriverName.trim()}"
+                          </div>
+                        )}
+                    </div>
+                  </>
+                )}
+              </div>
+              <div className="relative">
+                <label className="block text-sm font-medium mb-1">Vehicle Number *</label>
+                <div className="relative">
+                  <input 
+                    type="text" 
+                    value={newVehicle} 
+                    onChange={e => {
+                      setNewVehicle(e.target.value);
+                      setShowVehicleDropdown(true);
+                    }} 
+                    onFocus={() => setShowVehicleDropdown(true)}
+                    placeholder="Enter Vehicle Number" 
+                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white focus:outline-none focus:border-violet-400" 
+                  />
+                  <ChevronDown
+                    className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+                    onClick={() => setShowVehicleDropdown(!showVehicleDropdown)}
+                  />
+                </div>
+                {showVehicleDropdown && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setShowVehicleDropdown(false)} />
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                      {knownVehicles
+                        .filter((v) => v.toLowerCase().includes((newVehicle || "").toLowerCase()))
+                        .map((veh) => (
+                          <div
+                            key={veh}
+                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
+                            onClick={() => {
+                              setNewVehicle(veh);
+                              setShowVehicleDropdown(false);
+                            }}
+                          >
+                            {veh}
+                          </div>
+                        ))}
+                      {(newVehicle || "").trim() !== "" &&
+                        !knownVehicles.some(
+                          (v) => v.trim().toLowerCase() === (newVehicle || "").trim().toLowerCase()
+                        ) && (
+                          <div
+                            className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
+                            onClick={() => setShowVehicleDropdown(false)}
+                          >
+                            <Plus className="w-4 h-4" /> Add "{newVehicle.trim()}"
+                          </div>
+                        )}
+                    </div>
+                  </>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Driver Mobile *</label>
