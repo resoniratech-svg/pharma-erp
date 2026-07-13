@@ -12,6 +12,8 @@ export interface OutwardStockRecord {
   totalValue: number;
   status: string;
   remarks?: string;
+  warehouseCode?: string;
+  warehouseName?: string;
   items: Array<{
     productId: number;
     batchId: number;

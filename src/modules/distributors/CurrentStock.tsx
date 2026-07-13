@@ -46,7 +46,7 @@ export default function CurrentStock() {
 
   const loggedInDistributorCode = useMemo(() => {
     const user = authService.getCurrentUser();
-    return user?.linkedDistributorCode || user?.distributorCode || '';
+    return (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || '';
   }, []);
 
   useEffect(() => {
@@ -145,25 +145,25 @@ export default function CurrentStock() {
 
   const uniqueCategories = useMemo(() => Array.from(new Set(stockData.map(item => item.category))), [stockData]);
 
-  const columns: Column[] = [
-    { header: 'Product Code', accessor: 'productCode' },
+  const columns: Column<StockRow>[] = [
+    { label: 'Product Code', key: 'productCode' },
     { 
-      header: 'Product Name', 
-      accessor: 'productName',
-      render: (_, row: any) => (
+      label: 'Product Name', 
+      key: 'productName',
+      render: (row: any) => (
         <div>
           <p className="font-medium text-slate-900">{row.productName}</p>
           <p className="text-xs text-slate-500">{row.packType}</p>
         </div>
       )
     },
-    { header: 'Batch Number', accessor: 'batchNumber' },
-    { header: 'Category', accessor: 'category' },
-    { header: 'Expiry Date', accessor: 'expiryDate' },
+    { label: 'Batch Number', key: 'batchNumber' },
+    { label: 'Category', key: 'category' },
+    { label: 'Expiry Date', key: 'expiryDate' },
     { 
-      header: 'Pricing', 
-      accessor: 'mrp',
-      render: (_, row: any) => (
+      label: 'Pricing', 
+      key: 'mrp',
+      render: (row: any) => (
         <div>
           <p className="text-sm">MRP: ₹{row.mrp.toFixed(2)}</p>
           <p className="text-xs text-slate-500">PTR: ₹{row.ptr.toFixed(2)}</p>
@@ -171,23 +171,23 @@ export default function CurrentStock() {
       )
     },
     { 
-      header: 'Available', 
-      accessor: 'availableQuantity',
-      render: (val: any) => <span className="font-semibold">{val}</span>
+      label: 'Available', 
+      key: 'availableQuantity',
+      render: (row: any) => <span className="font-semibold">{row.availableQuantity}</span>
     },
-    { header: 'Reserved', accessor: 'reservedQuantity' },
+    { label: 'Reserved', key: 'reservedQuantity' },
     {
-      header: 'Status',
-      accessor: 'status',
-      render: (val: any) => {
+      label: 'Status',
+      key: 'status',
+      render: (row: any) => {
         let variant: BadgeVariant = 'neutral';
-        switch (val) {
+        switch (row.status) {
           case 'In Stock': variant = 'success'; break;
           case 'Low Stock': variant = 'warning'; break;
           case 'Out of Stock': variant = 'danger'; break;
           case 'Near Expiry': variant = 'warning'; break;
         }
-        return <Badge variant={variant}>{val}</Badge>;
+        return <Badge variant={variant}>{row.status}</Badge>;
       }
     }
   ];
@@ -203,31 +203,33 @@ export default function CurrentStock() {
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         <SummaryCard
           title="Total Products"
-          value={metrics.totalProducts}
+          value={String(metrics.totalProducts)}
           icon={<Package className="w-6 h-6" />}
-          trend=""
-          variant="primary"
+          colorClass="text-blue-600"
+          bgClass="bg-blue-50"
         />
         <SummaryCard
           title="Total Available Qty"
-          value={metrics.totalQty}
+          value={String(metrics.totalQty)}
           icon={<CheckCircle2 className="w-6 h-6" />}
-          trend=""
-          variant="success"
+          colorClass="text-emerald-600"
+          bgClass="bg-emerald-50"
         />
         <SummaryCard
           title="Low/Out of Stock"
-          value={metrics.lowStock}
+          value={String(metrics.lowStock)}
+          subtitle="Needs Replenishment"
           icon={<AlertCircle className="w-6 h-6" />}
-          trend="Needs Replenishment"
-          variant="danger"
+          colorClass="text-rose-600"
+          bgClass="bg-rose-50"
         />
         <SummaryCard
           title="Near Expiry Batches"
-          value={metrics.nearExpiry}
+          value={String(metrics.nearExpiry)}
+          subtitle="Action Required"
           icon={<Clock className="w-6 h-6" />}
-          trend="Action Required"
-          variant="warning"
+          colorClass="text-amber-600"
+          bgClass="bg-amber-50"
         />
       </div>
 
@@ -265,7 +267,6 @@ export default function CurrentStock() {
         <DataTable
           columns={columns}
           data={filteredData}
-          keyField="id"
         />
       </TableCard>
     </div>
