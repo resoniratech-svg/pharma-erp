@@ -76,6 +76,7 @@ const DashboardScreen = () => {
   const [ordersCount, setOrdersCount] = useState(0);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState('');
+  const [hasCheckedOut, setHasCheckedOut] = useState(false);
 
   const [salesProgress, setSalesProgress] = useState(0);
   const [doctorProgress, setDoctorProgress] = useState(0);
@@ -315,13 +316,22 @@ const DashboardScreen = () => {
       });
 
       if (mergedOrders.length > 0) {
-        setRecentOrdersList(mergedOrders.slice(0, 4).map((o: any, idx: number) => ({
-          id: o.orderNumber || `ORD-NEW-${idx}`,
-          client: o.customerName || o.customer?.name || 'Chemist Store',
-          status: o.status === 'Booked' || o.status === 'Pending' ? 'Pending' : o.status === 'Fulfilled' || o.status === 'Shipped' ? 'Shipped' : 'Failed',
-          amount: `₹${(parseFloat(o.totalAmount || o.amount) || 0).toLocaleString()}`,
-          date: o.dateFormatted ? o.dateFormatted.split(' ')[0] : o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-GB').replace(/\//g, '-') : 'Today'
-        })));
+        setRecentOrdersList(mergedOrders.slice(0, 4).map((o: any, idx: number) => {
+          const statusUpper = (o.status || '').toUpperCase();
+          const clientName = o.retailer?.name || o.customerName || o.customer?.name || 'Chemist Store';
+          const displayStatus = (statusUpper === 'BOOKED' || statusUpper === 'PENDING' || statusUpper === 'FORWARDED' || statusUpper === 'APPROVED')
+            ? 'Pending'
+            : (statusUpper === 'FULFILLED' || statusUpper === 'SHIPPED' || statusUpper === 'DELIVERED')
+              ? 'Shipped'
+              : 'Failed';
+          return {
+            id: o.orderNumber || `ORD-NEW-${idx}`,
+            client: clientName,
+            status: displayStatus,
+            amount: `₹${(parseFloat(o.totalAmount || o.amount) || 0).toLocaleString()}`,
+            date: o.orderDate ? o.orderDate.split('T')[0] : o.dateFormatted ? o.dateFormatted.split(' ')[0] : o.createdAt ? new Date(o.createdAt).toLocaleDateString('en-GB').replace(/\//g, '-') : 'Today'
+          };
+        }));
       } else {
         setRecentOrdersList([]);
       }
@@ -333,74 +343,109 @@ const DashboardScreen = () => {
 
     // 4. Consolidate attendance status checks
     try {
-      // If backend analytics didn't show checked-in, check getAttendanceLogs
-      if (!determinedCheckedIn) {
-        try {
-          const logsList = await getAttendanceLogs();
-          const today = new Date();
-          
-          const checkSameDay = (d1: Date, d2Str: string) => {
-            if (!d2Str) return false;
-            try {
-              const d2 = new Date(d2Str);
-              if (isNaN(d2.getTime())) {
-                const cleaned = d2Str.replace(/-/g, ' ');
-                const parts = cleaned.split(' ');
-                if (parts.length >= 3) {
-                  const day = parseInt(parts[0]);
-                  const year = parseInt(parts[2]);
-                  const monthStr = parts[1].toLowerCase();
-                  const monthsAbbr = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
-                  const monthIdx = monthsAbbr.findIndex(m => monthStr.startsWith(m));
-                  if (day && year && monthIdx !== -1) {
-                    return d1.getDate() === day && d1.getMonth() === monthIdx && d1.getFullYear() === year;
-                  }
+      let isTodayCheckedIn = false;
+      let isTodayCheckedOut = false;
+      let checkInTimeStr = '';
+      let todayLogRecord: any = null;
+
+      // Primary check: getAttendanceLogs (most reliable detailed log list)
+      try {
+        const logsList = await getAttendanceLogs();
+        const today = new Date();
+        
+        const checkSameDay = (d1: Date, d2Str: string) => {
+          if (!d2Str) return false;
+          try {
+            const d2 = new Date(d2Str);
+            if (isNaN(d2.getTime())) {
+              const cleaned = d2Str.replace(/-/g, ' ');
+              const parts = cleaned.split(' ');
+              if (parts.length >= 3) {
+                const day = parseInt(parts[0]);
+                const year = parseInt(parts[2]);
+                const monthStr = parts[1].toLowerCase();
+                const monthsAbbr = ['jan','feb','mar','apr','may','jun','jul','aug','sep','oct','nov','dec'];
+                const monthIdx = monthsAbbr.findIndex(m => monthStr.startsWith(m));
+                if (day && year && monthIdx !== -1) {
+                  return d1.getDate() === day && d1.getMonth() === monthIdx && d1.getFullYear() === year;
                 }
-                return false;
               }
-              return d1.getDate() === d2.getDate() && 
-                     d1.getMonth() === d2.getMonth() && 
-                     d1.getFullYear() === d2.getFullYear();
-            } catch (e) {
               return false;
             }
-          };
+            return d1.getDate() === d2.getDate() && 
+                   d1.getMonth() === d2.getMonth() && 
+                   d1.getFullYear() === d2.getFullYear();
+          } catch (e) {
+            return false;
+          }
+        };
 
-          const todayLog = Array.isArray(logsList) ? logsList.find((log: any) => 
-            checkSameDay(today, log.date || log.checkInTime || log.check_in_time || log.createdAt)
-          ) : null;
+        const todayLogs = Array.isArray(logsList) ? logsList.filter((log: any) => 
+          checkSameDay(today, log.date || log.checkIn || log.checkInTime || log.check_in_time || log.createdAt)
+        ) : [];
 
-          if (todayLog) {
-            const isApprovedOrPresent = !todayLog.status || 
-                             String(todayLog.status).toUpperCase() === 'PRESENT' || 
-                             String(todayLog.status).toUpperCase() === 'APPROVED';
-            
-            if (isApprovedOrPresent) {
-              determinedCheckedIn = true;
-              const rawTime = todayLog.checkInTime || todayLog.check_in_time || '';
-              determinedCheckInTime = formatTimeForDisplay(rawTime);
+        if (todayLogs.length > 0) {
+          // Find the active log (no checkout)
+          todayLogRecord = todayLogs.find((log: any) => !log.checkOut && !log.checkOutTime || log.checkOutTime === 'Active');
+          
+          if (todayLogRecord) {
+            isTodayCheckedIn = true;
+            checkInTimeStr = formatTimeForDisplay(todayLogRecord.checkIn || todayLogRecord.checkInTime || todayLogRecord.check_in_time || '');
+          } else {
+            isTodayCheckedOut = true;
+            // Use the latest log's check-in time
+            todayLogRecord = todayLogs[0];
+            checkInTimeStr = formatTimeForDisplay(todayLogRecord.checkIn || todayLogRecord.checkInTime || todayLogRecord.check_in_time || '');
+          }
+        }
+      } catch (err) {
+        console.log('Dashboard failed to fetch attendance logs from API:', err);
+      }
+
+      // Secondary check: stats.attendance (fallback)
+      if (!isTodayCheckedIn && !isTodayCheckedOut) {
+        if (stats && stats.attendance) {
+          const todayStrYMD = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+          const attendanceDate = stats.attendance.date
+            ? String(stats.attendance.date).slice(0, 10)
+            : null;
+          const isToday = !attendanceDate || attendanceDate === todayStrYMD;
+          if (isToday && stats.attendance.status === 'Present') {
+            checkInTimeStr = formatTimeForDisplay(stats.attendance.checkInTime || stats.attendance.checkIn || '');
+            if (stats.attendance.checkOutTime || stats.attendance.checkOut) {
+              isTodayCheckedOut = true;
+            } else {
+              isTodayCheckedIn = true;
             }
           }
-        } catch (err) {
-          console.log('Dashboard failed to fetch attendance logs from API:', err);
         }
       }
 
-      // If still not determined, fallback to AsyncStorage today-only check
-      if (!determinedCheckedIn) {
-        const todayDateStr = new Date().toISOString().slice(0, 10);
-        const storedCheckInDate = await AsyncStorage.getItem('@check_in_date');
-        const rawChecked = await AsyncStorage.getItem('@checked_in');
-        const isCheckedInVal = rawChecked === 'true' && storedCheckInDate === todayDateStr;
-        if (isCheckedInVal) {
-          determinedCheckedIn = true;
-          determinedCheckInTime = formatTimeForDisplay((await AsyncStorage.getItem('@check_in_time')) || '');
+      // Synchronize back to AsyncStorage so Checkout/Dashboard stay in sync!
+      const todayStr = new Date().toISOString().slice(0, 10);
+      if (isTodayCheckedIn) {
+        let resolvedAttId = '';
+        if (todayLogRecord && todayLogRecord.id) {
+          resolvedAttId = todayLogRecord.id.toString();
+        } else if (stats && stats.attendance && stats.attendance.id) {
+          resolvedAttId = stats.attendance.id.toString();
         }
+        
+        await AsyncStorage.setItem('@checked_in', 'true');
+        if (resolvedAttId) await AsyncStorage.setItem('@attendanceId', resolvedAttId);
+        await AsyncStorage.setItem('@check_in_date', todayStr);
+        if (checkInTimeStr) await AsyncStorage.setItem('@check_in_time', checkInTimeStr);
+        await AsyncStorage.setItem('@attendance_date', new Date().toISOString());
+      } else if (isTodayCheckedOut) {
+        await AsyncStorage.setItem('@checked_in', 'false');
+        await AsyncStorage.removeItem('@attendanceId');
+        await AsyncStorage.setItem('@check_in_date', todayStr);
       }
 
       // Final state updates (called exactly once)
-      setIsCheckedIn(determinedCheckedIn);
-      setCheckInTime(determinedCheckInTime);
+      setIsCheckedIn(isTodayCheckedIn);
+      setHasCheckedOut(isTodayCheckedOut);
+      setCheckInTime(checkInTimeStr);
       setUserName((await AsyncStorage.getItem('@user_name')) || '');
       setDesignation((await AsyncStorage.getItem('@designation')) || 'Medical Representative');
     } catch (e) { console.log(e); }
@@ -675,13 +720,15 @@ const DashboardScreen = () => {
           <View style={styles.kpiRow}>
             <View style={[styles.kpiCard, { shadowColor: '#1abc9c' }]}>
               <View style={styles.cardHeader}>
-                <View style={[styles.iconContainer, { backgroundColor: isCheckedIn ? '#E6F4EA' : '#FDE8E8' }]}>
-                  <Text style={[styles.kpiIcon, { color: isCheckedIn ? '#10B981' : '#E11D48' }]}>📍</Text>
+                <View style={[styles.iconContainer, { backgroundColor: isCheckedIn ? '#E6F4EA' : hasCheckedOut ? '#E0F2F1' : '#FDE8E8' }]}>
+                  <Text style={[styles.kpiIcon, { color: isCheckedIn ? '#10B981' : hasCheckedOut ? '#00796B' : '#E11D48' }]}>📍</Text>
                 </View>
               </View>
               <Text style={styles.kpiLabel}>Attendance</Text>
-              <Text style={styles.kpiValue}>{isCheckedIn ? 'Present' : 'Absent'}</Text>
-              <Text style={styles.kpiSubText}>{isCheckedIn ? `Check In: ${checkInTime}` : 'Not Checked In'}</Text>
+              <Text style={styles.kpiValue}>{isCheckedIn ? 'Present' : hasCheckedOut ? 'Checked Out' : 'Absent'}</Text>
+              <Text style={styles.kpiSubText}>
+                {isCheckedIn ? `Check In: ${checkInTime}` : hasCheckedOut ? `Checked Out (In: ${checkInTime})` : 'Not Checked In'}
+              </Text>
             </View>
 
             <View style={[styles.kpiCard, { shadowColor: '#6366f1' }]}>

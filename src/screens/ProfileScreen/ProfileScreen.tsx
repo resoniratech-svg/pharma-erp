@@ -1,28 +1,29 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import React, { useState, useCallback } from 'react';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
+import Constants from 'expo-constants';
+import React, { useCallback, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
+  ActivityIndicator,
   Alert,
   Image,
-  Platform,
-  ActivityIndicator,
   Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
   TextInput,
+  TouchableOpacity,
+  View,
 } from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
-import Constants from 'expo-constants';
 
 // ── API Services ──
+import { getAttendanceLogs } from '../../services/attendanceService';
+import { changePassword, updateMrProfile } from '../../services/authService';
+import { getChemistVisitsByMr } from '../../services/chemistService';
 import { getMrDashboardAnalytics } from '../../services/dashboardService';
 import { getDoctorVisitsByMr } from '../../services/doctorService';
-import { getChemistVisitsByMr } from '../../services/chemistService';
-import { getAttendanceLogs } from '../../services/attendanceService';
 import { getLeavesByMr } from '../../services/leaveService';
-import { changePassword, updateMrProfile } from '../../services/authService';
+import { getRetailerOrders } from '../../services/orderService';
 
 // ── Reusable Components ──
 const InfoRow = ({ label, value }: { label: string; value: string }) => (

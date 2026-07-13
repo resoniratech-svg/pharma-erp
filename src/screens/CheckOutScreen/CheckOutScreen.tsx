@@ -228,12 +228,12 @@ const CheckOutScreen = () => {
         console.log('Warning: No attendanceId found in storage — checkout API skipped.');
       }
 
-      if (attendanceId && checkoutCoords) {
+      if (attendanceId) {
         try {
           const response = await checkOutAttendance(
             Number(attendanceId),
-            checkoutCoords.latitude,
-            checkoutCoords.longitude
+            checkoutCoords ? checkoutCoords.latitude : 0,
+            checkoutCoords ? checkoutCoords.longitude : 0
           );
           console.log('Checkout Response:', response);
         } catch (checkoutApiError: any) {

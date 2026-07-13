@@ -6,186 +6,287 @@ import {
   TouchableOpacity,
   ScrollView,
   ActivityIndicator,
+  Platform,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
+
+// ── API Services (no AsyncStorage for data) ──────────────────────────────────
+import { getDoctorVisitsByMr } from '../../services/doctorService';
+import { getChemistVisitsByMr } from '../../services/chemistService';
+import { getAttendanceLogs } from '../../services/attendanceService';
+import { getExpensesByMr } from '../../services/expenseService';
+import { getMeetingsByMr } from '../../services/meetingService';
+import { getFollowUpsByMr } from '../../services/followUpService';
+import { getRetailerOrders } from '../../services/orderService';
+
+// ── Types ─────────────────────────────────────────────────────────────────────
+type ActivityType =
+  | 'visit'
+  | 'order'
+  | 'expense'
+  | 'attendance'
+  | 'meeting'
+  | 'followup'
+  | 'report';
 
 interface ActivityLog {
   id: number | string;
-  time: string;
-  type: 'visit' | 'order' | 'expense' | 'attendance' | 'meeting' | 'followup' | 'report' | 'target';
+  time: string;    // "HH:MM AM/PM" display string
+  date: string;    // "DD-MM-YYYY" display string
+  type: ActivityType;
   title: string;
   details: string;
-  timestamp: number;
+  timestamp: number; // epoch ms for sorting
 }
 
-const safeJsonParse = (data: string | null, fallback: any) => {
-  if (!data) return fallback;
+type TabKey = 'All' | ActivityType;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** Format an ISO timestamp (or any Date-parseable string) to "hh:mm AM/PM" */
+const formatTime = (raw: string | null | undefined): string => {
+  if (!raw) return '—';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return '—';
+  const h = d.getHours();
+  const m = d.getMinutes().toString().padStart(2, '0');
+  const period = h >= 12 ? 'PM' : 'AM';
+  const hour = ((h % 12) || 12).toString();
+  return `${hour}:${m} ${period}`;
+};
+
+/** Format an ISO timestamp to "DD-MM-YYYY" */
+const formatDate = (raw: string | null | undefined): string => {
+  if (!raw) return '—';
+  const d = new Date(raw);
+  if (isNaN(d.getTime())) return '—';
+  return d.toLocaleDateString('en-GB').replace(/\//g, '-');
+};
+
+/** Resolve epoch ms from any raw date/time field */
+const toEpoch = (raw: string | null | undefined): number => {
+  if (!raw) return 0;
+  const t = new Date(raw).getTime();
+  return isNaN(t) ? 0 : t;
+};
+
+/** Safely call an async API function; returns fallback on error */
+async function safeCall<T>(fn: () => Promise<T>, fallback: T): Promise<T> {
   try {
-    return JSON.parse(data);
-  } catch (err) {
-    console.log('safeJsonParse error:', err);
+    const result = await fn();
+    return (Array.isArray(result) ? result : result ?? fallback) as T;
+  } catch {
     return fallback;
   }
+}
+
+// ── Tab Configuration ─────────────────────────────────────────────────────────
+const TABS: { key: TabKey; label: string; emoji: string }[] = [
+  { key: 'All',        label: 'ALL',        emoji: '📋' },
+  { key: 'visit',      label: 'VISITS',     emoji: '🩺' },
+  { key: 'order',      label: 'ORDERS',     emoji: '📦' },
+  { key: 'meeting',    label: 'MEETINGS',   emoji: '🤝' },
+  { key: 'expense',    label: 'EXPENSES',   emoji: '💵' },
+  { key: 'attendance', label: 'ATTENDANCE', emoji: '📍' },
+  { key: 'followup',   label: 'FOLLOW-UPS', emoji: '🔔' },
+  { key: 'report',     label: 'REPORTS',    emoji: '📄' },
+];
+
+// ── Badge colours ─────────────────────────────────────────────────────────────
+const BADGE_COLOR: Record<string, string> = {
+  visit:      '#06B6D4',
+  order:      '#10B981',
+  expense:    '#F59E0B',
+  attendance: '#8B5CF6',
+  meeting:    '#6366F1',
+  followup:   '#E11D48',
+  report:     '#3B82F6',
 };
 
-const createTimestamp = (dateStr: string, timeStr: string) => {
-  try {
-    return new Date(`${dateStr} ${timeStr}`).getTime();
-  } catch {
-    return Date.now();
-  }
-};
-
+// ── Main Component ────────────────────────────────────────────────────────────
 const ActivityTrackingScreen = () => {
   const navigation = useNavigation();
-  const [logs, setLogs] = useState<ActivityLog[]>([]);
-  const [activeTab, setActiveTab] = useState<'All' | 'visit' | 'order' | 'expense' | 'attendance' | 'meeting' | 'report' | 'followup' | 'target'>('All');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [logs, setLogs]           = useState<ActivityLog[]>([]);
+  const [activeTab, setActiveTab] = useState<TabKey>('All');
+  const [loading, setLoading]     = useState(true);
+  const [error, setError]         = useState<string | null>(null);
 
   const compileActivityLogs = async () => {
     setLoading(true);
     setError(null);
     try {
       const compiled: ActivityLog[] = [];
-      const todayStr = new Date().toISOString().split('T')[0];
 
-      // 1. Fetch Doctor Visits
-      const docsList = safeJsonParse(await AsyncStorage.getItem('@doctor_visits'), []);
-      docsList.forEach((d: any) => {
+      // ── 1. Doctor Visits ────────────────────────────────────────────────────
+      const doctorVisits = await safeCall(() => getDoctorVisitsByMr(), []);
+      const dvArr = Array.isArray(doctorVisits) ? doctorVisits : [];
+      dvArr.forEach((d: any, idx: number) => {
+        // doctor name: may come via join as d.doctor.name, or d.doctorName
+        const doctorName =
+          d.doctor?.name ||
+          d.doctorName ||
+          (d.doctorId ? `Doctor #${d.doctorId}` : 'Unknown Doctor');
+
+        const specialty = d.doctor?.specialization || d.specialty || '—';
+        const hospital  = d.doctor?.hospital || d.hospital || '—';
+        const rawTs     = d.visitDate || d.createdAt || d.visitedAt;
+        const ts        = toEpoch(rawTs);
+
         compiled.push({
-          id: d.id,
-          time: d.time || '10:00 AM',
-          type: 'visit',
-          title: `🩺 Doctor Visited: Dr. ${d.doctorName}`,
-          details: `Specialty: ${d.specialty} at ${d.hospital}. Notes: ${d.notes || 'None'}`,
-          timestamp: createTimestamp(todayStr, d.time || '10:00 AM')
+          id:        d.id || `dv-${idx}`,
+          time:      formatTime(rawTs),
+          date:      formatDate(rawTs),
+          type:      'visit',
+          title:     `🩺 Doctor Visited: Dr. ${doctorName}`,
+          details:   `Specialty: ${specialty} | Hospital: ${hospital} | Notes: ${d.remarks || d.notes || 'None'}`,
+          timestamp: ts,
         });
+      });
 
-        if (d.followUpDate) {
+      // ── 2. Chemist Visits ───────────────────────────────────────────────────
+      const chemistVisits = await safeCall(() => getChemistVisitsByMr(), []);
+      const cvArr = Array.isArray(chemistVisits) ? chemistVisits : [];
+      cvArr.forEach((c: any, idx: number) => {
+        // chemist name: may come via join as c.chemist.name / c.chemist.shopName
+        const shopName =
+          c.chemist?.shopName ||
+          c.chemist?.name ||
+          c.shopName ||
+          c.chemistName ||
+          (c.chemistId ? `Chemist #${c.chemistId}` : 'Unknown Chemist');
+
+        const rawTs = c.visitDate || c.createdAt || c.visitedAt;
+        const ts    = toEpoch(rawTs);
+
+        compiled.push({
+          id:        c.id || `cv-${idx}`,
+          time:      formatTime(rawTs),
+          date:      formatDate(rawTs),
+          type:      'visit',
+          title:     `💊 Chemist Visited: ${shopName}`,
+          details:   `Products: ${c.productsDiscussed || c.medicine || 'None'} | Order Value: ₹${c.orderValue ?? c.orderAmount ?? 0}`,
+          timestamp: ts,
+        });
+      });
+
+      // ── 3. Retailer Orders ──────────────────────────────────────────────────
+      const orders = await safeCall(() => getRetailerOrders(), []);
+      const ordArr = Array.isArray(orders) ? orders : [];
+      ordArr.forEach((o: any, idx: number) => {
+        const customerName =
+          o.retailer?.name ||
+          o.customerName ||
+          o.customer ||
+          (o.retailerId ? `Retailer #${o.retailerId}` : 'Unknown Customer');
+
+        const rawTs = o.orderDate || o.createdAt || o.submittedAt;
+        const ts    = toEpoch(rawTs);
+
+        compiled.push({
+          id:        o.id || `ord-${idx}`,
+          time:      formatTime(rawTs),
+          date:      formatDate(rawTs),
+          type:      'order',
+          title:     `📦 Order Booked: #${o.id || '—'}`,
+          details:   `Customer: ${customerName} | Amount: ₹${o.totalAmount ?? '—'} | Status: ${o.status || 'Pending'}`,
+          timestamp: ts,
+        });
+      });
+
+      // ── 4. Expense Claims ───────────────────────────────────────────────────
+      const expenses = await safeCall(() => getExpensesByMr(), []);
+      const expArr = Array.isArray(expenses) ? expenses : [];
+      expArr.forEach((e: any, idx: number) => {
+        const rawTs = e.submittedAt || e.expenseDate || e.createdAt;
+        const ts    = toEpoch(rawTs);
+
+        compiled.push({
+          id:        e.id || `exp-${idx}`,
+          time:      formatTime(rawTs),
+          date:      formatDate(rawTs),
+          type:      'expense',
+          title:     `💵 Expense Claimed: ${e.expenseType || e.type || e.category || 'Miscellaneous'}`,
+          details:   `Amount: ₹${e.amount ?? '—'} | Purpose: ${e.description || e.remarks || 'N/A'} | Status: ${e.status || 'Pending'}`,
+          timestamp: ts,
+        });
+      });
+
+      // ── 5. Attendance ───────────────────────────────────────────────────────
+      const attendance = await safeCall(() => getAttendanceLogs(), []);
+      const attArr = Array.isArray(attendance) ? attendance : [];
+      attArr.forEach((a: any, idx: number) => {
+        // Check-In entry
+        const checkInRaw = a.checkInTime || a.checkinTime || a.createdAt;
+        if (checkInRaw) {
           compiled.push({
-            id: `fup-${d.id}`,
-            time: d.time ? d.time.replace('00', '05') : '10:05 AM',
-            type: 'followup',
-            title: `🔔 Follow-Up Scheduled: Dr. ${d.doctorName}`,
-            details: `Scheduled for: ${d.followUpDate}.`,
-            timestamp: createTimestamp(todayStr, d.time || '10:05 AM') + 1000
+            id:        `att-in-${a.id || idx}`,
+            time:      formatTime(checkInRaw),
+            date:      formatDate(checkInRaw),
+            type:      'attendance',
+            title:     '📍 Attendance: Checked-In',
+            details:   `Status: ${a.status || 'Present'} | Location: ${a.checkInAddress || a.location || '—'}`,
+            timestamp: toEpoch(checkInRaw),
+          });
+        }
+
+        // Check-Out entry (only if checked out)
+        const checkOutRaw = a.checkOutTime || a.checkoutTime;
+        if (checkOutRaw) {
+          compiled.push({
+            id:        `att-out-${a.id || idx}`,
+            time:      formatTime(checkOutRaw),
+            date:      formatDate(checkOutRaw),
+            type:      'attendance',
+            title:     '🏁 Attendance: Checked-Out',
+            details:   `Duration logged | Status: ${a.status || 'Present'}`,
+            timestamp: toEpoch(checkOutRaw),
           });
         }
       });
 
-      // 2. Fetch Chemist Visits
-      const chemistsList = safeJsonParse(await AsyncStorage.getItem('@chemist_visits'), []);
-      chemistsList.forEach((c: any) => {
+      // ── 6. Meetings ─────────────────────────────────────────────────────────
+      const meetings = await safeCall(() => getMeetingsByMr(), []);
+      const meetArr = Array.isArray(meetings) ? meetings : [];
+      meetArr.forEach((m: any, idx: number) => {
+        const rawTs = m.meetingDate || m.date || m.createdAt;
+        const ts    = toEpoch(rawTs);
+
         compiled.push({
-          id: c.id,
-          time: c.time || '12:00 PM',
-          type: 'visit',
-          title: `💊 Chemist Visited: ${c.shopName}`,
-          details: `Order Discussed: ${c.medicine || 'None'} (Qty: ${c.quantity || '0'}).`,
-          timestamp: createTimestamp(todayStr, c.time || '12:00 PM')
+          id:        `meet-${m.id || idx}`,
+          time:      formatTime(rawTs),
+          date:      formatDate(rawTs),
+          type:      'meeting',
+          title:     `🤝 Meeting: ${m.topic || m.title || 'General Meeting'}`,
+          details:   `Venue: ${m.venue || m.location || '—'} | Participants: ${m.attendees || m.participants || '—'} | Status: ${m.status || 'Scheduled'}`,
+          timestamp: ts,
         });
       });
 
-      // 3. Fetch Orders
-      const ordersList = safeJsonParse(await AsyncStorage.getItem('@orders'), []);
-      ordersList.forEach((o: any) => {
+      // ── 7. Follow-Ups ───────────────────────────────────────────────────────
+      const followUps = await safeCall(() => getFollowUpsByMr(), []);
+      const fupArr = Array.isArray(followUps) ? followUps : [];
+      fupArr.forEach((f: any, idx: number) => {
+        const rawTs = f.followUpDate || f.scheduledDate || f.createdAt;
+        const doctorName =
+          f.doctor?.name || f.doctorName || (f.doctorId ? `Doctor #${f.doctorId}` : '—');
+
         compiled.push({
-          id: o.id,
-          time: o.dateFormatted || '02:00 PM',
-          type: 'order',
-          title: `📦 Order Booked: ${o.orderNumber}`,
-          details: `Customer: ${o.customerName}. Product: ${o.productName}. Amount: ₹${o.totalAmount}`,
-          timestamp: createTimestamp(todayStr, o.dateFormatted || '02:00 PM')
+          id:        `fup-${f.id || idx}`,
+          time:      formatTime(rawTs),
+          date:      formatDate(rawTs),
+          type:      'followup',
+          title:     `🔔 Follow-Up: Dr. ${doctorName}`,
+          details:   `Scheduled: ${formatDate(rawTs)} | Status: ${f.status || 'Pending'} | Remarks: ${f.remarks || f.notes || 'None'}`,
+          timestamp: toEpoch(rawTs),
         });
       });
 
-      // 4. Fetch Expense Claims
-      const expensesList = safeJsonParse(await AsyncStorage.getItem('@expense_claims'), []);
-      expensesList.forEach((e: any) => {
-        compiled.push({
-          id: e.id,
-          time: e.date || '04:00 PM',
-          type: 'expense',
-          title: `💵 Expense Claimed: ${e.category}`,
-          details: `Claimed Amount: ₹${e.amount}. Purpose: ${e.remarks}`,
-          timestamp: createTimestamp(todayStr, e.date || '04:00 PM')
-        });
-      });
-
-      // 5. Attendance
-      if (await AsyncStorage.getItem('@checked_in') === 'true') {
-        const checkInTime = await AsyncStorage.getItem('@check_in_time');
-        compiled.push({
-          id: Date.now() - 100, 
-          time: checkInTime || '09:00 AM',
-          type: 'attendance',
-          title: '📍 Daily Attendance: Checked-In',
-          details: `Checked in successfully for duty.`,
-          timestamp: createTimestamp(todayStr, checkInTime || '09:00 AM')
-        });
-      }
-
-      if (await AsyncStorage.getItem('@checked_out') === 'true') {
-        const checkOutTime = await AsyncStorage.getItem('@check_out_time');
-        compiled.push({
-          id: Date.now() - 50, 
-          time: checkOutTime || '06:00 PM',
-          type: 'attendance',
-          title: '🏁 Daily Attendance: Checked-Out',
-          details: `Day ended successfully. Duration logged.`,
-          timestamp: createTimestamp(todayStr, checkOutTime || '06:00 PM')
-        });
-      }
-
-      // 6. Meetings
-      const meetingsList = safeJsonParse(await AsyncStorage.getItem('@meetings'), []);
-      meetingsList.forEach((m: any) => {
-        compiled.push({
-          id: `meet-${m.id}`,
-          time: m.time || '11:00 AM',
-          type: 'meeting',
-          title: `🤝 Meeting: ${m.topic || 'General'}`,
-          details: `Client: ${m.participants || 'Client'} at ${m.venue}.`,
-          timestamp: createTimestamp(todayStr, m.time || '11:00 AM')
-        });
-      });
-
-      // 7. DCR Reports
-      const reports = safeJsonParse(await AsyncStorage.getItem('@daily_reports'), []);
-      reports.forEach((d: any) => {
-        compiled.push({
-          id: `dcr-${d.id || Date.now()}`,
-          time: '07:00 PM',
-          type: 'report',
-          title: `📄 DCR Submitted`,
-          details: `Status: Submitted for ${d.date || todayStr}.`,
-          timestamp: createTimestamp(todayStr, '07:00 PM')
-        });
-      });
-
-      // 8. Target Achievements
-      const targets = safeJsonParse(await AsyncStorage.getItem('@targets'), []);
-      targets.forEach((t: any) => {
-        if (t.achieved >= t.goal) {
-          compiled.push({
-            id: `tgt-${t.id || Date.now()}`,
-            time: '08:00 PM',
-            type: 'target',
-            title: `🎯 Target Achieved: ${t.title || 'Monthly Sales'}`,
-            details: `Congratulations! Goal of ${t.goal} has been reached.`,
-            timestamp: createTimestamp(todayStr, '08:00 PM')
-          });
-        }
-      });
-
-      // Sort
+      // ── Sort newest first ────────────────────────────────────────────────────
       compiled.sort((a, b) => b.timestamp - a.timestamp);
       setLogs(compiled);
     } catch (e) {
-      console.log('Error compiling activity logs:', e);
-      setError('Failed to compile activity logs.');
+      console.error('Error compiling activity logs:', e);
+      setError('Failed to load activity data. Please check your connection.');
     } finally {
       setLoading(false);
     }
@@ -193,103 +294,176 @@ const ActivityTrackingScreen = () => {
 
   useFocusEffect(useCallback(() => { compileActivityLogs(); }, []));
 
-  const filteredLogs = logs.filter((log) => activeTab === 'All' || log.type === activeTab);
+  const filteredLogs = activeTab === 'All'
+    ? logs
+    : logs.filter((log) => log.type === activeTab);
 
-  const getBadgeColor = (type: string) => {
-    if (type === 'visit') return '#06B6D4'; 
-    if (type === 'order') return '#10B981'; 
-    if (type === 'expense') return '#F59E0B'; 
-    if (type === 'attendance') return '#8B5CF6'; 
-    if (type === 'meeting') return '#6366F1'; 
-    if (type === 'followup') return '#E11D48'; 
-    if (type === 'report') return '#3B82F6';
-    if (type === 'target') return '#10B981'; // Same green as success
-    return '#4F46E5';
+  // KPI counts
+  const kpiCounts = {
+    total:      logs.length,
+    visits:     logs.filter(l => l.type === 'visit').length,
+    orders:     logs.filter(l => l.type === 'order').length,
+    meetings:   logs.filter(l => l.type === 'meeting').length,
+    expenses:   logs.filter(l => l.type === 'expense').length,
+    attendance: logs.filter(l => l.type === 'attendance').length,
+    followups:  logs.filter(l => l.type === 'followup').length,
   };
 
   return (
     <View style={styles.container}>
+      {/* ── Header ── */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => navigation.goBack()}>
-          <Text style={styles.backButtonText}>⬅️ Back</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => (navigation as any).goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <Text style={styles.backButtonText}>← Back</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Activity Tracking</Text>
-        <Text style={styles.headerSubtitle}>Track and monitor MR field activities, visit performance, customer interactions, and daily productivity.</Text>
+        <Text style={styles.headerSubtitle}>
+          All field activities, visits, orders, and meetings loaded live from the server.
+        </Text>
       </View>
 
-      <View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.kpiScrollContainer}>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{logs.length}</Text>
-            <Text style={styles.kpiLabel}>Total</Text>
+      {/* ── KPI Summary Bar ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.kpiScrollContainer}
+      >
+        {[
+          { label: 'Total',      value: kpiCounts.total      },
+          { label: 'Visits',     value: kpiCounts.visits     },
+          { label: 'Orders',     value: kpiCounts.orders     },
+          { label: 'Meetings',   value: kpiCounts.meetings   },
+          { label: 'Expenses',   value: kpiCounts.expenses   },
+          { label: 'Follow-Ups', value: kpiCounts.followups  },
+        ].map((kpi) => (
+          <View key={kpi.label} style={styles.kpiCard}>
+            <Text style={styles.kpiValue}>{loading ? '—' : kpi.value}</Text>
+            <Text style={styles.kpiLabel}>{kpi.label}</Text>
           </View>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{logs.filter(l => l.type === 'visit').length}</Text>
-            <Text style={styles.kpiLabel}>Visits</Text>
-          </View>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{logs.filter(l => l.type === 'order').length}</Text>
-            <Text style={styles.kpiLabel}>Orders</Text>
-          </View>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{logs.filter(l => l.type === 'meeting').length}</Text>
-            <Text style={styles.kpiLabel}>Meetings</Text>
-          </View>
-          <View style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{logs.filter(l => l.type === 'report').length}</Text>
-            <Text style={styles.kpiLabel}>DCRs</Text>
-          </View>
-        </ScrollView>
-      </View>
-
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabsContainer}>
-        {(['All', 'visit', 'order', 'meeting', 'expense', 'attendance', 'report', 'followup', 'target'] as const).map((tab) => (
-          <TouchableOpacity
-            key={tab}
-            onPress={() => setActiveTab(tab)}
-            style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
-          >
-            <Text style={[styles.tabText, activeTab === tab && styles.activeTabText]}>
-              {tab === 'All' ? 'ALL' : `${tab.toUpperCase()}S`}
-            </Text>
-          </TouchableOpacity>
         ))}
       </ScrollView>
 
+      {/* ── Filter Tabs ── */}
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.tabsContainer}
+      >
+        {TABS.map((tab) => {
+          const isActive = activeTab === tab.key;
+          return (
+            <TouchableOpacity
+              key={tab.key}
+              onPress={() => setActiveTab(tab.key)}
+              style={[styles.tabButton, isActive && styles.activeTabButton]}
+              hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+            >
+              <Text style={[styles.tabText, isActive && styles.activeTabText]}>
+                {tab.emoji} {tab.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      {/* ── Activity Table ── */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {loading ? (
-          <ActivityIndicator size="large" color="#4F46E5" style={{ marginVertical: 30 }} />
+          <ActivityIndicator
+            size="large"
+            color="#4F46E5"
+            style={{ marginVertical: 40 }}
+          />
         ) : error ? (
-          <View style={[styles.emptyCard, { alignItems: 'center' }]}>
-            <Text style={{ color: '#EF4444', fontSize: 14 }}>{error}</Text>
+          <View style={styles.errorCard}>
+            <Text style={styles.errorText}>⚠️ {error}</Text>
+            <TouchableOpacity
+              onPress={compileActivityLogs}
+              style={styles.retryButton}
+            >
+              <Text style={styles.retryText}>Retry</Text>
+            </TouchableOpacity>
           </View>
-        ) : filteredLogs.length > 0 ? (
-          <ScrollView horizontal showsHorizontalScrollIndicator={true}>
+        ) : filteredLogs.length === 0 ? (
+          <View style={styles.emptyCard}>
+            <Text style={styles.emptyIcon}>
+              {activeTab === 'meeting' ? '🤝' : '📋'}
+            </Text>
+            <Text style={styles.emptyText}>
+              No {activeTab === 'All' ? 'activity' : activeTab} records found.
+            </Text>
+            <Text style={styles.emptySubText}>
+              {activeTab === 'meeting'
+                ? 'Schedule a meeting to see it here.'
+                : 'Complete some field activities to see them here.'}
+            </Text>
+          </View>
+        ) : (
+          <ScrollView horizontal showsHorizontalScrollIndicator>
             <View style={styles.tableContainer}>
+              {/* Table Header */}
               <View style={styles.tableHeader}>
-                <Text style={[styles.thText, { width: 80 }]}>Time</Text>
-                <Text style={[styles.thText, { width: 85 }]}>Type</Text>
-                <Text style={[styles.thText, { width: 180 }]}>Activity</Text>
-                <Text style={[styles.thText, { width: 250 }]}>Details</Text>
+                <Text style={[styles.thText, styles.colDate]}>DATE</Text>
+                <Text style={[styles.thText, styles.colTime]}>TIME</Text>
+                <Text style={[styles.thText, styles.colType]}>TYPE</Text>
+                <Text style={[styles.thText, styles.colTitle]}>ACTIVITY</Text>
+                <Text style={[styles.thText, styles.colDetails]}>DETAILS</Text>
               </View>
+
+              {/* Table Rows */}
               {filteredLogs.map((log, index) => (
-                <View key={`${log.id}-${index}`} style={[styles.tableRow, index % 2 === 1 && styles.tableRowEven]}>
-                  <Text style={[styles.tdText, { width: 80, fontWeight: '700', color: '#475569' }]}>{log.time}</Text>
-                  <View style={{ width: 85, justifyContent: 'center' }}>
-                    <View style={[styles.badge, { backgroundColor: getBadgeColor(log.type) }]}>
+                <View
+                  key={`${log.id}-${index}`}
+                  style={[
+                    styles.tableRow,
+                    index % 2 === 1 && styles.tableRowEven,
+                  ]}
+                >
+                  {/* Date */}
+                  <Text style={[styles.tdText, styles.colDate, styles.tdDate]}>
+                    {log.date}
+                  </Text>
+
+                  {/* Time */}
+                  <Text style={[styles.tdText, styles.colTime, styles.tdTime]}>
+                    {log.time}
+                  </Text>
+
+                  {/* Type Badge */}
+                  <View style={[styles.colType, { justifyContent: 'center' }]}>
+                    <View
+                      style={[
+                        styles.badge,
+                        { backgroundColor: BADGE_COLOR[log.type] ?? '#4F46E5' },
+                      ]}
+                    >
                       <Text style={styles.badgeText}>{log.type}</Text>
                     </View>
                   </View>
-                  <Text style={[styles.tdText, { width: 180, fontWeight: 'bold', color: '#1E293B' }]}>{log.title}</Text>
-                  <Text style={[styles.tdText, { width: 250, color: '#64748B' }]}>{log.details}</Text>
+
+                  {/* Activity Title */}
+                  <Text
+                    style={[styles.tdText, styles.colTitle, styles.tdTitle]}
+                    numberOfLines={2}
+                  >
+                    {log.title}
+                  </Text>
+
+                  {/* Details */}
+                  <Text
+                    style={[styles.tdText, styles.colDetails, styles.tdDetails]}
+                    numberOfLines={3}
+                  >
+                    {log.details}
+                  </Text>
                 </View>
               ))}
             </View>
           </ScrollView>
-        ) : (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>No matching activity logs found.</Text>
-          </View>
         )}
       </ScrollView>
     </View>
@@ -298,61 +472,185 @@ const ActivityTrackingScreen = () => {
 
 export default ActivityTrackingScreen;
 
+// ── Styles ────────────────────────────────────────────────────────────────────
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
+
+  // Header
   header: {
     backgroundColor: '#4F46E5',
-    paddingTop: 60,
-    paddingBottom: 25,
+    paddingTop: Platform.OS === 'ios' ? 60 : 50,
+    paddingBottom: 24,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
-    position: 'relative',
   },
   backButton: {
-    position: 'absolute',
-    left: 15,
-    top: 50,
-    zIndex: 10,
+    alignSelf: 'flex-start',
     paddingVertical: 6,
-    paddingHorizontal: 12,
+    paddingHorizontal: 14,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    marginBottom: 12,
   },
-  backButtonText: { fontSize: 12, color: '#FFFFFF', fontWeight: 'bold' },
-  headerTitle: { fontSize: 22, fontWeight: 'bold', color: '#FFFFFF', textAlign: 'center', marginTop: 15 },
-  headerSubtitle: { fontSize: 11, color: '#E0E7FF', textAlign: 'center', marginTop: 6, paddingHorizontal: 10, lineHeight: 16 },
-  
-  kpiScrollContainer: { paddingHorizontal: 15, paddingTop: 20, paddingBottom: 5 },
-  kpiCard: { 
-    backgroundColor: '#FFFFFF', borderRadius: 16, paddingVertical: 12, paddingHorizontal: 16, 
-    marginRight: 10, alignItems: 'center', justifyContent: 'center', minWidth: 80,
-    shadowColor: '#000', shadowOpacity: 0.04, elevation: 2 
+  backButtonText: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
-  kpiValue: { fontSize: 18, fontWeight: 'bold', color: '#1E293B' },
-  kpiLabel: { fontSize: 11, color: '#64748B', fontWeight: '600', marginTop: 2 },
+  headerTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    textAlign: 'center',
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    color: '#E0E7FF',
+    textAlign: 'center',
+    marginTop: 6,
+    lineHeight: 17,
+  },
 
-  tabsContainer: { paddingHorizontal: 15, marginTop: 15, paddingBottom: 10, gap: 6 },
-  tabButton: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 20, backgroundColor: '#E2E8F0', alignItems: 'center' },
+  // KPI Bar
+  kpiScrollContainer: {
+    paddingHorizontal: 15,
+    paddingTop: 18,
+    paddingBottom: 6,
+  },
+  kpiCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    marginRight: 10,
+    alignItems: 'center',
+    minWidth: 72,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    elevation: 2,
+  },
+  kpiValue: { fontSize: 20, fontWeight: 'bold', color: '#1E293B' },
+  kpiLabel: { fontSize: 10, color: '#64748B', fontWeight: '600', marginTop: 2 },
+
+  // Filter Tabs
+  tabsContainer: {
+    paddingHorizontal: 15,
+    marginTop: 12,
+    paddingBottom: 8,
+    gap: 8,
+  },
+  tabButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 22,
+    backgroundColor: '#E2E8F0',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   activeTabButton: { backgroundColor: '#4F46E5' },
-  tabText: { fontSize: 10, fontWeight: '700', color: '#64748B' },
+  tabText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#475569',
+    letterSpacing: 0.3,
+  },
   activeTabText: { color: '#FFFFFF' },
-  
-  scrollContent: { paddingHorizontal: 20, paddingTop: 10, paddingBottom: 60 },
-  
+
+  // Scroll content
+  scrollContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 80 },
+
+  // Table
   tableContainer: {
-    backgroundColor: '#FFFFFF', borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#E2E8F0', minWidth: 600,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: '#E2E8F0',
   },
   tableHeader: {
-    flexDirection: 'row', backgroundColor: '#F1F5F9', paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8F0',
+    flexDirection: 'row',
+    backgroundColor: '#F1F5F9',
+    paddingVertical: 11,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E2E8F0',
   },
-  thText: { fontSize: 12, fontWeight: 'bold', color: '#64748B', textTransform: 'uppercase' },
-  tableRow: { flexDirection: 'row', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', backgroundColor: '#FFFFFF' },
+  thText: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#64748B',
+    textTransform: 'uppercase',
+    letterSpacing: 0.4,
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    paddingHorizontal: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#F1F5F9',
+    backgroundColor: '#FFFFFF',
+    alignItems: 'flex-start',
+  },
   tableRowEven: { backgroundColor: '#F8FAFC' },
-  tdText: { fontSize: 12, marginRight: 10 },
-  badge: { paddingVertical: 4, paddingHorizontal: 8, borderRadius: 6, alignSelf: 'flex-start' },
-  badgeText: { fontSize: 9, color: '#FFFFFF', fontWeight: 'bold', textTransform: 'uppercase' },
+  tdText: { fontSize: 12, color: '#334155', marginRight: 8 },
 
-  emptyCard: { backgroundColor: '#FFFFFF', borderRadius: 16, padding: 24, alignItems: 'center', marginTop: 20 },
-  emptyText: { fontSize: 13, color: '#94A3B8', fontStyle: 'italic' },
+  // Column widths
+  colDate:    { width: 90 },
+  colTime:    { width: 76 },
+  colType:    { width: 80 },
+  colTitle:   { width: 200 },
+  colDetails: { width: 280 },
+
+  // Cell variants
+  tdDate:    { color: '#64748B', fontWeight: '600' },
+  tdTime:    { fontWeight: '700', color: '#475569' },
+  tdTitle:   { fontWeight: 'bold', color: '#1E293B' },
+  tdDetails: { color: '#64748B', lineHeight: 17 },
+
+  // Badge
+  badge: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  badgeText: {
+    fontSize: 9,
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // Empty / Error cards
+  emptyCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 16,
+    padding: 36,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  emptyIcon:    { fontSize: 40, marginBottom: 12 },
+  emptyText:    { fontSize: 15, color: '#475569', fontWeight: '600', textAlign: 'center' },
+  emptySubText: { fontSize: 12, color: '#94A3B8', marginTop: 6, textAlign: 'center', lineHeight: 18 },
+
+  errorCard: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: '#FCA5A5',
+  },
+  errorText: { fontSize: 13, color: '#EF4444', textAlign: 'center', lineHeight: 20 },
+  retryButton: {
+    marginTop: 14,
+    backgroundColor: '#4F46E5',
+    borderRadius: 10,
+    paddingVertical: 8,
+    paddingHorizontal: 24,
+  },
+  retryText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
 });

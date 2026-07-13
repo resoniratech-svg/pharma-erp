@@ -22,10 +22,54 @@ const safeJsonParse = (data: string | null, fallback: any) => {
   }
 };
 
+const formatTime = (timeStr: string) => {
+  if (!timeStr || timeStr === 'N/A' || timeStr === 'Active') return timeStr;
+  const trimmed = timeStr.trim();
+  if (/\d{1,2}:\d{2}\s*(AM|PM|am|pm)/i.test(trimmed)) {
+    return trimmed;
+  }
+  try {
+    const parsedDate = new Date(trimmed);
+    if (!isNaN(parsedDate.getTime())) {
+      return parsedDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+  } catch (err) {
+    // ignore
+  }
+  return trimmed;
+};
+
+const formatDate = (dateStr: string, timeFallback?: string) => {
+  if (dateStr && dateStr !== 'N/A') {
+    if (/^\d{4}-\d{2}-\d{2}/.test(dateStr)) {
+      try {
+        return new Date(dateStr).toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+      } catch (e) {
+        return dateStr;
+      }
+    }
+    return dateStr;
+  }
+  if (timeFallback && timeFallback !== 'N/A') {
+    try {
+      const parsedDate = new Date(timeFallback);
+      if (!isNaN(parsedDate.getTime())) {
+        return parsedDate.toLocaleDateString([], { day: '2-digit', month: 'short', year: 'numeric' });
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+  return 'N/A';
+};
+
 const calculateDuration = (start: string, end: string) => {
   if (!start || !end || start === 'N/A' || end === 'N/A' || end === 'Active') return '';
   try {
-    const parseTime = (timeStr: string) => {
+    let startMins = 0;
+    let endMins = 0;
+
+    const parseTimeStr = (timeStr: string) => {
       const parts = timeStr.trim().toLowerCase().split(' ');
       let [hours, minutes] = parts[0].split(':').map(Number);
       if (parts[1]) {
@@ -37,8 +81,21 @@ const calculateDuration = (start: string, end: string) => {
       }
       return (hours || 0) * 60 + (minutes || 0);
     };
-    const startMins = parseTime(start);
-    const endMins = parseTime(end);
+
+    if (start.includes('T') || !isNaN(Date.parse(start))) {
+      const startDateObj = new Date(start);
+      startMins = startDateObj.getHours() * 60 + startDateObj.getMinutes();
+    } else {
+      startMins = parseTimeStr(start);
+    }
+
+    if (end.includes('T') || !isNaN(Date.parse(end))) {
+      const endDateObj = new Date(end);
+      endMins = endDateObj.getHours() * 60 + endDateObj.getMinutes();
+    } else {
+      endMins = parseTimeStr(end);
+    }
+
     let diff = endMins - startMins;
     if (diff < 0) diff += 24 * 60;
     const hrs = Math.floor(diff / 60);
@@ -49,11 +106,47 @@ const calculateDuration = (start: string, end: string) => {
   }
 };
 
+const isToday = (dateStr: string | null | undefined, timeStr?: string) => {
+  const today = new Date();
+  
+  if (dateStr && dateStr !== 'N/A') {
+    const parsed = new Date(dateStr);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.getDate() === today.getDate() &&
+             parsed.getMonth() === today.getMonth() &&
+             parsed.getFullYear() === today.getFullYear();
+    }
+    // Handle manual DD-MMM-YYYY format (e.g., "13-Jul-2026")
+    const parts = dateStr.split('-');
+    if (parts.length === 3) {
+      const day = parseInt(parts[0], 10);
+      const months = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+      const month = months.indexOf(parts[1].toLowerCase());
+      const year = parseInt(parts[2], 10);
+      if (day === today.getDate() && month === today.getMonth() && year === today.getFullYear()) {
+        return true;
+      }
+    }
+  }
+  
+  if (timeStr && timeStr !== 'N/A') {
+    const parsed = new Date(timeStr);
+    if (!isNaN(parsed.getTime())) {
+      return parsed.getDate() === today.getDate() &&
+             parsed.getMonth() === today.getMonth() &&
+             parsed.getFullYear() === today.getFullYear();
+    }
+  }
+  
+  return false;
+};
+
 const AttendanceScreen = () => {
   const navigation = useNavigation<any>();
   const isFocused = useIsFocused();
 
   const [isCheckedIn, setIsCheckedIn] = useState(false);
+  const [hasCheckedOutToday, setHasCheckedOutToday] = useState(false);
   const [loading, setLoading] = useState(false);
   const [checkInTime, setCheckInTime] = useState('');
   const [latitude, setLatitude] = useState<number | null>(null);
@@ -72,36 +165,47 @@ const AttendanceScreen = () => {
   const restoreAttendanceStatus = async () => {
     try {
       setLoading(true);
-      const storedCheckedIn = await AsyncStorage.getItem('@checked_in');
-      const storedTime = await AsyncStorage.getItem('@check_in_time');
-      const storedLat = await AsyncStorage.getItem('@check_in_lat');
-      const storedLng = await AsyncStorage.getItem('@check_in_lng');
-      const storedAddr = await AsyncStorage.getItem('@check_in_address');
-      const storedDate = await AsyncStorage.getItem('@attendance_date');
 
       const storedName = await AsyncStorage.getItem('@user_name');
       const storedRole = await AsyncStorage.getItem('@designation');
       if (storedName) setUserName(storedName);
       if (storedRole) setDesignation(storedRole);
 
-      let serverLogs = [];
+      let serverLogs: any[] = [];
       try {
         serverLogs = await getAttendanceLogs();
       } catch (err) {
         console.log('Failed to fetch attendance logs from backend:', err);
       }
 
+      let mappedLogs: any[] = [];
+      const todayStr = new Date().toISOString().split('T')[0]; // "2026-07-13"
+
       if (serverLogs && serverLogs.length > 0) {
-        const mappedLogs = serverLogs.map((log: any, idx: number) => {
-          const durationStr = calculateDuration(log.checkIn || log.checkInTime, log.checkOut || log.checkOutTime);
+        mappedLogs = serverLogs.map((log: any, idx: number) => {
+          const checkInRaw = log.checkIn || log.checkInTime || 'N/A';
+          
+          // Detect active state robustly across null, undefined, "null", "NULL", "Active", or empty values
+          const rawOut = log.checkOut || log.checkOutTime;
+          const isActive = !rawOut || rawOut === 'Active' || rawOut === 'null' || rawOut === 'NULL';
+          const checkOutRaw = isActive ? 'Active' : rawOut;
+          
+          const durationStr = calculateDuration(checkInRaw, checkOutRaw);
+          const isTodayLog = isToday(log.date, checkInRaw);
+          
           return {
             id: log.id || `att-log-${idx}`,
-            date: log.date || 'N/A',
+            date: formatDate(log.date, checkInRaw),
+            isTodayLog,
             status: log.status ?? 'Unknown',
-            checkInTime: log.checkIn || log.checkInTime || 'N/A',
+            checkInTime: formatTime(checkInRaw),
             checkInAddress: log.checkInAddress || log.address || 'N/A',
-            checkOutTime: log.checkOut || log.checkOutTime || 'Active',
+            checkOutTime: isActive ? 'Active' : formatTime(checkOutRaw),
             checkOutAddress: log.checkOutAddress || 'N/A',
+            checkInLat: log.checkInLatitude ?? log.checkInLat ?? null,
+            checkInLng: log.checkInLongitude ?? log.checkInLng ?? null,
+            checkOutLat: log.checkOutLatitude ?? log.checkOutLat ?? null,
+            checkOutLng: log.checkOutLongitude ?? log.checkOutLng ?? null,
             duration: durationStr || 'N/A'
           };
         });
@@ -109,41 +213,55 @@ const AttendanceScreen = () => {
         await AsyncStorage.setItem('@attendance_logs', JSON.stringify(mappedLogs));
       } else {
         const storedLogs = await AsyncStorage.getItem('@attendance_logs');
-        setLogs(safeJsonParse(storedLogs, []));
+        mappedLogs = safeJsonParse(storedLogs, []);
+        setLogs(mappedLogs);
       }
 
-      const todayStr = new Date().toISOString().split('T')[0];
+      // Check if there is any attendance log for today
+      const todayLogs = mappedLogs.filter((log: any) => log.isTodayLog);
+
       let isCheckInValid = false;
+      let activeTodayLog = null;
 
-      if (storedCheckedIn === 'true' && storedDate) {
-        const storedDateStr = storedDate.split('T')[0];
-        if (storedDateStr === todayStr) {
+      if (todayLogs.length > 0) {
+        activeTodayLog = todayLogs.find((log: any) => log.checkOutTime === 'Active');
+        if (activeTodayLog) {
           isCheckInValid = true;
-        } else {
-          // Forgot to checkout: auto-checkout from previous day
-          await AsyncStorage.removeItem('@checked_in');
-          await AsyncStorage.removeItem('@check_in_time');
-          await AsyncStorage.removeItem('@check_in_lat');
-          await AsyncStorage.removeItem('@check_in_lng');
-          await AsyncStorage.removeItem('@check_in_address');
-          await AsyncStorage.removeItem('@attendance_date');
         }
       }
 
-      if (isCheckInValid) {
+      // Update state and sync back to AsyncStorage
+      if (isCheckInValid && activeTodayLog) {
         setIsCheckedIn(true);
-        setCheckInTime(storedTime || '');
-        if (storedLat && storedLng) {
-          setLatitude(parseFloat(storedLat));
-          setLongitude(parseFloat(storedLng));
-        }
-        setAddress(storedAddr || '');
+        setHasCheckedOutToday(false);
+        setCheckInTime(activeTodayLog.checkInTime || '');
+        setLatitude(activeTodayLog.checkInLat ? parseFloat(activeTodayLog.checkInLat) : null);
+        setLongitude(activeTodayLog.checkInLng ? parseFloat(activeTodayLog.checkInLng) : null);
+        setAddress(activeTodayLog.checkInAddress || '');
+
+        await AsyncStorage.setItem('@checked_in', 'true');
+        await AsyncStorage.setItem('@attendanceId', activeTodayLog.id.toString());
+        await AsyncStorage.setItem('@check_in_date', todayStr);
+        await AsyncStorage.setItem('@check_in_time', activeTodayLog.checkInTime);
+        if (activeTodayLog.checkInLat) await AsyncStorage.setItem('@check_in_lat', activeTodayLog.checkInLat.toString());
+        if (activeTodayLog.checkInLng) await AsyncStorage.setItem('@check_in_lng', activeTodayLog.checkInLng.toString());
+        await AsyncStorage.setItem('@check_in_address', activeTodayLog.checkInAddress);
+        await AsyncStorage.setItem('@attendance_date', new Date().toISOString());
       } else {
         setIsCheckedIn(false);
         setCheckInTime('');
         setLatitude(null);
         setLongitude(null);
         setAddress('');
+
+        await AsyncStorage.setItem('@checked_in', 'false');
+        await AsyncStorage.removeItem('@attendanceId');
+        
+        if (todayLogs.length > 0) {
+          setHasCheckedOutToday(true);
+        } else {
+          setHasCheckedOutToday(false);
+        }
       }
     } catch (e) {
       console.log('Failed to restore attendance status', e);
@@ -170,13 +288,13 @@ const AttendanceScreen = () => {
           {/* Status Card */}
           <View style={[
             styles.statusCard,
-            { backgroundColor: isCheckedIn ? '#e8f5e9' : '#ffebee' }
+            { backgroundColor: isCheckedIn ? '#e8f5e9' : hasCheckedOutToday ? '#e0f2f1' : '#ffebee' }
           ]}>
             <Text style={[
               styles.statusText,
-              { color: isCheckedIn ? '#2e7d32' : '#c62828' }
+              { color: isCheckedIn ? '#2e7d32' : hasCheckedOutToday ? '#00796b' : '#c62828' }
             ]}>
-              {isCheckedIn ? '🟢 Checked In / On Duty' : '🔴 Checked Out / Off Duty'}
+              {isCheckedIn ? '🟢 Checked In / On Duty' : hasCheckedOutToday ? '🟢 Duty Completed / Checked Out' : '🔴 Checked Out / Off Duty'}
             </Text>
 
             {isCheckedIn && (
@@ -193,7 +311,14 @@ const AttendanceScreen = () => {
           </View>
 
           {/* Action Buttons */}
-          {!isCheckedIn ? (
+          {hasCheckedOutToday ? (
+            <TouchableOpacity 
+              style={[styles.checkInButton, { backgroundColor: '#B2DFDB' }]} 
+              disabled={true}
+            >
+              <Text style={[styles.buttonText, { color: '#004d40' }]}>DUTY COMPLETED FOR TODAY</Text>
+            </TouchableOpacity>
+          ) : !isCheckedIn ? (
             <TouchableOpacity 
               style={styles.checkInButton} 
               onPress={() => navigation.navigate('CheckIn')}

@@ -1,34 +1,34 @@
+import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
+import { Picker } from '@react-native-picker/picker'; // Imported cross-platform Picker
 import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Linking,
   Platform,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
-  Linking,
-  ActivityIndicator,
-  RefreshControl,
 } from 'react-native';
-import { Picker } from '@react-native-picker/picker'; // Imported cross-platform Picker
-import { Ionicons } from '@expo/vector-icons';
 
 // Added service endpoint imports at the top
+import { getChemists } from '../../services/chemistService';
+import { getDoctors } from '../../services/doctorService';
+import { getHospitals } from '../../services/hospitalService';
 import {
+  cancelMeeting,
+  completeMeeting,
   createMeeting,
   getMeetingsByMr,
-  completeMeeting,
-  cancelMeeting,
 } from '../../services/meetingService';
-import { getDoctors } from '../../services/doctorService';
-import { getChemists } from '../../services/chemistService';
-import { getHospitals } from '../../services/hospitalService';
 import { getStockists } from '../../services/stockistService';
 
 interface Meeting {
@@ -192,14 +192,22 @@ const MeetingSchedulerScreen = () => {
 
 
   const formatTime12to24 = (time12: string) => {
-    const match = time12.match(/^(\d{2}):(\d{2})\s*(AM|PM)$/i);
+    if (!time12) return '11:00';
+    const trimmed = time12.trim();
+    const match = trimmed.match(/^(\d{1,2}):(\d{2})\s*(AM|PM)?$/i);
     if (match) {
       let hours = parseInt(match[1]);
       const minutes = match[2];
-      const ampm = match[3].toUpperCase();
-      if (ampm === 'PM' && hours < 12) hours += 12;
-      if (ampm === 'AM' && hours === 12) hours = 0;
+      const ampm = match[3] ? match[3].toUpperCase() : null;
+      if (ampm) {
+        if (ampm === 'PM' && hours < 12) hours += 12;
+        if (ampm === 'AM' && hours === 12) hours = 0;
+      }
       return `${hours.toString().padStart(2, '0')}:${minutes}`;
+    }
+    const match24 = trimmed.match(/^(\d{1,2}):(\d{2})$/);
+    if (match24) {
+      return `${parseInt(match24[1]).toString().padStart(2, '0')}:${match24[2]}`;
     }
     return '11:00';
   };
@@ -281,6 +289,7 @@ const MeetingSchedulerScreen = () => {
       }
 
       const timeToMinutes = (time12: string): number => {
+        if (!time12) return 0;
         const time24 = formatTime12to24(time12);
         const [hh, mm] = time24.split(':').map(Number);
         return hh * 60 + mm;
@@ -293,7 +302,18 @@ const MeetingSchedulerScreen = () => {
         const mDate = m.meetingDate ? m.meetingDate.split('T')[0] : m.date;
         if (mDate !== meetingDate || m.status === 'Cancelled') return false;
 
-        const mStart = timeToMinutes(m.time);
+        let mStart = 0;
+        if (m.meetingDate) {
+          const mDateObj = new Date(m.meetingDate);
+          if (!isNaN(mDateObj.getTime())) {
+            mStart = mDateObj.getHours() * 60 + mDateObj.getMinutes();
+          }
+        } else if (m.time) {
+          mStart = timeToMinutes(m.time);
+        } else {
+          return false;
+        }
+
         const mEnd = mStart + 30;
 
         // Overlap logic: startA < endB && startB < endA

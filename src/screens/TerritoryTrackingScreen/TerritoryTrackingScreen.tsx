@@ -3,8 +3,9 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import React, { useState, useCallback } from 'react';
 import { getTerritoryBeats } from '../../services/territoryService';
-import { getDoctors } from '../../services/doctorService';
-import { getChemists } from '../../services/chemistService';
+import { getDoctors, getDoctorVisitsByMr } from '../../services/doctorService';
+import { getChemists, getChemistVisitsByMr } from '../../services/chemistService';
+import { getAttendanceLogs } from '../../services/attendanceService';
 import {
   RefreshControl,
   ScrollView,
@@ -57,6 +58,7 @@ const TerritoryTrackingScreen = () => {
 
   const [coveredCount, setCoveredCount] = useState(3);
   const [trackedDistance, setTrackedDistance] = useState('18.4 KM');
+  const [assignedDate, setAssignedDate] = useState('N/A');
 
   const loadData = async (showLoadingSpinner = true) => {
     if (showLoadingSpinner) {
@@ -121,19 +123,59 @@ const TerritoryTrackingScreen = () => {
         status: b.status || 'Secondary Beat'
       }));
 
-      // 4. Load actual logged visits today to compute dynamic stats
-      const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
-      const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
-      
-      const docVisits = safeJsonParse(docVisitsData, []);
-      const chemVisits = safeJsonParse(chemistVisitsData, []);
+      // Parse assignment date dynamically from backend if available
+      let parsedAssignedDate = '';
+      if (activeBeats.length > 0) {
+        const firstBeat = activeBeats[0];
+        const rawDate = firstBeat.assignedOn || firstBeat.assignedAt || firstBeat.createdAt || firstBeat.date;
+        if (rawDate) {
+          try {
+            const d = new Date(rawDate);
+            if (!isNaN(d.getTime())) {
+              const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+              parsedAssignedDate = `${String(d.getDate()).padStart(2, '0')}-${months[d.getMonth()]}-${d.getFullYear()}`;
+            } else {
+              parsedAssignedDate = String(rawDate);
+            }
+          } catch {
+            parsedAssignedDate = String(rawDate);
+          }
+        }
+      }
+      if (!parsedAssignedDate) {
+        // Fallback to 1st of current month
+        const d = new Date();
+        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        parsedAssignedDate = `01-${months[d.getMonth()]}-${d.getFullYear()}`;
+      }
+      setAssignedDate(parsedAssignedDate);
+
+      // 4. Load actual logged visits today from server APIs to compute dynamic stats
+      let docVisits: any[] = [];
+      let chemVisits: any[] = [];
+      let attendanceLogs: any[] = [];
+
+      try {
+        const rawDocs = await getDoctorVisitsByMr();
+        docVisits = Array.isArray(rawDocs) ? rawDocs : [];
+      } catch (err) { console.log('Error loading doc visits in territory tracking:', err); }
+
+      try {
+        const rawChems = await getChemistVisitsByMr();
+        chemVisits = Array.isArray(rawChems) ? rawChems : [];
+      } catch (err) { console.log('Error loading chemist visits in territory tracking:', err); }
+
+      try {
+        const rawAttendance = await getAttendanceLogs();
+        attendanceLogs = Array.isArray(rawAttendance) ? rawAttendance : [];
+      } catch (err) { console.log('Error loading attendance in territory tracking:', err); }
 
       const todayStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
 
       // Helper to match dates safely across Android/iOS/Web and different formats
       const isSameDay = (item: any, targetDateStr: string): boolean => {
         try {
-          const val = item.date || item.visitDate || item.timestamp || item.id;
+          const val = item.date || item.visitDate || item.createdAt || item.timestamp || item.id;
           if (!val) return false;
           
           if (typeof val === 'string' && /^\d{2}-\d{2}-\d{4}$/.test(val)) {
@@ -146,7 +188,17 @@ const TerritoryTrackingScreen = () => {
             if (match) ts = Number(match[0]);
           }
           
-          if (isNaN(ts) || ts <= 0) return false;
+          if (isNaN(ts) || ts <= 0) {
+            // Try standard Date parsing for ISO string
+            const dateObj = new Date(val);
+            if (!isNaN(dateObj.getTime())) {
+              const day = String(dateObj.getDate()).padStart(2, '0');
+              const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+              const year = dateObj.getFullYear();
+              return `${day}-${month}-${year}` === targetDateStr;
+            }
+            return false;
+          }
           
           const dateObj = new Date(ts);
           if (isNaN(dateObj.getTime())) return false;
@@ -163,29 +215,32 @@ const TerritoryTrackingScreen = () => {
 
       const todayDocs = docVisits.filter((v: any) => isSameDay(v, todayStr));
       const todayChems = chemVisits.filter((v: any) => isSameDay(v, todayStr));
+      const todayAtt = attendanceLogs.find((a: any) => {
+        const d = a.checkInTime || a.checkinTime || a.createdAt || '';
+        return isSameDay({ date: d }, todayStr);
+      });
 
-      // 5. Group the real doctors and chemists dynamically into the beats details mapping
+      // 5. Group the real doctors and chemists dynamically into the beats details mapping (Strict matching - no random modulo fallback)
       const resolvedDetails: { [key: string]: { doctors: string[]; chemists: string[] } } = {};
       
-      activeTerritories.forEach((t: BeatTerritory, index: number) => {
-        // Find doctors belonging to this beat (fallback to index modulo if beat string doesn't match)
+      activeTerritories.forEach((t: BeatTerritory) => {
         const doctorsInBeat = docs
-          .filter((d: any, dIdx: number) => {
-            const dBeat = (d.beat || '').toLowerCase().trim();
+          .filter((d: any) => {
+            const dBeat = (d.beat || d.clinicAddress || d.address || d.hospital || '').toLowerCase().trim();
             const tArea = t.area.toLowerCase().trim();
-            if (dBeat) return dBeat.includes(tArea) || tArea.includes(dBeat);
-            return dIdx % activeTerritories.length === index;
+            return dBeat && (dBeat.includes(tArea) || tArea.includes(dBeat));
           })
-          .map((d: any) => d.doctorName || d.name);
+          .map((d: any) => d.doctorName || d.name || '')
+          .filter((name: string) => name.trim().length > 0);
 
         const chemistsInBeat = chems
-          .filter((c: any, cIdx: number) => {
-            const cBeat = (c.beat || '').toLowerCase().trim();
+          .filter((c: any) => {
+            const cBeat = (c.beat || c.address || '').toLowerCase().trim();
             const tArea = t.area.toLowerCase().trim();
-            if (cBeat) return cBeat.includes(tArea) || tArea.includes(cBeat);
-            return cIdx % activeTerritories.length === index;
+            return cBeat && (cBeat.includes(tArea) || tArea.includes(cBeat));
           })
-          .map((c: any) => c.name || c.chemistName || c.shopName);
+          .map((c: any) => c.name || c.chemistName || c.shopName || '')
+          .filter((name: string) => name.trim().length > 0);
 
         resolvedDetails[t.id] = {
           doctors: doctorsInBeat,
@@ -263,49 +318,82 @@ const TerritoryTrackingScreen = () => {
       });
       setCoveredCount(coveredTodayCount);
 
-      // Calculate traversed distance dynamically based on visits coordinates
-      let distSum = 0;
-      let prevLat = 17.3850; // Hyderabad center as default HQ lat
-      let prevLon = 78.4867; // Hyderabad center as default HQ lon
+      // Calculate traversed distance dynamically based on all backend event coordinates
+      const distanceNodes: { time: string; latitude: number; longitude: number }[] = [];
       
-      const allTodayVisits = [...todayDocs, ...todayChems];
-      let hasCoordinates = false;
+      if (todayAtt) {
+        const ciLat = parseFloat(todayAtt.checkInLatitude  || todayAtt.latitude  || '0');
+        const ciLng = parseFloat(todayAtt.checkInLongitude || todayAtt.longitude || '0');
+        if (ciLat && ciLng) {
+          distanceNodes.push({
+            time: todayAtt.checkInTime || todayAtt.checkinTime || '09:00 AM',
+            latitude: ciLat,
+            longitude: ciLng
+          });
+        }
+        
+        const coLat = parseFloat(todayAtt.checkOutLatitude  || todayAtt.checkoutLatitude  || '0');
+        const coLng = parseFloat(todayAtt.checkOutLongitude || todayAtt.longitude || '0');
+        if (coLat && coLng) {
+          distanceNodes.push({
+            time: todayAtt.checkOutTime || todayAtt.checkoutTime || '06:00 PM',
+            latitude: coLat,
+            longitude: coLng
+          });
+        }
+      }
 
-      allTodayVisits.forEach((visit: any) => {
-        if (visit.latitude && visit.longitude) {
-          distSum += calculateDistance(prevLat, prevLon, visit.latitude, visit.longitude);
-          prevLat = visit.latitude;
-          prevLon = visit.longitude;
-          hasCoordinates = true;
+      todayDocs.forEach((v: any) => {
+        const lat = parseFloat(v.latitude || '0');
+        const lng = parseFloat(v.longitude || '0');
+        if (lat && lng) {
+          distanceNodes.push({
+            time: v.visitDate || v.createdAt || '10:00 AM',
+            latitude: lat,
+            longitude: lng
+          });
         }
       });
 
-      if (hasCoordinates) {
-        setTrackedDistance(`${distSum.toFixed(1)} KM`);
-      } else {
-        // Fetch from GPS movement tracking log key
-        try {
-          const todayString = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
-          const gpsKey = `@gps_movement_${todayString}`;
-          const gpsDataRaw = await AsyncStorage.getItem(gpsKey);
-          const gpsLogs = gpsDataRaw ? JSON.parse(gpsDataRaw) : [];
+      todayChems.forEach((c: any) => {
+        const lat = parseFloat(c.latitude || '0');
+        const lng = parseFloat(c.longitude || '0');
+        if (lat && lng) {
+          distanceNodes.push({
+            time: c.visitDate || c.createdAt || '11:00 AM',
+            latitude: lat,
+            longitude: lng
+          });
+        }
+      });
 
-          if (gpsLogs && gpsLogs.length > 0) {
-            let dist = 0;
-            for (let i = 0; i < gpsLogs.length - 1; i++) {
-              dist += calculateDistance(
-                gpsLogs[i].latitude, gpsLogs[i].longitude,
-                gpsLogs[i + 1].latitude, gpsLogs[i + 1].longitude
-              );
-            }
-            setTrackedDistance(`${dist.toFixed(1)} KM`);
-          } else {
-            setTrackedDistance('0.0 KM');
-          }
-        } catch {
-          setTrackedDistance('0.0 KM');
+      // Sort chronological
+      const timeToMins = (t: string): number => {
+        try {
+          const d = new Date(t);
+          if (!isNaN(d.getTime())) return d.getHours() * 60 + d.getMinutes();
+        } catch {}
+        const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!m) return 720;
+        let h = parseInt(m[1]); const min = parseInt(m[2]); const ap = m[3].toUpperCase();
+        if (ap === 'PM' && h < 12) h += 12;
+        if (ap === 'AM' && h === 12) h = 0;
+        return h * 60 + min;
+      };
+      
+      distanceNodes.sort((a, b) => timeToMins(a.time) - timeToMins(b.time));
+
+      let distSum = 0;
+      if (distanceNodes.length > 1) {
+        for (let i = 0; i < distanceNodes.length - 1; i++) {
+          distSum += calculateDistance(
+            distanceNodes[i].latitude, distanceNodes[i].longitude,
+            distanceNodes[i + 1].latitude, distanceNodes[i + 1].longitude
+          );
         }
       }
+      setTrackedDistance(`${distSum.toFixed(1)} KM`);
+
     } catch (err) {
       console.log('Failed to compile territory dashboard data', err);
       setError('Unable to load territory data.');
@@ -424,11 +512,7 @@ const TerritoryTrackingScreen = () => {
                     </View>
                   </View>
                   <View style={styles.assignmentRow}>
-                    <Text style={styles.assignmentText}>Assigned On: <Text style={{fontWeight: 'bold', color: '#334155'}}>{(() => {
-                      const d = new Date();
-                      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-                      return `01-${months[d.getMonth()]}-${d.getFullYear()}`;
-                    })()}</Text></Text>
+                    <Text style={styles.assignmentText}>Assigned On: <Text style={{fontWeight: 'bold', color: '#334155'}}>{assignedDate}</Text></Text>
                   </View>
                 </View>
 
@@ -509,9 +593,9 @@ const TerritoryTrackingScreen = () => {
                     // Unified display list with visited status
                     const finalDoctors: { label: string; visited: boolean }[] = [];
                     assignedDoctors.forEach((doc: string) => {
-                      const cleanDoc = doc.replace(/^Dr\.\s+/i, '').split('(')[0].trim().toLowerCase();
+                      const cleanDoc = String(doc || '').replace(/^Dr\.\s+/i, '').split('(')[0].trim().toLowerCase();
                       const isVisited = loggedToday.docNames.some((dName: string) => {
-                        const cleanDName = dName.replace(/^Dr\.\s+/i, '').trim().toLowerCase();
+                        const cleanDName = String(dName || '').replace(/^Dr\.\s+/i, '').trim().toLowerCase();
                         return cleanDName.includes(cleanDoc) || cleanDoc.includes(cleanDName);
                       });
                       finalDoctors.push({
@@ -522,13 +606,13 @@ const TerritoryTrackingScreen = () => {
                     
                     // Add any extra doctors visited today who are not assigned
                     loggedToday.docNames.forEach((dName: string) => {
-                      const cleanDName = dName.replace(/^Dr\.\s+/i, '').trim().toLowerCase();
+                      const cleanDName = String(dName || '').replace(/^Dr\.\s+/i, '').trim().toLowerCase();
                       const isAssigned = assignedDoctors.some((doc: string) => {
-                        const cleanDoc = doc.replace(/^Dr\.\s+/i, '').split('(')[0].trim().toLowerCase();
+                        const cleanDoc = String(doc || '').replace(/^Dr\.\s+/i, '').split('(')[0].trim().toLowerCase();
                         return cleanDName.includes(cleanDoc) || cleanDoc.includes(cleanDName);
                       });
                       if (!isAssigned) {
-                        const prefix = dName.toLowerCase().startsWith('dr.') ? '' : 'Dr. ';
+                        const prefix = String(dName || '').toLowerCase().startsWith('dr.') ? '' : 'Dr. ';
                         finalDoctors.push({
                           label: `${prefix}${dName} (Visited Today - New)`,
                           visited: true
@@ -538,9 +622,9 @@ const TerritoryTrackingScreen = () => {
 
                     const finalChemists: { label: string; visited: boolean }[] = [];
                     assignedChemists.forEach((chem: string) => {
-                      const cleanChem = chem.toLowerCase();
+                      const cleanChem = String(chem || '').toLowerCase();
                       const isVisited = loggedToday.chemNames.some((cName: string) => {
-                        const cleanCName = cName.trim().toLowerCase();
+                        const cleanCName = String(cName || '').trim().toLowerCase();
                         return cleanCName.includes(cleanChem) || cleanChem.includes(cleanCName);
                       });
                       finalChemists.push({
@@ -551,9 +635,9 @@ const TerritoryTrackingScreen = () => {
 
                     // Add any extra chemists visited today who are not assigned
                     loggedToday.chemNames.forEach((cName: string) => {
-                      const cleanCName = cName.trim().toLowerCase();
+                      const cleanCName = String(cName || '').trim().toLowerCase();
                       const isAssigned = assignedChemists.some((chem: string) => {
-                        const cleanChem = chem.toLowerCase();
+                        const cleanChem = String(chem || '').toLowerCase();
                         return cleanCName.includes(cleanChem) || cleanChem.includes(cleanCName);
                       });
                       if (!isAssigned) {

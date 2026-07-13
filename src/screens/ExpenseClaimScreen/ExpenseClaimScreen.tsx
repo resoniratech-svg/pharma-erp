@@ -1,4 +1,4 @@
-import { createExpense, getExpensesByMr, uploadExpenseReceipt } from '../../services/expenseService';
+import { createExpense, getExpensesByMr, encodeReceiptToDataUrl } from '../../services/expenseService';
 import { getDoctorVisitsByMr } from '../../services/doctorService';
 import { getChemistVisitsByMr } from '../../services/chemistService';
 import { getAttendanceLogs } from '../../services/attendanceService';
@@ -68,7 +68,8 @@ const ExpenseClaimScreen = () => {
   
   // Image Upload State
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
-  const [selectedImageSize, setSelectedImageSize] = useState<number | undefined>(undefined);
+  const [selectedImageBase64, setSelectedImageBase64] = useState<string | null>(null);
+  const [selectedImageMimeType, setSelectedImageMimeType] = useState<string | undefined>(undefined);
   const [uploadingReceipt, setUploadingReceipt] = useState(false);
 
   const scrollViewRef = React.useRef<ScrollView>(null);
@@ -363,12 +364,14 @@ const ExpenseClaimScreen = () => {
       if (useCamera) {
         pickerResult = await ImagePicker.launchCameraAsync({
           allowsEditing: true,
-          quality: 0.8,
+          quality: 0.2, // Compress images directly at picker level
+          base64: true, // Capture base64 so we can store it in the backend without a separate upload endpoint
         });
       } else {
         pickerResult = await ImagePicker.launchImageLibraryAsync({
           allowsEditing: true,
-          quality: 0.8,
+          quality: 0.2, // Compress images directly at picker level
+          base64: true, // Capture base64 so we can store it in the backend without a separate upload endpoint
         });
       }
 
@@ -385,9 +388,15 @@ const ExpenseClaimScreen = () => {
         const uri = asset.uri;
         const filename = asset.fileName || uri.split('/').pop() || 'receipt.jpg';
         const fileExtension = filename.split('.').pop()?.toLowerCase();
+        const mimeType = asset.mimeType || (fileExtension === 'pdf' ? 'application/pdf' : fileExtension === 'png' ? 'image/png' : 'image/jpeg');
         
         const allowedExtensions = ['jpg', 'jpeg', 'png', 'pdf'];
-        if (fileExtension && !allowedExtensions.includes(fileExtension)) {
+        const allowedMimeTypes = ['image/jpeg', 'image/png', 'application/pdf'];
+        
+        const isExtAllowed = fileExtension && allowedExtensions.includes(fileExtension);
+        const isMimeAllowed = mimeType && allowedMimeTypes.includes(mimeType);
+
+        if (!isExtAllowed && !isMimeAllowed) {
           customAlert('⚠️ Invalid File Type', 'Only JPG, JPEG, PNG, and PDF files are allowed.');
           return;
         }
@@ -400,7 +409,8 @@ const ExpenseClaimScreen = () => {
         }
 
         setSelectedImage(uri);
-        setSelectedImageSize(asset.fileSize);
+        setSelectedImageBase64(asset.base64 ?? null);
+        setSelectedImageMimeType(mimeType);
       }
     } catch (e) {
       console.log('Error picking image:', e);
@@ -485,10 +495,16 @@ const ExpenseClaimScreen = () => {
 
       if (selectedImage) {
         try {
-          finalReceiptUrl = await uploadExpenseReceipt(selectedImage, selectedImageSize);
-        } catch (uploadErr) {
-          console.error('Receipt upload failed:', uploadErr);
-          customAlert('❌ Upload Failed', 'Failed to upload receipt document. Please try again.');
+          // Encode the receipt image to a base64 data URI and save it directly in
+          // the backend's billUrl / receiptUrl field — no separate upload server needed.
+          finalReceiptUrl = await encodeReceiptToDataUrl(
+            selectedImage,
+            selectedImageMimeType || 'image/jpeg',
+            selectedImageBase64
+          );
+        } catch (uploadErr: any) {
+          console.error('Receipt encode failed:', uploadErr);
+          customAlert('❌ Receipt Error', uploadErr?.message || 'Failed to process receipt image. Please try again.');
           setIsSaving(false);
           setUploadingReceipt(false);
           return;
@@ -512,7 +528,8 @@ const ExpenseClaimScreen = () => {
       setAmount('');
       setKmTravelled('');
       setSelectedImage(null);
-      setSelectedImageSize(undefined);
+      setSelectedImageBase64(null);
+      setSelectedImageMimeType(undefined);
       setRemarks('');
       setCategory('Travel Allowance (TA)');
       customAlert('✅ Success', 'Expense claim submitted successfully for manager approval.');
@@ -814,17 +831,31 @@ const ExpenseClaimScreen = () => {
                         <View style={styles.receiptDetailRow}>
                           <Text style={styles.claimDetailText}>📄 Receipt: </Text>
                           {hasValidReceipt ? (
-                            <TouchableOpacity onPress={() => {
-                              if (Platform.OS === 'web') {
-                                window.open(claim.receiptRef, '_blank');
-                              } else {
-                                Alert.alert('Receipt URL', claim.receiptRef);
-                              }
-                            }}>
-                              <Text style={styles.receiptLinkText} numberOfLines={1}>
-                                {claim.receiptRef.split('/').pop() || 'View Receipt Document'}
-                              </Text>
-                            </TouchableOpacity>
+                            (() => {
+                              const isDataUri = claim.receiptRef.startsWith('data:');
+                              const label = isDataUri
+                                ? '🖼️ View Uploaded Receipt Image'
+                                : (claim.receiptRef.split('/').pop() || 'View Receipt Document');
+                              return (
+                                <TouchableOpacity onPress={() => {
+                                  if (Platform.OS === 'web') {
+                                    if (isDataUri) {
+                                      // Open base64 image in a new tab
+                                      const win = window.open();
+                                      if (win) {
+                                        win.document.write(`<img src="${claim.receiptRef}" style="max-width:100%" />`);
+                                      }
+                                    } else {
+                                      window.open(claim.receiptRef, '_blank');
+                                    }
+                                  } else {
+                                    Alert.alert('Receipt', isDataUri ? 'Receipt image saved in this claim.' : claim.receiptRef);
+                                  }
+                                }}>
+                                  <Text style={styles.receiptLinkText} numberOfLines={1}>{label}</Text>
+                                </TouchableOpacity>
+                              );
+                            })()
                           ) : (
                             <Text style={styles.noReceiptText}>No Receipt Uploaded</Text>
                           )}

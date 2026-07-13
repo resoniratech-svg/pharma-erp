@@ -1,29 +1,29 @@
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  Alert,
-  Platform,
-  KeyboardAvoidingView,
-  ActivityIndicator,
-} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { Picker } from '@react-native-picker/picker'; 
+import { Picker } from '@react-native-picker/picker';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
+import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  createDoctor,
   createDoctorVisit,
   getDoctors,
   getDoctorVisitsByMr,
-  createDoctor,
   updateDoctorVisit
 } from '../../services/doctorService';
-import { createFollowUp } from '../../services/followUpService'; 
+import { createFollowUp } from '../../services/followUpService';
 
 // ✅ Unified interface — matches React Web DoctorVisits.tsx exactly
 interface DoctorVisit {
@@ -982,7 +982,6 @@ const DoctorVisitScreen = () => {
         </View>
 
         {/* Visit History */}
-        <Text style={styles.historyTitle}>Recent Visits</Text>
         {loading ? (
           <ActivityIndicator size="small" color="#1E88E5" style={{ marginVertical: 10 }} />
         ) : error ? (
@@ -997,8 +996,12 @@ const DoctorVisitScreen = () => {
             No doctor visits logged yet.
           </Text>
         ) : (
-          visits.map((visit) => (
-            <View key={visit.id} style={styles.visitCard}>
+          <>
+            <Text style={[styles.historyTitle, { fontSize: 14, color: '#64748B', marginTop: -5, marginBottom: 10 }]}>
+              Total visits: {visits.length}
+            </Text>
+            {visits.map((visit) => (
+              <View key={visit.id} style={styles.visitCard}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
                 <Text style={styles.visitDoctor}>
                   {visit.doctorName.toLowerCase().trim().startsWith('dr.') ? visit.doctorName : `Dr. ${visit.doctorName}`}
@@ -1062,7 +1065,8 @@ const DoctorVisitScreen = () => {
                 </View>
               </View>
             </View>
-          ))
+          ))}
+          </>
         )}
       </ScrollView>
     </KeyboardAvoidingView>

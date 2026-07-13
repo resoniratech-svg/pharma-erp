@@ -3,6 +3,10 @@ import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
 import { getRouteHistory } from '../../services/routeHistoryService';
+import { getDoctorVisitsByMr } from '../../services/doctorService';
+import { getChemistVisitsByMr } from '../../services/chemistService';
+import { getAttendanceLogs } from '../../services/attendanceService';
+import { getTourPlansByMr } from '../../services/tourPlanService';
 import {
   Platform,
   RefreshControl,  
@@ -282,29 +286,90 @@ useEffect(() => {
     setError(null);
 
     try {
-      // 1. Fetch all datasets from AsyncStorage
-      const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
-      const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
-      const tourPlansData = await AsyncStorage.getItem('@tour_plans');
-      const attendanceLogsData = await AsyncStorage.getItem('@attendance_logs');
+      // 1. Fetch all datasets from APIs
+      let allDocVisits: any[] = [];
+      let allChemistVisits: any[] = [];
+      let allTourPlans: any[] = [];
+      let attendanceLogs: any[] = [];
 
-      const allDocVisits = safeJsonParse(docVisitsData, []);
-      const allChemistVisits = safeJsonParse(chemistVisitsData, []);
-      const allTourPlans = safeJsonParse(tourPlansData, []);
-      const attendanceLogs = safeJsonParse(attendanceLogsData, []);
+      try {
+        const rawDocs = await getDoctorVisitsByMr();
+        allDocVisits = Array.isArray(rawDocs) ? rawDocs : [];
+      } catch (err) { console.log('Error fetching docs:', err); }
+
+      try {
+        const rawChemists = await getChemistVisitsByMr();
+        allChemistVisits = Array.isArray(rawChemists) ? rawChemists : [];
+      } catch (err) { console.log('Error fetching chemists:', err); }
+
+      try {
+        const rawPlans = await getTourPlansByMr();
+        allTourPlans = Array.isArray(rawPlans) ? rawPlans : [];
+      } catch (err) { console.log('Error fetching tour plans:', err); }
+
+      try {
+        const rawAttendance = await getAttendanceLogs();
+        attendanceLogs = Array.isArray(rawAttendance) ? rawAttendance : [];
+      } catch (err) { console.log('Error fetching attendance logs:', err); }
+
+      const isSameDayNormalized = (item: any, targetDate: string): boolean => {
+        if (!item) return false;
+        const val = item.date || item.visitDate || item.tourDate || item.timestamp || item.createdAt;
+        if (!val) return false;
+        try {
+          const cleanTarget = targetDate.replace(/[\/-]/g, ''); // E.g., "13072026"
+          
+          // Try standard Date parsing
+          const d = new Date(val);
+          if (!isNaN(d.getTime())) {
+            const day = d.getDate().toString().padStart(2, '0');
+            const month = (d.getMonth() + 1).toString().padStart(2, '0');
+            const year = d.getFullYear().toString();
+            return `${day}${month}${year}` === cleanTarget;
+          }
+          
+          // Try custom extraction matching
+          const parts = val.toString().replace(/,/g, '').split(/[\s-T\/]+/);
+          if (parts.length >= 3) {
+            let day = parts[0];
+            let monthStr = parts[1];
+            let year = parts[2];
+            if (day.length === 4) {
+              year = parts[0];
+              monthStr = parts[1];
+              day = parts[2];
+            }
+            day = day.padStart(2, '0');
+            const months: { [key: string]: string } = {
+              'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
+              'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
+              'january': '01', 'february': '02', 'march': '03', 'april': '04', 'june': '06',
+              'july': '07', 'august': '08', 'september': '09', 'october': '10', 'november': '11', 'december': '12'
+            };
+            let month = '01';
+            if (months[monthStr.toLowerCase()]) {
+              month = months[monthStr.toLowerCase()];
+            } else {
+              month = monthStr.padStart(2, '0');
+            }
+            return `${day}${month}${year}` === cleanTarget;
+          }
+          
+          return val.toString().includes(targetDate);
+        } catch {
+          return false;
+        }
+      };
 
       // 2. Filter data matching selectedDate
-      const docsToday = allDocVisits.filter((v: any) => isSameDay(v, selectedDate));
-      const chemistsToday = allChemistVisits.filter((v: any) => isSameDay(v, selectedDate));
-      const planToday = allTourPlans.find((p: any) => normalizeTourPlanDate(p.date) === selectedDate);
-      const attendanceToday = attendanceLogs.find((l: any) => matchAttendanceDate(l.date, selectedDate));
+      const docsToday = allDocVisits.filter((v: any) => isSameDayNormalized(v, selectedDate));
+      const chemistsToday = allChemistVisits.filter((v: any) => isSameDayNormalized(v, selectedDate));
+      const planToday = allTourPlans.find((p: any) => isSameDayNormalized(p, selectedDate));
+      const attendanceToday = attendanceLogs.find((l: any) => matchAttendanceDate(l.checkInTime || l.date, selectedDate));
 
       // Check if selectedDate is today & retrieve active checked-in attendance details
       const todayStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
       const isToday = selectedDate === todayStr;
-      const storedCheckedIn = await AsyncStorage.getItem('@checked_in');
-      const storedCheckInTime = await AsyncStorage.getItem('@check_in_time');
-      const storedAddress = await AsyncStorage.getItem('@check_in_address');
 
       let checkInTime = null;
       let checkInAddress = '';
@@ -313,31 +378,14 @@ useEffect(() => {
       let durationStr = '';
 
       if (attendanceToday) {
-        checkInTime = attendanceToday.checkInTime;
-        checkInAddress = attendanceToday.checkInAddress || '';
-        checkOutTime = attendanceToday.checkOutTime !== '-' ? attendanceToday.checkOutTime : null;
+        const ciRaw = attendanceToday.checkInTime || attendanceToday.checkinTime;
+        checkInTime = ciRaw ? new Date(ciRaw).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
+        checkInAddress = attendanceToday.checkInAddress || attendanceToday.address || '';
+        
+        const coRaw = attendanceToday.checkOutTime || attendanceToday.checkoutTime;
+        checkOutTime = coRaw && coRaw !== '-' ? new Date(coRaw).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : null;
         checkOutAddress = attendanceToday.checkOutAddress || '';
         durationStr = attendanceToday.duration || '';
-      } else if (isToday && storedCheckedIn === 'true' && storedCheckInTime) {
-        checkInTime = storedCheckInTime;
-        checkInAddress = storedAddress || '';
-        checkOutTime = '-';
-        try {
-          const storedDateStr = await AsyncStorage.getItem('@attendance_date');
-          if (storedDateStr) {
-            const checkInDate = new Date(storedDateStr);
-            const now = new Date();
-            let diffMs = now.getTime() - checkInDate.getTime();
-            if (diffMs < 0) diffMs = 0;
-            const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
-            const diffMins = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
-            durationStr = `${diffHrs}h ${diffMins}m`;
-          } else {
-            durationStr = 'Active';
-          }
-        } catch {
-          durationStr = 'Active';
-        }
       }
 
       // 3. Compute Summary Card Stats
@@ -349,7 +397,7 @@ useEffect(() => {
       let completionVal = '0%';
       let plannedCount = 10; // Baseline target if no beat plan
       if (planToday) {
-        plannedCount = (parseInt(planToday.docCount, 10) || 0) + (parseInt(planToday.chemistCount, 10) || 0);
+        plannedCount = (parseInt(planToday.docCount || planToday.doctorIds?.length || 0, 10) || 0) + (parseInt(planToday.chemistCount || planToday.chemistIds?.length || 0, 10) || 0);
         completionVal = plannedCount > 0 ? `${Math.min(Math.round((visited / plannedCount) * 100), 100)}%` : '100%';
       } else {
         completionVal = visited > 0 ? `${Math.min(Math.round((visited / 10) * 100), 100)}%` : '0%';
@@ -375,12 +423,14 @@ useEffect(() => {
 
       // A. Add Beat Tour Plan info if available
       if (planToday) {
+        const docCountVal = planToday.docCount || planToday.doctorIds?.length || 0;
+        const chemCountVal = planToday.chemistCount || planToday.chemistIds?.length || 0;
         eventsList.push({
           time: planToday.startTime || '09:00 AM',
           title: `🗺️ Tour Beat: ${planToday.beat || 'Unscheduled'}`,
-          subtitle: `Territory: ${planToday.territory || 'N/A'} (Route: ${planToday.area})`,
+          subtitle: `Territory: ${planToday.territory || 'N/A'} (Route: ${planToday.area || 'N/A'})`,
           type: 'plan',
-          details: `Planned Objective: ${planToday.objective || 'Routine promotion'}. Planned Target count: ${planToday.docCount} Doctors, ${planToday.chemistCount} Chemists.`,
+          details: `Planned Objective: ${planToday.objective || 'Routine promotion'}. Planned Target count: ${docCountVal} Doctors, ${chemCountVal} Chemists.`,
         });
       }
 
@@ -397,17 +447,21 @@ useEffect(() => {
 
       // C. Add Doctor Visits (protecting against double "Dr." prefixes and null names)
       docsToday.forEach((v: any) => {
-        const rawDocName = v.doctorName || 'Unknown Doctor';
+        const rawDocName = v.doctor?.name || v.doctorName || 'Unknown Doctor';
         const docFormattedName = rawDocName.startsWith('Dr.') ? rawDocName : `Dr. ${rawDocName}`;
         const hasGps = v.latitude && v.longitude && v.latitude !== 'No GPS Data';
-        
+        const rawTs = v.visitDate || v.createdAt || '';
+        const visitTime = rawTs
+          ? new Date(rawTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : (v.visitTime || v.time || '10:30 AM');
+
         eventsList.push({
-          time: v.visitTime || v.time || '10:30 AM',
+          time: visitTime,
           title: `🩺 Doctor Visited: ${docFormattedName}`,
-          subtitle: `Hospital/Clinic: ${v.hospital || 'Clinic'} (${v.specialty || 'General'})`,
+          subtitle: `Hospital/Clinic: ${v.hospital || v.doctor?.hospital || 'Clinic'} (${v.specialty || v.doctor?.specialty || 'General'})`,
           type: 'doctor',
           badge: v.visitType || 'Routine',
-          details: `Products Detailed: ${v.products || 'None'}. Samples Given: ${v.samples || 'None'}. Notes: ${v.notes || 'No notes logged.'}`,
+          details: `Products Detailed: ${v.products || v.detailingProducts?.join(', ') || 'None'}. Samples Given: ${v.samples || 'None'}. Notes: ${v.notes || v.feedback || 'No notes logged.'}`,
           gpsVerified: !!hasGps,
           coords: hasGps ? `${parseFloat(v.latitude).toFixed(4)}° N, ${parseFloat(v.longitude).toFixed(4)}° E` : undefined,
         });
@@ -417,11 +471,16 @@ useEffect(() => {
       chemistsToday.forEach((v: any) => {
         const orderValNum = Number(v.orderValue) || 0;
         const hasGps = v.latitude && v.longitude && v.latitude !== 'No GPS Data';
-        
+        const rawTs = v.visitDate || v.createdAt || '';
+        const visitTime = rawTs
+          ? new Date(rawTs).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+          : (v.visitTime || v.time || '02:00 PM');
+        const shopName = v.chemist?.shopName || v.chemist?.name || v.shopName || v.chemistName || 'Unknown Shop';
+
         eventsList.push({
-          time: v.visitTime || v.time || '02:00 PM',
-          title: `💊 Chemist Visited: ${v.shopName || 'Unknown Shop'}`,
-          subtitle: `Chemist: ${v.chemistName || 'Staff'} (Location: ${v.area || 'N/A'})`,
+          time: visitTime,
+          title: `💊 Chemist Visited: ${shopName}`,
+          subtitle: `Chemist: ${v.chemist?.contactPerson || v.chemistName || 'Staff'} (Location: ${v.area || v.chemist?.address || 'N/A'})`,
           type: 'chemist',
           badge: orderValNum > 0 ? `Order Booked` : 'Feedback Meet',
           details: orderValNum > 0 
@@ -433,19 +492,16 @@ useEffect(() => {
       });
 
       // F. Backend Route History Events
-backendRouteHistory.forEach((item: any) => {
-
-  if (item.type === 'CHECK_IN') {
-
-    eventsList.push({
-      time: item.checkInTime || '09:00 AM',
-      title: '🟢 Attendance Check-In',
-      subtitle: item.location || 'Attendance Check-In',
-      type: 'checkin',
-      details: 'Attendance marked successfully',
-    });
-
-  }
+      backendRouteHistory.forEach((item: any) => {
+        if (item.type === 'CHECK_IN') {
+          eventsList.push({
+            time: item.checkInTime || '09:00 AM',
+            title: '🟢 Attendance Check-In',
+            subtitle: item.location || 'Attendance Check-In',
+            type: 'checkin',
+            details: 'Attendance marked successfully',
+          });
+        }
 
   if (item.type === 'CHECK_OUT') {
 

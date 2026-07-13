@@ -10,12 +10,85 @@ const MIME_TYPES: { [key: string]: string } = {
 };
 
 /**
- * Validates the file extension.
+ * Converts a picked image URI + optional base64 string into a data URL
+ * that can be stored directly in the backend's billUrl / receiptUrl field.
+ *
+ * On NATIVE:  expo-image-picker returns asset.base64 when base64:true is set
+ *             in the picker options. We just prefix it with the data URI header.
+ * On WEB:     The asset.uri is already a blob URL. We fetch it, read it with
+ *             FileReader, and return the resulting data URL.
+ *
+ * No separate upload server is required — the data URI is saved directly
+ * into the database receipt/bill column via POST /expenses.
  */
-const validateFile = (filename: string) => {
-  const ext = filename.split('.').pop()?.toLowerCase() || '';
-  if (!MIME_TYPES[ext]) {
-    throw new Error(`Unsupported file type (.${ext}). Only JPG, JPEG, PNG, and PDF are allowed.`);
+export const encodeReceiptToDataUrl = async (
+  uri: string,
+  mimeType: string,
+  base64FromPicker?: string | null
+): Promise<string> => {
+  if (!uri) throw new Error('No receipt file URI provided.');
+
+  const safeMime = mimeType || 'image/jpeg';
+
+  // ── Native path: use the base64 string provided by ImagePicker ──
+  if (Platform.OS !== 'web') {
+    if (!base64FromPicker) {
+      throw new Error('Receipt base64 data is missing. Please pick the image again.');
+    }
+    return `data:${safeMime};base64,${base64FromPicker}`;
+  }
+
+  // ── Web path: fetch the blob URI, draw on canvas, and compress ──
+  try {
+    const res = await fetch(uri);
+    const blob = await res.blob();
+
+    // Scale and compress using HTML Canvas on web platforms
+    const compressedDataUrl = await new Promise<string>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+
+        // Limit the maximum dimensions to 800px to ensure a small file size
+        const maxDim = 800;
+        if (width > maxDim || height > maxDim) {
+          if (width > height) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          } else {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          reject(new Error('Failed to create canvas context.'));
+          return;
+        }
+
+        ctx.drawImage(img, 0, 0, width, height);
+
+        // Compress to JPEG with 0.2 quality (highly compressed but text is perfectly readable)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.2);
+        resolve(dataUrl);
+      };
+
+      img.onerror = () => {
+        reject(new Error('Failed to load image for compression.'));
+      };
+
+      img.src = URL.createObjectURL(blob);
+    });
+
+    return compressedDataUrl;
+  } catch (err: any) {
+    throw new Error('Failed to process and compress receipt image.');
   }
 };
 
@@ -41,6 +114,8 @@ export const createExpense = async (
       throw new Error('Invalid expense date provided.');
     }
 
+    const billValue = receiptUrl || 'N/A';
+
     const response = await api.post(
       '/expenses',
       {
@@ -49,7 +124,9 @@ export const createExpense = async (
         amount,
         expenseDate,
         description: (description || '').trim(),
-        receiptUrl: receiptUrl || 'N/A',
+        // Send under both field names to handle any backend column naming variation
+        receiptUrl: billValue,
+        billUrl: billValue,
       },
       { headers }
     );
@@ -83,74 +160,6 @@ export const getExpensesByMr = async () => {
     return list;
   } catch (err: any) {
     console.error('Error in getExpensesByMr service:', err);
-    throw err;
-  }
-};
-
-/**
- * Upload receipt image/file to the backend.
- * POST /expenses/upload
- * Returns the hosted URL of the receipt.
- * Optional fileSize parameter enables cross-platform size validation at the service level.
- */
-export const uploadExpenseReceipt = async (uri: string, fileSize?: number): Promise<string> => {
-  try {
-    const { headers } = await getAuthDetails();
-
-    if (!uri) {
-      throw new Error('No receipt file URI provided for upload.');
-    }
-
-    const filename = uri.split('/').pop() || 'receipt.jpg';
-    validateFile(filename);
-
-    const ext = filename.split('.').pop()?.toLowerCase() || 'jpeg';
-    const mimeType = MIME_TYPES[ext] || 'image/jpeg';
-    const formData = new FormData();
-
-    // 1. Validate File Size on Native if provided (Max 5MB)
-    if (fileSize && fileSize > 5 * 1024 * 1024) {
-      throw new Error('Receipt file size exceeds the 5 MB limit.');
-    }
-
-    if (Platform.OS === 'web') {
-      try {
-        const res = await fetch(uri);
-        const blob = await res.blob();
-        
-        // 2. Validate File Size on Web (Max 5MB)
-        if (blob.size > 5 * 1024 * 1024) {
-          throw new Error('Receipt file size exceeds the 5 MB limit.');
-        }
-
-        formData.append('file', blob, filename);
-      } catch (fetchErr) {
-        throw new Error('Failed to resolve local web file asset for upload.');
-      }
-    } else {
-      formData.append('file', {
-        uri,
-        name: filename,
-        type: mimeType,
-      } as any);
-    }
-
-    const response = await api.post('/expenses/upload', formData, {
-      headers: {
-        ...headers,
-        'Content-Type': 'multipart/form-data',
-      },
-      timeout: 30000, // 30 seconds upload timeout
-    });
-
-    const url = response.data?.url || response.data?.data?.url;
-    if (!url) {
-      throw new Error('Upload completed but backend did not return a valid file URL.');
-    }
-
-    return url;
-  } catch (err: any) {
-    console.error('Error in uploadExpenseReceipt service:', err);
     throw err;
   }
 };

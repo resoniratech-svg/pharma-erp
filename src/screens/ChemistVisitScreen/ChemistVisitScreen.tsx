@@ -1,33 +1,33 @@
-import { 
-  createChemistVisit, 
-  findChemistByMobile, 
-  createChemist,
-  getChemists,
-  getChemistVisitsByMr,
-  updateChemistVisit,
-  updateChemist
-} from '../../services/chemistService'; 
-import { createFollowUp } from '../../services/followUpService'; 
-import { getProducts } from '../../services/productService';
-import { createRetailerOrder } from '../../services/orderService';
-import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  TextInput,
-  ScrollView,
-  Alert,
-  Platform,
-  KeyboardAvoidingView,
-  ActivityIndicator,
-} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation, useIsFocused } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
+import { useIsFocused, useNavigation } from '@react-navigation/native';
 import * as Location from 'expo-location';
+import React, { useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+import {
+  createChemist,
+  createChemistVisit,
+  findChemistByMobile,
+  getChemists,
+  getChemistVisitsByMr,
+  updateChemist,
+  updateChemistVisit
+} from '../../services/chemistService';
+import { createFollowUp } from '../../services/followUpService';
+import { createRetailerOrder } from '../../services/orderService';
+import { getProducts } from '../../services/productService';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -1129,7 +1129,6 @@ const ChemistVisitScreen = () => {
         </View>
 
         {/* Visit History */}
-        <Text style={styles.historyTitle}>Recent Visits</Text>
         {loading ? (
           <ActivityIndicator size="small" color="#43A047" style={{ marginVertical: 10 }} />
         ) : error ? (

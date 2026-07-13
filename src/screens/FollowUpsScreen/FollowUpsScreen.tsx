@@ -181,7 +181,18 @@ const FollowUpsScreen = () => {
         specialty: item.doctor?.specialization || 'General',
         hospital: item.doctor?.hospitalName || item.chemist?.address || '',
         mobile: item.doctor?.mobile || item.chemist?.mobile || item.mobile || '',
-        followUpDate: formatDateString(new Date(item.followUpDate)),
+        followUpDate: (() => {
+          if (!item.followUpDate) return 'N/A';
+          const datePart = item.followUpDate.split('T')[0];
+          const parts = datePart.split(/[-/]/);
+          if (parts.length === 3) {
+            if (parts[0].length === 4) {
+              return `${parts[2]}-${parts[1]}-${parts[0]}`;
+            }
+            return `${parts[0]}-${parts[1]}-${parts[2]}`;
+          }
+          return item.followUpDate;
+        })(),
         followUpStatus:
           item.status === 'COMPLETED'
             ? 'Completed'
@@ -334,7 +345,18 @@ const FollowUpsScreen = () => {
 
     try {
       const dateObj = parseDateString(newFollowUpDate);
-      const isoDateStr = dateObj.toISOString();
+      const year = dateObj.getFullYear();
+      const month = (dateObj.getMonth() + 1).toString().padStart(2, '0');
+      const day = dateObj.getDate().toString().padStart(2, '0');
+      const formattedYMD = `${year}-${month}-${day}`;
+
+      const todayStr = new Date().toISOString().split('T')[0]; // "2026-07-13"
+      if (formattedYMD < todayStr) {
+        customAlert('Rescheduling Blocked', 'Cannot reschedule a follow-up to a past date.');
+        return;
+      }
+
+      const isoDateStr = `${formattedYMD}T00:00:00.000Z`;
 
       await rescheduleFollowUp(selectedVisitId, isoDateStr);
       

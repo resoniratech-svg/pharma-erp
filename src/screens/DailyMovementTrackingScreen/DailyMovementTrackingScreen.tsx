@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  getDailyMovement
-} from '../../services/dailyMovementService';
+import { getDailyMovement } from '../../services/dailyMovementService';
+import { getDoctorVisitsByMr } from '../../services/doctorService';
+import { getChemistVisitsByMr } from '../../services/chemistService';
+import { getAttendanceLogs } from '../../services/attendanceService';
 import {
   View,
   Text,
@@ -125,14 +126,32 @@ const DailyMovementTrackingScreen = () => {
   const isDateMatch = (itemDate: any, targetDate: string): boolean => {
     if (!itemDate) return false;
     try {
-      if (/^\d{2}-\d{2}-\d{4}$/.test(itemDate)) {
-        return itemDate === targetDate;
+      const cleanTarget = targetDate.replace(/[\/-]/g, ''); // E.g., "13072026"
+      
+      // Try parsing with Javascript Date object
+      const d = new Date(itemDate);
+      if (!isNaN(d.getTime())) {
+        const day = d.getDate().toString().padStart(2, '0');
+        const month = (d.getMonth() + 1).toString().padStart(2, '0');
+        const year = d.getFullYear().toString();
+        return `${day}${month}${year}` === cleanTarget;
       }
-      const parts = itemDate.toString().replace(/,/g, '').split(/[\s-]+/);
+      
+      // Fallback: standard string extraction
+      const parts = itemDate.toString().replace(/,/g, '').split(/[\s-T\/]+/);
       if (parts.length >= 3) {
-        const day = parts[0].padStart(2, '0');
-        const monthStr = parts[1];
-        const year = parts[2];
+        let day = parts[0];
+        let monthStr = parts[1];
+        let year = parts[2];
+        
+        // Handle YYYY-MM-DD format from ISO splits
+        if (day.length === 4) {
+          year = parts[0];
+          monthStr = parts[1];
+          day = parts[2];
+        }
+        
+        day = day.padStart(2, '0');
         const months: { [key: string]: string } = {
           'jan': '01', 'feb': '02', 'mar': '03', 'apr': '04', 'may': '05', 'jun': '06',
           'jul': '07', 'aug': '08', 'sep': '09', 'oct': '10', 'nov': '11', 'dec': '12',
@@ -145,52 +164,30 @@ const DailyMovementTrackingScreen = () => {
         } else {
           month = monthStr.padStart(2, '0');
         }
-        const normalized = `${day}-${month}-${year}`;
-        return normalized === targetDate;
+        
+        return `${day}${month}${year}` === cleanTarget;
       }
-      return false;
+      
+      return itemDate.toString().includes(targetDate);
     } catch {
       return false;
     }
   };
 
-  // Real-time visit coverage calculations
-  const calculateRealCoverage = async () => {
+  // Real-time visit coverage calculations — uses movementSummary from API
+  const calculateRealCoverage = (summary?: any) => {
     try {
-      const storedTerritories = await AsyncStorage.getItem('@assigned_territories');
-      const activeTerritories = safeJsonParse(storedTerritories, []);
-      
-      const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
-      const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
-      const docVisits = safeJsonParse(docVisitsData, []);
-      const chemVisits = safeJsonParse(chemistVisitsData, []);
-
-      // Match visits for selected date
-      const todayDocs = docVisits.filter((v: any) => {
-        const val = v.date || v.visitDate || v.timestamp;
-        return isDateMatch(val, selectedDate);
-      });
-      const todayChems = chemVisits.filter((v: any) => {
-        const val = v.date || v.visitDate || v.timestamp;
-        return isDateMatch(val, selectedDate);
-      });
-
-      const totalVisitedToday = todayDocs.length + todayChems.length;
-
-      if (activeTerritories.length > 0) {
-        const activeBeats = activeTerritories.filter((t: any) => t.status === 'Active Beat');
-        const targetBeats = activeBeats.length > 0 ? activeBeats : activeTerritories;
-        const totalAssigned = targetBeats.reduce(
-          (sum: number, t: any) => sum + (t.doctorsCount || 0) + (t.chemistsCount || 0),
-          0
-        );
-
-        if (totalAssigned > 0) {
-          const pct = Math.min(Math.round((totalVisitedToday / totalAssigned) * 100), 100);
-          setRouteCoverage(`${pct}%`);
-        } else {
-          setRouteCoverage('N/A');
-        }
+      const activeSummary = summary || movementSummary;
+      if (!activeSummary) { setRouteCoverage('N/A'); return; }
+      const docVisits  = activeSummary.doctorVisits  || 0;
+      const chemVisits = activeSummary.chemistVisits || 0;
+      const total = docVisits + chemVisits;
+      const planned = activeSummary.plannedVisits || activeSummary.totalPlanned || 0;
+      if (planned > 0) {
+        const pct = Math.min(Math.round((total / planned) * 100), 100);
+        setRouteCoverage(`${pct}%`);
+      } else if (total > 0) {
+        setRouteCoverage(`${total} visits`);
       } else {
         setRouteCoverage('N/A');
       }
@@ -200,164 +197,148 @@ const DailyMovementTrackingScreen = () => {
     }
   };
 
- const loadMovementSummary = async () => {
-
-  try {
-
-    const [day, month, year] =
-      selectedDate.split('-');
-
-    const apiDate =
-      `${year}-${month}-${day}`;
-
-    console.log(
-      'API DATE:',
-      apiDate
-    );
-
-    const summary =
-      await getDailyMovement(
-        apiDate
-      );
-
-      setMovementSummary(summary);
-
-    console.log(
-      'DAILY MOVEMENT:',
-      summary
-    );
-
-  } catch (error) {
-
-    console.log(
-      'Daily Movement Error:',
-      error
-    );
-
-  }
-};
-
-  // Load logs
-  const loadMovementLogs = async (showLoadingSpinner = true) => {
-    if (showLoadingSpinner) {
-      setLoading(true);
-    }
+  // Load logs — build GPS route map from live API data
+  const loadMovementLogs = async (showLoadingSpinner = true, summary?: any) => {
+    if (showLoadingSpinner) setLoading(true);
     setError(null);
     try {
-      const key = `@gps_movement_${selectedDate}`;
-      const stored = await AsyncStorage.getItem(key);
-      let logs: LocationLog[] = [];
-      if (stored) {
-        logs = safeJsonParse(stored, []);
-      }
-      
-      if (logs.length === 0) {
-        const compiled: LocationLog[] = [];
-        
-        // 1. Add Check-In if exists
-        const checkInLat = await AsyncStorage.getItem('@check_in_lat');
-        const checkInLng = await AsyncStorage.getItem('@check_in_lng');
-        const checkInAddress = await AsyncStorage.getItem('@check_in_address');
-        const checkInTime = await AsyncStorage.getItem('@check_in_time');
-        
-        if (checkInLat && checkInLng) {
+      const compiled: LocationLog[] = [];
+
+      // ── 1. Attendance Check-In / Check-Out GPS from API ─────────────────
+      let attLogs: any[] = [];
+      try {
+        const raw = await getAttendanceLogs();
+        attLogs = Array.isArray(raw) ? raw : [];
+      } catch { attLogs = []; }
+
+      const todayAtt = attLogs.find((a: any) => {
+        const d = a.checkInTime || a.checkinTime || a.createdAt || '';
+        return isDateMatch(d, selectedDate);
+      });
+
+      if (todayAtt) {
+        const ciLat = parseFloat(todayAtt.checkInLatitude  || todayAtt.latitude  || '0');
+        const ciLng = parseFloat(todayAtt.checkInLongitude || todayAtt.longitude || '0');
+        const ciRaw = todayAtt.checkInTime || todayAtt.checkinTime || '';
+        const ciTime = ciRaw ? new Date(ciRaw).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '09:00 AM';
+        if (ciLat && ciLng) {
           compiled.push({
-            id: Date.now() - 100000,
-            time: checkInTime || '09:00 AM',
-            latitude: parseFloat(checkInLat),
-            longitude: parseFloat(checkInLng),
-            address: checkInAddress || 'Check-in location',
+            id: 1,
+            time: ciTime,
+            latitude: ciLat,
+            longitude: ciLng,
+            address: todayAtt.checkInAddress || todayAtt.address || 'Check-in location',
             type: 'checkin',
             label: 'Checked-In: Beat Start',
-            accuracy: 4
+            accuracy: todayAtt.checkInAccuracy || todayAtt.accuracy || 4,
           });
         }
-        
-        // 2. Add doctor visits today
-        const docVisitsData = await AsyncStorage.getItem('@doctor_visits');
-        const docVisits = safeJsonParse(docVisitsData, []);
-        const todayDocs = docVisits.filter((v: any) => isDateMatch(v.date || v.visitDate || v.timestamp, selectedDate));
-        
-        todayDocs.forEach((v: any, idx: number) => {
-          if (v.latitude && v.longitude) {
-            compiled.push({
-              id: v.id || (Date.now() - 50000 + idx),
-              time: v.visitTime || '10:00 AM',
-              latitude: parseFloat(v.latitude),
-              longitude: parseFloat(v.longitude),
-              address: v.clinicAddress || v.address || 'Doctor clinic',
-              type: 'doctor',
-              label: `Visit: Dr. ${v.doctorName || 'Doctor'}`,
-              accuracy: 5
-            });
-          }
-        });
-        
-        // 3. Add chemist visits today
-        const chemistVisitsData = await AsyncStorage.getItem('@chemist_visits');
-        const chemVisits = safeJsonParse(chemistVisitsData, []);
-        const todayChems = chemVisits.filter((v: any) => isDateMatch(v.date || v.visitDate || v.timestamp, selectedDate));
-        
-        todayChems.forEach((v: any, idx: number) => {
-          if (v.latitude && v.longitude) {
-            compiled.push({
-              id: v.id || (Date.now() - 25000 + idx),
-              time: v.visitTime || '11:00 AM',
-              latitude: parseFloat(v.latitude),
-              longitude: parseFloat(v.longitude),
-              address: v.address || 'Chemist pharmacy store',
-              type: 'chemist',
-              label: `Visit: ${v.shopName || v.chemistName || 'Chemist'}`,
-              accuracy: 6
-            });
-          }
-        });
-        
-        // 4. Add Check-Out if exists
-        const checkOutLat = await AsyncStorage.getItem('@check_out_lat');
-        const checkOutLng = await AsyncStorage.getItem('@check_out_lng');
-        const checkOutAddress = await AsyncStorage.getItem('@check_out_address');
-        const checkOutTime = await AsyncStorage.getItem('@check_out_time');
-        
-        if (checkOutLat && checkOutLng) {
+
+        const coLat = parseFloat(todayAtt.checkOutLatitude  || todayAtt.checkoutLatitude  || '0');
+        const coLng = parseFloat(todayAtt.checkOutLongitude || todayAtt.checkoutLongitude || '0');
+        const coRaw = todayAtt.checkOutTime || todayAtt.checkoutTime || '';
+        if (coLat && coLng && coRaw) {
+          const coTime = new Date(coRaw).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
           compiled.push({
-            id: Date.now(),
-            time: checkOutTime || '06:00 PM',
-            latitude: parseFloat(checkOutLat),
-            longitude: parseFloat(checkOutLng),
-            address: checkOutAddress || 'Check-out location',
+            id: 9999,
+            time: coTime,
+            latitude: coLat,
+            longitude: coLng,
+            address: todayAtt.checkOutAddress || todayAtt.checkoutAddress || 'Check-out location',
             type: 'checkout',
             label: 'Checked-Out: Beat End',
-            accuracy: 4
+            accuracy: todayAtt.checkOutAccuracy || todayAtt.accuracy || 4,
           });
         }
-
-        const timeToMinutes = (timeStr: string): number => {
-          if (!timeStr) return 0;
-          const match = timeStr.match(/(\d+):(\d+)\s*(AM|PM)/i);
-          if (!match) return 0;
-          let hrs = parseInt(match[1]);
-          const mins = parseInt(match[2]);
-          const ampm = match[3].toUpperCase();
-          if (ampm === 'PM' && hrs < 12) hrs += 12;
-          if (ampm === 'AM' && hrs === 12) hrs = 0;
-          return hrs * 60 + mins;
-        };
-
-        compiled.sort((a, b) => {
-          if (a.type === 'checkin') return -1;
-          if (b.type === 'checkin') return 1;
-          if (a.type === 'checkout') return 1;
-          if (b.type === 'checkout') return -1;
-          return timeToMinutes(a.time) - timeToMinutes(b.time);
-        });
-        
-        logs = compiled;
       }
 
-      setMovementLogs(logs);
-      calculateTotalDist(logs);
-      await calculateRealCoverage();
+      // ── 2. Doctor Visits GPS from API ────────────────────────────────────
+      let dvArr: any[] = [];
+      try {
+        const raw = await getDoctorVisitsByMr();
+        dvArr = Array.isArray(raw) ? raw : [];
+      } catch { dvArr = []; }
+
+      dvArr
+        .filter((v: any) => {
+          const raw = v.visitDate || v.createdAt || '';
+          return isDateMatch(raw, selectedDate);
+        })
+        .forEach((v: any, idx: number) => {
+          const lat = parseFloat(v.latitude  || '0');
+          const lng = parseFloat(v.longitude || '0');
+          if (!lat || !lng) return;
+          const rawTs = v.visitDate || v.createdAt || '';
+          const visitTime = rawTs
+            ? new Date(rawTs).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            : '10:00 AM';
+          const doctorName = v.doctor?.name || v.doctorName || `Doctor #${v.doctorId || idx + 1}`;
+          compiled.push({
+            id: v.id || (100 + idx),
+            time: visitTime,
+            latitude: lat,
+            longitude: lng,
+            address: v.clinicAddress || v.address || `Dr. ${doctorName}'s Clinic`,
+            type: 'doctor',
+            label: `Visit: Dr. ${doctorName}`,
+            accuracy: v.accuracy || 5,
+          });
+        });
+
+      // ── 3. Chemist Visits GPS from API ───────────────────────────────────
+      let cvArr: any[] = [];
+      try {
+        const raw = await getChemistVisitsByMr();
+        cvArr = Array.isArray(raw) ? raw : [];
+      } catch { cvArr = []; }
+
+      cvArr
+        .filter((c: any) => {
+          const raw = c.visitDate || c.createdAt || '';
+          return isDateMatch(raw, selectedDate);
+        })
+        .forEach((c: any, idx: number) => {
+          const lat = parseFloat(c.latitude  || '0');
+          const lng = parseFloat(c.longitude || '0');
+          if (!lat || !lng) return;
+          const rawTs = c.visitDate || c.createdAt || '';
+          const visitTime = rawTs
+            ? new Date(rawTs).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            : '11:00 AM';
+          const shopName = c.chemist?.shopName || c.chemist?.name || c.shopName || c.chemistName || `Chemist #${c.chemistId || idx + 1}`;
+          compiled.push({
+            id: c.id || (200 + idx),
+            time: visitTime,
+            latitude: lat,
+            longitude: lng,
+            address: c.address || `${shopName} Pharmacy`,
+            type: 'chemist',
+            label: `Visit: ${shopName}`,
+            accuracy: c.accuracy || 6,
+          });
+        });
+
+      // ── Sort: checkin first, checkout last, rest by time ─────────────────
+      const timeToMins = (t: string): number => {
+        const m = t.match(/(\d+):(\d+)\s*(AM|PM)/i);
+        if (!m) return 720;
+        let h = parseInt(m[1]); const min = parseInt(m[2]); const ap = m[3].toUpperCase();
+        if (ap === 'PM' && h < 12) h += 12;
+        if (ap === 'AM' && h === 12) h = 0;
+        return h * 60 + min;
+      };
+      compiled.sort((a, b) => {
+        if (a.type === 'checkin')  return -1;
+        if (b.type === 'checkin')  return 1;
+        if (a.type === 'checkout') return 1;
+        if (b.type === 'checkout') return -1;
+        return timeToMins(a.time) - timeToMins(b.time);
+      });
+
+
+      setMovementLogs(compiled);
+      calculateTotalDist(compiled);
+      calculateRealCoverage(summary ?? movementSummary);
       setLastSynced(formatLastSyncedTime());
     } catch (e) {
       console.log('Failed to load GPS logs', e);
@@ -369,39 +350,29 @@ const DailyMovementTrackingScreen = () => {
 
  useFocusEffect(
   useCallback(() => {
-
     const loadData = async () => {
-
-      await loadMovementSummary();
-
-      console.log('SELECTED DATE:', selectedDate);
-console.log('TYPE:', typeof selectedDate);
-
-      await loadMovementLogs(true);
-
+      // Load movement summary from API first so coverage calc has data
+      let summary: any = null;
+      try {
+        const [day, month, year] = selectedDate.split('-');
+        summary = await getDailyMovement(`${year}-${month}-${day}`);
+        setMovementSummary(summary);
+      } catch (e) {
+        console.log('Daily Movement Error:', e);
+      }
+      await loadMovementLogs(true, summary);
     };
-
     loadData();
-
     return () => {
-
-      // Cleanup timers on focus blur
-      if (trackingTimerRef.current) {
-        clearInterval(trackingTimerRef.current);
-      }
-
-      if (simTimerRef.current) {
-        clearInterval(simTimerRef.current);
-      }
-
+      if (trackingTimerRef.current) clearInterval(trackingTimerRef.current);
+      if (simTimerRef.current) clearInterval(simTimerRef.current);
     };
-
   }, [selectedDate])
 );
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadMovementLogs(false);
+    await loadMovementLogs(false, movementSummary);
     setRefreshing(false);
   };
 
@@ -631,6 +602,20 @@ console.log('TYPE:', typeof selectedDate);
         ]
       );
     }
+  };
+
+  const formatTimeSafe = (timeStr: any): string => {
+    if (!timeStr) return 'N/A';
+    if (typeof timeStr === 'string' && !timeStr.includes('T') && !timeStr.includes('-') && !timeStr.includes('/')) {
+      return timeStr;
+    }
+    try {
+      const d = new Date(timeStr);
+      if (!isNaN(d.getTime())) {
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }).toLowerCase();
+      }
+    } catch {}
+    return String(timeStr);
   };
 
   // Dynamic MR metrics
@@ -878,18 +863,14 @@ console.log('TYPE:', typeof selectedDate);
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryIcon}>🟢</Text>
                 <Text style={styles.summaryVal}>
-                  {movementSummary?.checkInTime
-                    ? new Date(movementSummary.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    : 'N/A'}
+                  {formatTimeSafe(movementSummary?.checkInTime)}
                 </Text>
                 <Text style={styles.summaryLabel}>Check In</Text>
               </View>
               <View style={styles.summaryCard}>
                 <Text style={styles.summaryIcon}>🔴</Text>
                 <Text style={styles.summaryVal}>
-                  {movementSummary?.checkOutTime
-                    ? new Date(movementSummary.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-                    : 'N/A'}
+                  {formatTimeSafe(movementSummary?.checkOutTime)}
                 </Text>
                 <Text style={styles.summaryLabel}>Check Out</Text>
               </View>
