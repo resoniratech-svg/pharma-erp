@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 RUN npm ci
 
-# Copy the rest of the application files and build
+# Copy the rest of the application files and build (Cache busted)
 COPY . .
 RUN npm run build
 
