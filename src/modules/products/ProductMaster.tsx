@@ -313,15 +313,14 @@ export default function ProductMaster() {
     return false; // Assuming products are not strictly bound by local storage anymore, backend deletes should enforce referential integrity
   };
   const autoGenerateProductCode = () => {
-    const maxCodeNumber = products.reduce((max, p) => {
-      const match = p.code.match(/PRD-(\d+)/);
-      if (match) {
-        const num = parseInt(match[1], 10);
-        return num > max ? num : max;
-      }
-      return max;
-    }, 0);
-    return `PRD-${String(maxCodeNumber + 1).padStart(6, "0")}`;
+    const now = new Date();
+    const YYYY = now.getFullYear();
+    const MM = String(now.getMonth() + 1).padStart(2, '0');
+    const DD = String(now.getDate()).padStart(2, '0');
+    const hh = String(now.getHours()).padStart(2, '0');
+    const mm = String(now.getMinutes()).padStart(2, '0');
+    const ss = String(now.getSeconds()).padStart(2, '0');
+    return `PRD-${YYYY}${MM}${DD}-${hh}${mm}${ss}`;
   };
 
   const handleExport = () => {
@@ -457,7 +456,10 @@ export default function ProductMaster() {
           totalUnits: calculatedTotalUnits
         };
         const createdProduct = await productService.addProduct(payload);
-        setProducts(prev => [createdProduct, ...prev]);
+        // Reload full list from backend to get all enriched fields correctly
+        const refreshed = await productService.loadProducts();
+        setProducts(refreshed);
+        void createdProduct; // suppress unused var warning
       }
 
       activityLogService.addLog({

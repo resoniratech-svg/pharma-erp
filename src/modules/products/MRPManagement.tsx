@@ -117,7 +117,7 @@ export default function MRPManagement() {
     const matchesSearch = item.productName.toLowerCase().includes(search.toLowerCase()) || item.productCode.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter ? item.status === statusFilter : true;
     return matchesSearch && matchesStatus;
-  });
+  }).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   const handleExport = () => {
     const headers = ['Product Code', 'Product Name', 'Previous MRP', 'Current MRP', 'Effective From', 'Status', 'Last Updated'];
