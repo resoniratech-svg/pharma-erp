@@ -19,12 +19,24 @@ const createProduct = async (req, res) => {
       }
     }
 
-    // 2. Coerce types and prepare product creation object
+    // 2. Ensure company exists
+    let targetCompanyId = req.user.companyId || 1;
+    await prisma.company.upsert({
+      where: { id: targetCompanyId },
+      update: {},
+      create: {
+        id: targetCompanyId,
+        name: "Default Pharma Company",
+        email: "info@pharmaerp.com",
+      }
+    });
+
+    // 3. Coerce types and prepare product creation object
     const productData = {
       name: req.body.name,
       code: req.body.code,
       categoryId: categoryId,
-      companyId: req.user.companyId || 1, // Fallback to 1 if no company
+      companyId: targetCompanyId,
       hsnCode: req.body.hsnCode,
       gst: req.body.gst ? parseFloat(req.body.gst) : 0,
       mrp: req.body.mrp ? parseFloat(req.body.mrp) : 0,

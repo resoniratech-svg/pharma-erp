@@ -39,6 +39,17 @@ const users = [
 async function main() {
   const hashedPassword = await bcrypt.hash("1234", 10);
   
+  console.log("Seeding default company...");
+  const company = await prisma.company.upsert({
+    where: { id: 1 },
+    update: {},
+    create: {
+      id: 1,
+      name: "Default Pharma Company",
+      email: "info@pharmaerp.com",
+    }
+  });
+
   console.log("Starting seeding default users...");
   
   for (const userData of users) {
@@ -48,12 +59,14 @@ async function main() {
         name: userData.name,
         role: userData.role,
         password: hashedPassword,
+        companyId: 1,
       },
       create: {
         name: userData.name,
         email: userData.email,
         role: userData.role,
         password: hashedPassword,
+        companyId: 1,
       },
     });
     console.log(`Seeded user: ${user.name} (${user.role})`);
@@ -74,6 +87,7 @@ async function main() {
         password: adminHashedPassword,
         role: 'SUPER_ADMIN',
         isActive: true,
+        companyId: 1,
       }
     });
     console.log('Super Admin user created successfully:', admin);
