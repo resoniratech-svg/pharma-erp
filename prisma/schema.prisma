@@ -211,6 +211,8 @@ model Product {
   inwardStockItems       InwardStockItem[]
   outwardStockItems      OutwardStockItem[]
   warehouseTransferItems WarehouseTransferItem[]
+  pricingMasters         PricingMaster[]
+  schemeMasters          SchemeMaster[]
 }
 
 model Batch {
@@ -234,6 +236,8 @@ model Batch {
   updatedAt DateTime @updatedAt
 
   outwardStockItems OutwardStockItem[]
+  pricingMasters    PricingMaster[]
+  schemeMasters     SchemeMaster[]
 }
 
 model Inventory {
@@ -723,7 +727,7 @@ model Doctor {
   createdAt DateTime @default(now())
 
   tourPlanDoctors TourPlanDoctor[]
-  meetings        Meeting[] @relation("DoctorDirectMeetings")
+  meetings        Meeting[]        @relation("DoctorDirectMeetings")
 }
 
 model Chemist {
@@ -754,7 +758,7 @@ model Chemist {
 
   createdAt        DateTime          @default(now())
   tourPlanChemists TourPlanChemist[]
-  meetings         Meeting[] @relation("ChemistDirectMeetings")
+  meetings         Meeting[]         @relation("ChemistDirectMeetings")
 }
 
 model Attendance {
@@ -957,12 +961,12 @@ model Meeting {
 
   doctor Doctor? @relation("DoctorDirectMeetings", fields: [doctorId], references: [id])
 
-  chemist         Chemist?         @relation("ChemistDirectMeetings", fields: [chemistId], references: [id])
-  meetingDoctors  MeetingDoctor[]
-  meetingChemists MeetingChemist[]
+  chemist          Chemist?          @relation("ChemistDirectMeetings", fields: [chemistId], references: [id])
+  meetingDoctors   MeetingDoctor[]
+  meetingChemists  MeetingChemist[]
   meetingHospitals MeetingHospital[]
   meetingStockists MeetingStockist[]
-  followUps       FollowUp[]
+  followUps        FollowUp[]
 }
 
 model MeetingDoctor {
@@ -1158,10 +1162,10 @@ model Distributor {
 }
 
 model Hospital {
-  id      Int     @id @default(autoincrement())
-  name    String
-  mobile  String?
-  address String?
+  id               Int               @id @default(autoincrement())
+  name             String
+  mobile           String?
+  address          String?
   meetingHospitals MeetingHospital[]
 }
 
@@ -1245,4 +1249,78 @@ model OutwardStockItem {
   batch          Batch        @relation(fields: [batchId], references: [id])
   quantity       Int
   rate           Float        @default(0.0)
+}
+
+model HSNCode {
+  id          Int      @id @default(autoincrement())
+  code        String   @unique
+  description String
+  status      String   @default("Active")
+  remarks     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model GSTRecord {
+  id            Int       @id @default(autoincrement())
+  hsnCode       String
+  description   String
+  gstPercent    Float
+  effectiveDate DateTime?
+  createdBy     String?
+  lastUpdatedBy String?
+  status        String    @default("Active")
+  remarks       String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model PackingType {
+  id          Int      @id @default(autoincrement())
+  name        String   @default("")
+  code        String   @unique
+  uom         String   @default("")
+  description String
+  status      String   @default("Active")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model PricingMaster {
+  id            Int       @id @default(autoincrement())
+  productId     Int
+  product       Product   @relation(fields: [productId], references: [id])
+  mrp           Float
+  ptr           Float
+  pts           Float
+  margin        Float
+  effectiveDate DateTime?
+  status        String    @default("Active")
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  batch         Batch?    @relation(fields: [batchId], references: [id])
+  batchId       Int?
+}
+
+model SchemeMaster {
+  id                  Int       @id @default(autoincrement())
+  code                String    @unique
+  name                String
+  type                String    @default("Quantity Discount")
+  applicableTo        String    @default("All Products")
+  applicableSelection String    @default("")
+  productId           Int?
+  product             Product?  @relation(fields: [productId], references: [id])
+  benefitType         String    @default("Free Quantity")
+  benefitValue        String?
+  buyQty              Int
+  freeQty             Int
+  startDate           DateTime?
+  endDate             DateTime?
+  remarks             String?
+  status              String    @default("Active")
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  batch               Batch?    @relation(fields: [batchId], references: [id])
+  batchId             Int?
 }

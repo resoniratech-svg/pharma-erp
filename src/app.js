@@ -30,6 +30,12 @@ require("./modules/rolePermission/rolePermission.routes");
 const roleTestRoutes =
 require("./modules/test/roleTest.routes");
 
+const hsnRoutes = require("./modules/hsn/hsn.routes");
+const gstRoutes = require("./modules/gst/gst.routes");
+const packingTypeRoutes = require("./modules/packing-type/packing-type.routes");
+const pricingRoutes = require("./modules/pricing/pricing.routes");
+const schemeRoutes = require("./modules/scheme/scheme.routes");
+
 const productRoutes =
   require("./modules/products/product.routes");
 
@@ -236,6 +242,12 @@ app.use(
   "/api/products",
   productRoutes
 );
+
+app.use("/api/hsn", hsnRoutes);
+app.use("/api/gst", gstRoutes);
+app.use("/api/packing-types", packingTypeRoutes);
+app.use("/api/pricing", pricingRoutes);
+app.use("/api/schemes", schemeRoutes);
 
 app.use(
   "/api/categories",
