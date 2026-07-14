@@ -29,3 +29,23 @@ export const getRetailerOrders = async () => {
   });
   return response.data.data || response.data;
 };
+
+export const updateRetailerOrder = async (id: number, orderPayload: any) => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.put(`/retailer-orders/${id}`, orderPayload, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.data || response.data;
+};
+
+export const deleteRetailerOrder = async (id: number) => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.delete(`/retailer-orders/${id}`, {
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  return response.data.data || response.data;
+};

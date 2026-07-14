@@ -18,6 +18,7 @@ import { getExpensesByMr } from '../../services/expenseService';
 import { getMeetingsByMr } from '../../services/meetingService';
 import { getFollowUpsByMr } from '../../services/followUpService';
 import { getRetailerOrders } from '../../services/orderService';
+import { getDailyReportsByMr } from '../../services/dailyReportService';
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 type ActivityType =
@@ -92,7 +93,7 @@ const TABS: { key: TabKey; label: string; emoji: string }[] = [
   { key: 'report',     label: 'REPORTS',    emoji: '📄' },
 ];
 
-// ── Badge colours ─────────────────────────────────────────────────────────────
+// ── Badge colors ─────────────────────────────────────────────────────────────
 const BADGE_COLOR: Record<string, string> = {
   visit:      '#06B6D4',
   order:      '#10B981',
@@ -101,6 +102,16 @@ const BADGE_COLOR: Record<string, string> = {
   meeting:    '#6366F1',
   followup:   '#E11D48',
   report:     '#3B82F6',
+};
+
+const BADGE_EMOJI: Record<string, string> = {
+  visit:      '🩺',
+  order:      '📦',
+  expense:    '💵',
+  attendance: '📍',
+  meeting:    '🤝',
+  followup:   '🔔',
+  report:     '📄',
 };
 
 // ── Main Component ────────────────────────────────────────────────────────────
@@ -121,7 +132,6 @@ const ActivityTrackingScreen = () => {
       const doctorVisits = await safeCall(() => getDoctorVisitsByMr(), []);
       const dvArr = Array.isArray(doctorVisits) ? doctorVisits : [];
       dvArr.forEach((d: any, idx: number) => {
-        // doctor name: may come via join as d.doctor.name, or d.doctorName
         const doctorName =
           d.doctor?.name ||
           d.doctorName ||
@@ -137,7 +147,7 @@ const ActivityTrackingScreen = () => {
           time:      formatTime(rawTs),
           date:      formatDate(rawTs),
           type:      'visit',
-          title:     `🩺 Doctor Visited: Dr. ${doctorName}`,
+          title:     `Doctor Visited: Dr. ${doctorName}`,
           details:   `Specialty: ${specialty} | Hospital: ${hospital} | Notes: ${d.remarks || d.notes || 'None'}`,
           timestamp: ts,
         });
@@ -147,7 +157,6 @@ const ActivityTrackingScreen = () => {
       const chemistVisits = await safeCall(() => getChemistVisitsByMr(), []);
       const cvArr = Array.isArray(chemistVisits) ? chemistVisits : [];
       cvArr.forEach((c: any, idx: number) => {
-        // chemist name: may come via join as c.chemist.name / c.chemist.shopName
         const shopName =
           c.chemist?.shopName ||
           c.chemist?.name ||
@@ -163,7 +172,7 @@ const ActivityTrackingScreen = () => {
           time:      formatTime(rawTs),
           date:      formatDate(rawTs),
           type:      'visit',
-          title:     `💊 Chemist Visited: ${shopName}`,
+          title:     `Chemist Visited: ${shopName}`,
           details:   `Products: ${c.productsDiscussed || c.medicine || 'None'} | Order Value: ₹${c.orderValue ?? c.orderAmount ?? 0}`,
           timestamp: ts,
         });
@@ -187,7 +196,7 @@ const ActivityTrackingScreen = () => {
           time:      formatTime(rawTs),
           date:      formatDate(rawTs),
           type:      'order',
-          title:     `📦 Order Booked: #${o.id || '—'}`,
+          title:     `Order Booked: #${o.id || '—'}`,
           details:   `Customer: ${customerName} | Amount: ₹${o.totalAmount ?? '—'} | Status: ${o.status || 'Pending'}`,
           timestamp: ts,
         });
@@ -205,7 +214,7 @@ const ActivityTrackingScreen = () => {
           time:      formatTime(rawTs),
           date:      formatDate(rawTs),
           type:      'expense',
-          title:     `💵 Expense Claimed: ${e.expenseType || e.type || e.category || 'Miscellaneous'}`,
+          title:     `Expense Claimed: ${e.expenseType || e.type || e.category || 'Miscellaneous'}`,
           details:   `Amount: ₹${e.amount ?? '—'} | Purpose: ${e.description || e.remarks || 'N/A'} | Status: ${e.status || 'Pending'}`,
           timestamp: ts,
         });
@@ -215,7 +224,6 @@ const ActivityTrackingScreen = () => {
       const attendance = await safeCall(() => getAttendanceLogs(), []);
       const attArr = Array.isArray(attendance) ? attendance : [];
       attArr.forEach((a: any, idx: number) => {
-        // Check-In entry
         const checkInRaw = a.checkInTime || a.checkinTime || a.createdAt;
         if (checkInRaw) {
           compiled.push({
@@ -223,13 +231,12 @@ const ActivityTrackingScreen = () => {
             time:      formatTime(checkInRaw),
             date:      formatDate(checkInRaw),
             type:      'attendance',
-            title:     '📍 Attendance: Checked-In',
+            title:     'Attendance: Checked-In',
             details:   `Status: ${a.status || 'Present'} | Location: ${a.checkInAddress || a.location || '—'}`,
             timestamp: toEpoch(checkInRaw),
           });
         }
 
-        // Check-Out entry (only if checked out)
         const checkOutRaw = a.checkOutTime || a.checkoutTime;
         if (checkOutRaw) {
           compiled.push({
@@ -237,7 +244,7 @@ const ActivityTrackingScreen = () => {
             time:      formatTime(checkOutRaw),
             date:      formatDate(checkOutRaw),
             type:      'attendance',
-            title:     '🏁 Attendance: Checked-Out',
+            title:     'Attendance: Checked-Out',
             details:   `Duration logged | Status: ${a.status || 'Present'}`,
             timestamp: toEpoch(checkOutRaw),
           });
@@ -256,7 +263,7 @@ const ActivityTrackingScreen = () => {
           time:      formatTime(rawTs),
           date:      formatDate(rawTs),
           type:      'meeting',
-          title:     `🤝 Meeting: ${m.topic || m.title || 'General Meeting'}`,
+          title:     `Meeting: ${m.topic || m.title || 'General Meeting'}`,
           details:   `Venue: ${m.venue || m.location || '—'} | Participants: ${m.attendees || m.participants || '—'} | Status: ${m.status || 'Scheduled'}`,
           timestamp: ts,
         });
@@ -275,9 +282,27 @@ const ActivityTrackingScreen = () => {
           time:      formatTime(rawTs),
           date:      formatDate(rawTs),
           type:      'followup',
-          title:     `🔔 Follow-Up: Dr. ${doctorName}`,
+          title:     `Follow-Up: Dr. ${doctorName}`,
           details:   `Scheduled: ${formatDate(rawTs)} | Status: ${f.status || 'Pending'} | Remarks: ${f.remarks || f.notes || 'None'}`,
           timestamp: toEpoch(rawTs),
+        });
+      });
+
+      // ── 8. Daily Reports ───────────────────────────────────────────────────
+      const reports = await safeCall(() => getDailyReportsByMr(), []);
+      const repArr = Array.isArray(reports) ? reports : [];
+      repArr.forEach((r: any, idx: number) => {
+        const rawTs = r.reportDate || r.createdAt;
+        const ts    = toEpoch(rawTs);
+
+        compiled.push({
+          id:        `rep-${r.id || idx}`,
+          time:      formatTime(rawTs),
+          date:      formatDate(rawTs),
+          type:      'report',
+          title:     `Daily Report Submitted`,
+          details:   `Visits: ${r.doctorVisits || 0} Dr / ${r.chemistVisits || 0} Chm | Samples Distributed: ${r.samplesDistributed || 0} | Orders: ${r.ordersCollected || 0} | Remarks: ${r.remarks || 'None'}`,
+          timestamp: ts,
         });
       });
 
@@ -307,6 +332,7 @@ const ActivityTrackingScreen = () => {
     expenses:   logs.filter(l => l.type === 'expense').length,
     attendance: logs.filter(l => l.type === 'attendance').length,
     followups:  logs.filter(l => l.type === 'followup').length,
+    reports:    logs.filter(l => l.type === 'report').length,
   };
 
   return (
@@ -322,55 +348,60 @@ const ActivityTrackingScreen = () => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Activity Tracking</Text>
         <Text style={styles.headerSubtitle}>
-          All field activities, visits, orders, and meetings loaded live from the server.
+          Real-time field action summary and audit logs loaded live from server.
         </Text>
       </View>
 
       {/* ── KPI Summary Bar ── */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.kpiScrollContainer}
-      >
-        {[
-          { label: 'Total',      value: kpiCounts.total      },
-          { label: 'Visits',     value: kpiCounts.visits     },
-          { label: 'Orders',     value: kpiCounts.orders     },
-          { label: 'Meetings',   value: kpiCounts.meetings   },
-          { label: 'Expenses',   value: kpiCounts.expenses   },
-          { label: 'Follow-Ups', value: kpiCounts.followups  },
-        ].map((kpi) => (
-          <View key={kpi.label} style={styles.kpiCard}>
-            <Text style={styles.kpiValue}>{loading ? '—' : kpi.value}</Text>
-            <Text style={styles.kpiLabel}>{kpi.label}</Text>
-          </View>
-        ))}
-      </ScrollView>
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.kpiScrollContainer}
+        >
+          {[
+            { label: 'Total',      value: kpiCounts.total      },
+            { label: 'Visits',     value: kpiCounts.visits     },
+            { label: 'Orders',     value: kpiCounts.orders     },
+            { label: 'Meetings',   value: kpiCounts.meetings   },
+            { label: 'Expenses',   value: kpiCounts.expenses   },
+            { label: 'Follow-Ups', value: kpiCounts.followups  },
+            { label: 'Reports',    value: kpiCounts.reports    },
+          ].map((kpi) => (
+            <View key={kpi.label} style={styles.kpiCard}>
+              <Text style={styles.kpiValue}>{loading ? '—' : kpi.value}</Text>
+              <Text style={styles.kpiLabel}>{kpi.label}</Text>
+            </View>
+          ))}
+        </ScrollView>
+      </View>
 
       {/* ── Filter Tabs ── */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.tabsContainer}
-      >
-        {TABS.map((tab) => {
-          const isActive = activeTab === tab.key;
-          return (
-            <TouchableOpacity
-              key={tab.key}
-              onPress={() => setActiveTab(tab.key)}
-              style={[styles.tabButton, isActive && styles.activeTabButton]}
-              hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
-            >
-              <Text style={[styles.tabText, isActive && styles.activeTabText]}>
-                {tab.emoji} {tab.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
+      <View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.tabsContainer}
+        >
+          {TABS.map((tab) => {
+            const isActive = activeTab === tab.key;
+            return (
+              <TouchableOpacity
+                key={tab.key}
+                onPress={() => setActiveTab(tab.key)}
+                style={[styles.tabButton, isActive && styles.activeTabButton]}
+                hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}
+              >
+                <Text style={[styles.tabText, isActive && styles.activeTabText]}>
+                  {tab.emoji} {tab.label}
+                </Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
+      </View>
 
-      {/* ── Activity Table ── */}
+      {/* ── Activity Mobile Timeline ── */}
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {loading ? (
           <ActivityIndicator
@@ -391,7 +422,7 @@ const ActivityTrackingScreen = () => {
         ) : filteredLogs.length === 0 ? (
           <View style={styles.emptyCard}>
             <Text style={styles.emptyIcon}>
-              {activeTab === 'meeting' ? '🤝' : '📋'}
+              {activeTab === 'meeting' ? '🤝' : activeTab === 'report' ? '📄' : '📋'}
             </Text>
             <Text style={styles.emptyText}>
               No {activeTab === 'All' ? 'activity' : activeTab} records found.
@@ -399,71 +430,50 @@ const ActivityTrackingScreen = () => {
             <Text style={styles.emptySubText}>
               {activeTab === 'meeting'
                 ? 'Schedule a meeting to see it here.'
+                : activeTab === 'report'
+                ? 'Submit a daily report to see it here.'
                 : 'Complete some field activities to see them here.'}
             </Text>
           </View>
         ) : (
-          <ScrollView horizontal showsHorizontalScrollIndicator>
-            <View style={styles.tableContainer}>
-              {/* Table Header */}
-              <View style={styles.tableHeader}>
-                <Text style={[styles.thText, styles.colDate]}>DATE</Text>
-                <Text style={[styles.thText, styles.colTime]}>TIME</Text>
-                <Text style={[styles.thText, styles.colType]}>TYPE</Text>
-                <Text style={[styles.thText, styles.colTitle]}>ACTIVITY</Text>
-                <Text style={[styles.thText, styles.colDetails]}>DETAILS</Text>
-              </View>
+          <View style={styles.timelineContainer}>
+            {filteredLogs.map((log, index) => {
+              const isLast = index === filteredLogs.length - 1;
+              const themeColor = BADGE_COLOR[log.type] ?? '#4F46E5';
+              const emoji = BADGE_EMOJI[log.type] ?? '📋';
 
-              {/* Table Rows */}
-              {filteredLogs.map((log, index) => (
-                <View
-                  key={`${log.id}-${index}`}
-                  style={[
-                    styles.tableRow,
-                    index % 2 === 1 && styles.tableRowEven,
-                  ]}
-                >
-                  {/* Date */}
-                  <Text style={[styles.tdText, styles.colDate, styles.tdDate]}>
-                    {log.date}
-                  </Text>
-
-                  {/* Time */}
-                  <Text style={[styles.tdText, styles.colTime, styles.tdTime]}>
-                    {log.time}
-                  </Text>
-
-                  {/* Type Badge */}
-                  <View style={[styles.colType, { justifyContent: 'center' }]}>
-                    <View
-                      style={[
-                        styles.badge,
-                        { backgroundColor: BADGE_COLOR[log.type] ?? '#4F46E5' },
-                      ]}
-                    >
-                      <Text style={styles.badgeText}>{log.type}</Text>
-                    </View>
+              return (
+                <View key={`${log.id}-${index}`} style={styles.timelineItem}>
+                  {/* Left Column: Date & Time */}
+                  <View style={styles.timelineLeft}>
+                    <Text style={styles.timelineTime}>{log.time}</Text>
+                    <Text style={styles.timelineDate}>{log.date}</Text>
                   </View>
 
-                  {/* Activity Title */}
-                  <Text
-                    style={[styles.tdText, styles.colTitle, styles.tdTitle]}
-                    numberOfLines={2}
-                  >
-                    {log.title}
-                  </Text>
+                  {/* Middle Column: Line and Dot Indicator */}
+                  <View style={styles.timelineMiddle}>
+                    <View style={[styles.timelineDot, { backgroundColor: themeColor }]}>
+                      <Text style={styles.timelineDotIcon}>{emoji}</Text>
+                    </View>
+                    {!isLast && <View style={[styles.timelineLine, { backgroundColor: '#E2E8F0' }]} />}
+                  </View>
 
-                  {/* Details */}
-                  <Text
-                    style={[styles.tdText, styles.colDetails, styles.tdDetails]}
-                    numberOfLines={3}
-                  >
-                    {log.details}
-                  </Text>
+                  {/* Right Column: Card Details */}
+                  <View style={styles.timelineRight}>
+                    <View style={[styles.logCard, { borderLeftColor: themeColor }]}>
+                      <View style={styles.cardHeader}>
+                        <Text style={styles.logTitle}>{log.title}</Text>
+                        <View style={[styles.badge, { backgroundColor: themeColor }]}>
+                          <Text style={styles.badgeText}>{log.type}</Text>
+                        </View>
+                      </View>
+                      <Text style={styles.logDetails}>{log.details}</Text>
+                    </View>
+                  </View>
                 </View>
-              ))}
-            </View>
-          </ScrollView>
+              );
+            })}
+          </View>
         )}
       </ScrollView>
     </View>
@@ -479,178 +489,225 @@ const styles = StyleSheet.create({
   // Header
   header: {
     backgroundColor: '#4F46E5',
-    paddingTop: Platform.OS === 'ios' ? 60 : 50,
-    paddingBottom: 24,
+    paddingTop: Platform.OS === 'ios' ? 50 : 40,
+    paddingBottom: 20,
     paddingHorizontal: 20,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
   backButton: {
     alignSelf: 'flex-start',
-    paddingVertical: 6,
-    paddingHorizontal: 14,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
     borderRadius: 20,
     backgroundColor: 'rgba(255,255,255,0.2)',
-    marginBottom: 12,
+    marginBottom: 8,
   },
   backButtonText: {
-    fontSize: 14,
+    fontSize: 12,
     color: '#FFFFFF',
     fontWeight: '700',
   },
   headerTitle: {
-    fontSize: 24,
+    fontSize: 20,
     fontWeight: 'bold',
     color: '#FFFFFF',
     textAlign: 'center',
   },
   headerSubtitle: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#E0E7FF',
     textAlign: 'center',
-    marginTop: 6,
-    lineHeight: 17,
+    marginTop: 4,
+    lineHeight: 15,
   },
 
   // KPI Bar
   kpiScrollContainer: {
     paddingHorizontal: 15,
-    paddingTop: 18,
+    paddingTop: 12,
     paddingBottom: 6,
   },
   kpiCard: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    paddingVertical: 10,
-    paddingHorizontal: 14,
-    marginRight: 10,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    marginRight: 8,
     alignItems: 'center',
-    minWidth: 72,
+    minWidth: 70,
     shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.05,
+    shadowRadius: 2,
     elevation: 2,
   },
-  kpiValue: { fontSize: 20, fontWeight: 'bold', color: '#1E293B' },
-  kpiLabel: { fontSize: 10, color: '#64748B', fontWeight: '600', marginTop: 2 },
+  kpiValue: { fontSize: 16, fontWeight: 'bold', color: '#1E293B' },
+  kpiLabel: { fontSize: 9, color: '#64748B', fontWeight: '600', marginTop: 1 },
 
   // Filter Tabs
   tabsContainer: {
     paddingHorizontal: 15,
-    marginTop: 12,
+    marginTop: 8,
     paddingBottom: 8,
-    gap: 8,
   },
   tabButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 14,
-    borderRadius: 22,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
     backgroundColor: '#E2E8F0',
     alignItems: 'center',
     justifyContent: 'center',
+    marginRight: 6,
   },
   activeTabButton: { backgroundColor: '#4F46E5' },
   tabText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     color: '#475569',
-    letterSpacing: 0.3,
+    letterSpacing: 0.2,
   },
   activeTabText: { color: '#FFFFFF' },
 
   // Scroll content
-  scrollContent: { paddingHorizontal: 16, paddingTop: 10, paddingBottom: 80 },
+  scrollContent: { paddingHorizontal: 15, paddingTop: 8, paddingBottom: 60 },
 
-  // Table
-  tableContainer: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 12,
-    overflow: 'hidden',
-    borderWidth: 1,
-    borderColor: '#E2E8F0',
+  // Timeline Layout
+  timelineContainer: {
+    width: '100%',
+    paddingTop: 10,
   },
-  tableHeader: {
+  timelineItem: {
     flexDirection: 'row',
-    backgroundColor: '#F1F5F9',
-    paddingVertical: 11,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E2E8F0',
+    width: '100%',
+    minHeight: 80,
   },
-  thText: {
+  timelineLeft: {
+    width: 65,
+    paddingRight: 6,
+    alignItems: 'flex-end',
+    paddingTop: 12,
+  },
+  timelineTime: {
     fontSize: 11,
     fontWeight: 'bold',
+    color: '#1E293B',
+  },
+  timelineDate: {
+    fontSize: 9,
     color: '#64748B',
-    textTransform: 'uppercase',
-    letterSpacing: 0.4,
+    marginTop: 2,
   },
-  tableRow: {
-    flexDirection: 'row',
-    paddingVertical: 12,
-    paddingHorizontal: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#F1F5F9',
+  timelineMiddle: {
+    width: 32,
+    alignItems: 'center',
+    position: 'relative',
+  },
+  timelineDot: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.1,
+    elevation: 2,
+    marginTop: 10,
+  },
+  timelineDotIcon: {
+    fontSize: 11,
+  },
+  timelineLine: {
+    position: 'absolute',
+    top: 30,
+    bottom: 0,
+    width: 2,
+    zIndex: 1,
+  },
+  timelineRight: {
+    flex: 1,
+    paddingBottom: 15,
+    paddingLeft: 4,
+  },
+
+  // Log Card
+  logCard: {
     backgroundColor: '#FFFFFF',
-    alignItems: 'flex-start',
+    borderRadius: 10,
+    padding: 12,
+    borderLeftWidth: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+    width: '100%',
   },
-  tableRowEven: { backgroundColor: '#F8FAFC' },
-  tdText: { fontSize: 12, color: '#334155', marginRight: 8 },
-
-  // Column widths
-  colDate:    { width: 90 },
-  colTime:    { width: 76 },
-  colType:    { width: 80 },
-  colTitle:   { width: 200 },
-  colDetails: { width: 280 },
-
-  // Cell variants
-  tdDate:    { color: '#64748B', fontWeight: '600' },
-  tdTime:    { fontWeight: '700', color: '#475569' },
-  tdTitle:   { fontWeight: 'bold', color: '#1E293B' },
-  tdDetails: { color: '#64748B', lineHeight: 17 },
+  cardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 4,
+    gap: 8,
+  },
+  logTitle: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#1E293B',
+    flex: 1,
+    lineHeight: 17,
+  },
+  logDetails: {
+    fontSize: 11,
+    color: '#64748B',
+    lineHeight: 15,
+    marginTop: 2,
+  },
 
   // Badge
   badge: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 6,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
     alignSelf: 'flex-start',
   },
   badgeText: {
-    fontSize: 9,
+    fontSize: 8,
     color: '#FFFFFF',
     fontWeight: 'bold',
     textTransform: 'uppercase',
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
 
   // Empty / Error cards
   emptyCard: {
     backgroundColor: '#FFFFFF',
     borderRadius: 16,
-    padding: 36,
+    padding: 30,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 15,
   },
-  emptyIcon:    { fontSize: 40, marginBottom: 12 },
-  emptyText:    { fontSize: 15, color: '#475569', fontWeight: '600', textAlign: 'center' },
-  emptySubText: { fontSize: 12, color: '#94A3B8', marginTop: 6, textAlign: 'center', lineHeight: 18 },
+  emptyIcon:    { fontSize: 36, marginBottom: 10 },
+  emptyText:    { fontSize: 14, color: '#475569', fontWeight: '600', textAlign: 'center' },
+  emptySubText: { fontSize: 11, color: '#94A3B8', marginTop: 4, textAlign: 'center', lineHeight: 16 },
 
   errorCard: {
     backgroundColor: '#FEF2F2',
     borderRadius: 16,
-    padding: 24,
+    padding: 20,
     alignItems: 'center',
-    marginTop: 20,
+    marginTop: 15,
     borderWidth: 1,
     borderColor: '#FCA5A5',
   },
-  errorText: { fontSize: 13, color: '#EF4444', textAlign: 'center', lineHeight: 20 },
+  errorText: { fontSize: 12, color: '#EF4444', textAlign: 'center', lineHeight: 18 },
   retryButton: {
-    marginTop: 14,
+    marginTop: 12,
     backgroundColor: '#4F46E5',
-    borderRadius: 10,
-    paddingVertical: 8,
-    paddingHorizontal: 24,
+    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 20,
   },
-  retryText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 13 },
+  retryText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
 });

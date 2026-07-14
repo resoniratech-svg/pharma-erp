@@ -46,3 +46,19 @@ export const createDailyReport = async (
 
   return response.data;
 };
+
+export const getDailyReportsByMr = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const mrId = await AsyncStorage.getItem('@mrId');
+
+  const response = await api.get(
+    `/daily-reports/mr/${mrId}`,
+    {
+      headers: {
+        Authorization: `Bearer ${token}`,
+      },
+    }
+  );
+
+  return response.data.data || response.data;
+};

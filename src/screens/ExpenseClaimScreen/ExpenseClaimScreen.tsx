@@ -95,11 +95,12 @@ const ExpenseClaimScreen = () => {
   const loadConfigSettings = async () => {
     try {
       const targets = await getTargetsByMr();
-      if (targets) {
+      if (targets && (Array.isArray(targets) ? targets.length > 0 : targets)) {
+        const tObj = Array.isArray(targets) ? targets[0] : targets;
         setConfigSettings({
-          taRate: Number(targets.taRate || targets.travelRate) || 5.00,
-          daAmount: Number(targets.daAmount || targets.dailyAllowance || targets.dailyRate) || 250,
-          maxLimit: Number(targets.maxLimit || targets.maxClaimLimit) || 50000,
+          taRate: Number(tObj.taRate || tObj.travelRate) || 5.00,
+          daAmount: Number(tObj.daAmount || tObj.dailyAllowance || tObj.dailyRate) || 250,
+          maxLimit: Number(tObj.maxLimit || tObj.maxClaimLimit) || 50000,
         });
       }
     } catch (e) {
@@ -534,7 +535,9 @@ const ExpenseClaimScreen = () => {
       setCategory('Travel Allowance (TA)');
       customAlert('✅ Success', 'Expense claim submitted successfully for manager approval.');
     } catch (err: any) {
+      console.log('Expense Claim Submission Error:', err.response?.data || err.message);
       const status = err?.response?.status;
+      const errorMsg = err?.response?.data?.message || err?.response?.data?.error || err?.message || 'Could not submit expense claim.';
       if (status === 401) {
         customAlert('❌ Unauthorized', 'Your session has expired. Please log in again.');
       } else if (status === 409) {
@@ -544,7 +547,7 @@ const ExpenseClaimScreen = () => {
       } else if (status >= 500) {
         customAlert('❌ Server Error', 'The server is unavailable. Please try again later.');
       } else {
-        customAlert('❌ Failed to Save', 'Could not submit expense claim. Please check your internet connection.');
+        customAlert('❌ Failed to Save', `${errorMsg}\n\nPlease check your input and try again.`);
       }
     } finally {
       setIsSaving(false);

@@ -18,7 +18,8 @@
   import { getStockists, createStockist } from '../../services/stockistService';
   import { getProducts } from '../../services/productService';
   import { getDistributors } from '../../services/distributorService';
-  import { createRetailerOrder, getRetailerOrders } from '../../services/orderService';
+  import { createRetailerOrder, getRetailerOrders, updateRetailerOrder, deleteRetailerOrder } from '../../services/orderService';
+  import { getRetailers, createRetailer } from '../../services/retailerService';
 
   const safeJsonParse = (data: string | null, fallback: any) => {
     if (!data) return fallback;
@@ -182,6 +183,7 @@
               setRate((defaultProd.ptr || defaultProd.mrp || 0).toString());
             }
           }
+          await loadOrders();
         } catch (err) {
           console.log('Failed to load dynamic data in BookOrderScreen:', err);
           // No fallback static data — show empty state
@@ -270,7 +272,7 @@
         }
 
         if (serverOrders && serverOrders.length > 0) {
-          const mapped = serverOrders.map((o: any, idx: number) => ({
+          const mapped = serverOrders.map((o: any) => ({
             id: o.id,
             orderNumber: o.orderNumber,
             customerType: 'Retailer',
@@ -280,7 +282,7 @@
             quantity: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].quantity : 0,
             rate: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].rate : 0,
             totalAmount: o.totalAmount,
-            distributor: 'Assigned Stockist',
+            distributor: o.retailer?.stockist?.name || 'Assigned Stockist',
             remarks: o.remarks || '',
             status: o.status === 'PENDING' ? 'Booked' : (o.status === 'DELIVERED' ? 'Delivered' : o.status === 'CANCELLED' ? 'Cancelled' : 'Booked'),
             dateFormatted: o.orderDate ? o.orderDate.split('T')[0] : '',
@@ -332,29 +334,11 @@
       }
 
       if (editingOrderId !== null) {
-        // Update existing order (local fallback)
-        const updatedOrders = orders.map(o => {
-          if (o.id === editingOrderId) {
-            return {
-              ...o,
-              customerType,
-              customerName,
-              customerMobile,
-              productName: selectedProduct,
-              quantity: parseFloat(quantity),
-              rate: parseFloat(rate),
-              totalAmount: parseFloat(totalAmount),
-              distributor,
-              remarks,
-              isEdited: true, // Mark as edited
-            };
-          }
-          return o;
-        });
-
-        setOrders(updatedOrders);
         try {
-          await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
+          await updateRetailerOrder(editingOrderId, {
+            totalAmount: parseFloat(totalAmount),
+            remarks: remarks
+          });
           customAlert('✅ Order Updated!', `Order details updated successfully.`);
           
           setEditingOrderId(null);
@@ -365,60 +349,69 @@
           setRemarks('');
           setCustomerSource('Existing Customer');
           setDistributor('');
+          await loadOrders();
         } catch (error) {
-          customAlert('Error', 'Failed to update order locally.');
+          customAlert('Error', 'Failed to update order details on the server.');
         }
       } else {
         let resolvedRetailerId: number | null = null;
         
+        // 1. Create base Chemist/Hospital/Stockist records for "New Customer"
         if (customerSource === 'New Customer') {
           const checkInAddress = (await AsyncStorage.getItem('@check_in_address')) || 'Registered via Mobile App';
-          let creationResult: any = null;
-
           try {
             if (customerType === 'Chemist') {
-              creationResult = await createChemist(customerName, customerName, customerMobile, checkInAddress);
+              await createChemist(customerName, customerName, customerMobile, checkInAddress);
             } else if (customerType === 'Hospital') {
-              creationResult = await createHospital(customerName, customerMobile, checkInAddress);
+              await createHospital(customerName, customerMobile, checkInAddress);
             } else if (customerType === 'Stockist') {
-              creationResult = await createStockist(customerName, customerMobile, checkInAddress);
+              await createStockist(customerName, customerMobile, checkInAddress);
             }
-          } catch (createErr: any) {
-            const statusCode = createErr?.response?.status;
-            const resData = createErr?.response?.data;
-            // Extract the most detailed message available (Prisma errors are often in details or error field)
-            const detailMsg = typeof resData === 'object' ? (resData.message || resData.error || resData.details || JSON.stringify(resData)) : resData;
-            const errMsg = detailMsg || createErr?.message || '';
-            console.log(`Failed to create new ${customerType}:`, statusCode, resData);
-
-            customAlert('Error', `Failed to register the new ${customerType} on the server. ${errMsg}`);
-            return;
-          }
-
-          if (creationResult) {
-            const rawData = creationResult.data || creationResult;
-            const parsedId = Number(
-              rawData.id ||
-              rawData.chemistId ||
-              rawData.hospitalId ||
-              rawData.stockistId ||
-              rawData.customerId ||
-              rawData.retailerId
-            );
-            if (!isNaN(parsedId) && parsedId > 0) {
-              resolvedRetailerId = parsedId;
-            }
-          }
-        } else if (selectedCustomerId && typeof selectedCustomerId === 'string' && selectedCustomerId.includes('_')) {
-          const parts = selectedCustomerId.split('_');
-          const parsedId = Number(parts[parts.length - 1]);
-          if (!isNaN(parsedId) && parsedId > 0) {
-            resolvedRetailerId = parsedId;
+          } catch (createErr) {
+            console.log(`Failed to create base ${customerType}:`, createErr);
           }
         }
 
+        // 2. Perform Dynamic Retailer Lookup or Creation to bind to the correct name/mobile in database
+        try {
+          const serverRetailers = await getRetailers();
+          const retailersList = Array.isArray(serverRetailers) ? serverRetailers : (serverRetailers.data || []);
+          
+          const cleanMobile = customerMobile.trim().replace(/[^0-9]/g, '');
+          const cleanName = customerName.trim().toLowerCase();
+
+          // Match by name or mobile
+          const matchingRetailer = retailersList.find(
+            (r: any) =>
+              (r.name && r.name.toLowerCase() === cleanName) ||
+              (r.mobile && r.mobile.replace(/[^0-9]/g, '') === cleanMobile)
+          );
+
+          if (matchingRetailer) {
+            resolvedRetailerId = Number(matchingRetailer.id);
+            console.log(`Found matching retailer: ${matchingRetailer.name} (ID: ${resolvedRetailerId})`);
+          } else {
+            // Create a new Retailer on the server
+            const fallbackStockistId = stockists.length > 0 ? Number(stockists[0].id) : 1;
+            const checkInAddress = (await AsyncStorage.getItem('@check_in_address')) || 'Registered via Mobile App';
+            
+            console.log(`Creating new Retailer record for order: ${customerName} (Stockist ID: ${fallbackStockistId})`);
+            const created = await createRetailer(
+              customerName.trim(),
+              customerMobile.trim(),
+              checkInAddress,
+              fallbackStockistId
+            );
+            
+            resolvedRetailerId = Number(created.id || created.retailerId);
+            console.log(`Successfully created Retailer. ID: ${resolvedRetailerId}`);
+          }
+        } catch (retailerErr) {
+          console.log('Error in dynamic Retailer mapping:', retailerErr);
+        }
+
         if (!resolvedRetailerId) {
-          customAlert('Error', 'Please select a valid customer from the database list.');
+          customAlert('Error', 'Please select or enter a valid customer.');
           return;
         }
 
@@ -446,26 +439,8 @@
 
         try {
           const result = await createRetailerOrder(orderPayload);
-          const newOrder = {
-            id: result.id,
-            orderNumber: result.orderNumber || `ORD-${Date.now().toString().slice(-4)}`,
-            customerType,
-            customerName,
-            customerMobile,
-            productName: selectedProduct,
-            quantity: parseFloat(quantity),
-            rate: parseFloat(rate),
-            totalAmount: parseFloat(totalAmount),
-            distributor,
-            remarks,
-            status: 'Booked',
-            dateFormatted: formatOrderDate(new Date()),
-          };
-
-          const updatedOrders = [newOrder, ...orders];
-          setOrders(updatedOrders);
-          await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
-          customAlert('✅ Order Booked!', `Order ${newOrder.orderNumber} has been successfully recorded.`);
+          const orderNumber = result.orderNumber || `ORD-${result.id || 'NEW'}`;
+          customAlert('✅ Order Booked!', `Order ${orderNumber} has been successfully recorded.`);
 
           // Refresh the corresponding master list so the newly created customer appears immediately
           if (customerSource === 'New Customer') {
@@ -485,6 +460,7 @@
           setRemarks('');
           setCustomerSource('Existing Customer');
           setDistributor('');
+          await loadOrders();
         } catch (error: any) {
           console.log('Failed to create order on server:', error);
           const serverMsg = error?.response?.data?.message || error?.response?.data?.error || error?.message || '';
@@ -518,18 +494,13 @@
 
       if (Platform.OS === 'web') {
         if (confirmCancel) {
-          const updatedOrders = orders.map(o => {
-            if (o.id === orderId) {
-              return { ...o, status: 'Cancelled' };
-            }
-            return o;
-          });
-          setOrders(updatedOrders);
           try {
-            await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
+            await updateRetailerOrder(orderId, { status: 'CANCELLED' });
             customAlert('Success', 'Order cancelled successfully.');
+            await loadOrders();
           } catch (e) {
             console.log('Failed to cancel order:', e);
+            customAlert('Error', 'Failed to cancel order on the server.');
           }
         }
       } else {
@@ -541,18 +512,13 @@
             { 
               text: 'Yes', 
               onPress: async () => {
-                const updatedOrders = orders.map(o => {
-                  if (o.id === orderId) {
-                    return { ...o, status: 'Cancelled' };
-                  }
-                  return o;
-                });
-                setOrders(updatedOrders);
                 try {
-                  await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
+                  await updateRetailerOrder(orderId, { status: 'CANCELLED' });
                   customAlert('Success', 'Order cancelled successfully.');
+                  await loadOrders();
                 } catch (e) {
                   console.log('Failed to cancel order:', e);
+                  customAlert('Error', 'Failed to cancel order on the server.');
                 }
               }
             }
@@ -563,23 +529,20 @@
 
     // Tapping the status badge cycles status (Pending -> Approved -> Delivered -> Cancelled)
     const cycleStatus = async (orderId: number) => {
-      const updatedOrders = orders.map((order) => {
-        if (order.id === orderId) {
-          let nextStatus = 'Booked';
-          if (order.status === 'Booked' || order.status === 'Pending') nextStatus = 'Forwarded';
-          else if (order.status === 'Forwarded' || order.status === 'Approved') nextStatus = 'Delivered';
-          else if (order.status === 'Delivered') nextStatus = 'Cancelled';
-          else nextStatus = 'Booked';
-          return { ...order, status: nextStatus };
-        }
-        return order;
-      });
+      const order = orders.find(o => o.id === orderId);
+      if (!order) return;
 
-      setOrders(updatedOrders);
+      let nextStatus = 'PENDING';
+      if (order.status === 'Booked' || order.status === 'Pending') nextStatus = 'FORWARDED';
+      else if (order.status === 'FORWARDED' || order.status === 'Forwarded') nextStatus = 'DELIVERED';
+      else if (order.status === 'DELIVERED' || order.status === 'Delivered') nextStatus = 'CANCELLED';
+      else nextStatus = 'PENDING';
+
       try {
-        await AsyncStorage.setItem('@orders', JSON.stringify(updatedOrders));
+        await updateRetailerOrder(orderId, { status: nextStatus });
+        await loadOrders();
       } catch (e) {
-        console.log('Failed to update order status');
+        console.log('Failed to update order status on server:', e);
       }
     };
 
@@ -905,7 +868,7 @@
             {error ? (
               <View style={styles.errorContainer}>
                 <Text style={styles.errorText}>⚠️ {error}</Text>
-                <TouchableOpacity style={styles.retryButton} onPress={loadOrders}>
+                <TouchableOpacity style={styles.retryButton} onPress={() => loadOrders()}>
                   <Text style={styles.retryButtonText}>🔄 Retry Loading History</Text>
                 </TouchableOpacity>
               </View>

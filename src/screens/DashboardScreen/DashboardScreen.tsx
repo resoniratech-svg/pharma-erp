@@ -315,6 +315,29 @@ const DashboardScreen = () => {
         }
       });
 
+      // Sort descending (newest first) by date
+      const parseOrderDateMs = (o: any): number => {
+        const val = o.orderDate || o.createdAt || o.date || o.dateFormatted || '';
+        if (!val) return 0;
+        try {
+          const d = new Date(val);
+          if (!isNaN(d.getTime())) return d.getTime();
+        } catch {}
+        try {
+          const parts = String(val).split('-');
+          if (parts.length === 3) {
+            const day = parseInt(parts[0], 10);
+            const month = parseInt(parts[1], 10) - 1;
+            const year = parseInt(parts[2], 10);
+            const d = new Date(year, month, day);
+            if (!isNaN(d.getTime())) return d.getTime();
+          }
+        } catch {}
+        return 0;
+      };
+
+      mergedOrders.sort((a: any, b: any) => parseOrderDateMs(b) - parseOrderDateMs(a));
+
       if (mergedOrders.length > 0) {
         setRecentOrdersList(mergedOrders.slice(0, 4).map((o: any, idx: number) => {
           const statusUpper = (o.status || '').toUpperCase();

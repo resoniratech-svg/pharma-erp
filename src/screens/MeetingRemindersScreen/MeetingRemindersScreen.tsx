@@ -1,18 +1,22 @@
-import React, { useState, useCallback } from 'react';
+//import React, { useState, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useFocusEffect, useIsFocused, useNavigation } from '@react-navigation/native';
+import React, { useCallback, useEffect, useState } from 'react';
+import {
+  ActivityIndicator,
+  Alert,
+  Linking,
+  Modal,
+  Platform,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import {
   getMeetingsByMr
 } from '../../services/meetingService';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  ScrollView,
-  ActivityIndicator,
-  Modal,
-  Linking,
-} from 'react-native';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
 
 interface MeetingReminder {
   id: string;
@@ -56,6 +60,9 @@ const getStatusColor = (status: string) => {
     default:             return '#94A3B8'; // Neutral gray for unknown
   }
 };
+////////////////////////////////////////
+
+ 
 
 const MeetingRemindersScreen = () => {
   const navigation = useNavigation<any>();
@@ -64,6 +71,48 @@ const MeetingRemindersScreen = () => {
   const [selectedReminder, setSelectedReminder] = useState<MeetingReminder | null>(null);
   const [modalVisible, setModalVisible] = useState(false);
 
+
+   const isFocused = useIsFocused();
+  const customAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      window.alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
+    }
+  };
+ useEffect(() => {
+    if (isFocused) {
+      checkAttendanceStatus();
+    }
+  }, [isFocused]);
+  const checkAttendanceStatus = async () => {
+    try {
+      const storedCheckedIn = await AsyncStorage.getItem('@checked_in');
+      const attendanceDate = await AsyncStorage.getItem('@attendance_date');
+      const todayStr = new Date().toISOString().split('T')[0];
+      let isCheckInValid = false;
+      if (storedCheckedIn === 'true' && attendanceDate) {
+        const storedDateStr = attendanceDate.split('T')[0];
+        if (storedDateStr === todayStr) {
+          isCheckInValid = true;
+        } else {
+          // Forgot to checkout: auto-checkout from previous day
+          await AsyncStorage.removeItem('@checked_in');
+          await AsyncStorage.removeItem('@check_in_time');
+          await AsyncStorage.removeItem('@attendance_date');
+        }
+      }
+      if (!isCheckInValid) {
+        customAlert(
+          'Check-In Required',
+          'Please check-in first so that attendance is recorded correctly.'
+        );
+        navigation.navigate('Attendance');
+      }
+    } catch (e) {
+      console.log('Failed to verify attendance status', e);
+    }
+  };
   const fetchMeetingReminders = async () => {
     setLoading(true);
     try {

@@ -1,6 +1,7 @@
 import { getAuthDetails } from './authHelper';
 import { api } from './api';
 import { Platform } from 'react-native';
+import * as ImageManipulator from 'expo-image-manipulator';
 
 const MIME_TYPES: { [key: string]: string } = {
   jpg: 'image/jpeg',
@@ -13,13 +14,10 @@ const MIME_TYPES: { [key: string]: string } = {
  * Converts a picked image URI + optional base64 string into a data URL
  * that can be stored directly in the backend's billUrl / receiptUrl field.
  *
- * On NATIVE:  expo-image-picker returns asset.base64 when base64:true is set
- *             in the picker options. We just prefix it with the data URI header.
+ * On NATIVE:  We resize/compress the image via expo-image-manipulator to max 800px
+ *             width and 0.2 JPEG quality to prevent HTTP 413 (Payload Too Large).
  * On WEB:     The asset.uri is already a blob URL. We fetch it, read it with
  *             FileReader, and return the resulting data URL.
- *
- * No separate upload server is required — the data URI is saved directly
- * into the database receipt/bill column via POST /expenses.
  */
 export const encodeReceiptToDataUrl = async (
   uri: string,
@@ -30,12 +28,22 @@ export const encodeReceiptToDataUrl = async (
 
   const safeMime = mimeType || 'image/jpeg';
 
-  // ── Native path: use the base64 string provided by ImagePicker ──
+  // ── Native path: compress using ImageManipulator ──
   if (Platform.OS !== 'web') {
-    if (!base64FromPicker) {
-      throw new Error('Receipt base64 data is missing. Please pick the image again.');
+    try {
+      const manipResult = await ImageManipulator.manipulateAsync(
+        uri,
+        [{ resize: { width: 600 } }],
+        { compress: 0.15, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      );
+      return `data:${safeMime};base64,${manipResult.base64}`;
+    } catch (manipErr) {
+      console.log('ImageManipulator failed, falling back to raw base64:', manipErr);
+      if (!base64FromPicker) {
+        throw new Error('Receipt base64 data is missing. Please pick the image again.');
+      }
+      return `data:${safeMime};base64,${base64FromPicker}`;
     }
-    return `data:${safeMime};base64,${base64FromPicker}`;
   }
 
   // ── Web path: fetch the blob URI, draw on canvas, and compress ──
@@ -51,8 +59,8 @@ export const encodeReceiptToDataUrl = async (
         let width = img.width;
         let height = img.height;
 
-        // Limit the maximum dimensions to 800px to ensure a small file size
-        const maxDim = 800;
+        // Limit the maximum dimensions to 600px to ensure a small file size
+        const maxDim = 600;
         if (width > maxDim || height > maxDim) {
           if (width > height) {
             height = Math.round((height * maxDim) / width);
@@ -74,8 +82,8 @@ export const encodeReceiptToDataUrl = async (
 
         ctx.drawImage(img, 0, 0, width, height);
 
-        // Compress to JPEG with 0.2 quality (highly compressed but text is perfectly readable)
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.2);
+        // Compress to JPEG with 0.15 quality (highly compressed but text is perfectly readable)
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.15);
         resolve(dataUrl);
       };
 

@@ -143,10 +143,7 @@ const TerritoryTrackingScreen = () => {
         }
       }
       if (!parsedAssignedDate) {
-        // Fallback to 1st of current month
-        const d = new Date();
-        const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-        parsedAssignedDate = `01-${months[d.getMonth()]}-${d.getFullYear()}`;
+        parsedAssignedDate = 'N/A';
       }
       setAssignedDate(parsedAssignedDate);
 
@@ -511,9 +508,11 @@ const TerritoryTrackingScreen = () => {
                       <Text style={[styles.topCardValue, { color: '#D97706' }]}>{Math.max(0, territories.length - coveredCount)}</Text>
                     </View>
                   </View>
-                  <View style={styles.assignmentRow}>
-                    <Text style={styles.assignmentText}>Assigned On: <Text style={{fontWeight: 'bold', color: '#334155'}}>{assignedDate}</Text></Text>
-                  </View>
+                  {assignedDate && assignedDate !== 'N/A' && (
+                    <View style={styles.assignmentRow}>
+                      <Text style={styles.assignmentText}>Assigned On: <Text style={{fontWeight: 'bold', color: '#334155'}}>{assignedDate}</Text></Text>
+                    </View>
+                  )}
                 </View>
 
                 {/* Distance & Map Button */}
