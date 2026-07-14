@@ -58,7 +58,29 @@ const updateBatch = async (
 };
 
 const deleteBatch = async (id) => {
-  // 1. Check if the batch is referenced in WarehouseTransfer or Dispatch
+  // 1. Check if the batch is referenced in other modules
+  const linkedInward = await prisma.inwardStockItem.findFirst({
+    where: { batchId: id }
+  });
+  if (linkedInward) {
+    throw new Error("Cannot delete batch because it is referenced in Inward Stock. Please mark it as Inactive instead.");
+  }
+
+  const linkedOutward = await prisma.outwardStockItem.findFirst({
+    where: { batchId: id }
+  });
+  if (linkedOutward) {
+    throw new Error("Cannot delete batch because it is referenced in Outward Stock. Please mark it as Inactive instead.");
+  }
+
+  const linkedInvoice = await prisma.invoiceItem.findFirst({
+    where: { batchId: id }
+  });
+  if (linkedInvoice) {
+    throw new Error("Cannot delete batch because it is referenced in an Invoice. Please mark it as Inactive instead.");
+  }
+
+  // Check if the batch is referenced in WarehouseTransfer or Dispatch
   const linkedTransfers = await prisma.warehouseTransferItem.findFirst({
     where: { batchId: id }
   });
