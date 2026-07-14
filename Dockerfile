@@ -11,7 +11,7 @@ COPY prisma.config.ts ./
 # Install all dependencies (including dev)
 RUN npm ci
 
-# Generate Prisma client
+# Generate Prisma client (Cache busted)
 RUN npx prisma generate
 
 # ─── Stage 2: Production ─────────────────────────────────────────────────────
