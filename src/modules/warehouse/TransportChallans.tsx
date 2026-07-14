@@ -379,6 +379,7 @@ export default function TransportChallans() {
       challanDate: newDate,
       dispatchNo: activeDispatch.dispatchId,
       dispatchDate: activeDispatch.date,
+      dispatchType: activeDispatch.dispatchType || 'Outward Stock',
       orderNo: activeDispatch.orderId || '',
       customer: activeDispatch.client,
       sourceWarehouse: activeDispatch.sourceWarehouse,

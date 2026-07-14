@@ -84,22 +84,17 @@ export default function GSTManagement() {
   const [data, setData] = useState<GST[]>([]);
   const [activeHSNs, setActiveHSNs] = useState<HSNCode[]>([]);
 
-  useEffect(() => {
-    const savedData = gstService.getAll();
-    if (savedData.length > 0) {
-      setData(savedData);
-    } else {
-      gstService.saveAll(initialMockData);
-      setData(initialMockData);
-    }
-    setActiveHSNs(hsnService.getActive());
-  }, []);
+  const fetchGSTs = async () => {
+    try {
+      const savedData = await gstService.getAll();
+      setData(savedData || []);
+    } catch (error) { console.error(error); setData([]); }
+  };
 
   useEffect(() => {
-    if (data.length > 0) {
-      gstService.saveAll(data);
-    }
-  }, [data]);
+    fetchGSTs();
+    hsnService.getActive().then(hsns => setActiveHSNs(hsns));
+  }, []);
 
   const canCreate = true;
   const canEdit = true;
@@ -138,7 +133,8 @@ export default function GSTManagement() {
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
-    { key: 'lastUpdatedDate', label: 'Last Updated', render: (row) => formatDate(row.lastUpdatedDate) },
+    { key: 'createdAt', label: 'Created On', render: (row) => formatDate(row.createdAt) },
+    { key: 'updatedAt', label: 'Last Updated', render: (row) => formatDate(row.updatedAt) },
     {
       key: 'id',
       label: 'Actions',
@@ -232,7 +228,7 @@ export default function GSTManagement() {
     setShowModal(true);
   };
 
-  const handleSaveGst = () => {
+  const handleSaveGst = async () => {
     if (!newGst.hsnCode || !newGst.gstPercent || !newGst.status || !newGst.effectiveDate) {
       alert("Please fill all mandatory fields (*).");
       return;
@@ -251,75 +247,80 @@ export default function GSTManagement() {
       return;
     }
     
-    if (isEditingModal && newGst.id) {
-      const products = productService.getProducts();
-      const isUsed = products.some(p => p.hsnCode === newGst.hsnCode);
-      if (isUsed) {
-        if (!window.confirm("Warning: This HSN is currently assigned to one or more products. Modifying its details will affect future transactions for these products. Do you want to proceed?")) {
-          return;
+    try {
+      if (isEditingModal && newGst.id) {
+        const products = productService.getProducts();
+        const isUsed = products.some(p => p.hsnCode === newGst.hsnCode);
+        if (isUsed) {
+          if (!window.confirm("Warning: This HSN is currently assigned to one or more products. Modifying its details will affect future transactions for these products. Do you want to proceed?")) {
+            return;
+          }
         }
-      }
 
-      const updatedRecord: GST = {
-        id: newGst.id,
-        hsnCode: newGst.hsnCode,
-        description: newGst.description,
-        gstPercent: newGst.gstPercent,
-        effectiveDate: newGst.effectiveDate,
-        createdBy: selectedGST?.createdBy || currentUser?.fullName || 'Admin User',
-        lastUpdatedBy: currentUser?.fullName || 'Admin User',
-        lastUpdatedDate: new Date().toISOString().split('T')[0],
-        status: newGst.status as any,
-        remarks: newGst.remarks
-      };
+        const payload: Partial<GST> = {
+          hsnCode: newGst.hsnCode,
+          description: newGst.description,
+          gstPercent: parseFloat(String(newGst.gstPercent).replace('%', '')) || 0,
+          effectiveDate: newGst.effectiveDate ? new Date(newGst.effectiveDate).toISOString() : undefined,
+          createdBy: selectedGST?.createdBy || currentUser?.fullName || 'Admin User',
+          lastUpdatedBy: currentUser?.fullName || 'Admin User',
+          status: newGst.status as any,
+          remarks: newGst.remarks
+        };
+        
+        const updatedRecord = await gstService.update(newGst.id, payload);
+        
+        let detailedAction = `GST HSN Code ${newGst.hsnCode} Updated`;
+        if (selectedGST) {
+          const changes: string[] = [];
+          if (selectedGST.gstPercent !== newGst.gstPercent) changes.push(`GST: ${selectedGST.gstPercent} → ${newGst.gstPercent}`);
+          if (selectedGST.status !== newGst.status) changes.push(`Status: ${selectedGST.status} → ${newGst.status}`);
+          if (changes.length > 0) {
+            detailedAction += ` (${changes.join(", ")})`;
+          }
+        }
+
+        setData(data.map(item => item.id === newGst.id ? updatedRecord : item));
+        activityLogService.addLog({
+          userId: currentUser?.id || 'admin',
+          userName: currentUser?.fullName || 'Admin User',
+          action: detailedAction,
+          module: "GST Management",
+        });
+
+        if (selectedGST && selectedGST.id === updatedRecord.id) {
+          setSelectedGST(updatedRecord);
+        }
+      } else {
+        const payload: Partial<GST> = {
+          hsnCode: newGst.hsnCode,
+          description: newGst.description,
+          gstPercent: parseFloat(String(newGst.gstPercent).replace('%', '')) || 0,
+          effectiveDate: newGst.effectiveDate ? new Date(newGst.effectiveDate).toISOString() : undefined,
+          createdBy: currentUser?.fullName || 'Admin User',
+          lastUpdatedBy: currentUser?.fullName || 'Admin User',
+          status: newGst.status as any,
+          remarks: newGst.remarks
+        };
+        
+        const newRecord = await gstService.create(payload);
+        setData([newRecord, ...data]);
+        activityLogService.addLog({
+          userId: currentUser?.id || 'admin',
+          userName: currentUser?.fullName || 'Admin User',
+          action: `GST HSN Code ${newGst.hsnCode} Created with rate ${newGst.gstPercent}`,
+          module: "GST Management",
+        });
+      }
       
-      let detailedAction = `GST HSN Code ${newGst.hsnCode} Updated`;
-      if (selectedGST) {
-        const changes: string[] = [];
-        if (selectedGST.gstPercent !== newGst.gstPercent) changes.push(`GST: ${selectedGST.gstPercent} → ${newGst.gstPercent}`);
-        if (selectedGST.status !== newGst.status) changes.push(`Status: ${selectedGST.status} → ${newGst.status}`);
-        if (changes.length > 0) {
-          detailedAction += ` (${changes.join(", ")})`;
-        }
-      }
-
-      setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
-      activityLogService.addLog({
-        userId: currentUser?.id || 'admin',
-        userName: currentUser?.fullName || 'Admin User',
-        action: detailedAction,
-        module: "GST Management",
-      });
-
-      if (selectedGST && selectedGST.id === updatedRecord.id) {
-        setSelectedGST(updatedRecord);
-      }
-    } else {
-      const record: GST = {
-        id: Date.now().toString(),
-        hsnCode: newGst.hsnCode,
-        description: newGst.description,
-        gstPercent: newGst.gstPercent,
-        effectiveDate: newGst.effectiveDate,
-        createdBy: currentUser?.fullName || 'Admin User',
-        lastUpdatedBy: currentUser?.fullName || 'Admin User',
-        lastUpdatedDate: new Date().toISOString().split('T')[0],
-        status: newGst.status as any,
-        remarks: newGst.remarks
-      };
-      setData([record, ...data]);
-      activityLogService.addLog({
-        userId: currentUser?.id || 'admin',
-        userName: currentUser?.fullName || 'Admin User',
-        action: `GST HSN Code ${newGst.hsnCode} Created with rate ${newGst.gstPercent}`,
-        module: "GST Management",
-      });
+      setShowModal(false);
+    } catch (error) {
+      console.error("Error saving GST:", error);
+      alert("Failed to save GST mapping.");
     }
-    
-    setShowModal(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (itemToDelete) {
       const products = productService.getProducts();
       const isUsed = products.some(p => p.hsnCode === itemToDelete.hsnCode);
@@ -330,14 +331,22 @@ export default function GSTManagement() {
         return;
       }
 
-      setData(data.filter(item => item.id !== itemToDelete.id));
-      activityLogService.addLog({
-        userId: currentUser?.id || 'admin',
-        userName: currentUser?.fullName || 'Admin User',
-        action: `GST Deleted - HSN Code: ${itemToDelete.hsnCode}`,
-        module: "GST Management",
-      });
-      setItemToDelete(null);
+      try {
+        if (itemToDelete.id) {
+          await gstService.delete(itemToDelete.id);
+        }
+        setData(data.filter(item => item.id !== itemToDelete.id));
+        activityLogService.addLog({
+          userId: currentUser?.id || 'admin',
+          userName: currentUser?.fullName || 'Admin User',
+          action: `GST Deleted - HSN Code: ${itemToDelete.hsnCode}`,
+          module: "GST Management",
+        });
+        setItemToDelete(null);
+      } catch (error) {
+        console.error("Error deleting GST:", error);
+        alert("Failed to delete GST mapping.");
+      }
     }
   };
 
@@ -459,11 +468,11 @@ export default function GSTManagement() {
                 />
                 <DrawerField
                   label="Last Updated By"
-                  value={selectedGST.lastUpdatedBy || "System"}
+                  value={selectedGST.updatedAtBy || "System"}
                 />
                 <DrawerField
                   label="Last Updated Date"
-                  value={formatDate(selectedGST.lastUpdatedDate)}
+                  value={formatDate(selectedGST.updatedAtDate)}
                 />
               </div>
             </div>
@@ -670,7 +679,7 @@ export default function GSTManagement() {
                 <input
                   value={
                     isEditingModal
-                      ? formatDate(selectedGST?.lastUpdatedDate)
+                      ? formatDate(selectedGST?.updatedAtDate)
                       : formatDate(new Date().toISOString().split("T")[0])
                   }
                   readOnly

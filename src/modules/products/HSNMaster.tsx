@@ -18,8 +18,8 @@ import activityLogService from "../../services/activityLogService";
 import { hsnService, type HSNCode } from "../../services/hsnService";
 
 const initialMockData: HSNCode[] = [
-  { id: '1', code: '30049011', description: 'Medicaments consisting of mixed or unmixed products for therapeutic or prophylactic uses', status: 'Active', createdOn: '2023-01-10', lastUpdated: '2023-01-10' },
-  { id: '2', code: '30041000', description: 'Containing penicillins or derivatives thereof, with a penicillanic acid structure', status: 'Active', createdOn: '2023-02-15', lastUpdated: '2023-02-15' },
+  { id: '1', code: '30049011', description: 'Medicaments consisting of mixed or unmixed products for therapeutic or prophylactic uses', status: 'Active', createdAt: '2023-01-10', updatedAt: '2023-01-10' },
+  { id: '2', code: '30041000', description: 'Containing penicillins or derivatives thereof, with a penicillanic acid structure', status: 'Active', createdAt: '2023-02-15', updatedAt: '2023-02-15' },
 ];
 
 const formatDate = (dateString: string | undefined) => {
@@ -73,8 +73,8 @@ export default function HSNMaster() {
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
-    { key: 'createdOn', label: 'Created On', render: (row) => formatDate(row.createdOn) },
-    { key: 'lastUpdated', label: 'Last Updated', render: (row) => formatDate(row.lastUpdated) },
+    { key: 'createdOn', label: 'Created On', render: (row) => formatDate(row.createdAt) },
+    { key: 'lastUpdated', label: 'Last Updated', render: (row) => formatDate(row.updatedAt) },
     {
       key: 'id',
       label: 'Actions',
@@ -121,8 +121,8 @@ export default function HSNMaster() {
           `"${row.code}"`, 
           `"${row.description.replace(/"/g, '""')}"`, 
           row.status,
-          formatDate(row.createdOn),
-          formatDate(row.lastUpdated),
+          formatDate(row.createdAt),
+          formatDate(row.updatedAt),
           `"${(row.remarks || '').replace(/"/g, '""')}"`
         ].join(',')
       )
@@ -164,7 +164,7 @@ export default function HSNMaster() {
     setShowModal(true);
   };
 
-  const handleSaveHSN = () => {
+  const handleSaveHSN = async () => {
     if (!newHSN.code || !newHSN.description || !newHSN.status) {
       alert("Please fill all mandatory fields (*).");
       return;
@@ -183,81 +183,88 @@ export default function HSNMaster() {
     
     const today = new Date().toISOString().split('T')[0];
     
-    if (isEditingModal && newHSN.id) {
-      const updatedRecord: HSNCode = {
-        ...selectedHSN!,
-        code: newHSN.code,
-        description: newHSN.description,
-        status: newHSN.status as 'Active' | 'Inactive',
-        remarks: newHSN.remarks,
-        lastUpdated: today
-      };
-      
-      setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
-      activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: "HSN Code Updated",
-        module: "HSN Master",
-      });
-      if (selectedHSN && selectedHSN.id === updatedRecord.id) {
-        setSelectedHSN(updatedRecord);
+    try {
+      if (isEditingModal && newHSN.id) {
+        const payload: Partial<HSNCode> = {
+          code: newHSN.code,
+          description: newHSN.description,
+          status: newHSN.status as 'Active' | 'Inactive',
+          remarks: newHSN.remarks,
+        };
+        
+        const updatedRecord = await hsnService.update(newHSN.id, payload);
+        
+        setData(data.map(item => item.id === newHSN.id ? updatedRecord : item));
+        activityLogService.addLog({
+          userId: currentUser.id,
+          userName: currentUser.fullName,
+          action: "HSN Code Updated",
+          module: "HSN Master",
+        });
+        if (selectedHSN && selectedHSN.id === updatedRecord.id) {
+          setSelectedHSN(updatedRecord);
+        }
+      } else {
+        const payload: Partial<HSNCode> = {
+          code: newHSN.code,
+          description: newHSN.description,
+          status: newHSN.status as 'Active' | 'Inactive',
+          remarks: newHSN.remarks,
+        };
+        
+        const newRecord = await hsnService.create(payload);
+        setData([newRecord, ...data]);
+        activityLogService.addLog({
+          userId: currentUser.id,
+          userName: currentUser.fullName,
+          action: "HSN Code Created",
+          module: "HSN Master",
+        });
       }
-    } else {
-      const record: HSNCode = {
-        id: Date.now().toString(),
-        code: newHSN.code,
-        description: newHSN.description,
-        status: newHSN.status as 'Active' | 'Inactive',
-        remarks: newHSN.remarks,
-        createdOn: today,
-        lastUpdated: today
-      };
-      setData([record, ...data]);
-      activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: "HSN Code Created",
-        module: "HSN Master",
-      });
+      
+      setShowModal(false);
+    } catch (error) {
+      console.error("Error saving HSN:", error);
+      alert("Failed to save HSN code.");
     }
-    
-    setShowModal(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (itemToDelete) {
-      setData(data.filter(item => item.id !== itemToDelete.id));
-      activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: "HSN Code Deleted",
-        module: "HSN Master",
-       });
-      setItemToDelete(null);
+      try {
+        if (itemToDelete.id) {
+          await hsnService.delete(itemToDelete.id);
+        }
+        setData(data.filter(item => item.id !== itemToDelete.id));
+        activityLogService.addLog({
+          userId: currentUser.id,
+          userName: currentUser.fullName,
+          action: "HSN Code Deleted",
+          module: "HSN Master",
+         });
+        setItemToDelete(null);
+      } catch (error) {
+        console.error("Error deleting HSN:", error);
+        alert("Failed to delete HSN code.");
+      }
     }
   };
 
-  useEffect(() => {
-    const savedData = hsnService.getAll();
-    if (savedData.length > 0) {
-      setData(savedData);
-    } else {
-      setData(initialMockData);
-      hsnService.saveAll(initialMockData);
-    }
-  }, []);
+  const fetchHSNs = async () => {
+    try {
+      const savedData = await hsnService.getAll();
+      setData(savedData || []);
+    } catch (error) { console.error(error); setData([]); }
+  };
 
   useEffect(() => {
-    if (data.length > 0) {
-      hsnService.saveAll(data);
-    }
-  }, [data]);
+    fetchHSNs();
+  }, []);
 
   const activeCount = data.filter(d => d.status === 'Active').length;
   const inactiveCount = data.filter(d => d.status === 'Inactive').length;
   const recentlyAddedCount = data.filter(d => {
-    const diff = new Date().getTime() - new Date(d.createdOn).getTime();
+    const diff = new Date().getTime() - new Date(d.createdAt).getTime();
     return diff < 7 * 24 * 60 * 60 * 1000;
   }).length;
 
@@ -356,8 +363,8 @@ export default function HSNMaster() {
                 </Badge>
               }
             />
-            <DrawerField label="Created On" value={formatDate(selectedHSN.createdOn)} />
-            <DrawerField label="Updated On" value={formatDate(selectedHSN.lastUpdated)} />
+            <DrawerField label="Created On" value={formatDate(selectedHSN.createdAt)} />
+            <DrawerField label="Updated On" value={formatDate(selectedHSN.updatedAt)} />
             <DrawerField label="Remarks" value={selectedHSN.remarks || "N/A"} />
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3 mt-4">

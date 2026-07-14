@@ -380,7 +380,18 @@ export default function BatchManagement() {
           });
         })
         .catch((err: any) => {
-          alert(err.message || "Failed to delete batch.");
+          if (err.message && (err.message.includes("referenced in") || err.message.includes("Cannot delete"))) {
+            batchService.updateBatch(batchToDelete.id, {
+              status: 'Inactive'
+            }).then(() => {
+              batchService.loadBatches().then((data) => {
+                setBatches(data as unknown as Batch[]);
+              });
+            });
+            alert("Warning: " + err.message + " To preserve your inventory logs, it was automatically marked as Inactive instead.");
+          } else {
+            alert(err.message || "Failed to delete batch.");
+          }
         });
       activityLogService.addLog({
         userId: currentUser?.id,

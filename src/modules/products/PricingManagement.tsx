@@ -21,6 +21,7 @@ import authService from "../../services/authService";
 
 interface Pricing {
   id: string;
+  productId?: string;
   productCode: string;
   productName: string;
   hsnCode?: string;
@@ -74,51 +75,49 @@ export default function PricingManagement() {
   const canEdit = true;
   const canDelete = true;
 
-  useEffect(() => {
-    const savedData = pricingService.getAll();
-    let loadedData = savedData.length > 0 ? savedData : [];
-    
-    const todayStr = new Date().toISOString().split('T')[0];
-    let changed = false;
-    
-    let updatedData = loadedData.map((item: Pricing) => {
-      if (item.status === 'Scheduled' && item.effectiveFrom <= todayStr) {
-        changed = true;
-        return { ...item, status: 'Active' as const };
-      }
-      return item;
-    });
-
-    if (changed) {
-      const productsWithActive = Array.from(new Set(updatedData.filter((i:any) => i.status === 'Active').map((i:any) => i.productCode)));
-      productsWithActive.forEach(code => {
-        const activeItems = updatedData.filter((i:any) => i.productCode === code && i.status === 'Active');
-        if (activeItems.length > 1) {
-          activeItems.sort((a:any, b:any) => b.effectiveFrom.localeCompare(a.effectiveFrom));
-          const latestActiveId = activeItems[0].id;
-          updatedData = updatedData.map((item:any) => {
-            if (item.productCode === code && item.status === 'Active' && item.id !== latestActiveId) {
-              return { ...item, status: 'Expired' as const };
-            }
-            return item;
-          });
+  const fetchPricings = async () => {
+    try {
+      const savedData = await pricingService.getAll();
+      let loadedData = savedData.length > 0 ? savedData : [];
+      
+      const todayStr = new Date().toISOString().split('T')[0];
+      let changed = false;
+      
+      let updatedData = loadedData.map((item: any) => {
+        if (item.status === 'Scheduled' && item.effectiveFrom <= todayStr) {
+          changed = true;
+          return { ...item, status: 'Active' as const };
         }
+        return item;
       });
-    }
 
-    if (savedData.length > 0) {
+      if (changed) {
+        const productsWithActive = Array.from(new Set(updatedData.filter((i:any) => i.status === 'Active').map((i:any) => i.productCode)));
+        productsWithActive.forEach(code => {
+          const activeItems = updatedData.filter((i:any) => i.productCode === code && i.status === 'Active');
+          if (activeItems.length > 1) {
+            activeItems.sort((a:any, b:any) => b.effectiveFrom.localeCompare(a.effectiveFrom));
+            const latestActiveId = activeItems[0].id;
+            updatedData = updatedData.map((item:any) => {
+              if (item.productCode === code && item.status === 'Active' && item.id !== latestActiveId) {
+                return { ...item, status: 'Expired' as const };
+              }
+              return item;
+            });
+          }
+        });
+      }
+
       setData(updatedData);
-    } else {
-      setData(updatedData);
-      pricingService.saveAll(updatedData);
+    } catch (error) {
+      console.error("Failed to fetch Pricing", error);
+      setData([]);
     }
-  }, []);
+  };
 
   useEffect(() => {
-    if (data.length > 0) {
-      pricingService.saveAll(data);
-    }
-  }, [data]);
+    fetchPricings();
+  }, []);
 
   useEffect(() => {
     const savedProducts = productService.getProducts();
@@ -330,6 +329,7 @@ export default function PricingManagement() {
 
     setNewPricing({
       ...newPricing,
+      productId: product.id,
       productName: product.name,
       productCode: product.code,
       category: product.category || "",
@@ -351,6 +351,7 @@ export default function PricingManagement() {
     setProductSearch('');
     setNewPricing({
       id: "",
+      productId: "",
       productName: "",
       productCode: "",
       category: "",
@@ -389,6 +390,7 @@ export default function PricingManagement() {
 
     setNewPricing({
       id: selectedPricing.id,
+      productId: product?.id || "",
       productName: selectedPricing.productName,
       productCode: selectedPricing.productCode,
       category: selectedPricing.category || product?.category || "",
@@ -410,8 +412,8 @@ export default function PricingManagement() {
     setShowModal(true);
   };
 
-  const handleSavePricing = () => {
-    if (!newPricing.productName || !newPricing.mrp || !newPricing.pts || !newPricing.ptr || !newPricing.effectiveFrom) {
+  const handleSavePricing = async () => {
+    if (!newPricing.productName || !newPricing.mrp || !newPricing.ptr || !newPricing.effectiveFrom) {
       alert("Please fill all mandatory fields (*). Product, MRP, PTR, PTS and Effective From are required.");
       return;
     }
@@ -468,136 +470,172 @@ export default function PricingManagement() {
       );
     }
     
-    if (isEditingModal && newPricing.id && selectedPricing) {
-      const updatedRecord: Pricing = {
-        id: newPricing.id,
-        productCode: newPricing.productCode || "N/A",
-        productName: newPricing.productName,
-        category: newPricing.category,
-        hsnCode: newPricing.hsnCode,
-        gst: newPricing.gst,
-        composition: newPricing.composition,
-        packingType: newPricing.packingType,
-        scheme: newPricing.scheme,
-        mrp: `₹ ${mrpVal.toFixed(2)}`,
-        pts: `₹ ${ptsVal.toFixed(2)}`,
-        ptr: `₹ ${ptrVal.toFixed(2)}`,
-        stockistMargin: newPricing.stockistMargin,
-        retailMargin: newPricing.retailMargin,
-        effectiveFrom: newPricing.effectiveFrom,
-        effectiveTo: newPricing.effectiveTo || undefined,
-        remarks: trimmedRemarks,
-        status: resolvedStatus,
-        updatedBy: currentUser?.fullName,
-        updatedAt: new Date().toISOString(),
-        createdBy: selectedPricing.createdBy,
-        createdAt: selectedPricing.createdAt,
-      };
-      
-      setData(resolvedList.map(item => item.id === updatedRecord.id ? updatedRecord : item));
+    try {
+      if (isEditingModal && newPricing.id && selectedPricing) {
+        const payload: Partial<PricingMaster> = {
+          productId: newPricing.productId ? Number(newPricing.productId) : 0, 
+          mrp: mrpVal,
+          ptr: ptrVal,
+          pts: ptsVal,
+          margin: newPricing.stockistMargin ? parseFloat(newPricing.stockistMargin.toString().replace('%', '')) : 0,
+          effectiveDate: newPricing.effectiveFrom ? new Date(newPricing.effectiveFrom).toISOString() : undefined,
+        };
+        
+        const updatedRecord = await pricingService.update(newPricing.id, payload);
+        
+        const mappedRecord: Pricing = {
+          id: updatedRecord.id as string,
+          productCode: newPricing.productCode || "N/A",
+          productName: newPricing.productName,
+          category: newPricing.category,
+          hsnCode: newPricing.hsnCode,
+          gst: newPricing.gst,
+          composition: newPricing.composition,
+          packingType: newPricing.packingType,
+          scheme: newPricing.scheme,
+          mrp: `₹ ${mrpVal.toFixed(2)}`,
+          pts: `₹ ${ptsVal.toFixed(2)}`,
+          ptr: `₹ ${ptrVal.toFixed(2)}`,
+          stockistMargin: newPricing.stockistMargin,
+          retailMargin: newPricing.retailMargin,
+          effectiveFrom: newPricing.effectiveFrom,
+          effectiveTo: newPricing.effectiveTo || undefined,
+          remarks: trimmedRemarks,
+          status: resolvedStatus,
+          updatedBy: currentUser?.fullName,
+          updatedAt: new Date().toISOString(),
+          createdBy: selectedPricing.createdBy,
+          createdAt: selectedPricing.createdAt,
+        };
+        setData(resolvedList.map(item => item.id === newPricing.id ? mappedRecord : item));
 
-      if (resolvedStatus === 'Active') {
-        const productsList = productService.getProducts();
-        const updatedProducts = productsList.map((product) =>
-          product.code === updatedRecord.productCode
-            ? {
-                ...product,
-                mrp: mrpVal.toFixed(2),
-                pts: ptsVal.toFixed(2),
-                ptr: ptrVal.toFixed(2),
-              }
-            : product
-        );
-        productService.saveProducts(updatedProducts);
-        setProducts(updatedProducts.filter((p: any) => p.status === 'Active'));
+        if (resolvedStatus === 'Active') {
+          const productsList = productService.getProducts();
+          const updatedProducts = productsList.map((product) =>
+            product.code === updatedRecord.productCode
+              ? {
+                  ...product,
+                  mrp: mrpVal.toFixed(2),
+                  pts: ptsVal.toFixed(2),
+                  ptr: ptrVal.toFixed(2),
+                }
+              : product
+          );
+          productService.saveProducts(updatedProducts);
+          setProducts(updatedProducts.filter((p: any) => p.status === 'Active'));
+        }
+        
+        activityLogService.addLog({
+          userId: currentUser?.id,
+          userName: currentUser?.fullName,
+          action: `Pricing Revision Updated - Product: ${newPricing.productName}, MRP: ₹${mrpVal.toFixed(2)}, PTR: ₹${ptrVal.toFixed(2)}`,
+          module: "PTR / PTS / PTD Pricing",
+        });
+        setSelectedPricing(mappedRecord);
+      } else {
+        const payload: Partial<PricingMaster> = {
+          productId: newPricing.productId ? Number(newPricing.productId) : 0, 
+          mrp: mrpVal,
+          ptr: ptrVal,
+          pts: ptsVal,
+          margin: newPricing.stockistMargin ? parseFloat(newPricing.stockistMargin.toString().replace('%', '')) : 0,
+          effectiveDate: newPricing.effectiveFrom ? new Date(newPricing.effectiveFrom).toISOString() : undefined,
+        };
+        
+        const newRecord = await pricingService.create(payload);
+        
+        const mappedRecord: Pricing = {
+          id: newRecord.id as string,
+          productCode: newPricing.productCode || "N/A",
+          productName: newPricing.productName,
+          category: newPricing.category,
+          hsnCode: newPricing.hsnCode,
+          gst: newPricing.gst,
+          composition: newPricing.composition,
+          packingType: newPricing.packingType,
+          scheme: newPricing.scheme,
+          mrp: `₹ ${mrpVal.toFixed(2)}`,
+          pts: `₹ ${ptsVal.toFixed(2)}`,
+          ptr: `₹ ${ptrVal.toFixed(2)}`,
+          stockistMargin: newPricing.stockistMargin,
+          retailMargin: newPricing.retailMargin,
+          effectiveFrom: newPricing.effectiveFrom,
+          effectiveTo: newPricing.effectiveTo || undefined,
+          remarks: trimmedRemarks,
+          status: resolvedStatus,
+          createdBy: currentUser?.fullName,
+          createdAt: new Date().toISOString(),
+          updatedBy: currentUser?.fullName,
+          updatedAt: new Date().toISOString(),
+        };
+        setData([mappedRecord, ...resolvedList]);
+
+        if (resolvedStatus === 'Active') {
+          const productsList = productService.getProducts();
+          const updatedProducts = productsList.map((product) =>
+            product.code === mappedRecord.productCode
+              ? {
+                  ...product,
+                  mrp: mrpVal.toFixed(2),
+                  pts: ptsVal.toFixed(2),
+                  ptr: ptrVal.toFixed(2),
+                }
+              : product
+          );
+          productService.saveProducts(updatedProducts);
+          setProducts(updatedProducts.filter((p: any) => p.status === 'Active'));
+        }
+
+        activityLogService.addLog({
+          userId: currentUser?.id,
+          userName: currentUser?.fullName,
+          action: `Pricing Revision Created - Product: ${newPricing.productName}, MRP: ₹${mrpVal.toFixed(2)}, PTR: ₹${ptrVal.toFixed(2)}`,
+          module: "PTR / PTS / PTD Pricing",
+        });
       }
       
-      activityLogService.addLog({
-        userId: currentUser?.id,
-        userName: currentUser?.fullName,
-        action: `Pricing Revision Updated - Product: ${newPricing.productName}, MRP: ₹${mrpVal.toFixed(2)}, PTR: ₹${ptrVal.toFixed(2)}`,
-        module: "PTR / PTS / PTD Pricing",
-      });
-      if (selectedPricing && selectedPricing.id === updatedRecord.id) {
-        setSelectedPricing(updatedRecord);
-      }
-    } else {
-      const record: Pricing = {
-        id: Date.now().toString(),
-        productCode: newPricing.productCode || "N/A",
-        productName: newPricing.productName,
-        category: newPricing.category,
-        hsnCode: newPricing.hsnCode,
-        gst: newPricing.gst,
-        composition: newPricing.composition,
-        packingType: newPricing.packingType,
-        scheme: newPricing.scheme,
-        mrp: `₹ ${mrpVal.toFixed(2)}`,
-        pts: `₹ ${ptsVal.toFixed(2)}`,
-        ptr: `₹ ${ptrVal.toFixed(2)}`,
-        stockistMargin: newPricing.stockistMargin,
-        retailMargin: newPricing.retailMargin,
-        effectiveFrom: newPricing.effectiveFrom,
-        effectiveTo: newPricing.effectiveTo || undefined,
-        remarks: trimmedRemarks,
-        status: resolvedStatus,
-        createdBy: currentUser?.fullName,
-        createdAt: new Date().toISOString(),
-        updatedBy: currentUser?.fullName,
-        updatedAt: new Date().toISOString(),
-      };
-      setData([record, ...resolvedList]);
-
-      if (resolvedStatus === 'Active') {
-        const productsList = productService.getProducts();
-        const updatedProducts = productsList.map((product) =>
-          product.code === record.productCode
-            ? {
-                ...product,
-                mrp: mrpVal.toFixed(2),
-                pts: ptsVal.toFixed(2),
-                ptr: ptrVal.toFixed(2),
-              }
-            : product
-        );
-        productService.saveProducts(updatedProducts);
-        setProducts(updatedProducts.filter((p: any) => p.status === 'Active'));
-      }
-
-      activityLogService.addLog({
-        userId: currentUser?.id,
-        userName: currentUser?.fullName,
-        action: `Pricing Revision Created - Product: ${newPricing.productName}, MRP: ₹${mrpVal.toFixed(2)}, PTR: ₹${ptrVal.toFixed(2)}`,
-        module: "PTR / PTS / PTD Pricing",
-      });
+      setShowModal(false);
+    } catch (error) {
+      console.error("Error saving Pricing:", error);
+      alert("Failed to save Pricing revision.");
     }
-    
-    setShowModal(false);
-  };
+};
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (itemToDelete) {
       const inUse = checkPricingInUse(itemToDelete);
       if (inUse) {
-        const updated = data.map(item =>
-          item.id === itemToDelete.id ? { ...item, status: 'Cancelled' as const } : item
-        );
-        setData(updated);
-        activityLogService.addLog({
-          userId: currentUser?.id,
-          userName: currentUser?.fullName,
-          action: `Pricing Revision Cancelled (Delete Blocked due to Invoice usage) - Product: ${itemToDelete.productName}`,
-          module: "PTR / PTS / PTD Pricing",
-        });
-        alert("Warning: This pricing revision is used in invoices. To preserve financial history, it was marked as Cancelled instead of deleted.");
+        try {
+          await pricingService.update(itemToDelete.id, { status: 'Cancelled' as any });
+          const updated = data.map(item =>
+            item.id === itemToDelete.id ? { ...item, status: 'Cancelled' as any } : item
+          );
+          setData(updated);
+          activityLogService.addLog({
+            userId: currentUser?.id,
+            userName: currentUser?.fullName,
+            action: `Pricing Revision Cancelled (Delete Blocked due to Invoice usage) - Product: ${itemToDelete.productName}`,
+            module: "PTR / PTS / PTD Pricing",
+          });
+          alert("Warning: This pricing revision is used in invoices. To preserve financial history, it was marked as Cancelled instead of deleted.");
+        } catch (error) {
+           console.error("Error cancelling pricing:", error);
+           alert("Failed to cancel pricing.");
+        }
       } else {
-        setData(data.filter(item => item.id !== itemToDelete.id));
-        activityLogService.addLog({
-          userId: currentUser?.id,
-          userName: currentUser?.fullName,
-          action: `Pricing Revision Deleted for Product: ${itemToDelete.productName}`,
-          module: "PTR / PTS / PTD Pricing",
-        });
+        try {
+          await pricingService.delete(itemToDelete.id);
+          setData(data.filter(item => item.id !== itemToDelete.id));
+          activityLogService.addLog({
+            userId: currentUser?.id,
+            userName: currentUser?.fullName,
+            action: `Pricing Revision Deleted for Product: ${itemToDelete.productName}`,
+            module: "PTR / PTS / PTD Pricing",
+          });
+        } catch (error) {
+           console.error("Error deleting pricing:", error);
+           alert("Failed to delete pricing.");
+        }
       }
       setItemToDelete(null);
     }

@@ -1,15 +1,42 @@
-const STORAGE_KEY = "pricingRecords";
+import { apiRequest } from './apiClient';
+
+export interface PricingMaster {
+  id?: number | string;
+  productId: number;
+  mrp: number;
+  ptr: number;
+  pts: number;
+  margin: number;
+  effectiveDate?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export const pricingService = {
-  getAll() {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+  getAll: async (): Promise<PricingMaster[]> => {
+    const res = await apiRequest<any>('/pricing');
+    return res?.data || [];
   },
 
-  saveAll(records: any[]) {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(records)
-    );
+  create: async (data: Partial<PricingMaster>): Promise<PricingMaster> => {
+    const res = await apiRequest<any>('/pricing', {
+      method: 'POST',
+      bodyData: data,
+    });
+    return res?.data;
+  },
+
+  update: async (id: number | string, data: Partial<PricingMaster>): Promise<PricingMaster> => {
+    const res = await apiRequest<any>(`/pricing/${id}`, {
+      method: 'PUT',
+      bodyData: data,
+    });
+    return res?.data;
+  },
+
+  delete: async (id: number | string): Promise<void> => {
+    await apiRequest<any>(`/pricing/${id}`, {
+      method: 'DELETE',
+    });
   },
 };

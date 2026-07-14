@@ -285,16 +285,23 @@ export default function ProductMaster() {
     const defaultManufacturers = ["PharmaCorp", "HealthPlus", "MediCare", "VitaLife"];
     setManufacturers(defaultManufacturers);
 
-    const savedPackingTypes = packingTypeService.getAll();
-    setPackingTypes(savedPackingTypes.filter((item: any) => item.status === "Active"));
-
-    const savedCompositions = compositionService.getAll();
-    setCompositions(savedCompositions.filter((item: any) => item.status === "Active"));
-
-    const savedSchemes = schemeService.getAll();
-    setSchemes(savedSchemes.filter((item: any) => item.status === "Active"));
-
-    setActiveHSNs(hsnService.getActive());
+    const fetchDropdownData = async () => {
+      try {
+        const [savedPackingTypes, savedCompositions, savedSchemes, activeHSNs] = await Promise.all([
+          packingTypeService.getAll(),
+          compositionService.getAll(),
+          schemeService.getAll(),
+          hsnService.getActive()
+        ]);
+        setPackingTypes((savedPackingTypes || []).filter((item: any) => item.status === "Active"));
+        setCompositions((savedCompositions || []).filter((item: any) => item.status === "Active"));
+        setSchemes((savedSchemes || []).filter((item: any) => item.status === "Active"));
+        setActiveHSNs(activeHSNs || []);
+      } catch (err) {
+        console.error("Failed to load dropdown data:", err);
+      }
+    };
+    fetchDropdownData();
   }, []);
 
   // Synchronized via backend API endpoints directly during save/delete mutations
@@ -694,34 +701,11 @@ export default function ProductMaster() {
                     <div className="relative">
                       <input type="text" value={schemeSearch} onChange={(e) => { 
                         setSchemeSearch(e.target.value); 
-                        const allSchemes = schemeService.getAll();
-                        console.log("[DEBUG] (onChange) Total schemes received from localstorage:", allSchemes.length);
-                        console.log("[DEBUG] (onChange) Raw scheme objects:", allSchemes);
-                        const activeSchemes = allSchemes.filter((s:any) => s.status === "Active");
-                        console.log("[DEBUG] (onChange) Schemes remaining after status='Active' filter:", activeSchemes.length);
-                        console.log("[DEBUG] (onChange) Dropped schemes:", allSchemes.filter((s:any) => s.status !== "Active"));
-                        setSchemes(activeSchemes);
                         setShowSchemeDropdown(true); 
                       }} onFocus={() => {
-                        const allSchemes = schemeService.getAll();
-                        console.log("[DEBUG] (onFocus) Total schemes received from localstorage:", allSchemes.length);
-                        console.log("[DEBUG] (onFocus) Raw scheme objects:", allSchemes);
-                        const activeSchemes = allSchemes.filter((s:any) => s.status === "Active");
-                        console.log("[DEBUG] (onFocus) Schemes remaining after status='Active' filter:", activeSchemes.length);
-                        console.log("[DEBUG] (onFocus) Dropped schemes:", allSchemes.filter((s:any) => s.status !== "Active"));
-                        setSchemes(activeSchemes);
                         setShowSchemeDropdown(true);
                       }} placeholder="Search Scheme..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
                       <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => {
-                        if (!showSchemeDropdown) {
-                          const allSchemes = schemeService.getAll();
-                          console.log("[DEBUG] (onClick) Total schemes received from localstorage:", allSchemes.length);
-                          console.log("[DEBUG] (onClick) Raw scheme objects:", allSchemes);
-                          const activeSchemes = allSchemes.filter((s:any) => s.status === "Active");
-                          console.log("[DEBUG] (onClick) Schemes remaining after status='Active' filter:", activeSchemes.length);
-                          console.log("[DEBUG] (onClick) Dropped schemes:", allSchemes.filter((s:any) => s.status !== "Active"));
-                          setSchemes(activeSchemes);
-                        }
                         setShowSchemeDropdown(!showSchemeDropdown);
                       }} />
                     </div>

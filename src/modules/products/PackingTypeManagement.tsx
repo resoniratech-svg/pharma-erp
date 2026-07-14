@@ -131,13 +131,13 @@ export default function PackingTypeManagement() {
   ];
 
   const filteredData = data.filter((item) => {
-    const matchSearch = item.name.toLowerCase().includes(search.toLowerCase()) || item.code.toLowerCase().includes(search.toLowerCase());
+    const matchSearch = (item.name || '').toLowerCase().includes(search.toLowerCase()) || (item.code || '').toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   });
 
   const handleExport = () => {
-    const hasAuditFields = data.some(item => item.createdOn || item.createdBy);
+    const hasAuditFields = data.some(item => item.createdAt || item.createdBy);
     const headers = ['Packing Name', 'Code', 'Unit of Measure', 'Description', 'Status'];
     
     if (hasAuditFields) {
@@ -158,7 +158,7 @@ export default function PackingTypeManagement() {
         if (hasAuditFields) {
           rowData.push(
             `"${row.createdBy || ''}"`,
-            row.createdOn ? formatDate(row.createdOn) : '',
+            row.createdAt ? formatDate(row.createdAt) : '',
             `"${row.updatedBy || ''}"`,
             row.updatedOn ? formatDate(row.updatedOn) : ''
           );
@@ -245,7 +245,7 @@ export default function PackingTypeManagement() {
     setShowModal(true);
   };
 
-  const handleSavePacking = () => {
+  const handleSavePacking = async () => {
     const trimmedCode = newPacking.code.trim();
     const trimmedName = newPacking.name.trim();
     const trimmedDescription = newPacking.description.trim();
@@ -270,49 +270,54 @@ export default function PackingTypeManagement() {
       return;
     }
     
-    if (isEditingModal && newPacking.id) {
-      const updatedRecord: PackingType = {
-        ...selectedPacking!,
-        id: newPacking.id,
-        code: trimmedCode,
-        name: trimmedName,
-        uom: newPacking.uom,
-        description: trimmedDescription,
-        status: newPacking.status as 'Active' | 'Inactive'
-      };
-      
-      setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
-      activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: "Packing Type Updated",
-        module: "Packing Type Management",
-      });
-      if (selectedPacking && selectedPacking.id === updatedRecord.id) {
-        setSelectedPacking(updatedRecord);
+    try {
+      if (isEditingModal && newPacking.id) {
+        const payload: Partial<PackingType> = {
+          name: trimmedName,
+          code: trimmedCode,
+          uom: newPacking.uom,
+          description: trimmedDescription,
+          status: newPacking.status as 'Active' | 'Inactive'
+        };
+        
+        const updatedRecord = await packingTypeService.update(newPacking.id, payload);
+        
+        setData(data.map(item => item.id === newPacking.id ? updatedRecord : item));
+        activityLogService.addLog({
+          userId: currentUser.id,
+          userName: currentUser.fullName,
+          action: "Packing Type Updated",
+          module: "Packing Type Management",
+        });
+        if (selectedPacking && selectedPacking.id === updatedRecord.id) {
+          setSelectedPacking(updatedRecord);
+        }
+      } else {
+        const payload: Partial<PackingType> = {
+          name: trimmedName,
+          code: trimmedCode,
+          uom: newPacking.uom,
+          description: trimmedDescription,
+          status: newPacking.status as 'Active' | 'Inactive'
+        };
+        const newRecord = await packingTypeService.create(payload);
+        setData([newRecord, ...data]);
+        activityLogService.addLog({
+          userId: currentUser.id,
+          userName: currentUser.fullName,
+          action: "Packing Type Created",
+          module: "Packing Type Management",
+        });
       }
-    } else {
-      const record: PackingType = {
-        id: Date.now().toString(),
-        code: trimmedCode,
-        name: trimmedName,
-        uom: newPacking.uom,
-        description: trimmedDescription,
-        status: newPacking.status as 'Active' | 'Inactive'
-      };
-      setData([record, ...data]);
-      activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: "Packing Type Created",
-        module: "Packing Type Management",
-      });
+      
+      setShowModal(false);
+    } catch (error) {
+      console.error("Error saving Packing Type:", error);
+      alert("Failed to save Packing Type.");
     }
-    
-    setShowModal(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (itemToDelete) {
       if ((itemToDelete.associatedProducts || 0) > 0) {
         alert("This Packing Type is currently in use by one or more products and cannot be deleted. You may change its status to Inactive instead.");
@@ -320,32 +325,35 @@ export default function PackingTypeManagement() {
         return;
       }
 
-      setData(data.filter(item => item.id !== itemToDelete.id));
-      activityLogService.addLog({
-        userId: currentUser.id,
-        userName: currentUser.fullName,
-        action: "Packing Type Deleted",
-        module: "Packing Type Management",
-       });
-      setItemToDelete(null);
+      try {
+        if (itemToDelete.id) {
+          await packingTypeService.delete(itemToDelete.id);
+        }
+        setData(data.filter(item => item.id !== itemToDelete.id));
+        activityLogService.addLog({
+          userId: currentUser.id,
+          userName: currentUser.fullName,
+          action: "Packing Type Deleted",
+          module: "Packing Type Management",
+         });
+        setItemToDelete(null);
+      } catch (error) {
+        console.error("Error deleting Packing Type:", error);
+        alert("Failed to delete Packing Type.");
+      }
     }
   };
 
-  useEffect(() => {
-    const savedData = packingTypeService.getAll();
-    if (savedData && savedData.length > 0) {
-      setData(savedData);
-    } else {
-      setData(initialMockData);
-      packingTypeService.saveAll(initialMockData);
-    }
-  }, []);
+  const fetchPackingTypes = async () => {
+    try {
+      const savedData = await packingTypeService.getAll();
+      setData(savedData || []);
+    } catch (error) { console.error(error); setData([]); }
+  };
 
   useEffect(() => {
-    if (data.length > 0) {
-      packingTypeService.saveAll(data);
-    }
-  }, [data]);
+    fetchPackingTypes();
+  }, []);
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -436,8 +444,8 @@ export default function PackingTypeManagement() {
             {selectedPacking.createdBy && (
               <DrawerField label="Created By" value={selectedPacking.createdBy} />
             )}
-            {selectedPacking.createdOn && (
-              <DrawerField label="Created On" value={formatDate(selectedPacking.createdOn)} />
+            {selectedPacking.createdAt && (
+              <DrawerField label="Created On" value={formatDate(selectedPacking.createdAt)} />
             )}
             {selectedPacking.updatedBy && (
               <DrawerField label="Updated By" value={selectedPacking.updatedBy} />

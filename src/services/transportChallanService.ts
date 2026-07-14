@@ -12,6 +12,7 @@ export interface Challan {
   challanDate: string;
   dispatchNo: string;
   dispatchDate: string;
+  dispatchType?: string;
   orderNo?: string;
   customer: string;
   sourceWarehouse: string;
@@ -46,6 +47,7 @@ export interface TimelineEvent {
 
 export interface LRRecord {
   id: string;
+  dispatchType: string;
   lrNumber: string;
   customer: string;
   transporter: string;
@@ -281,7 +283,16 @@ export const transportChallanService = {
         challanCache = stored ? JSON.parse(stored) : [];
       } catch (e) {}
     }
-    return challanCache;
+    
+    // Retroactively enrich dispatchType from dispatches for older records
+    const dispatches = transportChallanService.getAllDispatches();
+    return challanCache.map(c => {
+      if (!c.dispatchType) {
+        const d = dispatches.find(d => d.dispatchId === c.dispatchNo || d.dispatchNo === c.dispatchNo);
+        c.dispatchType = d?.dispatchType || (c.orderNo ? 'Customer Order' : 'Warehouse Transfer');
+      }
+      return c;
+    });
   },
 
   getChallanById: (id: string): Challan | undefined => {
@@ -341,6 +352,7 @@ export const transportChallanService = {
 
       return {
         id: challan.id,
+        dispatchType: challan.dispatchType || 'Outward Stock',
         lrNumber: challan.challanNo.replace('CHL-', 'LR-'),
         customer: challan.customer,
         transporter: challan.transporter,

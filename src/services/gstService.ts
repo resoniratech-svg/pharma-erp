@@ -1,15 +1,42 @@
-const STORAGE_KEY = 'gstRecords';
+import { apiRequest } from './apiClient';
+
+export interface GSTRecord {
+  id?: number | string;
+  hsnCode: string;
+  description: string;
+  gstPercent: number;
+  effectiveDate?: string;
+  createdBy?: string;
+  lastUpdatedBy?: string;
+  createdAt?: string;
+  updatedAt?: string;
+}
 
 export const gstService = {
-  getAll() {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+  getAll: async (): Promise<GSTRecord[]> => {
+    const res = await apiRequest<any>('/gst');
+    return res?.data || [];
   },
 
-  saveAll(records: any[]) {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(records)
-    );
+  create: async (data: Partial<GSTRecord>): Promise<GSTRecord> => {
+    const res = await apiRequest<any>('/gst', {
+      method: 'POST',
+      bodyData: data,
+    });
+    return res?.data;
+  },
+
+  update: async (id: number | string, data: Partial<GSTRecord>): Promise<GSTRecord> => {
+    const res = await apiRequest<any>(`/gst/${id}`, {
+      method: 'PUT',
+      bodyData: data,
+    });
+    return res?.data;
+  },
+
+  delete: async (id: number | string): Promise<void> => {
+    await apiRequest<any>(`/gst/${id}`, {
+      method: 'DELETE',
+    });
   },
 };

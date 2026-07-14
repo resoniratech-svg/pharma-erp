@@ -128,7 +128,6 @@ export const batchService = {
         manufacturingDate: record.mfgDate,
         expiryDate: record.expDate,
         quantity: record.availableQty !== undefined ? Number(record.availableQty) : undefined,
-        status: record.status,
       },
     });
     if (!response.success || !response.data) {

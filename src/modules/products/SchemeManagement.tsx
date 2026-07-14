@@ -112,32 +112,40 @@ export default function SchemeManagement() {
         "Cash Back",
       ]));
     }
-
-    const savedData = schemeService.getAll() as Scheme[];
-    let loadedData = savedData;
-    
-    let changed = false;
-    
-    const updatedData = loadedData.map((item: Scheme) => {
-      const resolved = resolveSchemeStatus(item.validFrom, item.validTo, item.status);
-      if (resolved !== item.status) {
-        changed = true;
-        return { ...item, status: resolved };
-      }
-      return item;
-    });
-
-    setData(updatedData);
-    if (changed) {
-      schemeService.saveAll(updatedData);
-    }
   }, []);
 
-  useEffect(() => {
-    if (data.length > 0) {
-      schemeService.saveAll(data);
+  const fetchSchemes = async () => {
+    try {
+      const savedData = await schemeService.getAll();
+      let loadedData = savedData && savedData.length > 0 ? savedData : [];
+      let changed = false;
+      let updatedData = loadedData.map((rawItem: any) => {
+        const item = {
+          ...rawItem,
+          schemeCode: rawItem.code || rawItem.schemeCode,
+          validFrom: rawItem.startDate || rawItem.validFrom,
+          validTo: rawItem.endDate || rawItem.validTo,
+          minQuantity: rawItem.buyQty !== undefined ? rawItem.buyQty.toString() : rawItem.minQuantity,
+          freeQuantity: rawItem.freeQty !== undefined ? rawItem.freeQty.toString() : rawItem.freeQuantity,
+        };
+        const resolved = resolveSchemeStatus(item.validFrom, item.validTo, item.status);
+        if (resolved !== item.status) {
+          changed = true;
+          return { ...item, status: resolved };
+        }
+        return item;
+      });
+
+      setData(updatedData);
+    } catch (error) {
+      console.error("Failed to fetch Schemes", error);
+      setData([]);
     }
-  }, [data]);
+  };
+
+  useEffect(() => {
+    fetchSchemes();
+  }, []);
 
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -405,46 +413,17 @@ export default function SchemeManagement() {
     setShowModal(true);
   };
 
-  const handleSaveScheme = () => {
+  const handleSaveScheme = async () => {
     let trimmedCode = newScheme.schemeCode.trim();
-    if (!trimmedCode) {
-      alert("Error: Scheme Code cannot be empty or only spaces.");
-      return;
-    }
     const trimmedName = newScheme.name.trim();
-    if (!trimmedName) {
-      alert("Error: Scheme Name cannot be empty or only spaces.");
-      return;
-    }
 
-    if (!newScheme.type || !newScheme.benefitType || !newScheme.benefitValue || !newScheme.validFrom || !newScheme.validTo || !newScheme.status) {
+    if (!trimmedName || (newScheme.applicableTo !== 'All Products' && !newScheme.applicableSelection)) {
       alert("Please fill all mandatory fields (*).");
       return;
     }
 
-    if (newScheme.applicableTo !== "All Products" && !newScheme.applicableSelection) {
-      alert(`Error: Please select a target ${newScheme.applicableTo} for applicability.`);
-      return;
-    }
-
-    if (newScheme.validTo < newScheme.validFrom) {
-      alert("Error: The validity ending date (Valid To) cannot be earlier than start date (Valid From).");
-      return;
-    }
-
-    const valNum = parseFloat(newScheme.benefitValue) || 0;
-    if (valNum <= 0) {
-      alert("Error: Benefit Value must be a positive number.");
-      return;
-    }
-    
-    if (!/^\d+(\.\d{1,2})?$/.test(newScheme.benefitValue.trim())) {
-      alert("Error: Benefit Value must be numeric with up to 2 decimal places.");
-      return;
-    }
-
-    if (newScheme.benefitType === "Percentage Discount" && valNum > 100) {
-      alert("Error: Percentage Discount cannot exceed 100%.");
+    if (!newScheme.validFrom) {
+      alert("Please specify a Valid From date.");
       return;
     }
 
@@ -455,125 +434,128 @@ export default function SchemeManagement() {
         alert("Error: Minimum Quantity and Free Quantity must be positive integers.");
         return;
       }
-      if (free >= min) {
-        alert("Warning: Free Quantity matches or exceeds minimum purchase quantity.");
-      }
-    }
-
-    let finalCode = trimmedCode;
-    if (!isEditingModal) {
-      let isDuplicateCode = data.some(item => item.schemeCode === finalCode);
-      while (isDuplicateCode) {
-        finalCode = generateNextSchemeCode(data);
-        isDuplicateCode = data.some(item => item.schemeCode === finalCode);
-      }
-      trimmedCode = finalCode;
-    } else {
-      const isDuplicateCode = data.some(item => item.schemeCode.trim().toLowerCase() === trimmedCode.toLowerCase() && item.id !== newScheme.id);
-      if (isDuplicateCode) {
-        alert(`Error: A promotional scheme with code "${trimmedCode}" already exists.`);
-        return;
-      }
-    }
-
-    const isDuplicateName = data.some(
-      item => item.name.trim().toLowerCase() === trimmedName.toLowerCase() && item.id !== newScheme.id
-    );
-    if (isDuplicateName) {
-      alert(`Error: A promotional scheme with name "${trimmedName}" already exists.`);
-      return;
     }
 
     const resolvedStatus = resolveSchemeStatus(newScheme.validFrom, newScheme.validTo, newScheme.status);
     const checkedForm = { ...newScheme, status: resolvedStatus };
-
-    if (checkSchemeOverlap(checkedForm, data)) {
-      alert(`Error: An active scheme has already been scheduled for "${getApplicableSelectionText(newScheme.applicableTo, newScheme.applicableSelection) || 'All Products'}" within these exact dates.`);
-      return;
-    }
-
     const trimmedRemarks = (newScheme.remarks || "").trim().substring(0, 250);
 
-    if (isEditingModal && newScheme.id) {
-      const updatedRecord: Scheme = {
-        id: newScheme.id,
-        schemeCode: trimmedCode,
-        name: trimmedName,
-        type: newScheme.type,
-        applicableTo: newScheme.applicableTo,
-        applicableSelection: newScheme.applicableSelection,
-        benefitType: newScheme.benefitType,
-        benefitValue: newScheme.benefitValue.trim(),
-        minQuantity: newScheme.benefitType === "Free Quantity" ? newScheme.minQuantity : "",
-        freeQuantity: newScheme.benefitType === "Free Quantity" ? newScheme.freeQuantity : "",
-        validFrom: newScheme.validFrom,
-        validTo: newScheme.validTo,
-        remarks: trimmedRemarks,
-        status: resolvedStatus
-      };
-      
-      setData(data.map(item => item.id === updatedRecord.id ? updatedRecord : item));
-      activityLogService.addLog({
-        userId: currentUser?.id,
-        userName: currentUser?.fullName,
-        action: `Scheme Campaign Updated - Code: ${trimmedCode} (${resolvedStatus})`,
-        module: "Scheme Management",
-      });
-      if (selectedScheme && selectedScheme.id === updatedRecord.id) {
-        setSelectedScheme(updatedRecord);
+    try {
+      if (isEditingModal && newScheme.id) {
+        let targetProductId = null;
+        if (newScheme.applicableTo === 'Product' && newScheme.applicableSelection) {
+          const matchedProd = products.find(p => p.code === newScheme.applicableSelection);
+          if (matchedProd) targetProductId = Number(matchedProd.id);
+        }
+
+        const payload: any = {
+          code: trimmedCode,
+          name: trimmedName,
+          type: newScheme.type,
+          applicableTo: newScheme.applicableTo,
+          applicableSelection: newScheme.applicableSelection,
+          productId: targetProductId,
+          benefitType: newScheme.benefitType,
+          benefitValue: newScheme.benefitValue,
+          buyQty: newScheme.benefitType === "Free Quantity" ? parseInt(newScheme.minQuantity) || 0 : 0,
+          freeQty: newScheme.benefitType === "Free Quantity" ? parseInt(newScheme.freeQuantity) || 0 : 0,
+          startDate: newScheme.validFrom ? new Date(newScheme.validFrom).toISOString() : undefined,
+          endDate: newScheme.validTo ? new Date(newScheme.validTo).toISOString() : undefined,
+          remarks: trimmedRemarks,
+          status: resolvedStatus as any
+        };
+        
+        const updatedRecord = await schemeService.update(newScheme.id, payload);
+        const mappedRecord = { ...checkedForm, id: updatedRecord.id };
+        
+        setData(data.map(item => item.id === newScheme.id ? mappedRecord : item));
+        activityLogService.addLog({
+          userId: currentUser?.id,
+          userName: currentUser?.fullName,
+          action: `Scheme Campaign Updated - Code: ${trimmedCode} (${resolvedStatus})`,
+          module: "Scheme Management",
+        });
+        if (selectedScheme && selectedScheme.id === updatedRecord.id) {
+          setSelectedScheme(mappedRecord);
+        }
+      } else {
+        let targetProductId = null;
+        if (newScheme.applicableTo === 'Product' && newScheme.applicableSelection) {
+          const matchedProd = products.find(p => p.code === newScheme.applicableSelection);
+          if (matchedProd) targetProductId = Number(matchedProd.id);
+        }
+
+        const payload: any = {
+          code: trimmedCode,
+          name: trimmedName,
+          type: newScheme.type,
+          applicableTo: newScheme.applicableTo,
+          applicableSelection: newScheme.applicableSelection,
+          productId: targetProductId,
+          benefitType: newScheme.benefitType,
+          benefitValue: newScheme.benefitValue,
+          buyQty: newScheme.benefitType === "Free Quantity" ? parseInt(newScheme.minQuantity) || 0 : 0,
+          freeQty: newScheme.benefitType === "Free Quantity" ? parseInt(newScheme.freeQuantity) || 0 : 0,
+          startDate: newScheme.validFrom ? new Date(newScheme.validFrom).toISOString() : undefined,
+          endDate: newScheme.validTo ? new Date(newScheme.validTo).toISOString() : undefined,
+          remarks: trimmedRemarks,
+          status: resolvedStatus as any
+        };
+        
+        const newRecord = await schemeService.create(payload);
+        const mappedRecord = { ...checkedForm, id: newRecord.id };
+        
+        setData([mappedRecord, ...data]);
+        activityLogService.addLog({
+          userId: currentUser?.id,
+          userName: currentUser?.fullName,
+          action: `Scheme Campaign Created - Code: ${trimmedCode} (${resolvedStatus})`,
+          module: "Scheme Management",
+        });
       }
-    } else {
-      const record: Scheme = {
-        id: Date.now().toString(),
-        schemeCode: trimmedCode,
-        name: trimmedName,
-        type: newScheme.type,
-        applicableTo: newScheme.applicableTo,
-        applicableSelection: newScheme.applicableSelection,
-        benefitType: newScheme.benefitType,
-        benefitValue: newScheme.benefitValue.trim(),
-        minQuantity: newScheme.benefitType === "Free Quantity" ? newScheme.minQuantity : "",
-        freeQuantity: newScheme.benefitType === "Free Quantity" ? newScheme.freeQuantity : "",
-        validFrom: newScheme.validFrom,
-        validTo: newScheme.validTo,
-        remarks: trimmedRemarks,
-        status: resolvedStatus
-      };
-      setData([record, ...data]);
-      activityLogService.addLog({
-        userId: currentUser?.id,
-        userName: currentUser?.fullName,
-        action: `Scheme Campaign Created - Code: ${trimmedCode} (${resolvedStatus})`,
-        module: "Scheme Management",
-      });
+      
+      setShowModal(false);
+    } catch (error) {
+      console.error("Error saving scheme:", error);
+      alert("Failed to save scheme.");
     }
-    
-    setShowModal(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (itemToDelete) {
       const inUse = checkSchemeInUse(itemToDelete);
       if (inUse) {
-        const updated = data.map(item =>
-          item.id === itemToDelete.id ? { ...item, status: 'Cancelled' as const } : item
-        );
-        setData(updated);
-        activityLogService.addLog({
-          userId: currentUser?.id,
-          userName: currentUser?.fullName,
-          action: `Scheme Deleted (Blocked - Marked Cancelled instead due to Invoice usage) - Code: ${itemToDelete.schemeCode}`,
-          module: "Scheme Management",
-        });
-        alert("Warning: This scheme is used in active billing invoices. To preserve transaction logs, it was marked as Cancelled instead of deleted.");
+        try {
+          await schemeService.update(itemToDelete.id, { status: 'Cancelled' as any });
+          const updated = data.map(item =>
+            item.id === itemToDelete.id ? { ...item, status: 'Cancelled' as const } : item
+          );
+          setData(updated);
+          activityLogService.addLog({
+            userId: currentUser?.id,
+            userName: currentUser?.fullName,
+            action: `Scheme Deleted (Blocked - Marked Cancelled instead due to Invoice usage) - Code: ${itemToDelete.schemeCode}`,
+            module: "Scheme Management",
+          });
+          alert("Warning: This scheme is used in active billing invoices. To preserve transaction logs, it was marked as Cancelled instead of deleted.");
+        } catch (error) {
+           console.error("Error cancelling scheme:", error);
+           alert("Failed to cancel scheme.");
+        }
       } else {
-        setData(data.filter(item => item.id !== itemToDelete.id));
-        activityLogService.addLog({
-          userId: currentUser?.id,
-          userName: currentUser?.fullName,
-          action: `Scheme Deleted - Code: ${itemToDelete.schemeCode}`,
-          module: "Scheme Management",
-        });
+        try {
+          await schemeService.delete(itemToDelete.id);
+          setData(data.filter(item => item.id !== itemToDelete.id));
+          activityLogService.addLog({
+            userId: currentUser?.id,
+            userName: currentUser?.fullName,
+            action: `Scheme Deleted - Code: ${itemToDelete.schemeCode}`,
+            module: "Scheme Management",
+          });
+        } catch (error) {
+           console.error("Error deleting scheme:", error);
+           alert("Failed to delete scheme.");
+        }
       }
       setItemToDelete(null);
     }
