@@ -129,7 +129,11 @@ export default function TransportChallans() {
   }, [selectedDispatchNo, dispatches]);
 
   const filteredData = useMemo(() => {
-    return challans.slice().reverse().filter((item) => {
+    const sortedChallans = challans.slice().sort((a, b) => {
+      // Sort descending by ID. New challans use Date.now() so they will appear first.
+      return Number(b.id) - Number(a.id);
+    });
+    return sortedChallans.filter((item) => {
       const searchStr = search.toLowerCase();
       const matchSearch = item.challanNo.toLowerCase().includes(searchStr) || 
                           item.dispatchNo.toLowerCase().includes(searchStr) || 

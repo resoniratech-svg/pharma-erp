@@ -303,8 +303,7 @@ export default function OrderBooking() {
     }
 
     try {
-      const orderPayload = {
-        retailerId: Number(selectedCustomerId),
+      const orderPayload: any = {
         totalAmount: Number(totalAmount),
         orderItems: [
           {
@@ -315,6 +314,16 @@ export default function OrderBooking() {
           }
         ]
       };
+
+      if (customerType === 'Chemist') {
+        orderPayload.chemistId = Number(selectedCustomerId);
+      } else if (customerType === 'Retailer') {
+        orderPayload.retailerId = Number(selectedCustomerId);
+      } else if (customerType === 'Hospital') {
+        orderPayload.hospitalId = Number(selectedCustomerId);
+      } else if (customerType === 'Stockist') {
+        orderPayload.stockistId = Number(selectedCustomerId);
+      }
 
       const result = await retailerOrderService.addRetailerOrder(orderPayload);
       

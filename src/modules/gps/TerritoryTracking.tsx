@@ -486,6 +486,12 @@ export default function TerritoryTracking() {
 
   // ✅ Helper to generate realistic GPS coordinates for regions
   const getCoordinates = (area: string) => {
+    const latMatch = area.match(/Lat:\s*([0-9.-]+)/i);
+    const lngMatch = area.match(/Lng:\s*([0-9.-]+)/i);
+    if (latMatch && lngMatch) {
+      return { lat: parseFloat(latMatch[1]), lng: parseFloat(lngMatch[1]) };
+    }
+
     const name = area.toLowerCase();
     if (name.includes('mumbai') || name.includes('andheri') || name.includes('bandra') || name.includes('thane')) {
       return { lat: 19.0760 + (Math.random() - 0.5) * 0.05, lng: 72.8777 + (Math.random() - 0.5) * 0.05 };

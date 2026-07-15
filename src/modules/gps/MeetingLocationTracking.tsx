@@ -176,6 +176,7 @@
 
 import { useState, useEffect } from 'react';
 import { Download, Filter, Calendar, CheckCircle2, Users, Map, AlertCircle } from 'lucide-react';
+import { meetingService } from '../../services/meetingService';
 import {
   PageHeader,
   FilterBar,
@@ -207,35 +208,35 @@ export default function MeetingLocationTracking() {
   const [meetings, setMeetings] = useState<MeetingLocation[]>([]);
 
   useEffect(() => {
-     try {
-         // Pull data from the CRM Meetings module
-         const stored = localStorage.getItem('crm_meetings');
-         if (stored) {
-             const crmMeetings = JSON.parse(stored);
-             
-             // Map CRM Meeting format to Location Tracking format
-             const mappedMeetings = crmMeetings.map((m: any) => ({
-                 id: m.id,
-                 eventId: `EVT-${m.id}`,
-                 eventName: m.title || 'Untitled Event',
-                 location: m.venue || 'Remote / Unknown',
-                 organizer: m.client || 'N/A',
-                 startTime: m.time || 'TBD',
-                 endTime: 'TBD', // CRM doesn't store end time natively
-                 attendees: m.participants ? m.participants.split(',').length : 1,
-                 // Derive GPS Status from Meeting Status
-                 gpsStatus: m.status === 'Completed' ? 'Verified' : 
-                           (m.status === 'Scheduled' ? 'Pending' : 'Flagged')
-             }));
-             
-             setMeetings(mappedMeetings);
-         } else {
-             setMeetings([]); 
-         }
-     } catch (error) {
-         console.error("Failed to load meeting locations:", error);
-         setMeetings([]); 
-     }
+    const fetchMeetings = async () => {
+      try {
+        const mrId = localStorage.getItem('mrId');
+        if (mrId) {
+          const apiMeetings = await meetingService.loadMeetings(Number(mrId));
+          
+          const mappedMeetings = apiMeetings.map((m: any) => ({
+            id: String(m.id),
+            eventId: `EVT-${m.id}`,
+            eventName: m.title || 'Untitled Event',
+            location: m.location || 'Remote / Unknown',
+            organizer: m.organizer || 'N/A',
+            startTime: m.time || 'TBD',
+            endTime: 'TBD',
+            attendees: m.attendeesCount || 1,
+            gpsStatus: m.status === 'Completed' ? 'Verified' : 
+                      (m.status === 'Scheduled' ? 'Pending' : 'Flagged') as any
+          }));
+          
+          setMeetings(mappedMeetings);
+        } else {
+          setMeetings([]);
+        }
+      } catch (error) {
+        console.error("Failed to load meeting locations:", error);
+        setMeetings([]); 
+      }
+    };
+    fetchMeetings();
   }, []);
 
   const columns: Column<MeetingLocation>[] = [
@@ -274,6 +275,89 @@ export default function MeetingLocationTracking() {
   const verifiedCount = meetings.filter(m => m.gpsStatus === 'Verified').length;
   const verifiedPercent = meetings.length > 0 ? Math.round((verifiedCount / meetings.length) * 100) : 0;
   const pendingCount = meetings.filter(m => m.gpsStatus === 'Pending').length;
+
+  const getCoordinates = (area: string) => {
+    const latMatch = area.match(/Lat:\s*([0-9.-]+)/i);
+    const lngMatch = area.match(/Lng:\s*([0-9.-]+)/i);
+    if (latMatch && lngMatch) {
+      return { lat: parseFloat(latMatch[1]), lng: parseFloat(lngMatch[1]) };
+    }
+    const name = area.toLowerCase();
+    if (name.includes('mumbai') || name.includes('andheri') || name.includes('bandra') || name.includes('thane')) {
+      return { lat: 19.0760 + (Math.random() - 0.5) * 0.05, lng: 72.8777 + (Math.random() - 0.5) * 0.05 };
+    }
+    if (name.includes('delhi') || name.includes('connaught') || name.includes('noida')) {
+      return { lat: 28.6139 + (Math.random() - 0.5) * 0.05, lng: 77.2090 + (Math.random() - 0.5) * 0.05 };
+    }
+    if (name.includes('bangalore') || name.includes('koramangala') || name.includes('whitefield')) {
+      return { lat: 12.9716 + (Math.random() - 0.5) * 0.05, lng: 77.5946 + (Math.random() - 0.5) * 0.05 };
+    }
+    if (name.includes('hyderabad') || name.includes('hitech') || name.includes('gachibowli')) {
+      return { lat: 17.3850 + (Math.random() - 0.5) * 0.05, lng: 78.4867 + (Math.random() - 0.5) * 0.05 };
+    }
+    return { lat: 17.3850 + (Math.random() - 0.5) * 0.08, lng: 78.4867 + (Math.random() - 0.5) * 0.08 };
+  };
+
+  useEffect(() => {
+    if (!document.getElementById('leaflet-css-cdn')) {
+      const link = document.createElement('link');
+      link.id = 'leaflet-css-cdn';
+      link.rel = 'stylesheet';
+      link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+      document.head.appendChild(link);
+    }
+
+    const initMap = () => {
+      const L = (window as any).L;
+      if (!L) return;
+
+      const container = document.getElementById('meeting-live-map');
+      if (!container) return;
+
+      const mapContainer = container as HTMLElement & { _leaflet_id?: any };
+      if (mapContainer._leaflet_id) {
+        mapContainer.innerHTML = '';
+        mapContainer._leaflet_id = null;
+      }
+
+      // Center map around the first meeting or default to Hyderabad
+      const defaultCenter = filteredData.length > 0 ? getCoordinates(filteredData[0].location) : { lat: 17.3850, lng: 78.4867 };
+      const map = L.map('meeting-live-map').setView([defaultCenter.lat, defaultCenter.lng], 12);
+
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; OpenStreetMap contributors'
+      }).addTo(map);
+
+      // Add pins for all filtered meetings
+      filteredData.forEach(meeting => {
+        const coords = getCoordinates(meeting.location);
+        
+        let color = '#3b82f6'; // blue (default)
+        if (meeting.gpsStatus === 'Verified') color = '#10b981'; // green
+        if (meeting.gpsStatus === 'Flagged') color = '#ef4444'; // red
+        if (meeting.gpsStatus === 'Pending') color = '#f59e0b'; // amber
+
+        L.circleMarker([coords.lat, coords.lng], { color: color, fillColor: color, fillOpacity: 0.8, radius: 8 })
+          .addTo(map)
+          .bindPopup(`<b>${meeting.eventName}</b><br/>${meeting.location}<br/>Status: ${meeting.gpsStatus}`);
+      });
+    };
+
+    if ((window as any).L) {
+      initMap();
+    } else {
+      let script = document.getElementById('leaflet-js-cdn') as HTMLScriptElement | null;
+      if (!script) {
+        script = document.createElement('script');
+        script.id = 'leaflet-js-cdn';
+        script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        script.onload = initMap;
+        document.head.appendChild(script);
+      } else {
+        script.addEventListener('load', initMap);
+      }
+    }
+  }, [filteredData]);
 
   return (
     <div className="animate-in fade-in duration-500 min-h-[calc(100vh-140px)] flex flex-col">
@@ -358,16 +442,7 @@ export default function MeetingLocationTracking() {
 
         <div className="xl:col-span-1 flex flex-col h-full min-h-[500px]">
           <h2 className="text-lg font-semibold text-slate-900 mb-4">Event Heat Map</h2>
-          <div className="bg-slate-100 rounded-xl border border-slate-200 overflow-hidden relative flex-1 flex flex-col items-center justify-center shadow-inner">
-            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,_var(--tw-gradient-stops))] from-slate-900 via-transparent to-transparent bg-[length:20px_20px]" />
-            <Map className="w-12 h-12 text-slate-400 mb-3 relative z-10 opacity-70" />
-            <h3 className="text-md font-semibold text-slate-700 relative z-10">Attendance Heat Map Placeholder</h3>
-            <p className="text-sm text-slate-500 text-center px-6 mt-2 relative z-10">Visualizing event locations, meeting spots, and GPS check-in clusters.</p>
-            
-            <div className="absolute bottom-4 left-4 right-4 bg-white/90 backdrop-blur p-3 rounded-lg border border-slate-200 text-xs text-slate-600 flex justify-between">
-              <div className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-slate-400 block"></span> Map API Required</div>
-            </div>
-          </div>
+          <div id="meeting-live-map" className="w-full flex-1 rounded-xl border border-slate-200 shadow-sm relative z-0 bg-slate-50 min-h-[500px]"></div>
         </div>
       </div>
     </div>

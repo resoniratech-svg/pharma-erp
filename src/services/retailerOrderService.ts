@@ -30,9 +30,9 @@ export const retailerOrderService = {
         const mapped = response.data.map((o: any) => ({
           id: o.id,
           orderNumber: o.orderNumber,
-          customerType: 'Retailer',
-          customerName: o.retailer?.name || 'Retailer',
-          customerMobile: o.retailer?.mobile || '',
+          customerType: o.chemist ? 'Chemist' : (o.hospital ? 'Hospital' : (o.stockist ? 'Stockist' : 'Retailer')),
+          customerName: o.retailer?.name || o.chemist?.name || o.hospital?.name || o.stockist?.name || 'Unknown Customer',
+          customerMobile: o.retailer?.mobile || o.chemist?.mobile || o.hospital?.mobile || o.stockist?.mobile || '',
           productName: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].product?.name || 'Product' : 'Product',
           quantity: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].quantity : 0,
           rate: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].rate : 0,

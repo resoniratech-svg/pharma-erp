@@ -220,13 +220,18 @@ export default function ProductMaster() {
     }));
   };
 
-  const handleHsnSelection = (code: string) => {
+  const handleHsnSelection = async (code: string) => {
     setNewProduct(prev => ({ ...prev, hsnCode: code }));
     setHsnSearch(code);
-    const gstMapping = GetCurrentGSTByHSN(code);
-    if (gstMapping && gstMapping.gstPercent) {
-      setNewProduct(prev => ({ ...prev, gst: String(gstMapping.gstPercent).replace('%', '') }));
-    } else {
+    try {
+      const gstMapping = await GetCurrentGSTByHSN(code);
+      if (gstMapping && gstMapping.gstPercent) {
+        setNewProduct(prev => ({ ...prev, gst: String(gstMapping.gstPercent).replace('%', '') }));
+      } else {
+        setNewProduct(prev => ({ ...prev, gst: '' }));
+      }
+    } catch (err) {
+      console.error(err);
       setNewProduct(prev => ({ ...prev, gst: '' }));
     }
   };
@@ -588,7 +593,33 @@ export default function ProductMaster() {
             <p className="text-slate-600 mb-6 leading-relaxed">Are you sure you want to delete this product?<br />This action cannot be undone.</p>
             <div className="flex justify-end gap-3 mt-4">
               <ActionButton variant="secondary" onClick={() => setProductToDelete(null)}>Cancel</ActionButton>
-              <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-200" onClick={async () => { if (!canDelete || !productToDelete) return; if (checkProductInUse(productToDelete.id)) { alert("Error: Cannot delete this product."); setProductToDelete(null); return; } try { const success = await productService.deleteProduct(productToDelete.id); if (success) { setProducts(prev => prev.filter((p) => p.id !== productToDelete.id)); } } catch (err: any) { alert(err.message || "Failed to delete product."); } setProductToDelete(null); }}>Delete</button>
+              <button 
+                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-rose-500 focus-visible:ring-offset-1 bg-rose-600 hover:bg-rose-700 text-white shadow-sm shadow-rose-200" 
+                onClick={async () => { 
+                  if (!canDelete || !productToDelete) return; 
+                  if (checkProductInUse(productToDelete.id)) { 
+                    alert("Error: Cannot delete this product."); 
+                    setProductToDelete(null); 
+                    return; 
+                  } 
+                  try { 
+                    const success = await productService.deleteProduct(productToDelete.id); 
+                    if (success) { 
+                      setProducts(prev => prev.filter((p) => p.id !== productToDelete.id)); 
+                    } 
+                  } catch (err: any) { 
+                    const errorMsg = err.message || "";
+                    if (errorMsg.includes("400") || errorMsg.includes("Bad Request") || errorMsg.toLowerCase().includes("constraint") || errorMsg.toLowerCase().includes("in use")) {
+                      alert("Cannot delete this product because it is referenced in pricing or billing records. Please change its status to 'Inactive' instead.");
+                    } else {
+                      alert(errorMsg || "Failed to delete product."); 
+                    }
+                  } 
+                  setProductToDelete(null); 
+                }}
+              >
+                Delete
+              </button>
             </div>
           </div>
         </div>

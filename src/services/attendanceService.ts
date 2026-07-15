@@ -38,8 +38,11 @@ export const attendanceService = {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>(`/attendance`);
       if (response.success && Array.isArray(response.data)) {
-        const myAttendance = response.data.filter(r => r.mrId === mrId);
-        attendanceRecords = myAttendance.map(r => {
+        const myAttendance = response.data.filter(r => Number(r.mrId) === Number(mrId));
+        
+        // Optimistic Merge: If the backend returns empty but we have local records, don't wipe everything instantly.
+        // But for normal cases, map the data.
+        const mappedRecords = myAttendance.map(r => {
           const checkIn = r.checkInTime ? new Date(r.checkInTime) : null;
           const checkOut = r.checkOutTime ? new Date(r.checkOutTime) : null;
           return {
@@ -59,6 +62,20 @@ export const attendanceService = {
             checkOutLongitude: r.checkOutLongitude || undefined,
           };
         });
+
+        if (mappedRecords.length > 0 || attendanceRecords.length === 0) {
+          attendanceRecords = mappedRecords;
+        } else {
+          // Optimistic Merge logic: keep local today record if backend lost it momentarily
+          const todayStr = new Date().toISOString().split('T')[0];
+          const localToday = attendanceRecords.find(r => r.date === todayStr);
+          if (localToday && !mappedRecords.find(r => r.date === todayStr)) {
+            attendanceRecords = [localToday, ...mappedRecords];
+          } else {
+            attendanceRecords = mappedRecords;
+          }
+        }
+        
         localStorage.setItem('web_attendance_records', JSON.stringify(attendanceRecords));
 
         // Sync today_checkin logic

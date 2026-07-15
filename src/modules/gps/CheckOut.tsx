@@ -92,7 +92,12 @@ export default function CheckOut() {
   useEffect(() => {
     const fetchRecords = async () => {
       try {
-        const mrId = Number(localStorage.getItem('mrId') || '2');
+        const rawMrId = localStorage.getItem('mrId');
+        if (!rawMrId) {
+          setRecords([]);
+          return;
+        }
+        const mrId = Number(rawMrId);
         const data = await attendanceService.loadAttendance(mrId);
         setRecords(data);
       } catch (e) {

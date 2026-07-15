@@ -218,7 +218,9 @@ export const dashboardService = {
   getRecentOrders: () => {
     const orders = safeJsonParse('web_orders');
     return orders.slice(0, 3).map((o: any) => ({
-      client: o.customerName || 'Client',
+      client: o.customerName || o.client || 'Unknown Customer',
+      orderNumber: o.orderNumber || 'ORD-XXX',
+      productName: o.productName || 'General Product',
       amount: `₹${parseFloat(o.totalAmount || 0).toLocaleString()}`
     }));
   },

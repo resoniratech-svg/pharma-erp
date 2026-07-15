@@ -265,7 +265,10 @@ export default function MRDashboard() {
             <div className="divide-y divide-slate-100">
               {data.recentOrders.map((order: any, idx: number) => (
                 <div key={idx} className="flex justify-between items-center py-3">
-                  <span className="text-sm font-medium text-slate-700">{order.client}</span>
+                  <div className="flex flex-col">
+                    <span className="text-sm font-bold text-slate-800">{order.client || 'Test Client'}</span>
+                    <span className="text-xs text-slate-500">{order.orderNumber || 'ORD-TEST'} | {order.productName || 'Test Product'}</span>
+                  </div>
                   <span className="text-sm font-bold text-slate-900">{order.amount}</span>
                 </div>
               ))}

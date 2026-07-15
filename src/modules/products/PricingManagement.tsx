@@ -78,7 +78,23 @@ export default function PricingManagement() {
   const fetchPricings = async () => {
     try {
       const savedData = await pricingService.getAll();
-      let loadedData = savedData.length > 0 ? savedData : [];
+      const allProducts = productService.getProducts();
+      
+      let loadedData = (savedData.length > 0 ? savedData : []).map((item: any) => {
+        const product = allProducts.find((p: any) => p.id === String(item.productId));
+        const mrpValue = parseFloat(item.mrp) || 0;
+        const ptsValue = parseFloat(item.pts) || 0;
+        const ptrValue = parseFloat(item.ptr) || 0;
+        const stockistMargin = ptrValue > 0 ? (((ptrValue - ptsValue) / ptrValue) * 100).toFixed(2) : "0";
+        const retailMargin = mrpValue > 0 ? (((mrpValue - ptrValue) / mrpValue) * 100).toFixed(2) : "0";
+        return {
+          ...item,
+          productCode: product ? product.code : item.productCode,
+          productName: product ? product.name : item.productName,
+          stockistMargin: item.stockistMargin || `${stockistMargin}%`,
+          retailMargin: item.retailMargin || `${retailMargin}%`
+        };
+      });
       
       const todayStr = new Date().toISOString().split('T')[0];
       let changed = false;
@@ -277,7 +293,8 @@ export default function PricingManagement() {
   ];
 
   const filteredData = data.filter((item) => {
-    const matchSearch = item.productCode.toLowerCase().includes(search.toLowerCase()) || item.productName.toLowerCase().includes(search.toLowerCase());
+    const searchTerm = search?.toLowerCase() || "";
+    const matchSearch = (item.productCode?.toLowerCase() || "").includes(searchTerm) || (item.productName?.toLowerCase() || "").includes(searchTerm);
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   });
@@ -1130,6 +1147,7 @@ export default function PricingManagement() {
                 <input
                   type="date"
                   value={newPricing.effectiveTo}
+                  min={newPricing.effectiveFrom}
                   onChange={(e) => setNewPricing({ ...newPricing, effectiveTo: e.target.value })}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />

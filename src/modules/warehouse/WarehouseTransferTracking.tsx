@@ -17,6 +17,7 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 import { warehouseTransferService } from '../../services/warehouseTransferService';
+import { warehouseService } from '../../services/warehouseService';
 
 // Local TrackingRecord type — maps WarehouseTransferRecord to tracking UI shape
 interface TrackingRecord {
@@ -61,11 +62,17 @@ export default function WarehouseTransferTracking() {
   useEffect(() => {
     async function loadTracking() {
       const records = await warehouseTransferService.getAll();
-      setTrackingData(records.map(r => ({
+      const warehouses = await warehouseService.loadWarehouses();
+      const warehouseMap: Record<string, string> = {};
+      warehouses.forEach(w => {
+        warehouseMap[w.id] = w.name;
+      });
+
+      const trackingRecords = records.map(r => ({
         id: r.id || '',
         transferNo: r.transferNo,
-        fromWarehouse: `Warehouse ${r.fromWarehouseId}`,
-        toWarehouse: `Warehouse ${r.toWarehouseId}`,
+        fromWarehouse: warehouseMap[String(r.fromWarehouseId)] || `Warehouse ${r.fromWarehouseId}`,
+        toWarehouse: warehouseMap[String(r.toWarehouseId)] || `Warehouse ${r.toWarehouseId}`,
         transferDate: r.date,
         expectedDelivery: r.date,
         currentStatus: r.status,
@@ -76,7 +83,11 @@ export default function WarehouseTransferTracking() {
         driverName: undefined,
         driverMobile: undefined,
         timeline: [{ date: r.date, status: r.status }],
-      })));
+      }));
+      
+      // Sort to show newly added items at the top
+      trackingRecords.sort((a, b) => Number(b.id) - Number(a.id));
+      setTrackingData(trackingRecords);
     }
     loadTracking();
 

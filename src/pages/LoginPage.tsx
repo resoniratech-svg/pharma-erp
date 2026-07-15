@@ -216,6 +216,10 @@ export default function LoginPage() {
           localStorage.setItem('mrId', String(mr.id));
           localStorage.setItem('mrCode', mr.mrCode);
           localStorage.setItem('mrTerritory', mr.territory || '');
+        } else {
+          localStorage.removeItem('mrId');
+          localStorage.removeItem('mrCode');
+          localStorage.removeItem('mrTerritory');
         }
 
         activityLogService.addLog({

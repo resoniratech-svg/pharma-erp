@@ -57,16 +57,18 @@ const formatDate = (dateString?: string): string => {
  * - Considers only mappings where Effective From is <= today's date.
  * - Sorts by Effective From in descending order to return the latest valid mapping.
  */
-export const GetCurrentGSTByHSN = (hsnCode: string, allGstData?: GST[]): GST | null => {
-  const data: GST[] = allGstData || gstService.getAll();
+export const GetCurrentGSTByHSN = async (hsnCode: string, allGstData?: GST[]): Promise<GST | null> => {
+  const data: GST[] = allGstData || await gstService.getAll();
   const today = new Date().toISOString().split('T')[0];
   
   const validMappings = data.filter(
-    (item) => 
-      item.hsnCode === hsnCode && 
-      item.status === 'Active' && 
-      item.effectiveDate && 
-      item.effectiveDate <= today
+    (item) => {
+      if (!item.effectiveDate) return false;
+      const itemDate = item.effectiveDate.split('T')[0];
+      return String(item.hsnCode) === String(hsnCode) && 
+             item.status === 'Active' && 
+             itemDate <= today;
+    }
   );
 
   if (validMappings.length === 0) return null;

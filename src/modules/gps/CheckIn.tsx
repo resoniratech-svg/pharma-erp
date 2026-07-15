@@ -206,7 +206,12 @@ export default function CheckIn() {
   useEffect(() => {
     const fetchRecords = async () => {
       try {
-        const mrId = Number(localStorage.getItem('mrId') || '2');
+        const rawMrId = localStorage.getItem('mrId');
+        if (!rawMrId) {
+          setRecords([]);
+          return;
+        }
+        const mrId = Number(rawMrId);
         const data = await attendanceService.loadAttendance(mrId);
         setRecords(data);
       } catch (e) {
@@ -249,7 +254,12 @@ export default function CheckIn() {
     }
 
     try {
-      const mrId = Number(localStorage.getItem('mrId') || '2');
+      const rawMrId = localStorage.getItem('mrId');
+      if (!rawMrId) {
+        alert('Your Medical Representative profile is not properly configured. Check-in is not allowed.');
+        return;
+      }
+      const mrId = Number(rawMrId);
       const dbRecord = await attendanceService.checkIn(mrId, userName, latLng.lat, latLng.lng, locationText);
 
       // Add today's new check-in
