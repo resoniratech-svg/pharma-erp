@@ -9,6 +9,9 @@ const createRetailerOrderRepo =
 
       include: {
         retailer: true,
+        chemist: true,
+        hospital: true,
+        stockist: true,
         orderItems: true,
       },
     });
@@ -21,6 +24,9 @@ const getRetailerOrdersRepo =
     return prisma.retailerOrder.findMany({
       include: {
         retailer: true,
+        chemist: true,
+        hospital: true,
+        stockist: true,
         orderItems: true,
       },
     });
@@ -35,6 +41,9 @@ const getRetailerOrderByIdRepo =
 
       include: {
         retailer: true,
+        chemist: true,
+        hospital: true,
+        stockist: true,
         orderItems: true,
       },
     });

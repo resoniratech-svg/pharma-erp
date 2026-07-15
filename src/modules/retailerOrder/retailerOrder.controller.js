@@ -5,17 +5,10 @@ const createRetailerOrder = async (req, res) => {
   try {
     const orderNumber = "ORD-" + Math.floor(100000 + Math.random() * 900000);
 
-    let retailerId = Number(req.body.retailerId);
-    const existingRetailer = await prisma.retailer.findUnique({
-      where: { id: retailerId }
-    });
-
-    if (!existingRetailer) {
-      const firstRetailer = await prisma.retailer.findFirst();
-      if (firstRetailer) {
-        retailerId = firstRetailer.id;
-      }
-    }
+    let retailerId = req.body.retailerId ? Number(req.body.retailerId) : undefined;
+    let chemistId = req.body.chemistId ? Number(req.body.chemistId) : undefined;
+    let hospitalId = req.body.hospitalId ? Number(req.body.hospitalId) : undefined;
+    let stockistId = req.body.stockistId ? Number(req.body.stockistId) : undefined;
 
     let mrId = undefined;
     if (req.user && req.user.role === 'MEDICAL_REPRESENTATIVE') {
@@ -40,6 +33,9 @@ const createRetailerOrder = async (req, res) => {
 
     const result = await service.createRetailerOrderService({
       retailerId,
+      chemistId,
+      hospitalId,
+      stockistId,
       mrId,
       totalAmount: Number(req.body.totalAmount),
       orderNumber,

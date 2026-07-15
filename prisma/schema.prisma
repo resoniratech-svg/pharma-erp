@@ -480,7 +480,8 @@ model Stockist {
 
   meetingStockists MeetingStockist[]
 
-  createdAt DateTime @default(now())
+  createdAt      DateTime        @default(now())
+  retailerOrders RetailerOrder[]
 }
 
 model Retailer {
@@ -563,11 +564,17 @@ model InvoiceItem {
 
 model RetailerOrder {
   id         Int  @id @default(autoincrement())
-  retailerId Int
+  retailerId Int?
+  chemistId  Int?
+  stockistId Int?
+  hospitalId Int?
   mrId       Int?
 
-  retailer Retailer @relation(fields: [retailerId], references: [id])
-  mr       MR?      @relation(fields: [mrId], references: [id])
+  retailer Retailer? @relation(fields: [retailerId], references: [id])
+  chemist  Chemist?  @relation(fields: [chemistId], references: [id])
+  stockist Stockist? @relation(fields: [stockistId], references: [id])
+  hospital Hospital? @relation(fields: [hospitalId], references: [id])
+  mr       MR?       @relation(fields: [mrId], references: [id])
 
   orderNumber String   @unique
   orderDate   DateTime @default(now())
@@ -759,6 +766,7 @@ model Chemist {
   createdAt        DateTime          @default(now())
   tourPlanChemists TourPlanChemist[]
   meetings         Meeting[]         @relation("ChemistDirectMeetings")
+  retailerOrders   RetailerOrder[]
 }
 
 model Attendance {
@@ -1167,6 +1175,7 @@ model Hospital {
   mobile           String?
   address          String?
   meetingHospitals MeetingHospital[]
+  retailerOrders   RetailerOrder[]
 }
 
 model TerritoryBeat {
