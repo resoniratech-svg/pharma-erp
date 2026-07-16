@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';             
-import { Download, ReceiptText } from 'lucide-react';
+import { Download, ReceiptText, Printer } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import { salesInvoiceService } from '../../services/salesInvoiceService';
 import {
   PageHeader,
   FilterBar,
@@ -25,6 +26,8 @@ interface InvoiceItem {
   unitPrice: number;
   gstPct: number;
   lineAmount: number;
+  batchNumber?: string;
+  expiry?: string;
 }
 
 interface Invoice {
@@ -47,6 +50,12 @@ interface Invoice {
   status: InvoiceStatus;
   items: InvoiceItem[];
   invoiceType?: 'Purchase' | 'Sales';
+  dispatchNo?: string;
+  transporterName?: string;
+  vehicleNumber?: string;
+  lrNumber?: string;
+  deliveryChallan?: string;
+  dispatchDate?: string;
 }
 
 const formatCurrency = (amount: number) => {
@@ -126,24 +135,121 @@ export default function InvoiceDownload() {
   const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
   const [activeTab, setActiveTab] = useState<'Purchase' | 'Sales'>('Purchase');
 
-  useEffect(() => {
+  const loadInvoices = () => {
+    // 1. Load Purchase Invoices from local storage
     const saved = localStorage.getItem('pharma_erp_invoices');
     let parsed: Invoice[] = saved ? JSON.parse(saved) : [];
     
-    setInvoices(parsed.map(inv => {
-      const amt = inv.amount || 0;
-      const paid = inv.paidAmount || 0;
-      const outst = inv.outstandingAmount ?? Math.max(0, amt - paid);
+    const mappedPurchases = parsed
+      .filter(inv => inv.invoiceType === 'Purchase') // Keep only purchases from the old storage
+      .map(inv => {
+        const amt = inv.amount || 0;
+        const paid = inv.paidAmount || 0;
+        const outst = inv.outstandingAmount ?? Math.max(0, amt - paid);
+        return {
+          ...inv,
+          invoiceType: 'Purchase' as const,
+          date: getDDMMYYYY(inv.date),
+          dueDate: getDDMMYYYY(inv.dueDate),
+          status: calculateStatus(paid, amt, inv.dueDate),
+          outstandingAmount: outst
+        };
+      });
+
+    // 2. Load Sales Invoices from salesInvoiceService
+    const rawSalesInvoices = activeRole === ROLE_DISTRIBUTOR
+      ? salesInvoiceService.getDistributorSalesInvoices(loggedInDistributor.code)
+      : salesInvoiceService.getAll();
+
+    const mappedSales = rawSalesInvoices.map(inv => {
+      const amt = inv.grandTotal || 0;
+      // In a real system, you might track payments. Here we assume 0 paid if not explicitly managed
+      const paid = inv.paymentStatus === 'Paid' ? amt : 0; 
+      const outst = Math.max(0, amt - paid);
+      
+      const mappedItems: InvoiceItem[] = inv.items.map((it: any) => ({
+        id: it.id,
+        productName: it.productName,
+        productCode: it.productCode,
+        quantity: it.qty,
+        unitPrice: it.ptr,
+        gstPct: it.gst,
+        lineAmount: it.amount,
+        batchNumber: it.batchNumber,
+        expiry: it.expiry
+      }));
+
+      // Find dispatch details to extract Transporter, LR, etc if possible.
+      const dispatchesRaw = localStorage.getItem('pharma_erp_outbound_dispatches');
+      let dispatchInfo: any = {};
+      if (dispatchesRaw) {
+        try {
+          const dispatches = JSON.parse(dispatchesRaw);
+          const dispatch = dispatches.find((d: any) => d.dispatchNo === inv.dispatchNo);
+          if (dispatch) {
+            dispatchInfo = {
+              transporterName: dispatch.transporterName || dispatch.transporter,
+              vehicleNumber: dispatch.vehicleNumber || dispatch.vehicleNo,
+              lrNumber: dispatch.lrNumber || dispatch.lrNo,
+              deliveryChallan: dispatch.deliveryChallan || dispatch.challanNo,
+              dispatchDate: getDDMMYYYY(dispatch.dispatchDate)
+            };
+          }
+        } catch(e) {}
+      }
+
       return {
-        ...inv,
-        invoiceType: inv.invoiceType || 'Sales',
+        id: inv.id,
+        invoiceNo: inv.invoiceNo,
+        orderNo: inv.orderNo,
+        retailer: inv.retailerName,
+        retailerCode: inv.retailerCode,
+        distributorCode: inv.distributorCode,
+        billingAddress: inv.billingAddress,
+        gstNumber: 'N/A', // fallback
         date: getDDMMYYYY(inv.date),
-        dueDate: getDDMMYYYY(inv.dueDate),
-        status: calculateStatus(paid, amt, inv.dueDate),
-        outstandingAmount: outst
-      };
-    }));
-  }, []);
+        dueDate: getDDMMYYYY(inv.date), // default to same as invoice date
+        amount: amt,
+        subtotal: inv.taxableAmount,
+        gstAmount: inv.totalGst,
+        paidAmount: paid,
+        outstandingAmount: outst,
+        status: inv.paymentStatus === 'Paid' ? 'Paid' : 'Unpaid',
+        items: mappedItems,
+        invoiceType: 'Sales' as const,
+        dispatchNo: inv.dispatchNo,
+        transporterName: dispatchInfo.transporterName,
+        vehicleNumber: dispatchInfo.vehicleNumber,
+        lrNumber: dispatchInfo.lrNumber,
+        deliveryChallan: dispatchInfo.deliveryChallan,
+        dispatchDate: dispatchInfo.dispatchDate
+      } as Invoice;
+    });
+
+    setInvoices([...mappedPurchases, ...mappedSales]);
+  };
+
+  useEffect(() => {
+    loadInvoices();
+    
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'pharma_erp_sales_invoices' || e.key === 'pharma_erp_outbound_dispatches') {
+        loadInvoices();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also set up a polling mechanism as fallback since storage events don't fire in the same window
+    const interval = setInterval(() => {
+      loadInvoices();
+    }, 5000);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+      clearInterval(interval);
+    };
+  }, [activeRole, loggedInDistributor.code]);
 
   const filteredData = useMemo(() => {
     return invoices.filter((item) => {
@@ -242,7 +348,8 @@ export default function InvoiceDownload() {
       render: (row) => (
         <div className="flex items-center gap-3" onClick={e => e.stopPropagation()}>
           <button onClick={() => setViewInvoice(row)} className="text-slate-500 hover:text-slate-800" title="View Details"><ReceiptText className="w-4 h-4" /></button>
-          <button onClick={() => generatePDF(row)} className="text-slate-500 hover:text-slate-800" title="Download Statement PDF"><Download className="w-4 h-4" /></button>
+          <button onClick={() => salesInvoiceService.downloadInvoice(row.invoiceNo, 'Distributor')} className="text-slate-500 hover:text-slate-800" title="Download Statement PDF"><Download className="w-4 h-4" /></button>
+          <button onClick={() => salesInvoiceService.printInvoice(row.invoiceNo, 'Distributor')} className="text-slate-500 hover:text-slate-800" title="Print Statement PDF"><Printer className="w-4 h-4" /></button>
         </div>
       )
     }
@@ -362,6 +469,21 @@ export default function InvoiceDownload() {
               </div>
             </div>
 
+            {/* Dispatch Information (Sales Only) */}
+            {viewInvoice.invoiceType === 'Sales' && viewInvoice.dispatchNo && (
+              <div>
+                <h3 className="font-semibold text-slate-900 border-b pb-2 mb-3">Dispatch Information</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <DrawerField label="Dispatch Number" value={viewInvoice.dispatchNo} />
+                  <DrawerField label="Delivery Challan" value={viewInvoice.deliveryChallan || 'N/A'} />
+                  <DrawerField label="Dispatch Date" value={viewInvoice.dispatchDate || 'N/A'} />
+                  <DrawerField label="Transporter Name" value={viewInvoice.transporterName || 'N/A'} />
+                  <DrawerField label="Vehicle Number" value={viewInvoice.vehicleNumber || 'N/A'} />
+                  <DrawerField label="LR Number" value={viewInvoice.lrNumber || 'N/A'} />
+                </div>
+              </div>
+            )}
+
             {/* Amount Summary */}
             <div>
               <h3 className="font-semibold text-slate-900 border-b pb-2 mb-3">Amount Summary</h3>
@@ -383,6 +505,12 @@ export default function InvoiceDownload() {
                     <tr>
                       <th className="p-2 font-medium">Product</th>
                       <th className="p-2 font-medium">Code</th>
+                      {viewInvoice.invoiceType === 'Sales' && (
+                        <>
+                          <th className="p-2 font-medium">Batch</th>
+                          <th className="p-2 font-medium">Expiry</th>
+                        </>
+                      )}
                       <th className="p-2 font-medium text-right">Qty</th>
                       <th className="p-2 font-medium text-right">
                         {viewInvoice.invoiceType === 'Purchase' ? 'PTS' : 'PTR'}
@@ -397,6 +525,12 @@ export default function InvoiceDownload() {
                         <tr key={item.id} className="hover:bg-slate-50">
                           <td className="p-2">{item.productName}</td>
                           <td className="p-2">{item.productCode}</td>
+                          {viewInvoice.invoiceType === 'Sales' && (
+                            <>
+                              <td className="p-2">{item.batchNumber || '-'}</td>
+                              <td className="p-2">{item.expiry || '-'}</td>
+                            </>
+                          )}
                           <td className="p-2 text-right">{item.quantity}</td>
                           <td className="p-2 text-right">{formatCurrency(item.unitPrice)}</td>
                           <td className="p-2 text-right">{item.gstPct}%</td>
@@ -405,7 +539,7 @@ export default function InvoiceDownload() {
                       ))
                     ) : (
                       <tr>
-                        <td colSpan={6} className="p-4 text-center text-slate-500">No products found.</td>
+                        <td colSpan={viewInvoice.invoiceType === 'Sales' ? 8 : 6} className="p-4 text-center text-slate-500">No products found.</td>
                       </tr>
                     )}
                   </tbody>

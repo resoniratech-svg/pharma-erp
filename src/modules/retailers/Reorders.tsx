@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Download, Filter, RefreshCcw, Eye, ChevronDown, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'framer-motion';
 import * as XLSX from 'xlsx';
@@ -18,7 +18,13 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 
-// Inline Modal component since it's not exported from shared.tsx
+import authService from '../../services/authService';
+import { retailerMasterService } from '../../services/retailerMasterService';
+import { productService } from '../../services/productService';
+import { inventoryService } from '../../services/inventoryService';
+import { schemeService } from '../../services/schemeService';
+
+// Inline Modal component
 function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
   return (
     <AnimatePresence>
@@ -53,31 +59,11 @@ interface Reorder {
   purchaseFreq: string;
   reason: string;
   status: ReorderStatus;
+  unitPrice: number;
 }
 
-const initialMockData: Reorder[] = [
-  { 
-    id: '1', retailer: 'Apollo Pharmacy', productName: 'Amoxicillin 500mg', productCode: 'AMX-500', 
-    lastOrderDate: '01-Oct-2026', lastOrderedQty: '200 Strips', suggestedQty: '500 Strips', 
-    availability: 'In Stock', availableStock: '5000+ Strips', purchaseFreq: 'Every 14 Days', 
-    reason: 'Fast Moving Product', status: 'Recommended' 
-  },
-  { 
-    id: '2', retailer: 'MedPlus Store', productName: 'Paracetamol 650mg', productCode: 'PRC-650', 
-    lastOrderDate: '15-Sep-2026', lastOrderedQty: '500 Strips', suggestedQty: '1000 Strips', 
-    availability: 'In Stock', availableStock: '12000+ Strips', purchaseFreq: 'Every 7 Days', 
-    reason: 'Frequently Ordered', status: 'Already Reordered' 
-  },
-  { 
-    id: '3', retailer: 'Apollo Pharmacy', productName: 'Cough Syrup 100ml', productCode: 'CGH-100', 
-    lastOrderDate: '20-Aug-2026', lastOrderedQty: '50 Bottles', suggestedQty: '50 Bottles', 
-    availability: 'Low Stock', availableStock: '120 Bottles', purchaseFreq: 'Seasonal', 
-    reason: 'Seasonal Demand', status: 'Ignored' 
-  },
-];
-
 export default function Reorders() {
-  const [data, setData] = useState<Reorder[]>(initialMockData);
+  const [data, setData] = useState<Reorder[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
@@ -88,6 +74,7 @@ export default function Reorders() {
   
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const [userRetailerContext, setUserRetailerContext] = useState<any>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -99,7 +86,275 @@ export default function Reorders() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Set quantity when modal opens
+  // Context Initialization
+  useEffect(() => {
+    try {
+      const user = authService.getCurrentUser();
+      if (!user) return;
+      const retailers = retailerMasterService.getAll ? retailerMasterService.getAll() : [];
+      const userId = String(user.id || '').trim().toLowerCase();
+      const userCode = String(user.employeeCode || '').trim().toLowerCase();
+      const userEmail = String(user.email || '').trim().toLowerCase();
+      const username = String((user as any).username || '').trim().toLowerCase();
+      const userName = String(user.fullName || (user as any).name || '').trim().toLowerCase();
+
+      let matchedRetailer = null;
+      matchedRetailer = retailers.find((r: any) => String(r.id || '').trim().toLowerCase() === userId);
+      if (!matchedRetailer && userCode) matchedRetailer = retailers.find((r: any) => String(r.code || '').trim().toLowerCase() === userCode);
+      if (!matchedRetailer && userEmail) matchedRetailer = retailers.find((r: any) => String(r.emailAddress || r.email || '').trim().toLowerCase() === userEmail);
+      if (!matchedRetailer && username) matchedRetailer = retailers.find((r: any) => String(r.username || '').trim().toLowerCase() === username);
+      if (!matchedRetailer && userName) matchedRetailer = retailers.find((r: any) => String(r.name || r.retailerName || '').trim().toLowerCase() === userName);
+
+      setUserRetailerContext(matchedRetailer || { id: user.id, code: user.employeeCode, name: user.fullName });
+    } catch (e) {
+      console.error("Context error:", e);
+    }
+  }, []);
+
+  // Load and calculate recommendations based on Distributor Inventory
+  useEffect(() => {
+    if (!userRetailerContext) return;
+
+    try {
+      const inventory = inventoryService.getAll ? inventoryService.getAll() : [];
+      const products = (productService as any).getProducts ? (productService as any).getProducts() : [];
+      const schemes = schemeService.getAll ? schemeService.getAll() : [];
+      
+      const ordersStr = localStorage.getItem('pharma_erp_retailer_orders');
+      const allOrders = ordersStr ? JSON.parse(ordersStr) : [];
+      
+      const cartStr = localStorage.getItem('pharma_erp_retailer_cart');
+      const cartItems = cartStr ? JSON.parse(cartStr) : [];
+
+      const tradeOffersStr = localStorage.getItem('pharma_erp_trade_offers');
+      const tradeOffers = tradeOffersStr ? JSON.parse(tradeOffersStr) : [];
+
+      const ignoredStr = localStorage.getItem('pharma_erp_ignored_reorders');
+      const ignoredItems: string[] = ignoredStr ? JSON.parse(ignoredStr) : [];
+
+      const retailerId = String(userRetailerContext.id || '').toLowerCase();
+      const retailerCode = String(userRetailerContext.code || '').toLowerCase();
+      
+      const myOrders = allOrders.filter((o: any) => 
+        String(o.retailerId).toLowerCase() === retailerId || String(o.retailerCode).toLowerCase() === retailerCode
+      );
+
+      // Dist Assignment Check
+      let assignedDistCode = '';
+      if (userRetailerContext.assignedDistributors && userRetailerContext.assignedDistributors.length > 0) {
+        const dist = userRetailerContext.assignedDistributors[0];
+        assignedDistCode = typeof dist === 'string' ? dist : (dist.code || dist.id);
+      } else if (userRetailerContext.assignedDistributor) {
+        assignedDistCode = userRetailerContext.assignedDistributor;
+      }
+      assignedDistCode = assignedDistCode.toLowerCase();
+
+      // Filter Inventory for Assigned Distributor and valid states
+      const distInventory = inventory.filter((inv: any) => {
+        const invDistCode = String(inv.distributorCode || inv.warehouseCode || inv.distributorId || '').toLowerCase();
+        if (assignedDistCode && invDistCode && invDistCode !== assignedDistCode) return false;
+        
+        if (inv.visibleToRetailers === false) return false;
+        if (inv.status && inv.status !== 'Active') return false;
+        if (inv.isBlocked || inv.isQuarantined || inv.isDamaged || inv.isExpired) return false;
+        if (Number(inv.blockedQty || 0) > 0 || Number(inv.damagedQty || 0) > 0 || Number(inv.quarantinedQty || 0) > 0 || Number(inv.expiredQty || 0) > 0) {
+            // Strictly ignoring based on requirements
+            return false;
+        }
+
+        const opening = Number(inv.openingStock || 0);
+        const purchase = Number(inv.purchaseQty || 0);
+        const transferIn = Number(inv.transferInQty || 0);
+        let available = Number(inv.availableQty || 0);
+        
+        if (!available && (opening || purchase)) {
+           const reserved = Number(inv.reservedQty || 0);
+           const dispatched = Number(inv.dispatchedQty || 0);
+           available = (opening + purchase + transferIn) - (reserved + dispatched);
+        }
+        
+        if (available <= 0) return false;
+        
+        return true;
+      });
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const activeSchemes = schemes.filter((s: any) => {
+        if (s.status !== 'Active') return false;
+        if (s.validFrom && new Date(s.validFrom) > today) return false;
+        if (s.validTo) {
+          const toD = new Date(s.validTo);
+          toD.setHours(23, 59, 59, 999);
+          if (today > toD) return false;
+        }
+        return true;
+      });
+
+      const activeTradeOffers = tradeOffers.filter((o: any) => {
+        if (o.status !== 'Active') return false;
+        if (o.distributorCode && String(o.distributorCode).toLowerCase() !== assignedDistCode) return false;
+        if (o.validTo) {
+          const toD = new Date(o.validTo);
+          toD.setHours(23, 59, 59, 999);
+          if (today > toD) return false;
+        }
+        return true;
+      });
+
+      // Product Purchase History Map
+      const purchaseHistory = new Map<string, { totalQty: number, count: number, lastDate: Date, lastQty: number, pendingQty: number }>();
+      
+      myOrders.forEach((o: any) => {
+        const orderDate = new Date(o.date);
+        const isPending = o.status === 'Pending' || o.status === 'Processing';
+        if (o.items && Array.isArray(o.items)) {
+          o.items.forEach((i: any) => {
+            const current = purchaseHistory.get(i.productCode) || { totalQty: 0, count: 0, lastDate: new Date(0), lastQty: 0, pendingQty: 0 };
+            current.totalQty += Number(i.quantity) || 0;
+            current.count += 1;
+            if (isPending) current.pendingQty += Number(i.quantity) || 0;
+            if (orderDate > current.lastDate) {
+              current.lastDate = orderDate;
+              current.lastQty = Number(i.quantity) || 0;
+            }
+            purchaseHistory.set(i.productCode, current);
+          });
+        }
+      });
+
+      const recommendations: Reorder[] = [];
+
+      // Process uniquely by product code to avoid duplicate entries for multiple batches in inventory
+      const processedProductCodes = new Set<string>();
+
+      distInventory.forEach((inv: any) => {
+        const pCode = inv.productCode;
+        if (processedProductCodes.has(pCode)) return;
+        
+        const p = products.find((prod: any) => prod.code === pCode);
+        if (!p || p.status !== 'Active' || (p as any).saleable === false || (p as any).blocked === true) return;
+
+        processedProductCodes.add(pCode);
+
+        // Aggregate total available inventory for this product from the distributor
+        let totalAvailableStock = 0;
+        distInventory.filter((i: any) => i.productCode === pCode).forEach((i: any) => {
+            let available = Number(i.availableQty || 0);
+            if (!available && (Number(i.openingStock || 0) || Number(i.purchaseQty || 0))) {
+                available = (Number(i.openingStock || 0) + Number(i.purchaseQty || 0) + Number(i.transferInQty || 0)) - 
+                            (Number(i.reservedQty || 0) + Number(i.dispatchedQty || 0));
+            }
+            totalAvailableStock += Math.max(0, available);
+        });
+
+        if (totalAvailableStock <= 0) return;
+
+        const hist = purchaseHistory.get(pCode);
+        
+        let hasActiveScheme = false;
+        activeSchemes.forEach((s: any) => {
+          if (s.applicableTo === 'All Products') hasActiveScheme = true;
+          if (s.applicableTo === 'Product' && s.applicableSelection === pCode) hasActiveScheme = true;
+          if (s.applicableTo === 'Category' && p.category === s.applicableSelection) hasActiveScheme = true;
+          if (s.applicableTo === 'Brand' && (p.brandName || (p as any).brand) === s.applicableSelection) hasActiveScheme = true;
+        });
+
+        let hasActiveTradeOffer = false;
+        activeTradeOffers.forEach((o: any) => {
+          if (o.products && Array.isArray(o.products)) {
+             if (o.products.some((op: any) => op.productCode === pCode || op.code === pCode)) hasActiveTradeOffer = true;
+          }
+        });
+
+        let shouldRecommend = false;
+        let reason = '';
+        let freq = 'Infrequent';
+        const reorderLevel = Number((p as any).reorderLevel || 0);
+        const safetyStock = Number((p as any).safetyStock || 0);
+
+        if (hist) {
+           const daysSinceLast = Math.floor((today.getTime() - hist.lastDate.getTime()) / (1000 * 3600 * 24));
+           if (hist.count > 3) freq = 'Frequently Ordered';
+           else if (hist.count > 1) freq = 'Regular';
+           
+           if (daysSinceLast > 14 && hist.count > 1) {
+             shouldRecommend = true;
+             reason = 'Reorder Due Based on History';
+           } else if (freq === 'Frequently Ordered' && daysSinceLast > 7) {
+             shouldRecommend = true;
+             reason = 'Fast Moving Product';
+           } else if (reorderLevel > 0 && hist.lastQty <= reorderLevel) {
+             shouldRecommend = true;
+             reason = 'Stock Below Reorder Level';
+           }
+        } else if (safetyStock > 0 || reorderLevel > 0) {
+            // New logic based on safety rules even if no direct history
+            shouldRecommend = true;
+            reason = 'Safety Stock Replenishment';
+        }
+
+        if (hasActiveTradeOffer) {
+          shouldRecommend = true;
+          reason = 'Special Distributor Trade Offer Active';
+        } else if (hasActiveScheme) {
+          shouldRecommend = true;
+          reason = 'Special Scheme Discount Active';
+        }
+
+        if (shouldRecommend) {
+          let status: ReorderStatus = 'Recommended';
+          
+          const inCart = cartItems.find((ci: any) => ci.productCode === pCode);
+          const hasPendingOrder = hist && hist.pendingQty > 0;
+          
+          if (inCart || hasPendingOrder) {
+            status = 'Already Reordered';
+          } else if (ignoredItems.includes(pCode)) {
+            status = 'Ignored';
+          }
+
+          let suggestedQtyVal = hist ? hist.lastQty : (reorderLevel > 0 ? reorderLevel : 10);
+          if (suggestedQtyVal <= 0) suggestedQtyVal = 10;
+          if (suggestedQtyVal > totalAvailableStock) suggestedQtyVal = totalAvailableStock;
+
+          // Pricing logic: use distributor inventory selling price, fallback to PTR or MRP
+          const unitP = parseFloat(inv.sellingPrice || inv.distributorPrice || p.ptr || p.mrp || '0');
+
+          recommendations.push({
+            id: pCode,
+            retailer: userRetailerContext.name,
+            productName: p.name,
+            productCode: pCode,
+            lastOrderDate: hist && hist.lastDate.getTime() > 0 ? hist.lastDate.toLocaleDateString('en-GB') : 'Never',
+            lastOrderedQty: hist && hist.lastQty > 0 ? `${hist.lastQty} Units` : '0 Units',
+            suggestedQty: `${suggestedQtyVal} Units`,
+            availability: 'In Stock', // Verified > 0 above
+            availableStock: `${totalAvailableStock} Units`,
+            purchaseFreq: freq,
+            reason: reason,
+            status: status,
+            unitPrice: unitP
+          });
+        }
+      });
+
+      // Sort: Recommended first, then Already Reordered, then Ignored
+      recommendations.sort((a, b) => {
+        if (a.status === 'Recommended' && b.status !== 'Recommended') return -1;
+        if (b.status === 'Recommended' && a.status !== 'Recommended') return 1;
+        if (a.status === 'Already Reordered' && b.status === 'Ignored') return -1;
+        if (a.status === 'Ignored' && b.status === 'Already Reordered') return 1;
+        return 0;
+      });
+
+      setData(recommendations);
+    } catch (e) {
+      console.error("Failed to build recommendations", e);
+    }
+  }, [userRetailerContext]);
+
   useEffect(() => {
     if (reorderItem) {
       setReorderQty(reorderItem.suggestedQty.split(' ')[0]);
@@ -107,9 +362,7 @@ export default function Reorders() {
     }
   }, [reorderItem]);
 
-  // Filter Data
-  const baseData = data.filter(d => d.retailer === 'Apollo Pharmacy');
-  const filteredData = baseData.filter((item) => {
+  const filteredData = data.filter((item) => {
     const searchStr = search.toLowerCase();
     const matchSearch = item.productName.toLowerCase().includes(searchStr) || item.productCode.toLowerCase().includes(searchStr);
     const matchStatus = statusFilter ? item.status === statusFilter : true;
@@ -128,14 +381,65 @@ export default function Reorders() {
       alert("Please enter a valid quantity greater than zero.");
       return;
     }
+    
     if (reorderItem) {
+      const parsedQty = Number(reorderQty);
+      const availableStockStr = reorderItem.availableStock.split(' ')[0];
+      const availableStock = Number(availableStockStr);
+
+      if (parsedQty > availableStock) {
+        alert(`Cannot add more than available stock (${availableStock} Units).`);
+        return;
+      }
+
+      try {
+        const cartStr = localStorage.getItem('pharma_erp_retailer_cart');
+        const currentCart = cartStr ? JSON.parse(cartStr) : [];
+        
+        const existingItem = currentCart.find((ci: any) => ci.productCode === reorderItem.productCode);
+        if (existingItem) {
+          existingItem.quantity += parsedQty;
+          existingItem.lineTotal = existingItem.quantity * existingItem.unitPrice;
+        } else {
+          currentCart.push({
+            id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(),
+            productName: reorderItem.productName,
+            productCode: reorderItem.productCode,
+            quantity: parsedQty,
+            unitPrice: reorderItem.unitPrice,
+            lineTotal: parsedQty * reorderItem.unitPrice,
+            scheme: 'Calculated at checkout'
+          });
+        }
+        localStorage.setItem('pharma_erp_retailer_cart', JSON.stringify(currentCart));
+
+        const updatedData = data.map(d => 
+          d.id === reorderItem.id ? { ...d, status: 'Already Reordered' as ReorderStatus } : d
+        );
+        setData(updatedData);
+        setReorderItem(null);
+        alert(`Successfully added ${reorderQty} units of ${reorderItem.productName} to Cart.`);
+      } catch (e) {
+        console.error("Cart error", e);
+        alert("Failed to add to cart.");
+      }
+    }
+  };
+
+  const handleIgnore = (row: Reorder) => {
+    try {
+      const ignoredStr = localStorage.getItem('pharma_erp_ignored_reorders');
+      const ignoredItems: string[] = ignoredStr ? JSON.parse(ignoredStr) : [];
+      if (!ignoredItems.includes(row.productCode)) {
+         ignoredItems.push(row.productCode);
+         localStorage.setItem('pharma_erp_ignored_reorders', JSON.stringify(ignoredItems));
+      }
       const updatedData = data.map(d => 
-        d.id === reorderItem.id ? { ...d, status: 'Already Reordered' as ReorderStatus } : d
+        d.id === row.id ? { ...d, status: 'Ignored' as ReorderStatus } : d
       );
       setData(updatedData);
-      setReorderItem(null);
-      // Simulate success notification
-      console.log(`Added ${reorderQty} of ${reorderItem.productName} to cart.`);
+    } catch (e) {
+      console.error(e);
     }
   };
 
@@ -152,19 +456,19 @@ export default function Reorders() {
       label: 'Actions',
       render: (row) => (
         <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          {row.status === 'Recommended' && (
+          {(row.status === 'Recommended' || row.status === 'Ignored') && (
             <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1" onClick={() => setReorderItem(row)}>
               <RefreshCcw className="w-3 h-3 mr-1" /> Reorder
             </ActionButton>
           )}
-          {row.status === 'Ignored' && (
-            <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1" onClick={() => setReorderItem(row)}>
-              <RefreshCcw className="w-3 h-3 mr-1" /> Reorder Again
+          {row.status === 'Recommended' && (
+            <ActionButton variant="ghost" className="text-slate-400 hover:text-red-500 text-xs px-2 py-1" onClick={() => handleIgnore(row)}>
+              <X className="w-3 h-3 mr-1" /> Ignore
             </ActionButton>
           )}
           {row.status === 'Already Reordered' && (
             <ActionButton variant="ghost" className="text-slate-500 text-xs px-2 py-1" onClick={() => setViewDetails(row)}>
-              <Eye className="w-3 h-3 mr-1" /> View Order
+              <Eye className="w-3 h-3 mr-1" /> View History
             </ActionButton>
           )}
         </div>
@@ -186,8 +490,12 @@ export default function Reorders() {
   };
 
   const handleExportExcel = () => {
-    const data = getExportData();
-    const ws = XLSX.utils.json_to_sheet(data);
+    const dataToExport = getExportData();
+    if (dataToExport.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Reorder_Recommendations");
     XLSX.writeFile(wb, "Reorder_Recommendations.xlsx");
@@ -195,8 +503,12 @@ export default function Reorders() {
   };
 
   const handleExportCSV = () => {
-    const data = getExportData();
-    const ws = XLSX.utils.json_to_sheet(data);
+    const dataToExport = getExportData();
+    if (dataToExport.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -210,10 +522,14 @@ export default function Reorders() {
   };
 
   const handleExportPDF = () => {
-    const data = getExportData();
+    const dataToExport = getExportData();
+    if (dataToExport.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
     const doc = new jsPDF('landscape');
-    const headers = Object.keys(data[0] || {});
-    const body = data.map(obj => headers.map(header => (obj as any)[header]));
+    const headers = Object.keys(dataToExport[0] || {});
+    const body = dataToExport.map(obj => headers.map(header => (obj as any)[header]));
     
     doc.text("Reorder Recommendations", 14, 15);
     autoTable(doc, {

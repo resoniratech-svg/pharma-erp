@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Plus, Download, Filter, Eye, X, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -17,6 +17,12 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 import { AnimatePresence, motion } from 'framer-motion';
+
+import authService from '../../services/authService';
+import { retailerMasterService } from '../../services/retailerMasterService';
+import { productService } from '../../services/productService';
+import { inventoryService } from '../../services/inventoryService';
+import { schemeService } from '../../services/schemeService';
 
 function Modal({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: React.ReactNode }) {
   return (
@@ -37,7 +43,7 @@ function Modal({ open, onClose, title, children }: { open: boolean; onClose: () 
   );
 }
 
-type OrderStatus = 'Pending' | 'Approved' | 'Rejected' | 'Processing' | 'Delivered';
+type OrderStatus = 'Pending' | 'Approved' | 'Processing' | 'Packed' | 'Dispatched' | 'Delivered' | 'Completed' | 'Rejected' | 'Cancelled';
 type PaymentStatus = 'Paid' | 'Unpaid' | 'Partial';
 
 interface OrderItem {
@@ -53,57 +59,47 @@ interface OrderItem {
 interface Order {
   id: string;
   orderNo: string;
+  retailerId: string;
+  retailerCode: string;
   retailer: string;
+  distributorId: string;
+  distributorCode: string;
+  distributorName: string;
   date: string;
   amount: number;
   schemeDiscount: number;
   netAmount: number;
   paymentStatus: PaymentStatus;
   status: OrderStatus;
-  expectedDeliveryDate?: string;
+  expectedDeliveryDate: string;
   deliveryAddress: string;
   contactPerson: string;
   mobileNumber: string;
   remarks?: string;
   items: OrderItem[];
+  
+  // Audit Fields
+  createdAt: string;
+  createdBy: string;
+  updatedAt: string;
+  updatedBy: string;
+  orderSource: string;
+  statusTimestamp: string;
 }
 
-const initialMockData: Order[] = [
-  { 
-    id: '1', orderNo: 'RET-ORD-4412', retailer: 'Apollo Pharmacy', 
-    date: '15-Oct-2026', amount: 48000, schemeDiscount: 3000, netAmount: 45000,
-    paymentStatus: 'Unpaid', status: 'Pending', expectedDeliveryDate: '18-Oct-2026',
-    deliveryAddress: '123 Apollo Street, HealthCity, HC 500001',
-    contactPerson: 'Rahul Sharma', mobileNumber: '+91 9876543210',
-    items: [
-      { id: 'i1', productName: 'Paracetamol 650mg', productCode: 'PRC-650', quantity: 100, unitPrice: 48, lineTotal: 4800 },
-      { id: 'i2', productName: 'Amoxicillin 500mg', productCode: 'AMX-500', quantity: 50, unitPrice: 120, lineTotal: 6000, schemeBenefit: '10+1 Free' }
-    ]
-  },
-  { 
-    id: '2', orderNo: 'RET-ORD-4411', retailer: 'MedPlus Store', 
-    date: '14-Oct-2026', amount: 12000, schemeDiscount: 0, netAmount: 12000,
-    paymentStatus: 'Paid', status: 'Processing', expectedDeliveryDate: '16-Oct-2026',
-    deliveryAddress: '45 MedPlus Avenue, Wellness Park, WP 400012',
-    contactPerson: 'Priya Patel', mobileNumber: '+91 8765432109',
-    items: [
-      { id: 'i3', productName: 'Vitamin C 1000mg', productCode: 'VIT-C', quantity: 200, unitPrice: 60, lineTotal: 12000 }
-    ]
-  },
-  { 
-    id: '3', orderNo: 'RET-ORD-4410', retailer: 'Apollo Pharmacy', 
-    date: '12-Oct-2026', amount: 5500, schemeDiscount: 500, netAmount: 5000,
-    paymentStatus: 'Paid', status: 'Delivered', expectedDeliveryDate: '14-Oct-2026',
-    deliveryAddress: '123 Apollo Street, HealthCity, HC 500001',
-    contactPerson: 'Rahul Sharma', mobileNumber: '+91 9876543210',
-    items: [
-      { id: 'i4', productName: 'Cough Syrup 100ml', productCode: 'CGH-100', quantity: 50, unitPrice: 110, lineTotal: 5500, schemeBenefit: '10% Off' }
-    ]
-  },
-];
+const generateUUID = () => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+};
 
 export default function Orders() {
-  const [data, setData] = useState<Order[]>(initialMockData);
+  const [data, setData] = useState<Order[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   
@@ -113,12 +109,72 @@ export default function Orders() {
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
   // New Order Form State
-  const [address, setAddress] = useState('123 Apollo Street, HealthCity, HC 500001'); 
-  const [contact, setContact] = useState('Rahul Sharma');
-  const [mobile, setMobile] = useState('+91 9876543210');
+  const [address, setAddress] = useState(''); 
+  const [contact, setContact] = useState('');
+  const [mobile, setMobile] = useState('');
   const [remarks, setRemarks] = useState('');
 
   const [cartItems, setCartItems] = useState<OrderItem[]>([]);
+  const [userRetailerContext, setUserRetailerContext] = useState<any>(null);
+
+  useEffect(() => {
+    try {
+      const allOrdersStr = localStorage.getItem('pharma_erp_retailer_orders');
+      if (allOrdersStr) {
+        setData(JSON.parse(allOrdersStr));
+      }
+    } catch (e) {
+      console.error("Failed to parse orders", e);
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      const user = authService.getCurrentUser();
+      if (!user) return;
+
+      const retailers = retailerMasterService.getAll ? retailerMasterService.getAll() : [];
+      
+      const userId = String(user.id || '').trim().toLowerCase();
+      const userCode = String(user.employeeCode || '').trim().toLowerCase();
+      const userEmail = String(user.email || '').trim().toLowerCase();
+      const username = String((user as any).username || '').trim().toLowerCase();
+      const userName = String(user.fullName || (user as any).name || '').trim().toLowerCase();
+
+      let matchedRetailer = null;
+
+      // Strongest identifier priority: ID -> Code -> Email -> Username -> Name
+      matchedRetailer = retailers.find((r: any) => String(r.id || '').trim().toLowerCase() === userId);
+      if (!matchedRetailer && userCode) {
+        matchedRetailer = retailers.find((r: any) => String(r.code || '').trim().toLowerCase() === userCode);
+      }
+      if (!matchedRetailer && userEmail) {
+        matchedRetailer = retailers.find((r: any) => String(r.emailAddress || r.email || '').trim().toLowerCase() === userEmail);
+      }
+      if (!matchedRetailer && username) {
+        matchedRetailer = retailers.find((r: any) => String(r.username || '').trim().toLowerCase() === username);
+      }
+      if (!matchedRetailer && userName) {
+        matchedRetailer = retailers.find((r: any) => String(r.name || r.retailerName || '').trim().toLowerCase() === userName);
+      }
+
+      if (matchedRetailer) {
+        setUserRetailerContext(matchedRetailer);
+        setAddress((matchedRetailer as any).address || '');
+        setContact(matchedRetailer.contactPerson || '');
+        setMobile(matchedRetailer.mobileNumber || '');
+      } else {
+        setUserRetailerContext({
+          id: user.id,
+          code: user.employeeCode,
+          name: user.fullName,
+          emailAddress: user.email
+        });
+      }
+    } catch (e) {
+      console.error("Error resolving retailer context", e);
+    }
+  }, []);
 
   useEffect(() => {
     if (isCreateOpen) {
@@ -126,9 +182,8 @@ export default function Orders() {
       if (activeCart) {
         try {
           const parsed = JSON.parse(activeCart);
-          // Standardize fields coming from the Product Catalog mapping ecosystem
           const formattedItems = parsed.map((item: any) => ({
-            id: item.id || Math.random().toString(),
+            id: item.id || generateUUID(),
             productName: item.productName || 'N/A',
             productCode: item.productCode || 'N/A',
             quantity: Number(item.quantity || 0),
@@ -157,7 +212,20 @@ export default function Orders() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const baseData = data.filter(d => d.retailer === 'Apollo Pharmacy');
+  const baseData = useMemo(() => {
+    if (!userRetailerContext) return [];
+    const rId = String(userRetailerContext.id).toLowerCase();
+    const rCode = String(userRetailerContext.code).toLowerCase();
+    const rName = String(userRetailerContext.name).toLowerCase();
+    
+    return data.filter(d => {
+      const dId = String(d.retailerId).toLowerCase();
+      const dCode = String(d.retailerCode).toLowerCase();
+      const dName = String(d.retailer).toLowerCase();
+      return (dId && dId === rId) || (dCode && dCode === rCode) || (dName && dName === rName);
+    });
+  }, [data, userRetailerContext]);
+
   const filteredData = baseData.filter((item) => {
     const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
@@ -165,13 +233,12 @@ export default function Orders() {
   });
 
   const getStatusVariant = (status: OrderStatus): BadgeVariant => {
-    if (status === 'Delivered' || status === 'Approved') return 'success';
-    if (status === 'Pending' || status === 'Processing') return 'info';
-    if (status === 'Rejected') return 'danger';
+    if (status === 'Delivered' || status === 'Completed' || status === 'Approved') return 'success';
+    if (status === 'Pending' || status === 'Processing' || status === 'Packed' || status === 'Dispatched') return 'info';
+    if (status === 'Rejected' || status === 'Cancelled') return 'danger';
     return 'neutral';
   };
 
-  // Safe currency converter containing error handling protections against rendering breaks
   const formatCurrency = (value: any) => {
     if (value === undefined || value === null || isNaN(Number(value))) {
       return '₹ 0';
@@ -183,8 +250,162 @@ export default function Orders() {
   const handleCancelOrder = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
     if(window.confirm("Are you sure you want to cancel this order?")) {
-      setData(data.filter(d => d.id !== id));
+      const currentUser = authService.getCurrentUser();
+      const updatedBy = currentUser ? currentUser.id : 'SYSTEM';
+      const timestamp = new Date().toISOString();
+
+      const updatedData = data.map(d => d.id === id ? { 
+        ...d, 
+        status: 'Cancelled' as OrderStatus,
+        updatedAt: timestamp,
+        updatedBy: updatedBy,
+        statusTimestamp: timestamp
+      } : d);
+      setData(updatedData);
+      localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(updatedData));
     }
+  };
+
+  const resolveAssignedDistributor = () => {
+    if (!userRetailerContext) return null;
+    let distId = '', distCode = '', distName = '';
+
+    if (userRetailerContext.assignedDistributors && Array.isArray(userRetailerContext.assignedDistributors) && userRetailerContext.assignedDistributors.length > 0) {
+      const dist = userRetailerContext.assignedDistributors[0];
+      if (typeof dist === 'string') {
+        distCode = dist;
+        distName = dist;
+        distId = dist;
+      } else {
+        distId = dist.id || dist.code || '';
+        distCode = dist.code || distId;
+        distName = dist.name || distCode;
+      }
+    } else if (userRetailerContext.assignedDistributor) {
+        distId = userRetailerContext.assignedDistributor;
+        distCode = userRetailerContext.assignedDistributor;
+        distName = userRetailerContext.assignedDistributor;
+    }
+
+    if (!distCode) return null;
+    return { id: distId, code: distCode, name: distName };
+  };
+
+  const calculateAvailableInventory = (productCode: string) => {
+    const inventory = inventoryService.getAll ? inventoryService.getAll() : [];
+    return inventory
+      .filter((inv: any) => inv.productCode === productCode)
+      .reduce((acc: number, inv: any) => {
+        const opening = Number(inv.openingStock || 0);
+        const purchase = Number(inv.purchaseQty || 0);
+        const transferIn = Number(inv.transferInQty || 0);
+        const basicAvailable = Number(inv.availableQty || 0);
+        
+        let total = basicAvailable;
+        if (!total && (opening || purchase)) {
+           const reserved = Number(inv.reservedQty || 0);
+           const dispatched = Number(inv.dispatchedQty || 0);
+           const damaged = Number(inv.damagedQty || 0);
+           const expired = Number(inv.expiredQty || 0);
+           const blocked = Number(inv.blockedQty || 0);
+           total = (opening + purchase + transferIn) - (reserved + dispatched + damaged + expired + blocked);
+        }
+        return acc + Math.max(0, total);
+      }, 0);
+  };
+
+  const calculateSchemeDiscount = (items: OrderItem[]) => {
+    try {
+      const schemes = schemeService.getAll ? schemeService.getAll() : [];
+      let totalDiscount = 0;
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const activeSchemes = schemes.filter((s: any) => {
+        if (s.status !== 'Active') return false;
+        if (s.validFrom) {
+          const fromDate = new Date(s.validFrom);
+          if (!isNaN(fromDate.getTime()) && today < fromDate) return false;
+        }
+        if (s.validTo) {
+          const toDate = new Date(s.validTo);
+          if (!isNaN(toDate.getTime())) {
+            toDate.setHours(23, 59, 59, 999);
+            if (today > toDate) return false;
+          }
+        }
+        return true;
+      });
+
+      const products = productService.getProducts ? productService.getProducts() : [];
+      
+      const totalOrderQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
+      const totalOrderValue = items.reduce((sum, item) => sum + item.lineTotal, 0);
+
+      items.forEach(item => {
+        const product = products.find((p: any) => p.code === item.productCode);
+        
+        const applicableSchemes = activeSchemes.filter((s: any) => {
+          const minQty = Number(s.minQuantity || s.minOrderQty || 0);
+          const minVal = Number(s.minOrderValue || 0);
+
+          if (s.applicableTo === 'All Products') {
+             if (minQty > 0 && totalOrderQuantity < minQty) return false;
+             if (minVal > 0 && totalOrderValue < minVal) return false;
+             return true;
+          }
+
+          let itemMatches = false;
+          if (s.applicableTo === 'Product' && s.applicableSelection === item.productCode) itemMatches = true;
+          if (s.applicableTo === 'Category' && product && product.category === s.applicableSelection) itemMatches = true;
+          if (s.applicableTo === 'Brand' && product && (product.brandName || (product as any).brand) === s.applicableSelection) itemMatches = true;
+
+          if (itemMatches) {
+             if (minQty > 0 && item.quantity < minQty) return false;
+             if (minVal > 0 && item.lineTotal < minVal) return false;
+             return true;
+          }
+          return false;
+        });
+
+        applicableSchemes.forEach((s: any) => {
+          const bType = String(s.benefitType || s.schemeType || '').toLowerCase();
+          const bValue = parseFloat(s.benefitValue || s.discountPct || s.ptrDiscount || '0') || 0;
+
+          if (bType.includes('percentage') || bType.includes('pct')) {
+            totalDiscount += (item.lineTotal * bValue) / 100;
+          } else if (bType.includes('flat') || bType.includes('cash')) {
+            // Apply proportionate flat discount or full if item specific
+            if (s.applicableTo === 'All Products') {
+               // Approximate distribute flat discount based on line ratio to avoid over-discounting
+               totalDiscount += bValue * (item.lineTotal / totalOrderValue);
+            } else {
+               totalDiscount += bValue;
+            }
+          } else if (bType.includes('ptr') || bType.includes('pts')) {
+            totalDiscount += (item.unitPrice * bValue / 100) * item.quantity;
+          }
+        });
+      });
+
+      return totalDiscount;
+    } catch (e) {
+      console.error("Error calculating schemes", e);
+      return 0;
+    }
+  };
+
+  const getNextOrderSequence = () => {
+    let maxSeq = 0;
+    data.forEach(order => {
+      const match = order.orderNo.match(/RET-ORD-(product.brandName || (product as any).brandd+)/);
+      if (match && match[1]) {
+        const seq = parseInt(match[1], 10);
+        if (seq > maxSeq) maxSeq = seq;
+      }
+    });
+    return maxSeq + 1;
   };
 
   const handlePlaceOrder = () => {
@@ -196,35 +417,109 @@ export default function Orders() {
       alert("Please fill in all required delivery fields.");
       return;
     }
+    if (!userRetailerContext) {
+      alert("Retailer context not established. Please login again.");
+      return;
+    }
+
+    const distributor = resolveAssignedDistributor();
+    if (!distributor) {
+      alert("No distributor assigned. Please contact administration to assign a distributor to your profile before placing orders.");
+      return;
+    }
+
+    try {
+      const products = (productService as any).getProducts ? (productService as any).getProducts() : [];
+      const inventory = inventoryService.getAll ? inventoryService.getAll() : [];
+      const isInventoryModuleActive = inventory && inventory.length > 0;
+
+      for (const item of cartItems) {
+        if (item.quantity <= 0) {
+          alert(`Quantity for ${item.productName} must be greater than zero.`);
+          return;
+        }
+
+        const product = products.find((p: any) => p.code === item.productCode);
+        if (!product) {
+          alert(`Product ${item.productName} (${item.productCode}) no longer exists in Product Master.`);
+          return;
+        }
+        if (product.status !== 'Active') {
+          alert(`Product ${item.productName} is currently inactive and cannot be ordered.`);
+          return;
+        }
+        if ((product as any).saleable === false || (product as any).blocked === true) {
+           alert(`Product ${item.productName} is currently blocked from sales.`);
+           return;
+        }
+
+        if (isInventoryModuleActive) {
+          const availableStock = calculateAvailableInventory(item.productCode);
+          if (availableStock < item.quantity) {
+            alert(`Insufficient stock for ${item.productName}. Available: ${availableStock}`);
+            return;
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Pre-order validation encountered an error:", e);
+    }
 
     const totalGross = cartItems.reduce((acc, item) => acc + item.lineTotal, 0);
-    const schemeDiscount = totalGross > 2000 ? 50 : 0; 
+    const schemeDiscount = calculateSchemeDiscount(cartItems);
+    
+    const nextSeq = getNextOrderSequence();
+    const orderNumber = `RET-ORD-${String(nextSeq).padStart(6, '0')}`;
+
+    const timestamp = new Date().toISOString();
+    const currentUser = authService.getCurrentUser();
+    const createdBy = currentUser ? currentUser.id : userRetailerContext.id;
+
+    // Calculate Expected Delivery Date (Default 2 days lead time)
+    const expectedDate = new Date();
+    expectedDate.setDate(expectedDate.getDate() + 2);
+    const expectedDeliveryDateStr = expectedDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+
     const newOrder: Order = {
-      id: Math.random().toString(),
-      orderNo: `RET-ORD-${Math.floor(4000 + Math.random() * 1000)}`,
-      retailer: 'Apollo Pharmacy', 
+      id: generateUUID(),
+      orderNo: orderNumber,
+      retailerId: userRetailerContext.id || '',
+      retailerCode: userRetailerContext.code || '',
+      retailer: userRetailerContext.name || 'Unknown Retailer',
+      distributorId: distributor.id,
+      distributorCode: distributor.code,
+      distributorName: distributor.name,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
       amount: totalGross,
       schemeDiscount: schemeDiscount,
-      netAmount: totalGross - schemeDiscount,
+      netAmount: Math.max(0, totalGross - schemeDiscount),
       paymentStatus: 'Unpaid',
       status: 'Pending',
+      expectedDeliveryDate: expectedDeliveryDateStr,
       deliveryAddress: address,
       contactPerson: contact,
       mobileNumber: mobile,
       remarks: remarks,
-      items: cartItems
+      items: cartItems,
+      
+      createdAt: timestamp,
+      createdBy: createdBy,
+      updatedAt: timestamp,
+      updatedBy: createdBy,
+      orderSource: 'Retailer_Web_Portal',
+      statusTimestamp: timestamp
     };
 
-    setData([newOrder, ...data]);
-    setIsCreateOpen(false);
+    const updatedData = [newOrder, ...data];
+    setData(updatedData);
+    localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(updatedData));
     
+    setIsCreateOpen(false);
     setCartItems([]);
     localStorage.removeItem('pharma_erp_retailer_cart');
     setRemarks('');
   };
 
-  // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const columns: Column<Order>[] = [
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-violet-700">{row.orderNo}</span> },
     { key: 'date', label: 'Order Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
@@ -261,8 +556,12 @@ export default function Orders() {
   };
 
   const handleExportExcel = () => {
-    const data = getExportData();
-    const ws = XLSX.utils.json_to_sheet(data);
+    const dataToExport = getExportData();
+    if (dataToExport.length === 0) {
+        setShowExportMenu(false);
+        return;
+    }
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Orders");
     XLSX.writeFile(wb, "Order_Placement.xlsx");
@@ -270,8 +569,12 @@ export default function Orders() {
   };
 
   const handleExportCSV = () => {
-    const data = getExportData();
-    const ws = XLSX.utils.json_to_sheet(data);
+    const dataToExport = getExportData();
+    if (dataToExport.length === 0) {
+        setShowExportMenu(false);
+        return;
+    }
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -285,10 +588,14 @@ export default function Orders() {
   };
 
   const handleExportPDF = () => {
-    const data = getExportData();
+    const dataToExport = getExportData();
+    if (dataToExport.length === 0) {
+        setShowExportMenu(false);
+        return;
+    }
     const doc = new jsPDF('landscape');
-    const headers = Object.keys(data[0] || {});
-    const body = data.map(obj => headers.map(header => (obj as any)[header]));
+    const headers = Object.keys(dataToExport[0] || {});
+    const body = dataToExport.map(obj => headers.map(header => (obj as any)[header]));
     
     doc.text("Order Placement", 14, 15);
     autoTable(doc, {
@@ -303,7 +610,6 @@ export default function Orders() {
     setShowExportMenu(false);
   };
 
-  // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const viewOrderColumns: Column<OrderItem>[] = [
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
     { key: 'productCode', label: 'Product Code', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
@@ -313,7 +619,6 @@ export default function Orders() {
     { key: 'amount', label: 'Line Total', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
   ];
 
-  // FIXED: Changed property label to 'header' to properly match shared DataTable types configuration 
   const cartColumns: Column<OrderItem>[] = [
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
     { key: 'productCode', label: 'Product Code', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
@@ -369,9 +674,13 @@ export default function Orders() {
             { label: 'All', value: '' },
             { label: 'Pending', value: 'Pending' },
             { label: 'Approved', value: 'Approved' },
-            { label: 'Rejected', value: 'Rejected' },
             { label: 'Processing', value: 'Processing' },
+            { label: 'Packed', value: 'Packed' },
+            { label: 'Dispatched', value: 'Dispatched' },
             { label: 'Delivered', value: 'Delivered' },
+            { label: 'Completed', value: 'Completed' },
+            { label: 'Rejected', value: 'Rejected' },
+            { label: 'Cancelled', value: 'Cancelled' },
           ]}
           placeholder="Status"
         />
@@ -387,7 +696,6 @@ export default function Orders() {
         </div>
       </TableCard>
 
-      {/* View Order Drawer */}
       <Drawer
         open={!!viewOrder}
         onClose={() => setViewOrder(null)}
@@ -460,7 +768,6 @@ export default function Orders() {
         )}
       </Drawer>
 
-      {/* Create Order Modal */}
       <Modal
         open={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
@@ -550,11 +857,11 @@ export default function Orders() {
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-slate-600">Scheme Discount</span>
-                <span className="font-medium text-emerald-600">- {formatCurrency(cartItems.reduce((acc, i) => acc + i.lineTotal, 0) > 2000 ? 50 : 0)}</span>
+                <span className="font-medium text-emerald-600">- {formatCurrency(calculateSchemeDiscount(cartItems))}</span>
               </div>
               <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between">
                 <span className="font-bold text-slate-900">Net Order Value</span>
-                <span className="font-bold text-violet-700">{formatCurrency(cartItems.reduce((acc, i) => acc + i.lineTotal, 0) - (cartItems.reduce((acc, i) => acc + i.lineTotal, 0) > 2000 ? 50 : 0))}</span>
+                <span className="font-bold text-violet-700">{formatCurrency(cartItems.reduce((acc, i) => acc + i.lineTotal, 0) - calculateSchemeDiscount(cartItems))}</span>
               </div>
             </div>
           </div>

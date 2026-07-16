@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Download, Filter, Eye, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -17,65 +17,29 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 
-interface Offer {
-  id: string;
-  offerCode: string;
-  offerName: string;
-  type: string;
-  applicableTo: 'Product' | 'Brand' | 'Category' | 'All Products';
-  productName?: string;
-  category?: string;
-  brand?: string;
-  validFrom: string;
-  validTill: string;
-  status: 'Active' | 'Upcoming' | 'Expired';
-  description: string;
-  promotionDetails: string;
-  terms: string;
-}
-
-const mockData: Offer[] = [
-  { 
-    id: '1', offerCode: 'OFF-WINTER', offerName: 'Winter Stock Up', type: 'Seasonal Offer', 
-    applicableTo: 'Category', category: 'Respiratory', 
-    validFrom: '01 Nov 2026', validTill: '31 Jan 2027', status: 'Upcoming',
-    description: 'Special winter stock up promotion for all respiratory products.',
-    promotionDetails: 'Buy 50 boxes of any respiratory product, get 5 boxes free.',
-    terms: 'Applicable only for single invoice purchases. Cannot be combined with other offers.'
-  },
-  { 
-    id: '2', offerCode: 'OFF-LAUNCH', offerName: 'New Launch Promo', type: 'Launch Offer', 
-    applicableTo: 'Product', productName: 'Amoxicillin 500mg', 
-    validFrom: '15 Sep 2026', validTill: '15 Oct 2026', status: 'Expired',
-    description: 'Introductory offer for the new Amoxicillin 500mg packaging.',
-    promotionDetails: 'Flat 10% extra scheme on all orders.',
-    terms: 'Valid only for the first 100 orders.'
-  },
-  { 
-    id: '3', offerCode: 'OFF-FESTIVAL', offerName: 'Diwali Dhamaka', type: 'Festival Offer', 
-    applicableTo: 'All Products', 
-    validFrom: '10 Oct 2026', validTill: '05 Nov 2026', status: 'Active',
-    description: 'Diwali special volume-based offer across the entire catalog.',
-    promotionDetails: 'Order value above ₹50,000 gets an assured silver coin.',
-    terms: 'Gift distribution post-scheme completion. Returns will be deducted from calculation.'
-  },
-  { 
-    id: '4', offerCode: 'OFF-BONUS', offerName: 'Quarter End Bonus', type: 'Product Bonus', 
-    applicableTo: 'Brand', brand: 'Cipla', 
-    validFrom: '01 Oct 2026', validTill: '31 Dec 2026', status: 'Active',
-    description: 'End of quarter volume bonus for Cipla products.',
-    promotionDetails: 'Buy 100 strips, get 15 strips free.',
-    terms: 'Scheme applied automatically at cart checkout.'
-  },
-];
+import { retailerMasterService } from "../../services/retailerMasterService";
+import authService from "../../services/authService";
 
 export default function Offers() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   
-  const [viewOffer, setViewOffer] = useState<Offer | null>(null);
+  const [viewOffer, setViewOffer] = useState<any | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  const [allOffers, setAllOffers] = useState<any[]>([]);
+
+  useEffect(() => {
+    const data = localStorage.getItem('pharma_erp_trade_offers');
+    if (data) {
+      try {
+        setAllOffers(JSON.parse(data));
+      } catch (e) {
+        setAllOffers([]);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -87,13 +51,123 @@ export default function Offers() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Retailer specific business logic: Display only Active offers
-  const activeOffers = mockData.filter(item => item.status === 'Active');
+  const user = authService.getCurrentUser();
+
+  const userRetailerContext = useMemo(() => {
+    if (!user) return null;
+    const retailerMasterList = retailerMasterService.getAll();
+    
+    return retailerMasterList.find(r => {
+      const uId = String(user.id || '').trim().toLowerCase();
+      const uEmpCode = String(user.employeeCode || '').trim().toLowerCase();
+      const uUsername = String((user as any).username || '').trim().toLowerCase();
+      const uEmail = String(user.email || '').trim().toLowerCase();
+      const uName = String(user.fullName || '').trim().toLowerCase();
+
+      const rId = String(r.id || '').trim().toLowerCase();
+      const rCode = String(r.code || '').trim().toLowerCase();
+      const rEmail = String(r.emailAddress || '').trim().toLowerCase();
+      const rName = String(r.name || '').trim().toLowerCase();
+
+      if (rId && uId && rId === uId) return true;
+      if (rCode && (rCode === uId || rCode === uEmpCode || rCode === uUsername)) return true;
+      if (rEmail && uEmail && rEmail === uEmail) return true;
+      if (rName && uName && rName === uName) return true;
+      return false;
+    });
+  }, [user]);
+
+  const assignedDistributors = useMemo(() => {
+    if (!user) return [];
+
+    if (userRetailerContext && userRetailerContext.assignedDistributors && userRetailerContext.assignedDistributors.length > 0) {
+      return userRetailerContext.assignedDistributors;
+    }
+
+    const distCode = user.linkedDistributorCode || (user as any).distributorCode;
+    if (distCode) {
+      return [{ code: distCode, name: 'Assigned Distributor' }];
+    }
+
+    if (user.roleId === 'Super Admin' || user.roleId === 'Admin' || user.roleId === 'Distributor' || user.roleId === 'MR') {
+      const uniqueDistCodes = Array.from(new Set(allOffers.map((o: any) => o.distributorCode).filter(Boolean)));
+      return uniqueDistCodes.map(code => ({ code, name: `Distributor ${code}` }));
+    }
+
+    return [];
+  }, [user, userRetailerContext, allOffers]);
+
+  const validDistributorCodes = useMemo(() => {
+    return assignedDistributors
+      .map((d: any) => {
+        if (typeof d === 'string') return d.trim().toLowerCase();
+        if (d && d.code) return String(d.code).trim().toLowerCase();
+        return null;
+      })
+      .filter(Boolean);
+  }, [assignedDistributors]);
+
+  const parseDate = (dStr: string) => {
+    if (!dStr) return new Date(NaN);
+    if (dStr.includes('-')) {
+      const parts = dStr.split('-');
+      if (parts.length === 3) {
+        if (parts[2].length === 4) return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        if (parts[0].length === 4) return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      }
+    }
+    return new Date(dStr);
+  };
+
+  const activeOffers = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    return allOffers.filter(offer => {
+      if (offer.status !== 'Active') return false;
+      
+      const from = parseDate(offer.validFrom);
+      const to = parseDate(offer.validTo);
+      if (!isNaN(to.getTime())) {
+        to.setHours(23, 59, 59, 999);
+      }
+      
+      if (!isNaN(from.getTime()) && today < from) return false;
+      if (!isNaN(to.getTime()) && today > to) return false;
+
+      const oDistCode = String(offer.distributorCode || '').trim().toLowerCase();
+      if (validDistributorCodes.length === 0 || !validDistributorCodes.includes(oDistCode)) {
+        return false;
+      }
+
+      if (offer.applicableLevel === 'Selected Retailers') {
+        const sel = (offer.selectedRetailers || []).map((s: string) => String(s).trim().toLowerCase());
+        const rCode = String(userRetailerContext?.code || '').trim().toLowerCase();
+        const rName = String(userRetailerContext?.name || '').trim().toLowerCase();
+        const uId = String(user?.id || '').trim().toLowerCase();
+        
+        const isSelected = (rCode && sel.includes(rCode)) || 
+                           (rName && sel.includes(rName)) || 
+                           (uId && sel.includes(uId));
+                           
+        if (!isSelected) {
+          return false;
+        }
+      } else if (offer.applicableLevel === 'Retailer Group') {
+        const ctx = userRetailerContext as any;
+        const retailerCat = String(ctx?.category || ctx?.retailerCategory || ctx?.group || '').trim().toLowerCase();
+        const targetGroup = String(offer.applicableSelection || '').trim().toLowerCase();
+        if (targetGroup && retailerCat !== targetGroup) return false;
+      }
+
+      return true;
+    });
+  }, [allOffers, validDistributorCodes, userRetailerContext, user]);
 
   const filteredData = activeOffers.filter((item) => {
     const searchStr = search.toLowerCase();
-    const matchSearch = item.offerCode.toLowerCase().includes(searchStr) || item.offerName.toLowerCase().includes(searchStr);
-    const matchType = typeFilter ? item.type === typeFilter : true;
+    const matchSearch = (item.offerCode || '').toLowerCase().includes(searchStr) || (item.offerName || '').toLowerCase().includes(searchStr);
+    const matchType = typeFilter ? item.offerType === typeFilter : true;
     return matchSearch && matchType;
   });
 
@@ -103,11 +177,18 @@ export default function Offers() {
     return 'neutral';
   };
 
-  const columns: Column<Offer>[] = [
+  const getDDMMYYYY = (dateStr: string) => {
+    if (!dateStr) return '-';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+  };
+
+  const columns: Column<any>[] = [
     { key: 'offerCode', label: 'Offer Code', render: (row) => <span className="font-semibold text-violet-700">{row.offerCode}</span> },
     { key: 'offerName', label: 'Offer Name', render: (row) => <span className="font-semibold text-slate-900">{row.offerName}</span> },
-    { key: 'applicableTo', label: 'Applicable To', render: (row) => <span className="text-slate-600">{row.applicableTo}</span> },
-    { key: 'validTill', label: 'Valid Till', render: (row) => <span className="text-slate-600">{row.validTill}</span> },
+    { key: 'offerType', label: 'Offer Type', render: (row) => <span className="text-slate-600">{row.offerType}</span> },
+    { key: 'validTo', label: 'Valid Till', render: (row) => <span className="text-slate-600">{getDDMMYYYY(row.validTo)}</span> },
     { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
     {
       key: 'actions',
@@ -124,16 +205,23 @@ export default function Offers() {
 
   const getExportData = () => {
     return filteredData.map(item => ({
-      'Offer Code': item.offerCode,
-      'Offer Name': item.offerName,
-      'Applicable To': item.applicableTo,
-      'Valid Till': item.validTill,
-      'Status': item.status
+      'Distributor Name': item.distributorName || '-',
+      'Distributor Code': item.distributorCode || '-',
+      'Offer Code': item.offerCode || '-',
+      'Offer Name': item.offerName || '-',
+      'Offer Type': item.offerType || '-',
+      'Valid From': getDDMMYYYY(item.validFrom),
+      'Valid Till': getDDMMYYYY(item.validTo),
+      'Status': item.status || '-'
     }));
   };
 
   const handleExportExcel = () => {
     const data = getExportData();
+    if(data.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Offers");
@@ -143,6 +231,10 @@ export default function Offers() {
 
   const handleExportCSV = () => {
     const data = getExportData();
+    if(data.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -158,7 +250,11 @@ export default function Offers() {
 
   const handleExportPDF = () => {
     const data = getExportData();
-    const doc = new jsPDF();
+    if(data.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
+    const doc = new jsPDF('landscape');
     const headers = Object.keys(data[0] || {});
     const body = data.map(obj => headers.map(header => (obj as any)[header]));
     
@@ -168,8 +264,8 @@ export default function Offers() {
       head: [headers],
       body: body,
       theme: 'striped',
-      headStyles: { fillColor: [124, 58, 237] },
-      styles: { fontSize: 9 }
+      headStyles: { fillColor: [22, 60, 120] },
+      styles: { fontSize: 8 }
     });
     doc.save("Offer_Visibility.pdf");
     setShowExportMenu(false);
@@ -213,10 +309,16 @@ export default function Offers() {
           value={typeFilter}
           onChange={setTypeFilter}
           options={[
-            { label: 'Seasonal Offer', value: 'Seasonal Offer' },
-            { label: 'Launch Offer', value: 'Launch Offer' },
+            { label: 'All Types', value: '' },
+            { label: 'Cash Discount', value: 'Cash Discount' },
+            { label: 'Percentage Discount', value: 'Percentage Discount' },
+            { label: 'Flat Discount', value: 'Flat Discount' },
+            { label: 'Free Product', value: 'Free Product' },
+            { label: 'Gift', value: 'Gift' },
             { label: 'Festival Offer', value: 'Festival Offer' },
-            { label: 'Product Bonus', value: 'Product Bonus' },
+            { label: 'Target Offer', value: 'Target Offer' },
+            { label: 'Loyalty Offer', value: 'Loyalty Offer' },
+            { label: 'Volume Offer', value: 'Volume Offer' },
           ]}
           placeholder="All Types"
         />
@@ -243,9 +345,11 @@ export default function Offers() {
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Offer Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <DrawerField label="Distributor Name" value={viewOffer.distributorName || '-'} />
+                <DrawerField label="Distributor Code" value={viewOffer.distributorCode || '-'} />
                 <DrawerField label="Offer Code" value={<span className="font-semibold text-violet-700">{viewOffer.offerCode}</span>} />
                 <DrawerField label="Offer Name" value={<span className="font-semibold text-slate-900">{viewOffer.offerName}</span>} />
-                <DrawerField label="Offer Type" value={viewOffer.type} />
+                <DrawerField label="Offer Type" value={viewOffer.offerType} />
                 <DrawerField label="Status" value={<Badge variant={getStatusVariant(viewOffer.status)}>{viewOffer.status}</Badge>} />
               </div>
             </div>
@@ -254,37 +358,51 @@ export default function Offers() {
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Applicability</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                <DrawerField label="Applicable To" value={<span className="font-medium text-slate-800">{viewOffer.applicableTo}</span>} />
-                {viewOffer.applicableTo === 'Product' && <DrawerField label="Product Name" value={viewOffer.productName} />}
-                {viewOffer.applicableTo === 'Category' && <DrawerField label="Category" value={viewOffer.category} />}
-                {viewOffer.applicableTo === 'Brand' && <DrawerField label="Brand" value={viewOffer.brand} />}
+                <DrawerField label="Applicable Level" value={<span className="font-medium text-slate-800">{viewOffer.applicableProductType}</span>} />
+                
+                {viewOffer.applicableProductType === 'Single Product' && <DrawerField label="Applicable Products" value={viewOffer.selectedProduct} />}
+                {viewOffer.applicableProductType === 'Multiple Products' && <DrawerField label="Applicable Products" value={viewOffer.selectedProducts?.join(', ')} />}
+                {viewOffer.applicableProductType === 'Entire Category' && <DrawerField label="Applicable Categories" value={viewOffer.selectedCategory} />}
+                {viewOffer.applicableProductType === 'Entire Brand' && <DrawerField label="Applicable Brands" value={viewOffer.selectedBrand} />}
+                
+                <DrawerField label="Applicable Retailers" value={viewOffer.applicableLevel === 'All Assigned Retailers' ? 'All Assigned Retailers' : viewOffer.applicableSelection} />
               </div>
             </div>
 
-            {/* Section 3: Validity */}
+            {/* Section 3: Benefit Details */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Benefit Details</h3>
+              <div className="bg-[#163c78]/10 rounded-xl p-4 border border-violet-100 text-center py-6">
+                <div className="text-sm text-[#163c78] font-medium mb-1">Offer Value / Benefit</div>
+                <div className="text-xl text-[#081529] font-bold">{viewOffer.offerValue || '-'}</div>
+              </div>
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 mt-4">
+                <DrawerField label="Minimum Order Value" value={`₹ ${(viewOffer.minOrderValue || 0).toLocaleString()}`} />
+                <DrawerField label="Maximum Benefit" value={`₹ ${(viewOffer.maxBenefit || 0).toLocaleString()}`} />
+                <DrawerField label="Priority" value={viewOffer.priority || '-'} />
+              </div>
+            </div>
+
+            {/* Section 4: Validity */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Validity</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                <DrawerField label="Valid From" value={viewOffer.validFrom} />
-                <DrawerField label="Valid Till" value={<span className="font-medium text-slate-800">{viewOffer.validTill}</span>} />
+                <DrawerField label="Valid From" value={getDDMMYYYY(viewOffer.validFrom)} />
+                <DrawerField label="Valid To" value={<span className="font-medium text-slate-800">{getDDMMYYYY(viewOffer.validTo)}</span>} />
               </div>
             </div>
 
-            {/* Section 4: Offer Description */}
+            {/* Section 5: Offer Description / Remarks */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Offer Description</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Description</label>
-                  <p className="text-sm text-slate-900 leading-relaxed">{viewOffer.description}</p>
-                </div>
-                <div className="pt-3 border-t border-slate-200">
-                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Promotion Details</label>
-                  <p className="text-sm text-emerald-700 font-medium leading-relaxed">{viewOffer.promotionDetails}</p>
+                <div className="pt-1">
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Remarks</label>
+                  <p className="text-sm text-slate-900 leading-relaxed">{viewOffer.remarks || '-'}</p>
                 </div>
                 <div className="pt-3 border-t border-slate-200">
                   <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Terms & Conditions</label>
-                  <p className="text-sm text-slate-600 leading-relaxed italic">{viewOffer.terms}</p>
+                  <p className="text-sm text-slate-600 leading-relaxed italic">{viewOffer.terms || 'Applicable as per standard distributor terms.'}</p>
                 </div>
               </div>
             </div>

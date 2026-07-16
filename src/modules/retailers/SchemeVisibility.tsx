@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Download, Filter, Eye, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
@@ -15,6 +15,7 @@ import {
   DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
+import { schemeService } from "../../services/schemeService";
 
 interface SchemeItem {
   id: string;
@@ -36,43 +37,23 @@ interface SchemeItem {
   terms: string;
 }
 
-const mockSchemes: SchemeItem[] = [
-  { 
-    id: '1', schemeCode: 'SCH-VOL-01', schemeName: 'Q3 Volume Discount', schemeType: 'Percentage Discount', 
-    applicableTo: 'Category', category: 'Antibiotics', 
-    discountPct: '12%', minOrderQty: '50 Boxes',
-    validFrom: '01 Oct 2026', validTo: '31 Dec 2026', status: 'Active',
-    terms: 'Discount applied automatically at invoice generation. Minimum quantity must be met in a single order.' 
-  },
-  { 
-    id: '2', schemeCode: 'SCH-QTY-02', schemeName: 'Paracetamol Bulk Bonus', schemeType: 'Quantity Discount', 
-    applicableTo: 'Product', product: 'Paracetamol 650mg', 
-    freeQuantity: '10+1', minOrderQty: '100 Strips',
-    validFrom: '15 Sep 2026', validTo: '15 Oct 2026', status: 'Expired',
-    terms: 'Free goods will be dispatched with the primary order. No returns on free goods.' 
-  },
-  { 
-    id: '3', schemeCode: 'SCH-TRD-03', schemeName: 'Year End Trade Deal', schemeType: 'Trade Discount', 
-    applicableTo: 'All Products', 
-    bonusProduct: 'Free Hand Sanitizer 500ml', minOrderQty: '₹ 1,00,000',
-    validFrom: '01 Dec 2026', validTo: '31 Dec 2026', status: 'Upcoming',
-    terms: 'Cumulative invoice value must exceed ₹1,00,000 within the scheme period to qualify.' 
-  },
-  { 
-    id: '4', schemeCode: 'SCH-PTR-04', schemeName: 'Special PTR Margin', schemeType: 'PTR Discount', 
-    applicableTo: 'Brand', brand: 'Cipla', 
-    ptrDiscount: '15% PTR Discount', minOrderQty: '20 Boxes',
-    validFrom: '01 Oct 2026', validTo: '15 Nov 2026', status: 'Active',
-    terms: 'PTR discount applied directly to the base rate. Cannot be combined with volume discounts.' 
-  },
-];
-
 export default function SchemeVisibility() {
   const [search, setSearch] = useState('');
   
   const [viewScheme, setViewScheme] = useState<SchemeItem | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  const [adminSchemes, setAdminSchemes] = useState<any[]>([]);
+
+  useEffect(() => {
+    try {
+      const data = schemeService.getAll() || [];
+      setAdminSchemes(data);
+    } catch (e) {
+      setAdminSchemes([]);
+    }
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -84,12 +65,84 @@ export default function SchemeVisibility() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Retailer specific business logic: Display only Active schemes
-  const activeSchemes = mockSchemes.filter(item => item.status === 'Active');
+  const parseDate = (dStr: string) => {
+    if (!dStr) return new Date(NaN);
+    if (dStr.includes('-')) {
+      const parts = dStr.split('-');
+      if (parts.length === 3) {
+        if (parts[2].length === 4) return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
+        if (parts[0].length === 4) return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+      }
+    }
+    return new Date(dStr);
+  };
+
+  const getDDMMYYYY = (dateStr: string) => {
+    if (!dateStr || dateStr === '-') return '-';
+    const d = parseDate(dateStr);
+    if (isNaN(d.getTime())) return dateStr;
+    return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
+  };
+
+  const activeSchemes = useMemo(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    const mappedSchemes: SchemeItem[] = adminSchemes.map((s: any) => {
+      let product, category, brand;
+      if (s.applicableTo === 'Product') product = s.applicableSelection;
+      if (s.applicableTo === 'Category') category = s.applicableSelection;
+      if (s.applicableTo === 'Brand') brand = s.applicableSelection;
+
+      let discountPct, freeQuantity, ptrDiscount, bonusProduct;
+      const bType = String(s.benefitType || '').toLowerCase();
+      
+      if (bType.includes('percentage')) discountPct = s.benefitValue;
+      else if (bType.includes('free') || bType.includes('quantity')) freeQuantity = s.freeQuantity || s.benefitValue;
+      else if (bType.includes('ptr')) ptrDiscount = s.benefitValue;
+      else bonusProduct = s.benefitValue;
+
+      return {
+        id: s.id || Math.random().toString(),
+        schemeCode: s.schemeCode || '-',
+        schemeName: s.name || s.schemeName || '-',
+        schemeType: s.type || s.benefitType || '-',
+        applicableTo: s.applicableTo || 'All Products',
+        product,
+        category,
+        brand,
+        discountPct,
+        freeQuantity,
+        ptrDiscount,
+        bonusProduct,
+        minOrderQty: s.minQuantity || s.minOrderQty || '-',
+        validFrom: s.validFrom || '-',
+        validTo: s.validTo || '-',
+        status: s.status || 'Draft',
+        terms: s.remarks || s.terms || 'No specific terms provided.'
+      };
+    });
+
+    return mappedSchemes.filter((item: SchemeItem) => {
+      if (item.status !== 'Active') return false;
+
+      const from = parseDate(item.validFrom);
+      const to = parseDate(item.validTo);
+      if (!isNaN(to.getTime())) {
+        to.setHours(23, 59, 59, 999);
+      }
+
+      if (!isNaN(from.getTime()) && today < from) return false;
+      if (!isNaN(to.getTime()) && today > to) return false;
+
+      return true;
+    });
+  }, [adminSchemes]);
 
   const filteredSchemes = activeSchemes.filter((item) => {
     const searchStr = search.toLowerCase();
-    const matchSearch = item.schemeCode.toLowerCase().includes(searchStr) || item.schemeName.toLowerCase().includes(searchStr);
+    const matchSearch = String(item.schemeCode || '').toLowerCase().includes(searchStr) || 
+                        String(item.schemeName || '').toLowerCase().includes(searchStr);
     return matchSearch;
   });
 
@@ -112,7 +165,7 @@ export default function SchemeVisibility() {
     if (row.applicableTo === 'Category') return row.category;
     if (row.applicableTo === 'Brand') return row.brand;
     if (row.applicableTo === 'Product') return row.product;
-    return row.applicableTo;
+    return row.applicableTo || '-';
   };
 
   const columns: Column<SchemeItem>[] = [
@@ -121,7 +174,7 @@ export default function SchemeVisibility() {
     { key: 'schemeType', label: 'Scheme Type', render: (row) => <span className="text-slate-600">{row.schemeType}</span> },
     { key: 'benefit', label: 'Benefit', render: (row) => <span className="font-medium text-emerald-700">{getAggregatedBenefit(row)}</span> },
     { key: 'applicableItems', label: 'Applicable Products / Category', render: (row) => <span className="text-slate-600">{getAggregatedApplicability(row)}</span> },
-    { key: 'validTill', label: 'Valid Till', render: (row) => <span className="text-slate-600">{row.validTo}</span> },
+    { key: 'validTill', label: 'Valid Till', render: (row) => <span className="text-slate-600">{getDDMMYYYY(row.validTo)}</span> },
     { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
     {
       key: 'actions',
@@ -138,18 +191,22 @@ export default function SchemeVisibility() {
 
   const getExportData = () => {
     return filteredSchemes.map(item => ({
-      'Scheme Code': item.schemeCode,
-      'Scheme Name': item.schemeName,
-      'Scheme Type': item.schemeType,
+      'Scheme Code': item.schemeCode || '-',
+      'Scheme Name': item.schemeName || '-',
+      'Scheme Type': item.schemeType || '-',
       'Benefit': getAggregatedBenefit(item),
       'Applicable Products / Category': getAggregatedApplicability(item),
-      'Valid Till': item.validTo,
-      'Status': item.status
+      'Valid Till': getDDMMYYYY(item.validTo),
+      'Status': item.status || '-'
     }));
   };
 
   const handleExportExcel = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Schemes");
@@ -159,6 +216,10 @@ export default function SchemeVisibility() {
 
   const handleExportCSV = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
     const ws = XLSX.utils.json_to_sheet(data);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -174,6 +235,10 @@ export default function SchemeVisibility() {
 
   const handleExportPDF = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
     const doc = new jsPDF('landscape');
     const headers = Object.keys(data[0] || {});
     const body = data.map(obj => headers.map(header => (obj as any)[header]));
@@ -281,8 +346,8 @@ export default function SchemeVisibility() {
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Validity</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                <DrawerField label="Valid From" value={viewScheme.validFrom} />
-                <DrawerField label="Valid To" value={<span className="font-medium text-slate-800">{viewScheme.validTo}</span>} />
+                <DrawerField label="Valid From" value={getDDMMYYYY(viewScheme.validFrom)} />
+                <DrawerField label="Valid To" value={<span className="font-medium text-slate-800">{getDDMMYYYY(viewScheme.validTo)}</span>} />
               </div>
             </div>
 

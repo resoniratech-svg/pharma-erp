@@ -119,6 +119,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Distributor Master', path: '/workspace/distributors/master' },
       { label: 'Product Catalog Access', path: '/workspace/distributors/product-catalog' },
       { label: 'Current Stock', path: '/workspace/distributors/current-stock' },
+      { label: 'Retailer Orders', path: '/workspace/distributors/retailer-orders' },
       { label: 'Distributor Orders', path: '/workspace/distributors/distributor-orders' },
       { label: 'Order Placement', path: '/workspace/distributors/orders' },
       { label: 'Outstanding Tracking', path: '/workspace/distributors/outstanding' },
@@ -441,8 +442,13 @@ export function MainLayout() {
             if ((activeRole === ROLE_WAREHOUSE_MANAGER || activeRole === ROLE_ACCOUNTANT || activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER || activeRole === ROLE_MEDICAL_REPRESENTATIVE || activeRole === ROLE_TRANSPORT_STAFF) && item.label === 'Settings') {
               item.subItems = item.subItems?.filter(sub => sub.label === 'Profile Settings');
             }
-            if (activeRole !== ROLE_SUPER_ADMIN && item.label === 'Distributor/Stockist Portal') {
-              item.subItems = item.subItems?.filter(sub => sub.label !== 'Distributor Orders' && sub.label !== 'Distributor Master');
+            if (item.label === 'Distributor/Stockist Portal') {
+              if (activeRole !== ROLE_DISTRIBUTOR) {
+                item.subItems = item.subItems?.filter(sub => sub.label !== 'Retailer Orders');
+              }
+              if (activeRole !== ROLE_SUPER_ADMIN) {
+                item.subItems = item.subItems?.filter(sub => sub.label !== 'Distributor Orders' && sub.label !== 'Distributor Master');
+              }
             }
             if (activeRole !== ROLE_SUPER_ADMIN && item.label === 'Retailer Ordering System') {
               item.subItems = item.subItems?.filter(sub => sub.label !== 'Retailer Master');

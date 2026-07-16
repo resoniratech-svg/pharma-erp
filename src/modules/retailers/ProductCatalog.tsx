@@ -20,6 +20,9 @@ import { type Column, type BadgeVariant } from './components/shared';
 // Import services to fetch live entries from local storage / service pipelines
 import { productService } from "../../services/productService";
 import { schemeService } from "../../services/schemeService";
+import { inventoryService } from "../../services/inventoryService";
+import { retailerMasterService } from "../../services/retailerMasterService";
+import authService from "../../services/authService";
 
 interface Product {
   id: string;
@@ -39,12 +42,19 @@ interface Product {
   schemeValidFrom?: string;
   schemeValidTo?: string;
   schemeDescription?: string;
+  distributorCode?: string;
+  distributorName?: string;
+  inventoryRecordId?: string;
+  productId?: string;
+  batchNumber?: string;
+  warehouseCode?: string;
 }
 
 export default function ProductCatalog() {
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [distributorFilter, setDistributorFilter] = useState('');
   
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [cartProduct, setCartProduct] = useState<Product | null>(null);
@@ -66,14 +76,52 @@ export default function ProductCatalog() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Sync real Master database state array rows with Catalog View
+  // Fetch logged-in retailer's assigned distributors with robust fallback matches for all roles
+  const assignedDistributors = useMemo(() => {
+    const user = authService.getCurrentUser();
+    if (!user) return [];
+
+    const retailerMasterList = retailerMasterService.getAll();
+    const retailerRecord = retailerMasterList.find(r => 
+      r.id === user.id || 
+      r.code === user.id ||
+      r.code === user.employeeCode ||
+      r.emailAddress === user.email ||
+      r.name.toLowerCase() === user.fullName.toLowerCase() ||
+      (user as any).username === r.code
+    );
+    
+    if (retailerRecord) {
+      return retailerRecord.assignedDistributors || [];
+    }
+
+    // Fallback if user has direct distributor link
+    const distCode = user.linkedDistributorCode || (user as any).distributorCode;
+    if (distCode) {
+      return [{ code: distCode, name: 'Assigned Distributor' }];
+    }
+
+    // Fallback for Admin, Super Admin, Distributor, MR roles to avoid blank screens
+    if (user.roleId === 'Super Admin' || user.roleId === 'Admin' || user.roleId === 'Distributor' || user.roleId === 'MR') {
+      const allInventory = inventoryService.getAll();
+      const uniqueDistCodes = Array.from(new Set(allInventory.map(inv => inv.warehouseCode || inv.warehouseId)));
+      return uniqueDistCodes.map(code => ({ code, name: `Distributor ${code}` }));
+    }
+
+    return [];
+  }, []);
+
+  // Sync real Distributor Inventory (Current Stock) rows with Catalog View
   useEffect(() => {
     const fetchCatalogData = async () => {
       try {
         setIsLoading(true);
         
-        // Fetch products directly from your existing productService backend layer
+        const assignedCodes = assignedDistributors.map(d => d.code);
+
+        // 2. Fetch products and active inventory records
         const rawProducts = await productService.getProducts();
+        const allInventory = inventoryService.getAll();
         
         let schemes: any[] = [];
         try {
@@ -82,42 +130,113 @@ export default function ProductCatalog() {
           console.warn("Scheme engine lookup bypassed:", schemeErr);
         }
 
-        const mappedProducts: Product[] = (rawProducts || []).map((p: any) => {
-          const linkedScheme = schemes?.find((s: any) => s.id === p.scheme || s.name === p.scheme);
+        const mappedProducts: Product[] = [];
+
+        allInventory.forEach((inv) => {
+          const recordDistCode = inv.warehouseCode || inv.warehouseId;
+          const isAssigned = assignedCodes.includes(recordDistCode);
+          if (!isAssigned) return;
+
+          // Retail Availability check
+          const isRetailAvailable = (inv as any).isAvailableForOrdering !== false && (inv as any).visibleToRetailers !== false;
+          if (!isRetailAvailable) return;
+
+          // Available Qty check
+          if (inv.availableQty <= 0) return;
+
+          // Product Master lookup and status check
+          const product = rawProducts.find(p => p.code === inv.productCode);
+          if (!product || product.status !== 'Active') return;
+
+          // Verify if blocked / quarantined / damaged
+          const statusLower = (inv as any).status ? String((inv as any).status).toLowerCase() : '';
+          if (statusLower === 'blocked' || statusLower === 'quarantine' || statusLower === 'damaged') return;
+          if (inv.blockedQty > 0 || inv.damagedQty > 0) return;
+
+          // Find active scheme applicable to product and distributor
+          const linkedScheme = schemes?.find((s: any) => {
+            const isLinked = s.id === product.scheme || s.name === product.scheme || s.schemeCode === product.scheme || s.applicableSelection === product.code;
+            if (!isLinked) return false;
+
+            if (s.status !== 'Active') return false;
+
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
+            
+            if (s.validFrom) {
+              const fromDate = new Date(s.validFrom);
+              fromDate.setHours(0, 0, 0, 0);
+              if (today < fromDate) return false;
+            }
+            if (s.validTo) {
+              const toDate = new Date(s.validTo);
+              toDate.setHours(23, 59, 59, 999);
+              if (today > toDate) return false;
+            }
+
+            const schemeDist = s.distributorCode || s.distributor || s.warehouseId || s.warehouseCode;
+            if (schemeDist && String(schemeDist) !== String(recordDistCode)) return false;
+
+            return true;
+          });
           
-          // FIXED: Reading fields exactly matching your ProductMaster specification layout keys
-          const rawStockValue = p.totalUnits !== undefined ? p.totalUnits : (p.stock || p.availableStock || '0');
-          const totalStock = typeof rawStockValue === 'number' ? rawStockValue : parseInt(rawStockValue || '0', 10);
+          // Use dynamic PTR from inventory / fallback
+          const distributorSellingPrice = Number((inv as any).distributorSellingPrice || inv.ptr || product.ptr || 0);
           
-          // Setup a dynamic fallback evaluation checkpoint for warning states
-          const lowLimit = p.reorderLevel ? parseInt(p.reorderLevel, 10) : 20;
-          
+          // Stock warnings
+          const lowLimit = product.reorderLevel ? parseInt(product.reorderLevel, 10) : 20;
           let computedStatus: Product['status'] = 'Available';
-          if (totalStock <= 0 || p.status === 'Inactive' || p.status === 'Discontinued') {
+          if (inv.availableQty <= 0) {
             computedStatus = 'Out Of Stock';
-          } else if (totalStock <= lowLimit) {
+          } else if (inv.availableQty <= lowLimit) {
             computedStatus = 'Low Stock';
           }
 
-          return {
-            id: p.id || String(Math.random()),
-            code: p.code || p.productCode || 'N/A',
-            name: p.name || p.productName || 'Unnamed Product',
-            category: p.category || 'General',
-            brand: p.brandName || p.manufacturer || 'N/A',
-            packSize: p.packingType ? `${p.packingType} (${p.unitsPerPack || 10}s)` : `${p.unitsPerPack || 10} Units`,
-            baseUnit: p.packingType || 'Pack',
-            unitsPerPack: String(p.unitsPerPack || '10'),
-            mrp: String(p.mrp).startsWith('₹') ? p.mrp : `₹ ${parseFloat(p.mrp || '0').toFixed(2)}`,
-            ptr: String(p.ptr).startsWith('₹') ? p.ptr : `₹ ${parseFloat(p.ptr || '0').toFixed(2)}`,
-            scheme: p.scheme && p.scheme !== 'None' && p.scheme !== 'No Scheme' ? p.scheme : null,
-            stock: `${totalStock.toLocaleString()} Units`,
+          const distInfo = assignedDistributors.find((d: any) => d.code === recordDistCode);
+          const distributorName = distInfo ? distInfo.name : inv.warehouseName || 'Unknown Distributor';
+
+          mappedProducts.push({
+            id: inv.id,
+            code: product.code || inv.productCode || 'N/A',
+            name: product.name || inv.productName || 'Unnamed Product',
+            category: product.category || 'General',
+            brand: product.brandName || product.manufacturer || 'N/A',
+            packSize: product.packingType ? `${product.packingType} (${product.unitsPerPack || 10}s)` : `${product.unitsPerPack || 10} Units`,
+            baseUnit: product.packingType || 'Pack',
+            unitsPerPack: String(product.unitsPerPack || '10'),
+            mrp: String(product.mrp).startsWith('₹') ? product.mrp : `₹ ${parseFloat(product.mrp || '0').toFixed(2)}`,
+            ptr: `₹ ${distributorSellingPrice.toFixed(2)}`,
+            scheme: linkedScheme ? linkedScheme.name : null,
+            stock: `${inv.availableQty.toLocaleString()} Units`,
             status: computedStatus,
             schemeType: linkedScheme?.type || 'N/A',
             schemeValidFrom: linkedScheme?.validFrom || 'N/A',
             schemeValidTo: linkedScheme?.validTo || 'N/A',
-            schemeDescription: linkedScheme?.description || 'No promotional conditions found.'
-          };
+            schemeDescription: linkedScheme?.remarks || linkedScheme?.description || 'No promotional conditions found.',
+            distributorCode: recordDistCode,
+            distributorName: distributorName,
+            inventoryRecordId: inv.id,
+            productId: product.id,
+            batchNumber: inv.batchNo,
+            warehouseCode: inv.warehouseCode || inv.warehouseId
+          });
+        });
+
+        // Sort products by Distributor, Category, Product Name
+        mappedProducts.sort((a, b) => {
+          const distA = a.distributorName || '';
+          const distB = b.distributorName || '';
+          const distCompare = distA.localeCompare(distB);
+          if (distCompare !== 0) return distCompare;
+
+          const catA = a.category || '';
+          const catB = b.category || '';
+          const catCompare = catA.localeCompare(catB);
+          if (catCompare !== 0) return catCompare;
+
+          const nameA = a.name || '';
+          const nameB = b.name || '';
+          return nameA.localeCompare(nameB);
         });
 
         setProducts(mappedProducts);
@@ -129,7 +248,7 @@ export default function ProductCatalog() {
     };
 
     fetchCatalogData();
-  }, []);
+  }, [assignedDistributors]);
 
   const dynamicCategories = useMemo(() => {
     const unique = new Set(products.map(p => p.category).filter(Boolean));
@@ -142,9 +261,10 @@ export default function ProductCatalog() {
       const matchSearch = item.name.toLowerCase().includes(searchStr) || item.code.toLowerCase().includes(searchStr);
       const matchCategory = categoryFilter ? item.category === categoryFilter : true;
       const matchStatus = statusFilter ? item.status === statusFilter : true;
-      return matchSearch && matchCategory && matchStatus;
+      const matchDistributor = distributorFilter ? item.distributorCode === distributorFilter : true;
+      return matchSearch && matchCategory && matchStatus && matchDistributor;
     });
-  }, [search, categoryFilter, statusFilter, products]);
+  }, [search, categoryFilter, statusFilter, distributorFilter, products]);
 
   const getStatusVariant = (status: string): BadgeVariant => {
     if (status === 'Available') return 'success';
@@ -152,35 +272,50 @@ export default function ProductCatalog() {
     return 'danger';
   };
 
-  const columns: Column<Product>[] = [
-    { key: 'code', label: 'code', render: (row) => <span className="font-semibold text-slate-700">{row.code}</span> },
-    { key: 'name', label: 'name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
-    { key: 'category', label: 'category', render: (row) => <span className="text-slate-600">{row.category}</span> },
-    { key: 'packSize', label: 'packSize', render: (row) => <span className="text-slate-600">{row.packSize}</span> },
-    { key: 'ptr', label: 'ptr', render: (row) => <span className="font-bold text-violet-700">{row.ptr}</span> },
-    { key: 'scheme', label: 'scheme', render: (row) => row.scheme ? <span className="text-emerald-600 font-medium">{row.scheme}</span> : <Badge variant="neutral">No Active Scheme</Badge> },
-    { key: 'stock', label: 'stock', render: (row) => <span className="font-medium text-slate-800">{row.stock}</span> },
-    { key: 'status', label: 'status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
-    {
-      key: 'actions',
-      label: 'id',
-      render: (row) => (
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setSelectedProduct(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Details">
-            <Eye className="w-4 h-4" />
-          </button>
-          <button 
-            onClick={() => { setCartProduct(row); setOrderQty('1'); }} 
-            disabled={row.status === 'Out Of Stock'}
-            className="text-slate-400 hover:text-emerald-600 transition-colors p-1 disabled:opacity-30 disabled:cursor-not-allowed" 
-            title="Add To Cart"
-          >
-            <ShoppingCart className="w-4 h-4" />
-          </button>
-        </div>
-      )
-    }
-  ];
+  const columns = useMemo<Column<Product>[]>(() => {
+    return [
+      { key: 'code', label: 'code', render: (row) => <span className="font-semibold text-slate-700">{row.code}</span> },
+      { 
+        key: 'name', 
+        label: 'name', 
+        render: (row) => (
+          <div>
+            <span className="font-semibold text-slate-900 block">{row.name}</span>
+            {assignedDistributors.length > 1 && row.distributorName && (
+              <span className="text-[10px] text-violet-700 font-bold bg-violet-50 px-1.5 py-0.5 rounded mt-0.5 inline-block">
+                Distributor: {row.distributorName}
+              </span>
+            )}
+          </div>
+        )
+      },
+      { key: 'category', label: 'category', render: (row) => <span className="text-slate-600">{row.category}</span> },
+      { key: 'packSize', label: 'packSize', render: (row) => <span className="text-slate-600">{row.packSize}</span> },
+      { key: 'ptr', label: 'ptr', render: (row) => <span className="font-bold text-violet-700">{row.ptr}</span> },
+      { key: 'scheme', label: 'scheme', render: (row) => row.scheme ? <span className="text-emerald-600 font-medium">{row.scheme}</span> : <Badge variant="neutral">No Active Scheme</Badge> },
+      { key: 'stock', label: 'stock', render: (row) => <span className="font-medium text-slate-800">{row.stock}</span> },
+      { key: 'status', label: 'status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+      {
+        key: 'actions',
+        label: 'id',
+        render: (row) => (
+          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setSelectedProduct(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Details">
+              <Eye className="w-4 h-4" />
+            </button>
+            <button 
+              onClick={() => { setCartProduct(row); setOrderQty('1'); }} 
+              disabled={row.status === 'Out Of Stock'}
+              className="text-slate-400 hover:text-emerald-600 transition-colors p-1 disabled:opacity-30 disabled:cursor-not-allowed" 
+              title="Add To Cart"
+            >
+              <ShoppingCart className="w-4 h-4" />
+            </button>
+          </div>
+        )
+      }
+    ];
+  }, [assignedDistributors]);
 
   const getExportData = () => {
     return filteredData.map(item => ({
@@ -190,8 +325,13 @@ export default function ProductCatalog() {
       'Pack Size': item.packSize,
       'PTR': item.ptr,
       'Active Scheme': item.scheme || 'No Active Scheme',
+      
       'Available Stock': item.stock,
-      'Status': item.status
+      'Status': item.status,
+      ...(assignedDistributors.length > 1 ? {
+        'Distributor Code': item.distributorCode || '',
+        'Distributor Name': item.distributorName || ''
+      } : {})
     }));
   };
 
@@ -252,7 +392,10 @@ export default function ProductCatalog() {
     const existingCartRaw = localStorage.getItem(cartKey);
     let currentItems = existingCartRaw ? JSON.parse(existingCartRaw) : [];
 
-    const duplicateIndex = currentItems.findIndex((i: any) => i.productCode === cartProduct.code);
+    const duplicateIndex = currentItems.findIndex((i: any) => 
+      i.productCode === cartProduct.code && 
+      i.distributorCode === cartProduct.distributorCode
+    );
 
     const cartPayload = {
       productCode: cartProduct.code,
@@ -261,7 +404,15 @@ export default function ProductCatalog() {
       ptr: numericPtr,
       scheme: cartProduct.scheme || 'No Scheme',
       quantity: qty,
-      lineTotal: numericPtr * qty
+      lineTotal: numericPtr * qty,
+      distributorCode: cartProduct.distributorCode || '',
+      distributorName: cartProduct.distributorName || '',
+      inventoryId: cartProduct.inventoryRecordId || '',
+      sellingPrice: numericPtr,
+      schemeApplied: cartProduct.scheme || 'No Scheme',
+      productId: cartProduct.productId || '',
+      batchNumber: cartProduct.batchNumber || '',
+      warehouseCode: cartProduct.warehouseCode || ''
     };
 
     if (duplicateIndex > -1) {
@@ -313,6 +464,14 @@ export default function ProductCatalog() {
           <Filter className="w-4 h-4 text-slate-400" />
           <span className="text-sm font-medium text-slate-600">Filters:</span>
         </div>
+        {assignedDistributors.length > 1 && (
+          <SelectFilter
+            value={distributorFilter}
+            onChange={setDistributorFilter}
+            options={assignedDistributors.map(d => ({ label: d.name, value: d.code }))}
+            placeholder="All Assigned Distributors"
+          />
+        )}
         <SelectFilter
           value={categoryFilter}
           onChange={setCategoryFilter}
@@ -363,6 +522,16 @@ export default function ProductCatalog() {
                 <DrawerField label="Brand" value={selectedProduct.brand} />
               </div>
             </div>
+
+            {assignedDistributors.length > 1 && selectedProduct.distributorCode && (
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3 font-semibold">Distributor Details</h3>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                  <DrawerField label="Distributor Code" value={selectedProduct.distributorCode} />
+                  <DrawerField label="Distributor Name" value={selectedProduct.distributorName || 'N/A'} />
+                </div>
+              </div>
+            )}
 
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Pricing</h3>
@@ -439,6 +608,12 @@ export default function ProductCatalog() {
                 <div className="font-semibold text-slate-900 text-sm">{cartProduct.name}</div>
                 <div className="text-xs text-slate-500">{cartProduct.code} • {cartProduct.packSize}</div>
               </div>
+              {assignedDistributors.length > 1 && cartProduct.distributorName && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">Distributor</label>
+                  <div className="font-semibold text-slate-700 text-xs">{cartProduct.distributorName} ({cartProduct.distributorCode})</div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-medium text-slate-500 mb-1">PTR</label>

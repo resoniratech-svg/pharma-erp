@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generateInvoicePdf } from '../../documents/generators/pdfGenerator';
+import { billingService } from '../../services/billingService';
 
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
@@ -48,7 +49,7 @@ interface RetailerOrder {
   netAmount: number;
 }
 
-// --- Mock Data ---
+// --- Seed Mock Data if not present ---
 const initialOrders: RetailerOrder[] = [
   {
     id: 'ro1', orderNo: 'ORD-RET-5001', retailerName: 'Apollo Pharmacy', retailerCode: 'RET-001',
@@ -105,10 +106,125 @@ const initialOrders: RetailerOrder[] = [
 
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
+const formatCurrencyOrDash = (amount: number | null | undefined) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return '--';
+  return `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
+
 export default function RetailerOrders() {
   const activeRole = localStorage.getItem('activeRole') || ROLE_DISTRIBUTOR;
 
-  const [orders, setOrders] = useState<RetailerOrder[]>(initialOrders);
+  // 1. Get Authenticated User
+  const authUser = useMemo(() => {
+    const str = localStorage.getItem('authUser');
+    return str ? JSON.parse(str) : null;
+  }, []);
+
+  // ==========================================================================
+  // DEVELOPMENT DISTRIBUTOR IDENTITY CONTEXT
+  // (In production, replace this block with: const loggedInDistributorCode = authUser?.linkedDistributorCode || null;)
+  // ==========================================================================
+  const loggedInDistributorCode = useMemo(() => {
+    if (authUser?.linkedDistributorCode) {
+      return authUser.linkedDistributorCode;
+    }
+    return 'DIST-001'; 
+  }, [authUser]);
+  // ==========================================================================
+
+  // 3. Resolve Distributor Details from Distributor Master
+  const loggedInDistributor = useMemo(() => {
+    if (!loggedInDistributorCode) return null;
+    const rawMaster = localStorage.getItem('pharma_erp_distributor_master') || localStorage.getItem('pharma_erp_distributors') || '[]';
+    try {
+      const distributors = JSON.parse(rawMaster);
+      return distributors.find((d: any) => 
+        d.code === loggedInDistributorCode || 
+        d.distributorCode === loggedInDistributorCode || 
+        d.id === loggedInDistributorCode
+      ) || null;
+    } catch (e) {
+      return null;
+    }
+  }, [loggedInDistributorCode]);
+
+  // 4. Resolve Retailer Master Details Helper
+  const getRetailerDetails = (retailerCode: string) => {
+    const rawRetailers = localStorage.getItem('pharma_erp_retailer_master') || '[]';
+    try {
+      const retailers = JSON.parse(rawRetailers);
+      const retailer = retailers.find((r: any) => r.code === retailerCode);
+      if (retailer) {
+        return {
+          name: retailer.name || '',
+          code: retailer.code || '',
+          gstNumber: retailer.gstNumber || retailer.gstin || '',
+          mobileNumber: retailer.mobileNumber || retailer.mobile || '',
+          address: retailer.address || '',
+          creditLimit: retailer.creditLimit !== undefined && retailer.creditLimit !== null ? Number(retailer.creditLimit) : null,
+          outstandingBalance: retailer.outstandingBalance !== undefined && retailer.outstandingBalance !== null ? Number(retailer.outstandingBalance) : 
+                              retailer.outstanding !== undefined && retailer.outstanding !== null ? Number(retailer.outstanding) : null,
+          assignedDistributors: retailer.assignedDistributors || []
+        };
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return {
+      name: '',
+      code: '',
+      gstNumber: '',
+      mobileNumber: '',
+      address: '',
+      creditLimit: null,
+      outstandingBalance: null,
+      assignedDistributors: []
+    };
+  };
+
+  // 5. Get dynamic Order status from other modules (Invoice & Dispatch)
+  const getOrderCurrentStatus = (order: RetailerOrder): OrderStatus => {
+    if (order.status === 'Pending Approval' || order.status === 'Rejected') {
+      return order.status;
+    }
+
+    const invoices = billingService.getInvoices();
+    const invoice = invoices.find(inv => inv.id === order.id);
+
+    if (invoice) {
+      const trackingStr = localStorage.getItem('pharma_erp_dispatch_tracking');
+      if (trackingStr) {
+        try {
+          const trackingList = JSON.parse(trackingStr);
+          const trackingRecord = trackingList.find((t: any) => t.orderId === order.id);
+          if (trackingRecord) {
+            if (trackingRecord.status === 'Delivered') return 'Delivered';
+            if (['In Transit', 'Dispatched', 'Ready to Ship', 'Packed'].includes(trackingRecord.status)) return 'Dispatched';
+          }
+        } catch (e) {
+          console.error(e);
+        }
+      }
+      return 'Invoice Generated';
+    }
+
+    return order.status;
+  };
+
+  // Load orders from LocalStorage
+  const [orders, setOrders] = useState<RetailerOrder[]>(() => {
+    const data = localStorage.getItem('pharma_erp_retailer_orders');
+    if (data !== null) {
+      try {
+        return JSON.parse(data);
+      } catch (e) {
+        console.error("Failed to parse retailer orders:", e);
+      }
+    }
+    localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(initialOrders));
+    return initialOrders;
+  });
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [viewOrder, setViewOrder] = useState<RetailerOrder | null>(null);
@@ -126,35 +242,80 @@ export default function RetailerOrders() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const saveOrders = (updatedOrders: RetailerOrder[]) => {
+    setOrders(updatedOrders);
+    localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(updatedOrders));
+  };
+
   const updateOrderStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrders(prev => prev.map(o => o.id === orderId ? { ...o, status: newStatus } : o));
+    const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
+    saveOrders(updated);
     setViewOrder(null);
   };
 
   const handleGenerateInvoice = (order: RetailerOrder) => {
-    const invoiceNo = order.orderNo.replace('ORD-RET', 'INV-2026');
-    setOrders(prev => prev.map(o => o.id === order.id ? { ...o, status: 'Invoice Generated', invoiceNo } : o));
+    const nextInvoiceNo = billingService.getNextInvoiceNo();
+    const invoiceDate = new Date().toISOString().split('T')[0];
+    const dueDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const gstInvoice = {
+      id: order.id,
+      invoiceNo: nextInvoiceNo,
+      customerId: order.retailerCode,
+      customerName: order.retailerName,
+      date: invoiceDate,
+      dueDate: dueDate,
+      items: order.items.map((item, idx) => ({
+        id: `${order.id}-item-${idx}`,
+        productId: item.productCode,
+        productCode: item.productCode,
+        productName: item.productName,
+        batchNo: 'BATCH-GEN',
+        qty: item.quantity,
+        freeQty: 0,
+        ptr: item.rate,
+        mrp: item.rate * 1.2,
+        discountPercent: 0,
+        gstPercent: 12,
+        total: item.amount,
+        stock: 9999
+      })),
+      subTotal: order.grossAmount,
+      cgstTotal: order.grossAmount * 0.06,
+      sgstTotal: order.grossAmount * 0.06,
+      igstTotal: 0,
+      grandTotal: order.netAmount,
+      paymentMode: 'Credit',
+      status: 'Unpaid'
+    };
+
+    billingService.saveInvoice(gstInvoice);
+    billingService.incrementCounter();
+
+    const updated = orders.map(o => o.id === order.id ? { ...o, status: 'Invoice Generated' as OrderStatus, invoiceNo: nextInvoiceNo } : o);
+    saveOrders(updated);
     setViewOrder(null);
   };
 
   const handleDownloadInvoice = (order: RetailerOrder) => {
     const invoiceNo = order.invoiceNo || order.orderNo.replace('ORD-RET', 'INV-2026');
+    const retailerDetails = getRetailerDetails(order.retailerCode);
     const mockInvoice = {
       invoiceNo: invoiceNo,
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
       dueDate: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
       status: order.paymentStatus,
       orderNo: order.orderNo,
-      retailer: order.retailerName,
-      retailerCode: order.retailerCode,
-      billingAddress: order.address,
-      gstNumber: '27AADCB2230M1Z2', // Mock GSTIN
+      retailer: retailerDetails.name || '--',
+      retailerCode: retailerDetails.code || '--',
+      billingAddress: retailerDetails.address || '--',
+      gstNumber: retailerDetails.gstNumber || '--',
       items: order.items.map(item => ({
         description: item.productName,
         productCode: item.productCode,
         quantity: item.quantity,
         rate: item.rate,
-        gstPct: 12, // Mock GST
+        gstPct: 12,
         amount: item.amount
       })),
       subtotal: order.grossAmount,
@@ -168,16 +329,27 @@ export default function RetailerOrders() {
 
   // --- Filtering ---
   const visibleOrders = useMemo(() => {
-    // This screen is distributor-only, but logic strictly enforces visibility
-    if (activeRole !== ROLE_DISTRIBUTOR) return [];
+    if (activeRole !== ROLE_DISTRIBUTOR || !loggedInDistributorCode) return [];
 
     return orders.filter(item => {
+      const retailer = getRetailerDetails(item.retailerCode);
+      if (!retailer.code) return false;
+
+      const isLinked = retailer.assignedDistributors.some((d: any) => 
+        d.code === loggedInDistributorCode || 
+        d.distributorCode === loggedInDistributorCode || 
+        d.id === loggedInDistributorCode
+      );
+
+      if (!isLinked) return false;
+
       const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase()) || 
-                          item.retailerName.toLowerCase().includes(search.toLowerCase());
-      const matchStatus = statusFilter ? item.status === statusFilter : true;
+                          (retailer.name && retailer.name.toLowerCase().includes(search.toLowerCase()));
+      const currentStatus = getOrderCurrentStatus(item);
+      const matchStatus = statusFilter ? currentStatus === statusFilter : true;
       return matchSearch && matchStatus;
     });
-  }, [orders, search, statusFilter, activeRole]);
+  }, [orders, search, statusFilter, activeRole, loggedInDistributorCode]);
 
   // --- Exports ---
   const getFormattedDate = () => {
@@ -189,14 +361,18 @@ export default function RetailerOrders() {
   };
 
   const handleExportExcel = () => {
-    const exportData = visibleOrders.map(row => ({
-      'Order No': row.orderNo,
-      'Retailer': row.retailerName,
-      'Order Date': row.date,
-      'Order Value': row.netAmount,
-      'Payment Status': row.paymentStatus,
-      'Status': row.status
-    }));
+    const exportData = visibleOrders.map(row => {
+      const retailer = getRetailerDetails(row.retailerCode);
+      const currentStatus = getOrderCurrentStatus(row);
+      return {
+        'Order No': row.orderNo,
+        'Retailer': retailer.name || '--',
+        'Order Date': row.date,
+        'Order Value': row.netAmount,
+        'Payment Status': row.paymentStatus,
+        'Status': currentStatus
+      };
+    });
     const worksheet = XLSX.utils.json_to_sheet(exportData);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Retailer Orders');
@@ -208,12 +384,14 @@ export default function RetailerOrders() {
     const headers = ['Order No', 'Retailer', 'Order Date', 'Order Value', 'Payment Status', 'Status'];
     const csvContent = [
       headers.join(','),
-      ...visibleOrders.map(row => 
-        [
-          `"${row.orderNo}"`, `"${row.retailerName}"`, `"${row.date}"`, 
-          row.netAmount, `"${row.paymentStatus}"`, `"${row.status}"`
-        ].join(',')
-      )
+      ...visibleOrders.map(row => {
+        const retailer = getRetailerDetails(row.retailerCode);
+        const currentStatus = getOrderCurrentStatus(row);
+        return [
+          `"${row.orderNo}"`, `"${retailer.name || '--'}"`, `"${row.date}"`, 
+          row.netAmount, `"${row.paymentStatus}"`, `"${currentStatus}"`
+        ].join(',');
+      })
     ].join('\n');
     
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -237,14 +415,18 @@ export default function RetailerOrders() {
     autoTable(doc, {
       startY: 30,
       head: [['Order No', 'Retailer', 'Date', 'Order Value', 'Payment', 'Status']],
-      body: visibleOrders.map(row => [
-        row.orderNo,
-        row.retailerName,
-        row.date,
-        formatCurrency(row.netAmount),
-        row.paymentStatus,
-        row.status
-      ]),
+      body: visibleOrders.map(row => {
+        const retailer = getRetailerDetails(row.retailerCode);
+        const currentStatus = getOrderCurrentStatus(row);
+        return [
+          row.orderNo,
+          retailer.name || '--',
+          row.date,
+          formatCurrency(row.netAmount),
+          row.paymentStatus,
+          currentStatus
+        ];
+      }),
       theme: 'grid',
       headStyles: { fillColor: [139, 92, 246] }
     });
@@ -273,50 +455,53 @@ export default function RetailerOrders() {
   // --- Columns ---
   const columns: Column<RetailerOrder>[] = [
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-slate-900">{row.orderNo}</span> },
-    { key: 'retailerName', label: 'Retailer', render: (row) => <span className="font-semibold text-violet-700">{row.retailerName}</span> },
+    { key: 'retailerName', label: 'Retailer', render: (row) => <span className="font-semibold text-violet-700">{getRetailerDetails(row.retailerCode).name || '--'}</span> },
     { key: 'date', label: 'Order Date' },
     { key: 'netAmount', label: 'Order Value', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.netAmount)}</span> },
     { key: 'paymentStatus', label: 'Payment Status', render: (row) => <Badge variant={getPaymentVariant(row.paymentStatus)}>{row.paymentStatus}</Badge> },
-    { key: 'status', label: 'Order Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+    { key: 'status', label: 'Order Status', render: (row) => <Badge variant={getStatusVariant(getOrderCurrentStatus(row))}>{getOrderCurrentStatus(row)}</Badge> },
     {
       key: 'actions',
       label: 'Actions',
-      render: (row) => (
-        <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
-          <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Order">
-            <Eye className="w-4 h-4" />
-          </button>
-          
-          {row.status === 'Pending Approval' && (
-            <div className="flex items-center gap-2 ml-1">
-              <button onClick={() => updateOrderStatus(row.id, 'Approved')} className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-md transition-colors shadow-sm" title="Approve">
-                <CheckCircle className="w-3.5 h-3.5" />
-                Approve
-              </button>
-              <button onClick={() => updateOrderStatus(row.id, 'Rejected')} className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 rounded-md transition-colors shadow-sm" title="Reject">
-                <XCircle className="w-3.5 h-3.5" />
-                Reject
-              </button>
-            </div>
-          )}
-
-          {row.status === 'Approved' && (
-            <button onClick={() => handleGenerateInvoice(row)} className="text-slate-400 hover:text-blue-600 transition-colors p-1" title="Generate Invoice">
-              <FileText className="w-4 h-4" />
+      render: (row) => {
+        const currentStatus = getOrderCurrentStatus(row);
+        return (
+          <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+            <button onClick={() => setViewOrder(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View Order">
+              <Eye className="w-4 h-4" />
             </button>
-          )}
+            
+            {currentStatus === 'Pending Approval' && (
+              <div className="flex items-center gap-2 ml-1">
+                <button onClick={() => updateOrderStatus(row.id, 'Approved')} className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-md transition-colors shadow-sm" title="Approve">
+                  <CheckCircle className="w-3.5 h-3.5" />
+                  Approve
+                </button>
+                <button onClick={() => updateOrderStatus(row.id, 'Rejected')} className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 hover:bg-rose-100 rounded-md transition-colors shadow-sm" title="Reject">
+                  <XCircle className="w-3.5 h-3.5" />
+                  Reject
+                </button>
+              </div>
+            )}
 
-          {row.status === 'Invoice Generated' && (
-            <button onClick={() => handleDownloadInvoice(row)} className="text-slate-400 hover:text-slate-900 transition-colors p-1" title="Download Invoice">
-              <Download className="w-4 h-4" />
-            </button>
-          )}
-        </div>
-      )
+            {currentStatus === 'Approved' && (
+              <button onClick={() => handleGenerateInvoice(row)} className="text-slate-400 hover:text-blue-600 transition-colors p-1" title="Generate Invoice">
+                <FileText className="w-4 h-4" />
+              </button>
+            )}
+
+            {currentStatus === 'Invoice Generated' && (
+              <button onClick={() => handleDownloadInvoice(row)} className="text-slate-400 hover:text-slate-900 transition-colors p-1" title="Download Invoice">
+                <Download className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+        );
+      }
     }
   ];
 
-  if (activeRole !== ROLE_DISTRIBUTOR) {
+  if (activeRole !== ROLE_DISTRIBUTOR || !loggedInDistributorCode) {
     return (
       <div className="flex items-center justify-center h-64">
         <p className="text-slate-500 font-medium">You do not have permission to view this screen.</p>
@@ -387,100 +572,107 @@ export default function RetailerOrders() {
 
       {/* --- View Drawer --- */}
       <Drawer open={!!viewOrder} onClose={() => setViewOrder(null)} title="Retailer Order Details">
-        {viewOrder && (
-          <div className="space-y-6">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Order Information</h3>
-              <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <DrawerField label="Order No" value={<span className="font-semibold text-slate-900">{viewOrder.orderNo}</span>} />
-                <DrawerField label="Order Date" value={viewOrder.date} />
-                <DrawerField label="Order Status" value={<Badge variant={getStatusVariant(viewOrder.status)}>{viewOrder.status}</Badge>} />
+        {viewOrder && (() => {
+          const retailerDetails = getRetailerDetails(viewOrder.retailerCode);
+          const currentStatus = getOrderCurrentStatus(viewOrder);
+          return (
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Order Information</h3>
+                <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                  <DrawerField label="Order No" value={<span className="font-semibold text-slate-900">{viewOrder.orderNo}</span>} />
+                  <DrawerField label="Order Date" value={viewOrder.date} />
+                  <DrawerField label="Order Status" value={<Badge variant={getStatusVariant(currentStatus)}>{currentStatus}</Badge>} />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Retailer Information</h3>
-              <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <DrawerField label="Retailer Name" value={<span className="font-medium text-violet-700">{viewOrder.retailerName}</span>} />
-                <DrawerField label="Retailer Code" value={viewOrder.retailerCode} />
-                <DrawerField label="Mobile Number" value={viewOrder.mobileNumber} />
-                <DrawerField label="Address" value={viewOrder.address} />
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Retailer Information</h3>
+                <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                  <DrawerField label="Retailer Name" value={<span className="font-medium text-violet-700">{retailerDetails.name || '--'}</span>} />
+                  <DrawerField label="Retailer Code" value={retailerDetails.code || '--'} />
+                  <DrawerField label="GST Number" value={retailerDetails.gstNumber || '--'} />
+                  <DrawerField label="Mobile Number" value={retailerDetails.mobileNumber || '--'} />
+                  <DrawerField label="Address" value={retailerDetails.address || '--'} />
+                  <DrawerField label="Credit Limit" value={formatCurrencyOrDash(retailerDetails.creditLimit)} />
+                  <DrawerField label="Outstanding Balance" value={formatCurrencyOrDash(retailerDetails.outstandingBalance)} />
+                </div>
               </div>
-            </div>
 
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Order Items</h3>
-              <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-                <table className="w-full text-left text-sm">
-                  <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase">
-                    <tr>
-                      <th className="px-4 py-3 font-semibold">Product</th>
-                      <th className="px-4 py-3 font-semibold">Rate</th>
-                      <th className="px-4 py-3 font-semibold">Qty</th>
-                      <th className="px-4 py-3 font-semibold text-right">Amount</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-100">
-                    {viewOrder.items.map((item, idx) => (
-                      <tr key={idx} className="hover:bg-slate-50 transition-colors">
-                        <td className="px-4 py-3">
-                          <div className="font-medium text-slate-900">{item.productName}</div>
-                          <div className="text-xs text-slate-500">{item.productCode}</div>
-                        </td>
-                        <td className="px-4 py-3 text-slate-700">{formatCurrency(item.rate)}</td>
-                        <td className="px-4 py-3 font-mono font-medium">{item.quantity}</td>
-                        <td className="px-4 py-3 text-right font-medium text-slate-900">{formatCurrency(item.amount)}</td>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Order Items</h3>
+                <div className="bg-white border border-slate-200 rounded-lg overflow-x-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+                  <table className="w-full text-left text-sm">
+                    <thead className="bg-slate-50 border-b border-slate-200 text-slate-500 uppercase">
+                      <tr>
+                        <th className="px-4 py-3 font-semibold">Product</th>
+                        <th className="px-4 py-3 font-semibold">Rate</th>
+                        <th className="px-4 py-3 font-semibold">Qty</th>
+                        <th className="px-4 py-3 font-semibold text-right">Amount</th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Scheme Information</h3>
-              <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <DrawerField label="Applied Scheme" value={<span className="text-emerald-600 font-medium">{viewOrder.schemeInfo.appliedScheme}</span>} />
-                <DrawerField label="Discount Amount" value={<span className="text-slate-900 font-medium">{formatCurrency(viewOrder.schemeInfo.discountAmount)}</span>} />
-                <DrawerField label="Free Quantity" value={viewOrder.schemeInfo.freeQuantity > 0 ? <span className="font-medium text-emerald-600">{viewOrder.schemeInfo.freeQuantity} units</span> : 'None'} />
-              </div>
-            </div>
-
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Order Summary</h3>
-              <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <div className="flex justify-between text-sm text-slate-600">
-                  <span>Gross Amount</span>
-                  <span className="font-medium text-slate-900">{formatCurrency(viewOrder.grossAmount)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-emerald-600">
-                  <span>Discount Amount</span>
-                  <span>- {formatCurrency(viewOrder.schemeInfo.discountAmount)}</span>
-                </div>
-                <div className="flex justify-between text-base font-bold text-slate-900 pt-3 border-t border-slate-200 mt-2">
-                  <span>Net Amount</span>
-                  <span className="text-xl text-violet-700">{formatCurrency(viewOrder.netAmount)}</span>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {viewOrder.items.map((item, idx) => (
+                        <tr key={idx} className="hover:bg-slate-50 transition-colors">
+                          <td className="px-4 py-3">
+                            <div className="font-medium text-slate-900">{item.productName}</div>
+                            <div className="text-xs text-slate-500">{item.productCode}</div>
+                          </td>
+                          <td className="px-4 py-3 text-slate-700">{formatCurrency(item.rate)}</td>
+                          <td className="px-4 py-3 font-mono font-medium">{item.quantity}</td>
+                          <td className="px-4 py-3 text-right font-medium text-slate-900">{formatCurrency(item.amount)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
               </div>
-            </div>
 
-            <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-              {viewOrder.status === 'Pending Approval' && (
-                <>
-                  <ActionButton variant="secondary" onClick={() => updateOrderStatus(viewOrder.id, 'Rejected')}>Reject Order</ActionButton>
-                  <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Approved')}>Approve Order</ActionButton>
-                </>
-              )}
-              {viewOrder.status === 'Approved' && (
-                <ActionButton onClick={() => handleGenerateInvoice(viewOrder)}>Generate Invoice</ActionButton>
-              )}
-              {viewOrder.status === 'Invoice Generated' && (
-                <ActionButton onClick={() => handleDownloadInvoice(viewOrder)}>Download Invoice</ActionButton>
-              )}
-              <ActionButton variant="secondary" onClick={() => setViewOrder(null)}>Close</ActionButton>
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Scheme Information</h3>
+                <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                  <DrawerField label="Applied Scheme" value={<span className="text-emerald-600 font-medium">{viewOrder.schemeInfo.appliedScheme}</span>} />
+                  <DrawerField label="Discount Amount" value={<span className="text-slate-900 font-medium">{formatCurrency(viewOrder.schemeInfo.discountAmount)}</span>} />
+                  <DrawerField label="Free Quantity" value={viewOrder.schemeInfo.freeQuantity > 0 ? <span className="font-medium text-emerald-600">{viewOrder.schemeInfo.freeQuantity} units</span> : 'None'} />
+                </div>
+              </div>
+
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Order Summary</h3>
+                <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                  <div className="flex justify-between text-sm text-slate-600">
+                    <span>Gross Amount</span>
+                    <span className="font-medium text-slate-900">{formatCurrency(viewOrder.grossAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-sm text-emerald-600">
+                    <span>Discount Amount</span>
+                    <span>- {formatCurrency(viewOrder.schemeInfo.discountAmount)}</span>
+                  </div>
+                  <div className="flex justify-between text-base font-bold text-slate-900 pt-3 border-t border-slate-200 mt-2">
+                    <span>Net Amount</span>
+                    <span className="text-xl text-violet-700">{formatCurrency(viewOrder.netAmount)}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
+                {currentStatus === 'Pending Approval' && (
+                  <>
+                    <ActionButton variant="secondary" onClick={() => updateOrderStatus(viewOrder.id, 'Rejected')}>Reject Order</ActionButton>
+                    <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Approved')}>Approve Order</ActionButton>
+                  </>
+                )}
+                {currentStatus === 'Approved' && (
+                  <ActionButton onClick={() => handleGenerateInvoice(viewOrder)}>Generate Invoice</ActionButton>
+                )}
+                {currentStatus === 'Invoice Generated' && (
+                  <ActionButton onClick={() => handleDownloadInvoice(viewOrder)}>Download Invoice</ActionButton>
+                )}
+                <ActionButton variant="secondary" onClick={() => setViewOrder(null)}>Close</ActionButton>
+              </div>
             </div>
-          </div>
-        )}
+          );
+        })()}
       </Drawer>
     </div>
   );

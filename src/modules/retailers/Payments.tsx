@@ -1,3 +1,4 @@
+// PaymentTracking.tsx
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Download, Filter, ReceiptText, ChevronDown, Printer } from 'lucide-react';
 import * as XLSX from 'xlsx';
@@ -5,6 +6,9 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { applyPaymentReceiptTemplate } from '../../documents/templates/PaymentReceiptTemplate';
 import authService from '../../services/authService';
+import { retailerMasterService } from '../../services/retailerMasterService';
+import { paymentService, type Payment, type PaymentStatus } from '../../services/paymentService';
+import { salesInvoiceService } from '../../services/salesInvoiceService';
 import {
   PageHeader,
   FilterBar,
@@ -19,70 +23,169 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 
-type PaymentStatus = 'Completed' | 'Pending' | 'Failed' | 'Partially Paid';
-
-interface Payment {
-  id: string;
-  receiptNo: string;
-  invoiceNo: string;
-  retailer: string;
-  retailerCode: string;
-  date: string;
-  amount: number;
-  mode: string;
-  bankName: string;
-  txnReference: string;
-  invoiceAmount: number;
-  outstandingBefore: number;
-  outstandingAfter: number;
-  status: PaymentStatus;
-}
-
-const mockData: Payment[] = [
-  { 
-    id: '1', receiptNo: 'RCPT-RET-1002', invoiceNo: 'INV-RET-9890', retailer: 'Apollo Pharmacy', retailerCode: 'RET-001',
-    date: '12-Oct-2026', amount: 15000, mode: 'Bank Transfer', bankName: 'HDFC Bank', txnReference: 'IMPS/628500219800',
-    invoiceAmount: 25000, outstandingBefore: 25000, outstandingAfter: 10000, status: 'Partially Paid' 
-  },
-  { 
-    id: '2', receiptNo: 'RCPT-RET-1003', invoiceNo: 'INV-RET-9900', retailer: 'MedPlus Store', retailerCode: 'RET-002',
-    date: '14-Oct-2026', amount: 5000, mode: 'Cheque', bankName: 'State Bank of India', txnReference: 'CHQ-889922',
-    invoiceAmount: 5000, outstandingBefore: 5000, outstandingAfter: 5000, status: 'Pending' 
-  },
-  { 
-    id: '3', receiptNo: 'RCPT-RET-1004', invoiceNo: 'INV-RET-9885', retailer: 'Wellness Medicos', retailerCode: 'RET-003',
-    date: '10-Oct-2026', amount: 2500, mode: 'UPI', bankName: 'ICICI Bank', txnReference: 'UPI/628100111199',
-    invoiceAmount: 2500, outstandingBefore: 2500, outstandingAfter: 2500, status: 'Failed' 
-  },
-  { 
-    id: '4', receiptNo: 'RCPT-RET-1005', invoiceNo: 'INV-RET-9880', retailer: 'Apollo Pharmacy', retailerCode: 'RET-001',
-    date: '08-Oct-2026', amount: 8000, mode: 'UPI', bankName: 'Axis Bank', txnReference: 'UPI/628100222288',
-    invoiceAmount: 8000, outstandingBefore: 8000, outstandingAfter: 0, status: 'Completed' 
-  },
-];
-
-const formatCurrency = (amount: number) => {
+const formatCurrency = (amount: number | undefined) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,
-  }).format(amount);
+  }).format(amount || 0);
 };
 
 export default function Payments() {
+  const [payments, setPayments] = useState<any[]>([]);
+  const [invoices, setInvoices] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [viewReceipt, setViewReceipt] = useState<Payment | null>(null);
+  const [distributorFilter, setDistributorFilter] = useState('');
+  const [modeFilter, setModeFilter] = useState('');
+  const [dateFilter, setDateFilter] = useState('');
+  
+  const [viewReceipt, setViewReceipt] = useState<any | null>(null);
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
 
+  const [userRetailerContext, setUserRetailerContext] = useState<any>(null);
+
   // Dynamic Retailer Identity
-  const loggedInRetailer = useMemo(() => {
-    const user = authService.getCurrentUser();
-    // Assuming the retailer's code is stored in employeeCode (based on mock data RET-892)
-    return user?.employeeCode || 'RET-001'; // Fallback to RET-001 for demonstration if not logged in
+  useEffect(() => {
+    try {
+      const user = authService.getCurrentUser();
+      if (!user) return;
+      const retailers = retailerMasterService.getAll ? retailerMasterService.getAll() : [];
+      const userId = String(user.id || '').trim().toLowerCase();
+      const userCode = String(user.employeeCode || '').trim().toLowerCase();
+      const userEmail = String(user.email || '').trim().toLowerCase();
+      const username = String((user as any).username || '').trim().toLowerCase();
+      const userName = String(user.fullName || (user as any).name || '').trim().toLowerCase();
+
+      let matchedRetailer = null;
+      matchedRetailer = retailers.find((r: any) => String(r.id || '').trim().toLowerCase() === userId);
+      if (!matchedRetailer && userCode) matchedRetailer = retailers.find((r: any) => String(r.code || '').trim().toLowerCase() === userCode);
+      if (!matchedRetailer && userEmail) matchedRetailer = retailers.find((r: any) => String(r.emailAddress || r.email || '').trim().toLowerCase() === userEmail);
+      if (!matchedRetailer && username) matchedRetailer = retailers.find((r: any) => String(r.username || '').trim().toLowerCase() === username);
+      if (!matchedRetailer && userName) matchedRetailer = retailers.find((r: any) => String(r.name || r.retailerName || '').trim().toLowerCase() === userName);
+
+      setUserRetailerContext(matchedRetailer || { id: user.id, code: user.employeeCode, email: user.email, username: (user as any).username, name: user.fullName });
+    } catch (e) {
+      console.error("Context error:", e);
+    }
   }, []);
+
+  // Load Invoices and Payments with synchronization
+  useEffect(() => {
+    if (!userRetailerContext) return;
+    
+    const fetchData = () => {
+      try {
+        const retId = String(userRetailerContext.id || '').toLowerCase();
+        const retCode = String(userRetailerContext.code || '').toLowerCase();
+        const retEmail = String(userRetailerContext.emailAddress || userRetailerContext.email || '').toLowerCase();
+        const retUsername = String(userRetailerContext.username || '').toLowerCase();
+        const retName = String(userRetailerContext.name || userRetailerContext.retailerName || '').toLowerCase();
+
+        // 1. Fetch Invoices from salesInvoiceService
+        const allInvoices = salesInvoiceService.getAll();
+        
+        // Match retailer invoices
+        const myInvoices = allInvoices.filter(inv => {
+          const invRetId = String(inv.retailerId || '').toLowerCase();
+          const invRetCode = String(inv.retailerCode || '').toLowerCase();
+          const invRetEmail = String((inv as any).email || '').toLowerCase();
+          const invRetName = String(inv.retailerName || (inv as any).retailer || '').toLowerCase();
+          
+          if (retId && invRetId === retId) return true;
+          if (retCode && invRetCode === retCode) return true;
+          if (retEmail && invRetEmail === retEmail) return true;
+          if (retUsername && invRetName === retUsername) return true;
+          if (retName && invRetName === retName) return true;
+          return false;
+        });
+
+        const invoiceMap = new Map(myInvoices.map(inv => [inv.invoiceNo, inv]));
+        const allPayments = paymentService.getAll();
+        
+        // Calculate Total Paid per invoice
+        const invoicePayments = new Map<string, number>();
+        allPayments.forEach(p => {
+            if (p.status === 'Completed' || p.status === 'Partially Paid') {
+                const current = invoicePayments.get(p.invoiceNo) || 0;
+                invoicePayments.set(p.invoiceNo, current + p.amount);
+            }
+        });
+
+        // Sync back to ERP if needed
+        let erpUpdated = false;
+        const syncedInvoices = allInvoices.map(inv => {
+            if (invoiceMap.has(inv.invoiceNo)) {
+                const totalPaid = invoicePayments.get(inv.invoiceNo) || 0;
+                const invAmt = inv.grandTotal || (inv as any).amount || 0;
+                const outstanding = invAmt - totalPaid;
+                
+                let newStatus = inv.paymentStatus;
+                if (totalPaid >= invAmt && invAmt > 0) newStatus = 'Paid';
+                else if (totalPaid > 0) newStatus = 'Partial';
+                else newStatus = 'Pending';
+                
+                if ((inv as any).paidAmount !== totalPaid || (inv as any).outstandingAmount !== outstanding || inv.paymentStatus !== newStatus) {
+                    erpUpdated = true;
+                    return { ...inv, paidAmount: totalPaid, outstandingAmount: outstanding, paymentStatus: newStatus };
+                }
+            }
+            return inv;
+        });
+
+        if (erpUpdated) {
+            localStorage.setItem('pharma_erp_sales_invoices', JSON.stringify(syncedInvoices));
+        }
+
+        const myPayments: any[] = [];
+
+        for (const p of allPayments) {
+          const inv = invoiceMap.get(p.invoiceNo);
+          // Only show payments that have a corresponding invoice (No orphan payments)
+          if (inv) {
+            const invAmt = inv.grandTotal || (inv as any).amount || 0;
+            const totalPaid = invoicePayments.get(inv.invoiceNo) || 0;
+            
+            const outstandingAfter = invAmt - totalPaid;
+            const outstandingBefore = outstandingAfter + p.amount;
+
+            // Overdue check
+            let displayStatus = p.status;
+            if (p.status === 'Pending' && (inv as any).dueDate && new Date((inv as any).dueDate) < new Date()) {
+                displayStatus = 'Overdue' as any;
+            }
+            
+            myPayments.push({
+              ...p,
+              status: displayStatus,
+              invoiceAmount: invAmt,
+              outstandingBefore: outstandingBefore,
+              outstandingAfter: outstandingAfter,
+              distributorName: inv.distributorName,
+              distributorCode: inv.distributorCode,
+              orderNo: inv.orderNo,
+              dispatchNo: inv.dispatchNo,
+              invoiceDate: inv.date,
+              dueDate: (inv as any).dueDate,
+              retailerName: inv.retailerName || (inv as any).retailer, 
+            });
+          }
+        }
+        
+        const finalMyInvoices = syncedInvoices.filter(inv => invoiceMap.has(inv.invoiceNo));
+        setInvoices(finalMyInvoices);
+        setPayments(myPayments);
+      } catch (e) {
+        console.error("Error loading payments and invoices:", e);
+      }
+    };
+    
+    fetchData();
+    const interval = setInterval(fetchData, 3000);
+    return () => clearInterval(interval);
+  }, [userRetailerContext]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -94,34 +197,82 @@ export default function Payments() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const getStatusVariant = (status: PaymentStatus): BadgeVariant => {
+  const summary = useMemo(() => {
+    let totalInvoiceAmount = 0;
+    let totalPaid = 0;
+    let totalOutstanding = 0;
+    let pendingCount = 0;
+
+    invoices.forEach(inv => {
+      const invAmt = inv.grandTotal || inv.amount || 0;
+      totalInvoiceAmount += invAmt;
+      totalPaid += (inv.paidAmount || 0);
+      totalOutstanding += (inv.outstandingAmount ?? invAmt);
+    });
+    
+    pendingCount = payments.filter(p => p.status === 'Pending' || p.status === 'Overdue').length;
+
+    return { totalInvoiceAmount, totalPaid, totalOutstanding, pendingCount };
+  }, [invoices, payments]);
+
+  const uniqueDistributors = useMemo(() => {
+    const dists = new Set(payments.map(p => p.distributorName).filter(Boolean));
+    return Array.from(dists).map(d => ({ label: d as string, value: d as string }));
+  }, [payments]);
+
+  const uniqueModes = useMemo(() => {
+    const modes = new Set(payments.map(p => p.mode).filter(Boolean));
+    return Array.from(modes).map(m => ({ label: m as string, value: m as string }));
+  }, [payments]);
+
+  const getStatusVariant = (status: PaymentStatus | 'Overdue'): BadgeVariant => {
     if (status === 'Completed') return 'success';
     if (status === 'Pending') return 'warning';
     if (status === 'Failed') return 'danger';
+    if (status === 'Overdue') return 'danger';
     if (status === 'Partially Paid') return 'info';
     return 'neutral';
   };
 
-  // Filter logic strictly bound to the authenticated retailer
-  const baseData = useMemo(() => {
-    return mockData.filter(d => d.retailerCode === loggedInRetailer);
-  }, [loggedInRetailer]);
-
   const filteredData = useMemo(() => {
-    return baseData.filter((item) => {
+    return payments.filter((item) => {
       const searchStr = search.toLowerCase();
-      const matchSearch = item.receiptNo.toLowerCase().includes(searchStr) || item.invoiceNo.toLowerCase().includes(searchStr);
+      const matchSearch = item.receiptNo.toLowerCase().includes(searchStr) || 
+                          item.invoiceNo.toLowerCase().includes(searchStr) ||
+                          (item.distributorName && item.distributorName.toLowerCase().includes(searchStr));
       const matchStatus = statusFilter ? item.status === statusFilter : true;
-      return matchSearch && matchStatus;
-    });
-  }, [baseData, search, statusFilter]);
+      const matchDistributor = distributorFilter ? item.distributorName === distributorFilter : true;
+      const matchMode = modeFilter ? item.mode === modeFilter : true;
+      
+      let matchDate = true;
+      if (dateFilter) {
+          const paymentDate = new Date(item.date);
+          const today = new Date();
+          if (dateFilter === 'today') {
+              matchDate = paymentDate.toDateString() === today.toDateString();
+          } else if (dateFilter === '7days') {
+              const sevenDaysAgo = new Date(today);
+              sevenDaysAgo.setDate(today.getDate() - 7);
+              matchDate = paymentDate >= sevenDaysAgo;
+          } else if (dateFilter === '30days') {
+              const thirtyDaysAgo = new Date(today);
+              thirtyDaysAgo.setDate(today.getDate() - 30);
+              matchDate = paymentDate >= thirtyDaysAgo;
+          } else if (dateFilter === 'this_month') {
+              matchDate = paymentDate.getMonth() === today.getMonth() && paymentDate.getFullYear() === today.getFullYear();
+          }
+      }
+      
+      return matchSearch && matchStatus && matchDistributor && matchMode && matchDate;
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [payments, search, statusFilter, distributorFilter, modeFilter, dateFilter]);
 
-  const generatePDF = (payment: Payment | null, isDownload: boolean = true) => {
+  const generatePDF = (payment: any | null, isDownload: boolean = true) => {
     if (!payment) return;
     const doc = new jsPDF();
     
     // We pass ROLE_RETAILER to ensure the template formats it correctly for a Retailer view.
-    applyPaymentReceiptTemplate(doc, payment, 'ROLE_RETAILER');
+    applyPaymentReceiptTemplate(doc, payment as Payment, 'ROLE_RETAILER');
     
     if (isDownload) {
       doc.save(`${payment.receiptNo}.pdf`);
@@ -131,9 +282,10 @@ export default function Payments() {
     }
   };
 
-  const columns: Column<Payment>[] = [
+  const columns: Column<any>[] = [
     { key: 'receiptNo', label: 'Receipt No', render: (row) => <span className="font-semibold text-slate-900">{row.receiptNo}</span> },
     { key: 'invoiceNo', label: 'Invoice No', render: (row) => <span className="text-slate-600">{row.invoiceNo}</span> },
+    { key: 'distributorName', label: 'Distributor', render: (row) => <span className="text-slate-700 font-medium">{row.distributorName || '-'}</span> },
     { key: 'date', label: 'Payment Date', render: (row) => <span className="text-slate-600">{row.date}</span> },
     { key: 'mode', label: 'Payment Mode', render: (row) => <span className="text-slate-600">{row.mode}</span> },
     { key: 'amount', label: 'Amount Paid', render: (row) => <span className="font-bold text-emerald-600">{formatCurrency(row.amount)}</span> },
@@ -159,6 +311,7 @@ export default function Payments() {
     return filteredData.map(item => ({
       'Receipt Number': item.receiptNo,
       'Invoice Number': item.invoiceNo,
+      'Distributor': item.distributorName || '-',
       'Payment Date': item.date,
       'Payment Mode': item.mode,
       'Amount Paid': item.amount,
@@ -167,12 +320,11 @@ export default function Payments() {
   };
 
   const handleExportExcel = () => {
-    const data = getExportData();
-    if (data.length === 0) {
+    if (filteredData.length === 0) {
       setShowExportMenu(false);
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = XLSX.utils.json_to_sheet(getExportData());
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "My Payments");
     XLSX.writeFile(wb, "My_Payments.xlsx");
@@ -180,12 +332,11 @@ export default function Payments() {
   };
 
   const handleExportCSV = () => {
-    const data = getExportData();
-    if (data.length === 0) {
+    if (filteredData.length === 0) {
       setShowExportMenu(false);
       return;
     }
-    const ws = XLSX.utils.json_to_sheet(data);
+    const ws = XLSX.utils.json_to_sheet(getExportData());
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -248,8 +399,27 @@ export default function Payments() {
         }
       />
 
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
+          <span className="text-sm font-medium text-slate-500 mb-1">Total Invoice Amount</span>
+          <span className="text-2xl font-bold text-slate-900">{formatCurrency(summary.totalInvoiceAmount)}</span>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
+          <span className="text-sm font-medium text-emerald-600 mb-1">Total Amount Paid</span>
+          <span className="text-2xl font-bold text-emerald-700">{formatCurrency(summary.totalPaid)}</span>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
+          <span className="text-sm font-medium text-rose-600 mb-1">Total Outstanding</span>
+          <span className="text-2xl font-bold text-rose-700">{formatCurrency(summary.totalOutstanding)}</span>
+        </div>
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-5 flex flex-col">
+          <span className="text-sm font-medium text-amber-600 mb-1">Pending Payments</span>
+          <span className="text-2xl font-bold text-amber-700">{summary.pendingCount}</span>
+        </div>
+      </div>
+
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search receipt or invoice number..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search receipt, invoice or distributor..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
@@ -259,13 +429,47 @@ export default function Payments() {
           value={statusFilter}
           onChange={setStatusFilter}
           options={[
-            { label: 'All', value: '' },
+            { label: 'All Statuses', value: '' },
             { label: 'Completed', value: 'Completed' },
             { label: 'Pending', value: 'Pending' },
             { label: 'Partially Paid', value: 'Partially Paid' },
             { label: 'Failed', value: 'Failed' },
+            { label: 'Overdue', value: 'Overdue' },
           ]}
           placeholder="Status"
+        />
+        <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+        <SelectFilter
+          value={distributorFilter}
+          onChange={setDistributorFilter}
+          options={[
+            { label: 'All Distributors', value: '' },
+            ...uniqueDistributors
+          ]}
+          placeholder="Distributor"
+        />
+        <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+        <SelectFilter
+          value={modeFilter}
+          onChange={setModeFilter}
+          options={[
+            { label: 'All Modes', value: '' },
+            ...uniqueModes
+          ]}
+          placeholder="Mode"
+        />
+        <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+        <SelectFilter
+          value={dateFilter}
+          onChange={setDateFilter}
+          options={[
+            { label: 'All Dates', value: '' },
+            { label: 'Today', value: 'today' },
+            { label: 'Last 7 Days', value: '7days' },
+            { label: 'Last 30 Days', value: '30days' },
+            { label: 'This Month', value: 'this_month' }
+          ]}
+          placeholder="Date"
         />
       </FilterBar>
 
@@ -299,6 +503,17 @@ export default function Payments() {
               </div>
             </div>
 
+            {/* Section 1.5: Distributor Information */}
+            {viewReceipt.distributorName && (
+              <div>
+                <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Distributor Information</h3>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <DrawerField label="Distributor Name" value={<span className="font-medium text-slate-900">{viewReceipt.distributorName}</span>} />
+                  <DrawerField label="Distributor Code" value={<span className="font-mono text-slate-700">{viewReceipt.distributorCode}</span>} />
+                </div>
+              </div>
+            )}
+
             {/* Section 2: Payment Information */}
             <div>
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Payment Information</h3>
@@ -316,15 +531,18 @@ export default function Payments() {
               <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Invoice Information</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
                 <div className="space-y-3">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-slate-600">Invoice Number</span>
-                    <span className="font-medium text-slate-900">{viewReceipt.invoiceNo}</span>
+                  <div className="grid grid-cols-2 gap-4 mb-3">
+                    <DrawerField label="Invoice Number" value={<span className="font-medium text-slate-900">{viewReceipt.invoiceNo}</span>} />
+                    <DrawerField label="Order Number" value={viewReceipt.orderNo || '-'} />
+                    <DrawerField label="Dispatch Number" value={viewReceipt.dispatchNo || '-'} />
+                    <DrawerField label="Invoice Date" value={viewReceipt.invoiceDate || '-'} />
+                    <DrawerField label="Due Date" value={viewReceipt.dueDate || '-'} />
                   </div>
-                  <div className="flex justify-between items-center text-sm">
+                  <div className="flex justify-between items-center text-sm pt-3 border-t border-slate-200">
                     <span className="text-slate-600">Invoice Amount</span>
                     <span className="font-medium text-slate-900">{formatCurrency(viewReceipt.invoiceAmount)}</span>
                   </div>
-                  <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
+                  <div className="flex justify-between items-center">
                     <span className="text-slate-600">Outstanding Before Payment</span>
                     <span className="font-medium text-slate-900">{formatCurrency(viewReceipt.outstandingBefore)}</span>
                   </div>

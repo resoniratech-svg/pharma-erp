@@ -18,15 +18,24 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 
+import authService from '../../services/authService';
+import { retailerMasterService } from '../../services/retailerMasterService';
+import { salesInvoiceService } from '../../services/salesInvoiceService';
+
 type InvoiceStatus = 'Paid' | 'Unpaid' | 'Partially Paid' | 'Overdue';
 
 interface InvoiceItem {
   id: string;
   productName: string;
   productCode: string;
+  batchNumber?: string;
+  expiryDate?: string;
   quantity: number;
-  unitPrice: number;
+  freeQuantity?: number;
+  unitPrice: number; // PTR
   gstPct: number;
+  discount?: number;
+  schemeBenefit?: number;
   lineAmount: number;
 }
 
@@ -34,131 +43,101 @@ interface Invoice {
   id: string;
   invoiceNo: string;
   orderNo: string;
+  dispatchNo?: string;
+  
+  distributorName?: string;
+  distributorGst?: string;
+  
   retailer: string;
+  retailerId?: string;
   retailerCode: string;
+  gstNumber: string; // Retailer GST
   billingAddress: string;
-  gstNumber: string;
+  shippingAddress?: string;
+  
   date: string;
   dueDate: string;
-  amount: number;
+  paymentTerms?: string;
+  
+  grossAmount?: number;
+  discountAmount?: number;
+  schemeDiscountAmount?: number;
+  taxableAmount?: number;
+  cgstAmount?: number;
+  sgstAmount?: number;
+  igstAmount?: number;
+  roundOff?: number;
+  
+  amount: number; // Net amount
   subtotal: number;
   gstAmount: number;
   paidAmount: number;
   outstandingAmount: number;
+  
   status: InvoiceStatus;
   items: InvoiceItem[];
 }
 
-const initialMockInvoices: Invoice[] = [
-  { 
-    id: '1', invoiceNo: 'INV-gred342', orderNo: 'ORD-dvc3e2', retailer: 'fdcfcxv', retailerCode: 'RET-003',
-    billingAddress: 'Test Address Line', gstNumber: '29ABCDE1234F1Z5',
-    date: '27-Jun-2026', dueDate: '2026-06-30', amount: 1, subtotal: 0.89, gstAmount: 0.11,
-    paidAmount: 0, outstandingAmount: 1, status: 'Unpaid',
-    items: [{ id: 'i10', productName: 'Item A', productCode: 'ITA', quantity: 1, unitPrice: 1, gstPct: 12, lineAmount: 1 }]
-  },
-  { 
-    id: '2', invoiceNo: 'INV-123124', orderNo: 'ORD-dsw1', retailer: 'apollos', retailerCode: 'RET-004',
-    billingAddress: 'Test Address Line B', gstNumber: '29ABCDE1234F1Z5',
-    date: '27-Jun-2026', dueDate: '2026-06-30', amount: 0, subtotal: 0, gstAmount: 0,
-    paidAmount: 0, outstandingAmount: 0, status: 'Unpaid',
-    items: []
-  },
-  { 
-    id: '3', invoiceNo: 'INV-dsszdxv', orderNo: 'ORD-wesd', retailer: 'esdvdv', retailerCode: 'RET-005',
-    billingAddress: 'Test Address Line C', gstNumber: '29ABCDE1234F1Z5',
-    date: '26-Jun-2026', dueDate: '2026-06-30', amount: 0, subtotal: 0, gstAmount: 0,
-    paidAmount: 0, outstandingAmount: 0, status: 'Unpaid',
-    items: []
-  },
-  { 
-    id: '4', invoiceNo: 'INV-RET-9912', orderNo: 'ORD-10045', retailer: 'Apollo Pharmacy', retailerCode: 'RET-001',
-    billingAddress: '123 Health Ave, Bangalore, 560001', gstNumber: '29ABCDE1234F1Z5',
-    date: '01-Oct-2026', dueDate: '15-Oct-2026', amount: 45000, subtotal: 40178.57, gstAmount: 4821.43,
-    paidAmount: 0, outstandingAmount: 45000, status: 'Unpaid',
-    items: [
-      { id: 'i1', productName: 'Amoxicillin 500mg', productCode: 'AMX-500', quantity: 200, unitPrice: 150, gstPct: 12, lineAmount: 30000 },
-      { id: 'i2', productName: 'Paracetamol 650mg', productCode: 'PRC-650', quantity: 100, unitPrice: 101.78, gstPct: 12, lineAmount: 10178.57 }
-    ]
-  },
-  { 
-    id: '5', invoiceNo: 'INV-RET-9900', orderNo: 'ORD-10022', retailer: 'MedPlus Store', retailerCode: 'RET-002',
-    billingAddress: '45 Wellness Blvd, Mumbai, 400001', gstNumber: '27FGHIJ5678K1Z2',
-    date: '15-Sep-2026', dueDate: '30-Sep-2026', amount: 12000, subtotal: 10714.29, gstAmount: 1285.71,
-    paidAmount: 0, outstandingAmount: 12000, status: 'Overdue',
-    items: [
-      { id: 'i3', productName: 'Cough Syrup 100ml', productCode: 'CGH-100', quantity: 100, unitPrice: 107.14, gstPct: 12, lineAmount: 10714.29 }
-    ]
-  },
-  { 
-    id: '6', invoiceNo: 'INV-RET-9890', orderNo: 'ORD-10010', retailer: 'Apollo Pharmacy', retailerCode: 'RET-001',
-    billingAddress: '123 Health Ave, Bangalore, 560001', gstNumber: '29ABCDE1234F1Z5',
-    date: '10-Sep-2026', dueDate: '25-Sep-2026', amount: 5500, subtotal: 4910.71, gstAmount: 589.29,
-    paidAmount: 5500, outstandingAmount: 0, status: 'Paid',
-    items: [
-      { id: 'i4', productName: 'Vitamin C 1000mg', productCode: 'VIT-C-1K', quantity: 50, unitPrice: 98.21, gstPct: 12, lineAmount: 4910.71 }
-    ]
-  }
-];
-
-const formatCurrency = (amount: number) => {
+const formatCurrency = (amount: number | undefined) => {
   return new Intl.NumberFormat('en-IN', {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 0,
-  }).format(amount);
+    maximumFractionDigits: 2,
+  }).format(amount || 0);
 };
 
 export default function Invoices() {
-  // --- Persistent State Layer Pipeline ---
-  const [invoices, setInvoices] = useState<Invoice[]>(() => {
-    const saved = localStorage.getItem('pharma_erp_invoices');
-    return saved ? JSON.parse(saved) : initialMockInvoices;
-  });
-
+  const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [viewInvoice, setViewInvoice] = useState<Invoice | null>(null);
+  const [distributorFilter, setDistributorFilter] = useState('');
+  const [viewInvoice, setViewInvoice] = useState<any | null>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  
+  const [userRetailerContext, setUserRetailerContext] = useState<any>(null);
 
-  // Sync mutations back to local database references
+  // Context Initialization
   useEffect(() => {
-    localStorage.setItem('pharma_erp_invoices', JSON.stringify(invoices));
-  }, [invoices]);
+    try {
+      const user = authService.getCurrentUser();
+      if (!user) return;
+      const retailers = retailerMasterService.getAll ? retailerMasterService.getAll() : [];
+      const userId = String(user.id || '').trim().toLowerCase();
+      const userCode = String(user.employeeCode || '').trim().toLowerCase();
+      const userEmail = String(user.email || '').trim().toLowerCase();
+      const username = String((user as any).username || '').trim().toLowerCase();
+      const userName = String(user.fullName || (user as any).name || '').trim().toLowerCase();
 
-  // Listen context triggers for outbound module collection updates
+      let matchedRetailer = null;
+      matchedRetailer = retailers.find((r: any) => String(r.id || '').trim().toLowerCase() === userId);
+      if (!matchedRetailer && userCode) matchedRetailer = retailers.find((r: any) => String(r.code || '').trim().toLowerCase() === userCode);
+      if (!matchedRetailer && userEmail) matchedRetailer = retailers.find((r: any) => String(r.emailAddress || r.email || '').trim().toLowerCase() === userEmail);
+      if (!matchedRetailer && username) matchedRetailer = retailers.find((r: any) => String(r.username || '').trim().toLowerCase() === username);
+      if (!matchedRetailer && userName) matchedRetailer = retailers.find((r: any) => String(r.name || r.retailerName || '').trim().toLowerCase() === userName);
+
+      setUserRetailerContext(matchedRetailer || { id: user.id, code: user.employeeCode, name: user.fullName });
+    } catch (e) {
+      console.error("Context error:", e);
+    }
+  }, []);
+
+  // Load invoices from salesInvoiceService and Auto-Sync
   useEffect(() => {
-    const checkOutstandingUpdates = () => {
-      const savedOutstanding = localStorage.getItem('pharma_erp_outstanding_records');
-      if (!savedOutstanding) return;
-      
+    const fetchInvoices = () => {
       try {
-        const records = JSON.parse(savedOutstanding);
-        let updated = false;
-        
-        const nextInvoices = invoices.map(inv => {
-          for (const rec of records) {
-            const matchInvoice = rec.invoices.find((i: any) => i.invoiceNo === inv.invoiceNo);
-            if (matchInvoice && matchInvoice.status === 'Paid' && inv.status !== 'Paid') {
-              updated = true;
-              return { ...inv, status: 'Paid' as const, paidAmount: inv.amount, outstandingAmount: 0 };
-            }
-          }
-          return inv;
-        });
-
-        if (updated) {
-          setInvoices(nextInvoices);
-        }
+        const allInvoices = salesInvoiceService.getAll();
+        setInvoices(allInvoices as any[]);
       } catch (e) {
-        console.error("Local crossing sync parsing fail", e);
+        console.error("Failed to load invoices via salesInvoiceService", e);
       }
     };
-
-    const interval = setInterval(checkOutstandingUpdates, 3000);
+    
+    fetchInvoices();
+    
+    const interval = setInterval(fetchInvoices, 3000);
     return () => clearInterval(interval);
-  }, [invoices]);
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -180,15 +159,74 @@ export default function Invoices() {
 
   // --- Filtering Protocols ---
   const filteredData = useMemo(() => {
-    const base = invoices.filter(d => d.retailer === 'Apollo Pharmacy');
-    return base.filter((item) => {
-      const searchStr = search.toLowerCase();
-      const matchSearch = item.invoiceNo.toLowerCase().includes(searchStr) || 
-                          item.orderNo.toLowerCase().includes(searchStr);
-      const matchStatus = statusFilter ? item.status === statusFilter : true;
-      return matchSearch && matchStatus;
+    if (!userRetailerContext) return [];
+    
+    const retId = String(userRetailerContext.id || '').toLowerCase();
+    const retCode = String(userRetailerContext.code || '').toLowerCase();
+    const retEmail = String(userRetailerContext.emailAddress || userRetailerContext.email || '').toLowerCase();
+    const retUsername = String(userRetailerContext.username || '').toLowerCase();
+    const retName = String(userRetailerContext.name || userRetailerContext.retailerName || '').toLowerCase();
+    
+    const base = invoices.filter(inv => {
+      const invRetId = String(inv.retailerId || '').toLowerCase();
+      const invRetCode = String(inv.retailerCode || '').toLowerCase();
+      const invRetEmail = String((inv as any).email || '').toLowerCase();
+      const invRetName = String(inv.retailer || (inv as any).retailerName || '').toLowerCase();
+      
+      let isMine = false;
+      if (retId && invRetId === retId) isMine = true;
+      else if (retCode && invRetCode === retCode) isMine = true;
+      else if (retEmail && invRetEmail === retEmail) isMine = true;
+      else if (retUsername && invRetName === retUsername) isMine = true;
+      else if (retName && invRetName === retName) isMine = true;
+      
+      return isMine;
     });
-  }, [invoices, search, statusFilter]);
+
+    let result = base.filter((item) => {
+      const searchStr = search.toLowerCase();
+      const matchSearch = item.invoiceNo?.toLowerCase().includes(searchStr) || 
+                          item.orderNo?.toLowerCase().includes(searchStr) ||
+                          item.distributorName?.toLowerCase().includes(searchStr);
+      const matchStatus = statusFilter ? item.status === statusFilter : true;
+      const matchDistributor = distributorFilter ? item.distributorName === distributorFilter : true;
+      return matchSearch && matchStatus && matchDistributor;
+    });
+    
+    // Display newest invoices first
+    result.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    
+    return result;
+  }, [invoices, search, statusFilter, distributorFilter, userRetailerContext]);
+  
+  const uniqueDistributors = useMemo(() => {
+    if (!userRetailerContext) return [];
+    
+    const retId = String(userRetailerContext.id || '').toLowerCase();
+    const retCode = String(userRetailerContext.code || '').toLowerCase();
+    const retEmail = String(userRetailerContext.emailAddress || userRetailerContext.email || '').toLowerCase();
+    const retUsername = String(userRetailerContext.username || '').toLowerCase();
+    const retName = String(userRetailerContext.name || userRetailerContext.retailerName || '').toLowerCase();
+    
+    const base = invoices.filter(inv => {
+      const invRetId = String(inv.retailerId || '').toLowerCase();
+      const invRetCode = String(inv.retailerCode || '').toLowerCase();
+      const invRetEmail = String((inv as any).email || '').toLowerCase();
+      const invRetName = String(inv.retailer || (inv as any).retailerName || '').toLowerCase();
+      
+      let isMine = false;
+      if (retId && invRetId === retId) isMine = true;
+      else if (retCode && invRetCode === retCode) isMine = true;
+      else if (retEmail && invRetEmail === retEmail) isMine = true;
+      else if (retUsername && invRetName === retUsername) isMine = true;
+      else if (retName && invRetName === retName) isMine = true;
+      
+      return isMine;
+    });
+    
+    const distributors = new Set(base.map(inv => inv.distributorName).filter(Boolean));
+    return Array.from(distributors).map(d => ({ label: d as string, value: d as string }));
+  }, [invoices, userRetailerContext]);
 
   const generatePDF = (invoice: Invoice | null, isDownload: boolean = true) => {
     if (!invoice) return;
@@ -230,10 +268,14 @@ export default function Invoices() {
 
   const invoiceItemColumns: Column<InvoiceItem>[] = [
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
-    { key: 'productCode', label: 'Product Code', render: (row) => <span className="text-slate-500 text-xs font-mono">{row.productCode}</span> },
-    { key: 'quantity', label: 'Quantity', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
-    { key: 'unitPrice', label: 'Unit Price', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
+    { key: 'batchNumber', label: 'Batch No', render: (row) => <span className="text-slate-500 text-xs font-mono">{row.batchNumber || '-'}</span> },
+    { key: 'expiryDate', label: 'Expiry', render: (row) => <span className="text-slate-600 text-xs">{row.expiryDate || '-'}</span> },
+    { key: 'quantity', label: 'Qty', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
+    { key: 'freeQuantity', label: 'Free Qty', render: (row) => <span className="text-slate-600">{row.freeQuantity || 0}</span> },
+    { key: 'unitPrice', label: 'PTR', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
     { key: 'gstPct', label: 'GST %', render: (row) => <span className="text-slate-600">{row.gstPct}%</span> },
+    { key: 'discount', label: 'Discount', render: (row) => <span className="text-slate-600">{formatCurrency(row.discount || 0)}</span> },
+    { key: 'schemeBenefit', label: 'Scheme Benefit', render: (row) => <span className="text-slate-600">{formatCurrency(row.schemeBenefit || 0)}</span> },
     { key: 'lineAmount', label: 'Line Amount', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineAmount)}</span> },
   ];
 
@@ -250,7 +292,12 @@ export default function Invoices() {
   };
 
   const handleExportExcel = () => {
-    const ws = XLSX.utils.json_to_sheet(getExportData());
+    const dataToExport = getExportData();
+    if (dataToExport.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Invoices");
     XLSX.writeFile(wb, `Invoice_Register_${new Date().toISOString().slice(0,10)}.xlsx`);
@@ -258,7 +305,12 @@ export default function Invoices() {
   };
 
   const handleExportCSV = () => {
-    const ws = XLSX.utils.json_to_sheet(getExportData());
+    const dataToExport = getExportData();
+    if (dataToExport.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
+    const ws = XLSX.utils.json_to_sheet(dataToExport);
     const csv = XLSX.utils.sheet_to_csv(ws);
     const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement("a");
@@ -270,6 +322,10 @@ export default function Invoices() {
 
   const handleExportPDF = () => {
     const data = getExportData();
+    if (data.length === 0) {
+      setShowExportMenu(false);
+      return;
+    }
     const doc = new jsPDF('landscape');
     const headers = Object.keys(data[0] || {});
     const body = data.map(obj => headers.map(header => (obj as any)[header]));
@@ -334,6 +390,16 @@ export default function Invoices() {
           ]}
           placeholder="Status"
         />
+        <div className="w-px h-6 bg-slate-200 mx-1 hidden sm:block" />
+        <SelectFilter
+          value={distributorFilter}
+          onChange={setDistributorFilter}
+          options={[
+            { label: 'All Distributors', value: '' },
+            ...uniqueDistributors
+          ]}
+          placeholder="Distributor"
+        />
       </FilterBar>
 
       <TableCard>
@@ -352,20 +418,33 @@ export default function Invoices() {
           <div className="space-y-6 pb-20 text-xs">
             <div>
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Invoice Information</h3>
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 md:grid-cols-3 gap-4">
                 <DrawerField label="Invoice Number" value={<span className="font-semibold text-violet-700">{viewInvoice.invoiceNo}</span>} />
-                <DrawerField label="Order Number" value={viewInvoice.orderNo} />
                 <DrawerField label="Invoice Date" value={viewInvoice.date} />
-                <DrawerField label="Due Date" value={<span className={viewInvoice.status === 'Overdue' ? 'text-rose-600 font-medium' : ''}>{viewInvoice.dueDate}</span>} />
                 <DrawerField label="Payment Status" value={<Badge variant={getStatusVariant(viewInvoice.status)}>{viewInvoice.status}</Badge>} />
+                <DrawerField label="Order Number" value={viewInvoice.orderNo} />
+                <DrawerField label="Dispatch Number" value={viewInvoice.dispatchNo || '-'} />
+                <DrawerField label="Due Date" value={<span className={viewInvoice.status === 'Overdue' ? 'text-rose-600 font-medium' : ''}>{viewInvoice.dueDate}</span>} />
+                <DrawerField label="Payment Terms" value={viewInvoice.paymentTerms || '-'} />
               </div>
             </div>
 
-            <div>
-              <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Billing Information</h3>
-              <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 grid grid-cols-1 gap-4">
-                <DrawerField label="Billing Address" value={viewInvoice.billingAddress} />
-                <DrawerField label="GST Number" value={<span className="font-mono text-slate-700">{viewInvoice.gstNumber}</span>} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Distributor Details</h3>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-4">
+                  <DrawerField label="Distributor Name" value={<span className="font-medium text-slate-900">{viewInvoice.distributorName || '-'}</span>} />
+                  <DrawerField label="Distributor GST" value={<span className="font-mono text-slate-700">{viewInvoice.distributorGst || '-'}</span>} />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Retailer Details</h3>
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-4">
+                  <DrawerField label="Retailer Name" value={<span className="font-medium text-slate-900">{viewInvoice.retailer || '-'}</span>} />
+                  <DrawerField label="Retailer GST" value={<span className="font-mono text-slate-700">{viewInvoice.gstNumber || '-'}</span>} />
+                  <DrawerField label="Billing Address" value={viewInvoice.billingAddress || '-'} />
+                  <DrawerField label="Shipping Address" value={viewInvoice.shippingAddress || '-'} />
+                </div>
               </div>
             </div>
 
@@ -379,28 +458,60 @@ export default function Invoices() {
             <div>
               <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3">Invoice Summary</h3>
               <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                <div className="space-y-3">
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600">Subtotal</span>
-                    <span className="font-medium text-slate-900">{formatCurrency(viewInvoice.subtotal)}</span>
-                  </div>
-                  <div className="flex justify-between items-center">
-                    <span className="text-slate-600">GST Amount</span>
-                    <span className="font-medium text-slate-900">{formatCurrency(viewInvoice.gstAmount)}</span>
-                  </div>
-                  <div className="pt-3 border-t border-slate-200 flex justify-between items-center">
-                    <span className="font-bold text-slate-900">Total Invoice Value</span>
-                    <span className="text-sm font-bold text-violet-700">{formatCurrency(viewInvoice.amount)}</span>
-                  </div>
-                  
-                  <div className="pt-3 mt-3 border-t border-slate-200 space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                  <div className="space-y-3">
                     <div className="flex justify-between items-center">
-                      <span className="text-slate-600">Paid Amount</span>
-                      <span className="font-medium text-emerald-600">{formatCurrency(viewInvoice.paidAmount)}</span>
+                      <span className="text-slate-600">Gross Amount</span>
+                      <span className="font-medium text-slate-900">{formatCurrency(viewInvoice.grossAmount || viewInvoice.subtotal)}</span>
                     </div>
                     <div className="flex justify-between items-center">
-                      <span className="font-semibold text-slate-900">Outstanding Amount</span>
-                      <span className={`font-bold ${viewInvoice.outstandingAmount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>{formatCurrency(viewInvoice.outstandingAmount)}</span>
+                      <span className="text-slate-600">Discount</span>
+                      <span className="font-medium text-slate-900">{formatCurrency(viewInvoice.discountAmount || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">Scheme Discount</span>
+                      <span className="font-medium text-slate-900">{formatCurrency(viewInvoice.schemeDiscountAmount || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-2 border-t border-slate-200">
+                      <span className="text-slate-700 font-medium">Taxable Amount</span>
+                      <span className="font-medium text-slate-900">{formatCurrency(viewInvoice.taxableAmount || viewInvoice.subtotal)}</span>
+                    </div>
+                  </div>
+                  
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">CGST</span>
+                      <span className="font-medium text-slate-900">{formatCurrency(viewInvoice.cgstAmount || (viewInvoice.gstAmount / 2))}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">SGST</span>
+                      <span className="font-medium text-slate-900">{formatCurrency(viewInvoice.sgstAmount || (viewInvoice.gstAmount / 2))}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">IGST</span>
+                      <span className="font-medium text-slate-900">{formatCurrency(viewInvoice.igstAmount || 0)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-slate-600">Round Off</span>
+                      <span className="font-medium text-slate-900">{formatCurrency(viewInvoice.roundOff || 0)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 pt-4 border-t border-slate-200">
+                  <div className="flex justify-between items-center mb-4">
+                    <span className="font-bold text-slate-900 text-sm">Net Invoice Amount</span>
+                    <span className="text-base font-bold text-violet-700">{formatCurrency(viewInvoice.amount)}</span>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 pt-4 border-t border-slate-200">
+                    <div className="bg-emerald-50 p-3 rounded-lg flex justify-between items-center border border-emerald-100">
+                      <span className="text-emerald-800 font-medium">Paid Amount</span>
+                      <span className="font-bold text-emerald-700">{formatCurrency(viewInvoice.paidAmount)}</span>
+                    </div>
+                    <div className="bg-rose-50 p-3 rounded-lg flex justify-between items-center border border-rose-100">
+                      <span className="text-rose-800 font-medium">Outstanding Amount</span>
+                      <span className={`font-bold ${viewInvoice.outstandingAmount > 0 ? 'text-rose-700' : 'text-slate-900'}`}>{formatCurrency(viewInvoice.outstandingAmount)}</span>
                     </div>
                   </div>
                 </div>

@@ -28,10 +28,13 @@ interface StockRow {
   availableQuantity: number;
   reservedQuantity: number;
   freeQuantity: number;
+  damagedQuantity: number;
+  quarantineQuantity: number;
   expiryDate: string;
   mrp: number;
   ptr: number;
   status: 'In Stock' | 'Low Stock' | 'Out of Stock' | 'Near Expiry';
+  isAvailableForOrdering: boolean;
   rawRecord: InventoryRecord;
 }
 
@@ -60,6 +63,31 @@ export default function CurrentStock() {
     }
   }, [loggedInDistributorCode]);
 
+  const handleToggleRetailAvailability = (id: string) => {
+    const allInventory = inventoryService.getAll();
+    const updatedInventory = allInventory.map(record => {
+      if (record.id === id) {
+        const currentVal = (record as any).isAvailableForOrdering !== undefined 
+          ? (record as any).isAvailableForOrdering 
+          : true; // Default visibility is true
+        return {
+          ...record,
+          isAvailableForOrdering: !currentVal
+        };
+      }
+      return record;
+    });
+    inventoryService.saveAll(updatedInventory);
+
+    // Update local React state with the filtered list for this warehouse
+    if (loggedInDistributorCode) {
+      const myInventory = updatedInventory.filter(
+        record => record.warehouseId === loggedInDistributorCode || record.warehouseCode === loggedInDistributorCode
+      );
+      setRawInventory(myInventory);
+    }
+  };
+
   const stockData = useMemo<StockRow[]>(() => {
     const products = productService.getProducts();
     const batches = batchService.getAll();
@@ -87,6 +115,15 @@ export default function CurrentStock() {
         status = 'Low Stock';
       }
 
+      // Safe checks for damagedQty and blockedQty properties on InventoryRecord
+      const damagedQuantity = ('damagedQty' in inv) ? Number((inv as any).damagedQty || 0) : 0;
+      const quarantineQuantity = ('blockedQty' in inv) ? Number((inv as any).blockedQty || 0) : 0;
+
+      // Extract Retail Availability property directly from the inventory record object
+      const isAvailableForOrdering = (inv as any).isAvailableForOrdering !== undefined 
+        ? (inv as any).isAvailableForOrdering 
+        : true; // Default availability to true
+
       return {
         id: inv.id,
         productCode: inv.productCode,
@@ -96,11 +133,14 @@ export default function CurrentStock() {
         packType: product?.packingType || 'N/A',
         availableQuantity: inv.availableQty,
         reservedQuantity: inv.reservedQty || 0,
-        freeQuantity: 0, // Currently no explicit free quantity stored in inventory
+        freeQuantity: 0,
+        damagedQuantity,
+        quarantineQuantity,
         expiryDate: expiryDate ? new Date(expiryDate).toLocaleDateString('en-GB') : 'N/A',
         mrp: product?.mrp ? Number(product.mrp) : 0,
         ptr: product?.ptr ? Number(product.ptr) : 0,
         status,
+        isAvailableForOrdering,
         rawRecord: inv
       };
     });
@@ -146,10 +186,10 @@ export default function CurrentStock() {
   const uniqueCategories = useMemo(() => Array.from(new Set(stockData.map(item => item.category))), [stockData]);
 
   const columns: Column<StockRow>[] = [
-    { label: 'Product Code', key: 'productCode' },
+    { key: 'productCode', label: 'Product Code' },
     { 
-      label: 'Product Name', 
-      key: 'productName',
+      key: 'productName', 
+      label: 'Product Name',
       render: (row: any) => (
         <div>
           <p className="font-medium text-slate-900">{row.productName}</p>
@@ -157,28 +197,35 @@ export default function CurrentStock() {
         </div>
       )
     },
-    { label: 'Batch Number', key: 'batchNumber' },
-    { label: 'Category', key: 'category' },
-    { label: 'Expiry Date', key: 'expiryDate' },
+    { key: 'batchNumber', label: 'Batch Number' },
+    { key: 'category', label: 'Category' },
+    { key: 'expiryDate', label: 'Expiry Date' },
     { 
-      label: 'Pricing', 
-      key: 'mrp',
+      key: 'mrp', 
+      label: 'Pricing',
       render: (row: any) => (
         <div>
           <p className="text-sm">MRP: ₹{row.mrp.toFixed(2)}</p>
-          <p className="text-xs text-slate-500">PTR: ₹{row.ptr.toFixed(2)}</p>
+          <p className="text-xs text-slate-500 font-medium text-slate-700">PTR: ₹{row.ptr.toFixed(2)}</p>
         </div>
       )
     },
     { 
-      label: 'Available', 
-      key: 'availableQuantity',
+      key: 'ptr', 
+      label: 'Distributor Selling Price',
+      render: (row: any) => <span className="font-semibold text-slate-900">₹{row.ptr.toFixed(2)}</span>
+    },
+    { 
+      key: 'availableQuantity', 
+      label: 'Available',
       render: (row: any) => <span className="font-semibold">{row.availableQuantity}</span>
     },
-    { label: 'Reserved', key: 'reservedQuantity' },
+    { key: 'reservedQuantity', label: 'Reserved' },
+    { key: 'damagedQuantity', label: 'Damaged Qty' },
+    { key: 'quarantineQuantity', label: 'Quarantine Qty' },
     {
-      label: 'Status',
       key: 'status',
+      label: 'Status',
       render: (row: any) => {
         let variant: BadgeVariant = 'neutral';
         switch (row.status) {
@@ -189,35 +236,59 @@ export default function CurrentStock() {
         }
         return <Badge variant={variant}>{row.status}</Badge>;
       }
+    },
+    {
+      key: 'isAvailableForOrdering',
+      label: 'Retail Availability',
+      render: (row: any) => (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => handleToggleRetailAvailability(row.id)}
+            className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
+              row.isAvailableForOrdering ? 'bg-violet-600' : 'bg-slate-200'
+            }`}
+            aria-label="Toggle retail availability"
+          >
+            <span
+              className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                row.isAvailableForOrdering ? 'translate-x-6' : 'translate-x-1'
+              }`}
+            />
+          </button>
+          <span className="text-xs font-semibold text-slate-600 min-w-[24px]">
+            {row.isAvailableForOrdering ? 'Yes' : 'No'}
+          </span>
+        </div>
+      )
     }
   ];
 
   return (
     <div className="animate-in fade-in duration-500 space-y-6">
       <PageHeader
-        title="Current Stock"
-        subtitle="View your currently owned inventory and stock levels."
+        title="Distributor Inventory"
+        subtitle="Manage your inventory levels and control product visibility in the Retailer Product Catalog."
       />
 
       {/* Metrics Row */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
         <SummaryCard
           title="Total Products"
-          value={String(metrics.totalProducts)}
+          value={metrics.totalProducts.toLocaleString()}
           icon={<Package className="w-6 h-6" />}
           colorClass="text-blue-600"
           bgClass="bg-blue-50"
         />
         <SummaryCard
           title="Total Available Qty"
-          value={String(metrics.totalQty)}
+          value={metrics.totalQty.toLocaleString()}
           icon={<CheckCircle2 className="w-6 h-6" />}
           colorClass="text-emerald-600"
           bgClass="bg-emerald-50"
         />
         <SummaryCard
           title="Low/Out of Stock"
-          value={String(metrics.lowStock)}
+          value={metrics.lowStock.toLocaleString()}
           subtitle="Needs Replenishment"
           icon={<AlertCircle className="w-6 h-6" />}
           colorClass="text-rose-600"
@@ -225,7 +296,7 @@ export default function CurrentStock() {
         />
         <SummaryCard
           title="Near Expiry Batches"
-          value={String(metrics.nearExpiry)}
+          value={metrics.nearExpiry.toLocaleString()}
           subtitle="Action Required"
           icon={<Clock className="w-6 h-6" />}
           colorClass="text-amber-600"
