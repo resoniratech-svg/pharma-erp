@@ -38,13 +38,15 @@ const SplashScreen = ({ navigation }: any) => {
 
   return (
     <View style={styles.container}>
-      {/* <Text style={styles.logo}>Pharma ERP</Text> */}
-<Image 
-  source={require('../../../assets/images/logo.png')} 
-  style={styles.logoImage} 
-  resizeMode="contain"
-/>
-      <Text>Loading...</Text>
+      {/* Elegant logo container (acts as badge to look premium) */}
+      <View style={styles.logoBadgeContainer}>
+        <Image 
+          source={require('../../../assets/images/logo.png')} 
+          style={styles.logoImage} 
+          resizeMode="cover"
+        />
+      </View>
+      <Text style={styles.loadingText}>Loading...</Text>
     </View>
   );
 };
@@ -58,14 +60,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#ffffff',
   },
-  // logo: {
-  //   fontSize: 30,
-  //   fontWeight: 'bold',
-  // },
+  logoBadgeContainer: {
+    alignSelf: 'center',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 14,
+    width: 204,
+    height: 78,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 2,
+    borderWidth: 1,
+    borderColor: '#F1F5F9',
+  },
   logoImage: {
-  width: 250,
-  height: 100,
-  alignSelf: 'center',
-  marginBottom: 10,
-},
+    width: 215,
+    height: 85,
+  },
+  loadingText: {
+    fontSize: 14,
+    color: '#94A3B8',
+    fontWeight: '500',
+    marginTop: 8,
+  },
 });

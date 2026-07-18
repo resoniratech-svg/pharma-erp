@@ -1,20 +1,20 @@
-import { loginUser } from '../../services/authService';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import React, { useState } from 'react';
 import {
-  View,
+  ActivityIndicator,
+  Image,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  StyleSheet,
-  Image,
-  Platform,
-  ScrollView,
-  KeyboardAvoidingView,
-  ActivityIndicator,
+  View,
 } from 'react-native';
+import { loginUser } from '../../services/authService';
 
 const LoginScreen = () => {
   const navigation = useNavigation<any>();
@@ -94,7 +94,7 @@ const LoginScreen = () => {
               <Image 
                 source={require('../../../assets/images/logo.png')} 
                 style={styles.logoImage} 
-                resizeMode="contain"
+                resizeMode="cover"
               />
             </View>
 
@@ -213,8 +213,11 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     backgroundColor: '#FFFFFF',
     borderRadius: 14,
-    paddingVertical: 4,
-    paddingHorizontal: 12,
+    width: 204,
+    height: 78,
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
     marginBottom: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -225,8 +228,8 @@ const styles = StyleSheet.create({
     borderColor: '#F1F5F9',
   },
   logoImage: {
-    width: 180,
-    height: 70,
+    width: 215,
+    height: 85,
   },
   welcomeText: {
     fontSize: 22,
