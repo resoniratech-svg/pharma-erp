@@ -38,6 +38,17 @@ const safeJsonParse = (data: string | null, fallback: any) => {
   }
 };
 
+const formatTime = (timeStr: string | null | undefined): string => {
+  if (!timeStr) return 'N/A';
+  try {
+    const d = new Date(timeStr);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+  } catch {}
+  return timeStr || 'N/A';
+};
+
 const TerritoryTrackingScreen = () => {
   const navigation = useNavigation<any>();
   const [searchQuery, setSearchQuery] = useState('');
@@ -120,7 +131,7 @@ const TerritoryTrackingScreen = () => {
         chemistsCount: b.chemistsCount || 0,
         coverage: b.coverage || 0,
         lastActivity: b.lastActivity || 'N/A',
-        status: b.status || 'Secondary Beat'
+        status: b.status || 'N/A'
       }));
 
       // Parse assignment date dynamically from backend if available
@@ -323,7 +334,7 @@ const TerritoryTrackingScreen = () => {
         const ciLng = parseFloat(todayAtt.checkInLongitude || todayAtt.longitude || '0');
         if (ciLat && ciLng) {
           distanceNodes.push({
-            time: todayAtt.checkInTime || todayAtt.checkinTime || '09:00 AM',
+            time: formatTime(todayAtt.checkInTime || todayAtt.checkinTime),
             latitude: ciLat,
             longitude: ciLng
           });
@@ -333,7 +344,7 @@ const TerritoryTrackingScreen = () => {
         const coLng = parseFloat(todayAtt.checkOutLongitude || todayAtt.longitude || '0');
         if (coLat && coLng) {
           distanceNodes.push({
-            time: todayAtt.checkOutTime || todayAtt.checkoutTime || '06:00 PM',
+            time: formatTime(todayAtt.checkOutTime || todayAtt.checkoutTime),
             latitude: coLat,
             longitude: coLng
           });
@@ -345,7 +356,7 @@ const TerritoryTrackingScreen = () => {
         const lng = parseFloat(v.longitude || '0');
         if (lat && lng) {
           distanceNodes.push({
-            time: v.visitDate || v.createdAt || '10:00 AM',
+            time: formatTime(v.visitDate || v.createdAt),
             latitude: lat,
             longitude: lng
           });
@@ -357,7 +368,7 @@ const TerritoryTrackingScreen = () => {
         const lng = parseFloat(c.longitude || '0');
         if (lat && lng) {
           distanceNodes.push({
-            time: c.visitDate || c.createdAt || '11:00 AM',
+            time: formatTime(c.visitDate || c.createdAt),
             latitude: lat,
             longitude: lng
           });

@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
 import { getDoctors } from '../../services/doctorService';
 import { getChemists } from '../../services/chemistService';
+import { getAttendanceLogs } from '../../services/attendanceService';
 
 interface MapMarker {
   latitude: number;
@@ -31,11 +32,22 @@ const safeJsonParse = (data: string | null, fallback: any) => {
   }
 };
 
+const formatTime = (timeStr: string | null | undefined): string => {
+  if (!timeStr) return 'N/A';
+  try {
+    const d = new Date(timeStr);
+    if (!isNaN(d.getTime())) {
+      return d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    }
+  } catch {}
+  return timeStr || 'N/A';
+};
+
 const TerritoryMapScreen = () => {
   const navigation = useNavigation<any>();
   const [loading, setLoading] = useState(true);
   const [markers, setMarkers] = useState<MapMarker[]>([]);
-  const [hqZone, setHqZone] = useState('Hyderabad');
+  const [hqZone, setHqZone] = useState('N/A');
 
   const loadTerritoryMapData = async () => {
     try {
@@ -44,24 +56,72 @@ const TerritoryMapScreen = () => {
       // 1. Get user HQ
       const userRaw = await AsyncStorage.getItem('@user');
       const userObj = userRaw ? safeJsonParse(userRaw, null) : null;
-      setHqZone(userObj?.hq || 'Hyderabad');
+      setHqZone(userObj?.hq || userObj?.headquarters || 'N/A');
 
       const compiled: MapMarker[] = [];
 
-      // 2. Add Check-In location from Attendance if available
-      const checkInLat = await AsyncStorage.getItem('@check_in_lat');
-      const checkInLng = await AsyncStorage.getItem('@check_in_lng');
-      const checkInAddr = await AsyncStorage.getItem('@check_in_address');
-      const checkInTime = await AsyncStorage.getItem('@check_in_time');
+      // 2. Load Attendance Logs to get check-in from database instead of local AsyncStorage
+      let attendanceLogs: any[] = [];
+      try {
+        const rawAttendance = await getAttendanceLogs();
+        attendanceLogs = Array.isArray(rawAttendance) ? rawAttendance : [];
+      } catch (err) {
+        console.log('Error loading attendance for map:', err);
+      }
 
-      if (checkInLat && checkInLng) {
-        compiled.push({
-          latitude: parseFloat(checkInLat),
-          longitude: parseFloat(checkInLng),
-          label: 'Checked-In (HQ Start)',
-          type: 'checkin',
-          details: `Logged at: ${checkInTime || '09:00 AM'}<br/>📍 ${checkInAddr || ''}`
-        });
+      const todayStr = new Date().toLocaleDateString('en-GB').replace(/\//g, '-');
+      const isSameDay = (item: any, targetDateStr: string): boolean => {
+        try {
+          const val = item.date || item.checkInTime || item.checkinTime || item.createdAt || '';
+          if (!val) return false;
+          if (typeof val === 'string' && /^\d{2}-\d{2}-\d{4}$/.test(val)) return val === targetDateStr;
+          
+          let ts = typeof val === 'number' ? val : Number(val);
+          if (isNaN(ts) && typeof val === 'string') {
+            const match = val.match(/\d{10,13}/);
+            if (match) ts = Number(match[0]);
+          }
+          if (isNaN(ts) || ts <= 0) {
+            const dateObj = new Date(val);
+            if (!isNaN(dateObj.getTime())) {
+              const day = String(dateObj.getDate()).padStart(2, '0');
+              const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+              const year = dateObj.getFullYear();
+              return `${day}-${month}-${year}` === targetDateStr;
+            }
+            return false;
+          }
+          const dateObj = new Date(ts);
+          if (isNaN(dateObj.getTime())) return false;
+          const day = String(dateObj.getDate()).padStart(2, '0');
+          const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+          const year = dateObj.getFullYear();
+          return `${day}-${month}-${year}` === targetDateStr;
+        } catch {
+          return false;
+        }
+      };
+
+      const todayAtt = attendanceLogs.find((a: any) => {
+        const d = a.checkInTime || a.checkinTime || a.createdAt || '';
+        return isSameDay({ date: d }, todayStr);
+      });
+
+      if (todayAtt) {
+        const ciLat = parseFloat(todayAtt.checkInLatitude || todayAtt.latitude || '0');
+        const ciLng = parseFloat(todayAtt.checkInLongitude || todayAtt.longitude || '0');
+        const ciTime = todayAtt.checkInTime || todayAtt.checkinTime;
+        const ciAddr = todayAtt.checkInAddress || todayAtt.address || '';
+
+        if (ciLat && ciLng) {
+          compiled.push({
+            latitude: ciLat,
+            longitude: ciLng,
+            label: 'Checked-In (HQ Start)',
+            type: 'checkin',
+            details: `Logged at: ${formatTime(ciTime)}<br/>📍 ${ciAddr || 'N/A'}`
+          });
+        }
       }
 
       // 3. Load all Doctors
@@ -75,7 +135,7 @@ const TerritoryMapScreen = () => {
               longitude: parseFloat(doc.longitude),
               label: `Dr. ${doc.doctorName || doc.name}`,
               type: 'doctor',
-              details: `👨‍⚕️ Specialty: ${doc.specialty || 'General'}<br/>🏢 Beat: ${doc.beat || 'Default'}`
+              details: `👨‍⚕️ Specialty: ${doc.specialty || 'N/A'}<br/>🏢 Beat: ${doc.beat || 'N/A'}`
             });
           }
         });
@@ -94,7 +154,7 @@ const TerritoryMapScreen = () => {
               longitude: parseFloat(chem.longitude),
               label: chem.name || chem.chemistName || chem.shopName,
               type: 'chemist',
-              details: `💊 Beat: ${chem.beat || 'Default'}<br/>👤 Contact: ${chem.contactPerson || ''}`
+              details: `💊 Beat: ${chem.beat || 'N/A'}<br/>👤 Contact: ${chem.contactPerson || 'N/A'}`
             });
           }
         });
