@@ -366,25 +366,6 @@ export default function LeadConversionTracking() {
         />
       </div>
 
-      {/* Charts Section Placeholder */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[160px]">
-          <BarChart3 className="w-8 h-8 text-[#163c78] mb-3 opacity-80" />
-          <h3 className="text-sm font-semibold text-slate-800 mb-1">Monthly Conversion Trend</h3>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[160px]">
-          <PieChart className="w-8 h-8 text-emerald-500 mb-3 opacity-80" />
-          <h3 className="text-sm font-semibold text-slate-800 mb-1">Lead Source Conversion %</h3>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[160px]">
-          <ActivityIcon className="w-8 h-8 text-indigo-500 mb-3 opacity-80" />
-          <h3 className="text-sm font-semibold text-slate-800 mb-1">Territory Conversion %</h3>
-        </div>
-        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex flex-col items-center justify-center min-h-[160px]">
-          <Trophy className="w-8 h-8 text-amber-500 mb-3 opacity-80" />
-          <h3 className="text-sm font-semibold text-slate-800 mb-1">Employee Conversion Perf.</h3>
-        </div>
-      </div>
 
       <FilterBar>
         <SearchInput value={search} onChange={setSearch} placeholder="Search ID, name, employee, or territory..." />

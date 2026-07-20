@@ -52,10 +52,14 @@ interface DispatchItem {
 
 const getDDMMYYYY = (dateStr: string) => {
   if (!dateStr || dateStr === '-' || dateStr === 'TBD' || dateStr === 'N/A' || dateStr === 'Pending') return dateStr;
-  if (dateStr.includes('-')) {
-    const parts = dateStr.split('-');
+  let cleanStr = dateStr;
+  if (dateStr.includes('T')) {
+    cleanStr = dateStr.split('T')[0];
+  }
+  if (cleanStr.includes('-')) {
+    const parts = cleanStr.split('-');
     if (parts.length === 3) {
-      if (parts[2].length === 4) return dateStr;
+      if (parts[2].length === 4) return cleanStr;
       if (parts[0].length === 4) {
         return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
       }
@@ -90,6 +94,17 @@ export default function DispatchTracking() {
   const [trackDispatch, setTrackDispatch] = useState<DispatchItem | null>(null);
   const [showExportDropdown, setShowExportDropdown] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Ship Modal State
+  const [shippingDispatch, setShippingDispatch] = useState<DispatchItem | null>(null);
+  const [shipmentForm, setShipmentForm] = useState({
+    transporter: '',
+    lrNumber: '',
+    vehicleNumber: '',
+    driverName: '',
+    driverMobile: '',
+    expectedDeliveryDate: ''
+  });
 
   // --- Outbound Tab State ---
   const [retailerOrders, setRetailerOrders] = useState<any[]>([]);
@@ -128,22 +143,38 @@ export default function DispatchTracking() {
 
   const loggedInDistributor = useMemo(() => {
     const user = authService.getCurrentUser();
-    const linkedCode = user?.linkedDistributorCode;
-    if (!linkedCode) return { name: '', code: '' };
+    const linkedCode = user?.linkedDistributorCode || '';
 
     const savedDistributorsRaw = localStorage.getItem('pharma_erp_distributors');
+    let foundRecord: any = null;
+
     if (savedDistributorsRaw) {
       try {
         const parsedDists = JSON.parse(savedDistributorsRaw);
-        const masterRecord = parsedDists.find((d: any) => d.code === linkedCode || d.distributorCode === linkedCode || d.id === linkedCode);
-        if (masterRecord) {
-          return {
-            name: masterRecord.name || masterRecord.distributorName || '',
-            code: masterRecord.code || masterRecord.distributorCode || masterRecord.id || linkedCode
-          };
+        if (parsedDists.length > 0) {
+          if (linkedCode) {
+            foundRecord = parsedDists.find((d: any) => d.code === linkedCode || d.distributorCode === linkedCode || d.id === linkedCode);
+          }
+          // Fallback to the first distributor record if user role is distributor but no match is found
+          if (!foundRecord && user?.roleId === 'DISTRIBUTOR') {
+            foundRecord = parsedDists[0];
+          }
         }
       } catch (e) {}
     }
+
+    if (foundRecord) {
+      return {
+        name: foundRecord.name || foundRecord.distributorName || '',
+        code: foundRecord.code || foundRecord.distributorCode || foundRecord.id || linkedCode
+      };
+    }
+
+    // Default fallback
+    if (user?.roleId === 'DISTRIBUTOR') {
+      return { name: 'Metro Pharma Distributors', code: 'DIST-001' };
+    }
+
     return { name: '', code: linkedCode };
   }, []);
 
@@ -165,40 +196,53 @@ export default function DispatchTracking() {
     }
   };
 
-  useEffect(() => {
+  const fetchInboundDispatches = async () => {
     try {
-      const allDispatches = dispatchService.getAll().filter((d: any) => d.dispatchType === 'Distributor Order');
+      const dispatchesList = await dispatchService.getAll();
+      const allDispatches = dispatchesList.filter((d: any) => d.dispatchType === 'Distributor Order');
       const mappedDispatches: DispatchItem[] = allDispatches.map((d: any) => ({
-        id: d.id || d.dispatchId || d.dispatchNo,
-        dispatchNo: d.dispatchNo || d.dispatchId || 'N/A',
-        orderNo: d.orderNo || d.orderId || 'N/A',
-        distributorId: d.distributorId,
-        distributorCode: d.distributorCode,
-        distributorName: d.distributorName || d.client,
-        distributor: d.distributor || d.client || d.distributorName,
-        dispatchDate: getDDMMYYYY(d.dispatchDate || d.date),
+        id: String(d.id),
+        dispatchNo: d.dispatchNo || 'N/A',
+        orderNo: d.orderNo || 'N/A',
+        distributorId: d.distributorId ? String(d.distributorId) : '',
+        distributorCode: d.distributorCode || '',
+        distributorName: d.distributorName || d.customerName || 'General Distributor',
+        distributor: d.customerName || 'General Distributor',
+        dispatchDate: getDDMMYYYY(d.dispatchDate || d.createdAt),
         transporter: d.transporter || 'N/A',
-        vehicleNo: d.vehicleNo || d.vehicleNumber || 'N/A',
-        lrNo: d.lrNo || d.lrNumber || 'N/A',
-        expectedDeliveryDate: getDDMMYYYY(d.expectedDeliveryDate || d.orderData?.expectedDeliveryDate || 'TBD'),
-        actualDeliveryDate: getDDMMYYYY(d.actualDeliveryDate || 'TBD'),
-        dispatchStatus: d.dispatchStatus || d.status,
-        podStatus: d.podStatus || 'Pending POD',
+        vehicleNo: d.vehicleNumber || 'N/A',
+        lrNo: d.lrNumber || 'N/A',
+        expectedDeliveryDate: (() => {
+          if (d.remarks && d.remarks.startsWith('EXPECTED_DELIVERY_DATE:')) {
+            const parts = d.remarks.split(' | ');
+            const datePart = parts[0].replace('EXPECTED_DELIVERY_DATE:', '').trim();
+            return getDDMMYYYY(datePart);
+          }
+          return '-';
+        })(),
+        actualDeliveryDate: d.actualDeliveryDate ? getDDMMYYYY(d.actualDeliveryDate) : 'TBD',
+        dispatchStatus: d.status || 'Pending Dispatch',
+        podStatus: d.status === 'DELIVERED' ? 'Uploaded' : 'Pending POD',
         driverName: d.driverName || 'Pending',
         driverMobile: d.driverMobile || 'Pending',
-        milestones: Array.isArray(d.milestones) ? d.milestones.map((m: any) => ({
-          status: m.status || 'Unknown',
-          date: m.date && m.date !== 'Pending' ? getDDMMYYYY(m.date) : 'Pending',
-          location: m.location || 'Pending',
-          completed: !!m.completed
-        })) : []
+        remarks: d.remarks && d.remarks.startsWith('EXPECTED_DELIVERY_DATE:')
+          ? d.remarks.split(' | ').slice(1).join(' | ')
+          : d.remarks || '',
+        milestones: [
+          { status: 'Ready to Ship', location: d.sourceWarehouse || 'Main Warehouse', date: getDDMMYYYY(d.createdAt), completed: true },
+          { status: 'In Transit', location: 'On the road', date: d.status === 'IN_TRANSIT' || d.status === 'DELIVERED' ? 'Completed' : 'Pending', completed: d.status === 'IN_TRANSIT' || d.status === 'DELIVERED' },
+          { status: 'Delivered', location: d.customerName || 'Distributor Destination', date: d.status === 'DELIVERED' ? 'Completed' : 'Pending', completed: d.status === 'DELIVERED' }
+        ]
       }));
       setInboundDispatches(mappedDispatches);
     } catch (e) {
-      console.error("Error formatting local storage dispatch records", e);
+      console.error("Error formatting backend dispatch records", e);
       setInboundDispatches([]);
     }
+  };
 
+  useEffect(() => {
+    fetchInboundDispatches();
     loadOutboundData();
   }, []);
 
@@ -214,15 +258,20 @@ export default function DispatchTracking() {
 
   // --- Inbound Tab Filtering ---
   const filteredInboundData = useMemo(() => {
-    if (!loggedInDistributor.code) return [];
+    const currentUser = authService.getCurrentUser();
+    const isSuperAdmin = currentUser?.roleId === 'SUPER_ADMIN' || (currentUser as any)?.role === 'SUPER_ADMIN';
 
-    const distributorDispatches = inboundDispatches.filter(item => 
-      (item.distributorCode && item.distributorCode === loggedInDistributor.code) ||
-      (item.distributorId && item.distributorId === loggedInDistributor.code) ||
-      item.distributorName === loggedInDistributor.name ||
-      item.distributor === loggedInDistributor.name ||
-      item.distributor === loggedInDistributor.code
-    );
+    if (!loggedInDistributor.code && !isSuperAdmin) return [];
+
+    const distributorDispatches = isSuperAdmin
+      ? inboundDispatches
+      : inboundDispatches.filter(item => 
+          (item.distributorCode && item.distributorCode === loggedInDistributor.code) ||
+          (item.distributorId && item.distributorId === loggedInDistributor.code) ||
+          item.distributorName === loggedInDistributor.name ||
+          item.distributor === loggedInDistributor.name ||
+          item.distributor === loggedInDistributor.code
+        );
     
     return distributorDispatches.filter((item) => {
       const searchLower = search.toLowerCase();
@@ -1199,16 +1248,188 @@ export default function DispatchTracking() {
             </div>
 
             {/* Drawer Actions */}
-            {viewDispatch.lrNo !== 'Pending' && (
-              <div className="mt-6 pt-6 border-t border-slate-200">
-                <ActionButton onClick={() => handleDownloadLR(viewDispatch)} icon={<FileText className="w-4 h-4" />}>
+            <div className="mt-6 pt-6 border-t border-slate-200 flex flex-wrap gap-3">
+              {viewDispatch.lrNo !== 'Pending' && (
+                <ActionButton onClick={() => handleDownloadLR(viewDispatch)} icon={<FileText className="w-4 h-4" />} variant="secondary">
                   Download LR
                 </ActionButton>
-              </div>
-            )}
+              )}
+              {viewDispatch.dispatchStatus !== 'DELIVERED' && viewDispatch.dispatchStatus !== 'Delivered' && (
+                <>
+                  {viewDispatch.dispatchStatus === 'PENDING' || viewDispatch.dispatchStatus === 'Pending' ? (
+                    <ActionButton 
+                      onClick={() => {
+                        setShipmentForm({
+                          transporter: '',
+                          lrNumber: '',
+                          vehicleNumber: '',
+                          driverName: '',
+                          driverMobile: '',
+                          expectedDeliveryDate: ''
+                        });
+                        setShippingDispatch(viewDispatch);
+                      }} 
+                      icon={<Truck className="w-4 h-4" />}
+                    >
+                      Ship (In Transit)
+                    </ActionButton>
+                  ) : (
+                    <ActionButton 
+                      onClick={async () => {
+                        const ok = await dispatchService.updateDispatchStatus(viewDispatch.id, 'DELIVERED');
+                        if (ok) {
+                          setViewDispatch(null);
+                          fetchInboundDispatches();
+                        } else {
+                          alert("Failed to mark as Delivered");
+                        }
+                      }} 
+                      icon={<CheckCircle2 className="w-4 h-4" />}
+                    >
+                      Receive (Delivered)
+                    </ActionButton>
+                  )}
+                </>
+              )}
+            </div>
           </div>
         )}
       </Drawer>
+
+      {/* Ship / Outward Logistics Details Modal */}
+      {shippingDispatch && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/45 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-slate-900">
+                Logistics & Transport Details
+              </h2>
+              <button
+                onClick={() => setShippingDispatch(null)}
+                className="text-slate-500 hover:text-slate-800 text-lg"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Transporter *
+                </label>
+                <select
+                  value={shipmentForm.transporter}
+                  onChange={(e) => setShipmentForm({ ...shipmentForm, transporter: e.target.value })}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
+                >
+                  <option value="">-- Select Transporter --</option>
+                  <option value="VRL Logistics">VRL Logistics</option>
+                  <option value="Gati">Gati</option>
+                  <option value="Delhivery">Delhivery</option>
+                  <option value="Blue Dart">Blue Dart</option>
+                  <option value="Self Pickup">Self Pickup</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  LR Number / Challan No *
+                </label>
+                <input
+                  type="text"
+                  placeholder="Enter LR Number"
+                  value={shipmentForm.lrNumber}
+                  onChange={(e) => setShipmentForm({ ...shipmentForm, lrNumber: e.target.value })}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Vehicle Number *
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. KA-01-MJ-1234"
+                  value={shipmentForm.vehicleNumber}
+                  onChange={(e) => setShipmentForm({ ...shipmentForm, vehicleNumber: e.target.value })}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                    Driver Name
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="John Doe"
+                    value={shipmentForm.driverName}
+                    onChange={(e) => setShipmentForm({ ...shipmentForm, driverName: e.target.value })}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                    Driver Mobile
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="9999988888"
+                    value={shipmentForm.driverMobile}
+                    onChange={(e) => setShipmentForm({ ...shipmentForm, driverMobile: e.target.value })}
+                    className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">
+                  Expected Delivery Date *
+                </label>
+                <input
+                  type="date"
+                  value={shipmentForm.expectedDeliveryDate}
+                  onChange={(e) => setShipmentForm({ ...shipmentForm, expectedDeliveryDate: e.target.value })}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
+                />
+              </div>
+            </div>
+
+            <div className="mt-8 pt-4 border-t border-slate-100 flex justify-end gap-3">
+              <ActionButton variant="secondary" onClick={() => setShippingDispatch(null)}>
+                Cancel
+              </ActionButton>
+              <ActionButton
+                onClick={async () => {
+                  if (!shipmentForm.transporter || !shipmentForm.lrNumber || !shipmentForm.vehicleNumber || !shipmentForm.expectedDeliveryDate) {
+                    alert("Please fill all required fields (*)");
+                    return;
+                  }
+                  const ok = await dispatchService.updateDispatchStatus(shippingDispatch.id, 'IN_TRANSIT', {
+                    transporter: shipmentForm.transporter,
+                    lrNumber: shipmentForm.lrNumber,
+                    vehicleNumber: shipmentForm.vehicleNumber,
+                    driverName: shipmentForm.driverName,
+                    driverMobile: shipmentForm.driverMobile,
+                    remarks: `EXPECTED_DELIVERY_DATE: ${shipmentForm.expectedDeliveryDate} | ${shippingDispatch.remarks || ''}`
+                  });
+                  if (ok) {
+                    setShippingDispatch(null);
+                    setViewDispatch(null);
+                    fetchInboundDispatches();
+                  } else {
+                    alert("Failed to update shipment details");
+                  }
+                }}
+              >
+                Confirm shipment
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Track Shipment Modal */}
       {trackDispatch && (

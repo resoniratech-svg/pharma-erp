@@ -1,80 +1,65 @@
-const STORAGE_KEY = 'pharma_erp_dispatches';
+import { apiRequest } from './apiClient';
+
+export interface DispatchRecord {
+  id: number;
+  dispatchNo: string;
+  dispatchType: string;
+  orderId: string;
+  customerName: string;
+  sourceWarehouse: string;
+  warehouseId: number;
+  totalItems: number;
+  totalQuantity: number;
+  status: string;
+  remarks?: string;
+  transporter?: string;
+  lrNumber?: string;
+  vehicleNumber?: string;
+  driverName?: string;
+  driverMobile?: string;
+  createdBy?: string;
+  createdDate?: string;
+  products?: any;
+  createdAt: string;
+}
 
 export const dispatchService = {
-  getAll: () => {
-    const data = localStorage.getItem(STORAGE_KEY);
-    const parsed = data ? JSON.parse(data) : [];
-    return parsed.map((d: any) => ({
-      ...d,
-      dispatchNo: d.dispatchId || d.dispatchNo || 'N/A',
-      orderNo: d.orderId || d.orderNo || 'N/A',
-      distributorId: d.distributorId || d.clientId || d.clientCode || d.distributorCode || '',
-      distributorCode: d.distributorCode || d.clientCode || d.distributorId || d.clientId || '',
-      distributorName: d.client || d.distributorName || d.distributor || 'General Distributor',
-      distributor: d.client || d.distributorName || d.distributor || 'General Distributor',
-      transporter: d.transporter || 'Pending',
-      vehicleNo: d.vehicleNumber || d.vehicleNo || 'Pending',
-      lrNo: d.lrNumber || d.lrNo || 'Pending',
-      dispatchDate: d.dispatchDate || d.date || 'TBD',
-      dispatchStatus: d.dispatchStatus || d.status || 'Pending Dispatch',
-      podStatus: d.podStatus || 'Pending'
-    }));
-  },
-  getById: (id: string) => {
-    return dispatchService.getAll().find((d: any) => d.id === id);
-  },
-  getByDispatchNo: (dispatchNo: string) => {
-    return dispatchService.getAll().find((d: any) => d.dispatchNo === dispatchNo);
-  },
-  getByDistributor: (distributor: string) => {
-    return dispatchService.getAll().filter((d: any) => 
-      d.distributorName === distributor || 
-      d.distributor === distributor || 
-      d.distributorCode === distributor
-    );
-  },
-  getByOrderNo: (orderNo: string) => {
-    return dispatchService.getAll().filter((d: any) => d.orderNo === orderNo);
-  },
-  getByStatus: (status: string) => {
-    return dispatchService.getAll().filter((d: any) => d.dispatchStatus === status || d.status === status);
-  },
-  getByPodStatus: (podStatus: string) => {
-    return dispatchService.getAll().filter((d: any) => d.podStatus === podStatus);
-  },
-  updateDispatchStatus: (id: string, status: string, milestoneUpdate?: any) => {
-    const dispatches = dispatchService.getAll();
-    const index = dispatches.findIndex((d: any) => d.id === id);
-    if (index !== -1) {
-      dispatches[index].dispatchStatus = status;
-      if (milestoneUpdate && dispatches[index].milestones) {
-         // Optionally update milestones if logic requires
-         // This is a placeholder for actual milestone logic
+  async getAll(): Promise<DispatchRecord[]> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/dispatches');
+      if (response && response.success && Array.isArray(response.data)) {
+        return response.data;
       }
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(dispatches));
+      return [];
+    } catch (e) {
+      console.error("Failed to load dispatches from backend:", e);
+      return [];
     }
   },
-  updatePodStatus: (id: string, podStatus: string) => {
-    const dispatches = dispatchService.getAll();
-    const index = dispatches.findIndex((d: any) => d.id === id);
-    if (index !== -1) {
-      dispatches[index].podStatus = podStatus;
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(dispatches));
+
+  async getById(id: string | number): Promise<DispatchRecord | null> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any }>('/dispatches/' + id);
+      if (response && response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (e) {
+      console.error("Failed to load dispatch detail from backend:", e);
+      return null;
     }
   },
-  getDeliveryTimeline: (id: string) => {
-    const dispatch = dispatchService.getById(id);
-    return dispatch?.milestones || [];
-  },
-  getTransporterDetails: (id: string) => {
-    const dispatch = dispatchService.getById(id);
-    if (!dispatch) return null;
-    return {
-      transporter: dispatch.transporter,
-      vehicleNo: dispatch.vehicleNo,
-      driverName: dispatch.driverName,
-      driverMobile: dispatch.driverMobile,
-      lrNo: dispatch.lrNo
-    };
+
+  async updateDispatchStatus(id: string | number, status: string, extraData?: any): Promise<boolean> {
+    try {
+      const response = await apiRequest<{ success: boolean }>('/dispatches/' + id, {
+        method: 'PATCH',
+        bodyData: { status, ...extraData }
+      });
+      return !!(response && response.success);
+    } catch (e) {
+      console.error("Failed to update dispatch status on backend:", e);
+      return false;
+    }
   }
 };

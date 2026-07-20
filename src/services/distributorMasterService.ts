@@ -15,7 +15,26 @@ const STORAGE_KEY = 'pharma_erp_distributor_master';
 export const distributorMasterService = {
   getAll: (): DistributorMasterRecord[] => {
     const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    let records: DistributorMasterRecord[] = data ? JSON.parse(data) : [];
+    
+    // Auto-seed default mock distributor (DIST-001) if not present
+    const hasDefault = records.some(r => r.code === 'DIST-001');
+    if (!hasDefault) {
+      const defaultDistributor: DistributorMasterRecord = {
+        id: 'dist-001-default',
+        code: 'DIST-001',
+        name: 'Metro Pharma Distributors',
+        contactPerson: 'Rahul Sharma',
+        mobileNumber: '9876543210',
+        emailAddress: 'metro@pharmaerp.com',
+        status: 'Active',
+        createdDate: '2023-01-01'
+      };
+      records = [defaultDistributor, ...records];
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    }
+    
+    return records;
   },
   
   getById: (id: string): DistributorMasterRecord | undefined => {

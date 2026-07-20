@@ -59,6 +59,7 @@ export default function GSTBilling() {
   const [paymentMode, setPaymentMode] = useState('Credit');
   const [status, setStatus] = useState<'Paid' | 'Unpaid' | 'Draft'>('Unpaid');
   const [items, setItems] = useState<InvoiceItem[]>([]);
+  const [schemesState, setSchemesState] = useState<any[]>([]);
 
   // Organization Settings (Seller State)
   const companySettings = JSON.parse(localStorage.getItem('company_settings') || '{}');
@@ -107,6 +108,15 @@ export default function GSTBilling() {
 
   useEffect(() => {
     loadDatabaseDetails();
+    const fetchSchemes = async () => {
+      try {
+        const data = await schemeService.getAll();
+        setSchemesState(data || []);
+      } catch (e) {
+        console.error("Failed to load schemes:", e);
+      }
+    };
+    fetchSchemes();
   }, []);
 
   const formatCurrency = (amount: number) => {
@@ -162,7 +172,7 @@ export default function GSTBilling() {
     const product = products.find(p => p.id === productId);
     if (!product) return { discountPercent: 0, freeQty: 0 };
 
-    const schemes = schemeService.getAll();
+    const schemes = schemesState;
     const todayStr = new Date().toISOString().split('T')[0];
 
     // Filter active schemes

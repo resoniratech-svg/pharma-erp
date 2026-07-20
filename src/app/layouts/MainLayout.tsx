@@ -517,18 +517,62 @@ const activeStyle =
                 {hasSubItems && isExpanded && !sidebarCollapsed && (
                   <div className="pl-11 pr-3 space-y-1 mt-1">
                     {item.subItems!.filter(sub => {
+                      // Hide specific distributor actions from Admins/Super Admins
+                      if (item.label === 'Distributor/Stockist Portal') {
+                        if (activeRole === ROLE_SUPER_ADMIN) {
+                          const hiddenForAdmin = [
+                            'Current Stock',
+                            'Order Placement',
+                            'Outstanding Tracking',
+                            'Ledger Access',
+                            'Invoice Download',
+                            'Scheme Visibility',
+                            'Order History'
+                          ];
+                          if (hiddenForAdmin.includes(sub.label)) {
+                            return false;
+                          }
+                        }
+                      }
+
+                      // Hide specific retailer actions from Admins/Super Admins
+                      if (item.label === 'Retailer Ordering System') {
+                        if (activeRole === ROLE_SUPER_ADMIN) {
+                          const hiddenForAdmin = [
+                            'Product Browsing',
+                            'Offer Visibility',
+                            'Scheme Visibility',
+                            'Order Placement',
+                            'Reorder Functionality',
+                            'Invoice Access',
+                            'Payment Tracking'
+                          ];
+                          if (hiddenForAdmin.includes(sub.label)) {
+                            return false;
+                          }
+                        }
+                      }
+
                       // Manual Role-Based filtering for Notifications
                       if (item.label === 'Alerts & Notifications') {
                         if (activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
                           return sub.label === 'Meeting Reminders' || sub.label === 'Follow-Up Reminders';
                         }
-                        //if (activeRole === ROLE_ACCOUNTANT) {
-                        //  return sub.label === 'Payment Reminders' || sub.label === 'Activity Notifications';
-                        //}
+                        if (activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER) {
+                          return sub.label !== 'Meeting Reminders' && sub.label !== 'Follow-Up Reminders';
+                        }
                         // Super Admin sees everything
                         if (activeRole === ROLE_SUPER_ADMIN) return true;
                         
                         return true; 
+                      }
+                      // Hide specific GPS field actions from Admins
+                      if (item.label === 'GPS & Location Tracking') {
+                        if (activeRole === ROLE_SUPER_ADMIN || activeRole === 'admin') {
+                          if (sub.label === 'Check In' || sub.label === 'Check Out') {
+                            return false;
+                          }
+                        }
                       }
                       return true;
                     }).map((sub) => {

@@ -47,12 +47,15 @@ export default function SchemeVisibility() {
   const [adminSchemes, setAdminSchemes] = useState<any[]>([]);
 
   useEffect(() => {
-    try {
-      const data = schemeService.getAll() || [];
-      setAdminSchemes(data);
-    } catch (e) {
-      setAdminSchemes([]);
-    }
+    const fetchSchemes = async () => {
+      try {
+        const data = await schemeService.getAll();
+        setAdminSchemes(data || []);
+      } catch (e) {
+        setAdminSchemes([]);
+      }
+    };
+    fetchSchemes();
   }, []);
 
   useEffect(() => {
@@ -67,20 +70,28 @@ export default function SchemeVisibility() {
 
   const parseDate = (dStr: string) => {
     if (!dStr) return new Date(NaN);
-    if (dStr.includes('-')) {
-      const parts = dStr.split('-');
+    let cleanStr = dStr;
+    if (dStr.includes('T')) {
+      cleanStr = dStr.split('T')[0];
+    }
+    if (cleanStr.includes('-')) {
+      const parts = cleanStr.split('-');
       if (parts.length === 3) {
         if (parts[2].length === 4) return new Date(Number(parts[2]), Number(parts[1]) - 1, Number(parts[0]));
         if (parts[0].length === 4) return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
       }
     }
-    return new Date(dStr);
+    return new Date(cleanStr);
   };
 
   const getDDMMYYYY = (dateStr: string) => {
     if (!dateStr || dateStr === '-') return '-';
-    const d = parseDate(dateStr);
-    if (isNaN(d.getTime())) return dateStr;
+    let cleanStr = dateStr;
+    if (dateStr.includes('T')) {
+      cleanStr = dateStr.split('T')[0];
+    }
+    const d = parseDate(cleanStr);
+    if (isNaN(d.getTime())) return cleanStr;
     return `${String(d.getDate()).padStart(2, '0')}-${String(d.getMonth() + 1).padStart(2, '0')}-${d.getFullYear()}`;
   };
 
@@ -104,7 +115,7 @@ export default function SchemeVisibility() {
 
       return {
         id: s.id || Math.random().toString(),
-        schemeCode: s.schemeCode || '-',
+        schemeCode: s.schemeCode || s.code || '-',
         schemeName: s.name || s.schemeName || '-',
         schemeType: s.type || s.benefitType || '-',
         applicableTo: s.applicableTo || 'All Products',
@@ -116,8 +127,8 @@ export default function SchemeVisibility() {
         ptrDiscount,
         bonusProduct,
         minOrderQty: s.minQuantity || s.minOrderQty || '-',
-        validFrom: s.validFrom || '-',
-        validTo: s.validTo || '-',
+        validFrom: s.validFrom || s.startDate || '-',
+        validTo: s.validTo || s.endDate || '-',
         status: s.status || 'Draft',
         terms: s.remarks || s.terms || 'No specific terms provided.'
       };

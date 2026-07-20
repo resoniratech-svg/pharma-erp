@@ -1,4 +1,6 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
+import authService from '../../services/authService';
+import { salesInvoiceService } from '../../services/salesInvoiceService';
 import { 
   CheckCircle2, 
   Eye, 
@@ -156,7 +158,51 @@ const ActionMenu = ({ row, onAction }: { row: PaymentAlert, onAction: (action: s
 };
 
 export default function PaymentAlerts() {
-  const [data, setData] = useState<PaymentAlert[]>(generateMockData());
+  const loggedInDistributorCode = useMemo(() => {
+    const user = authService.getCurrentUser();
+    const role = localStorage.getItem('activeRole') || (user as any)?.role || '';
+    if (role === 'SUPER_ADMIN') return 'DIST-001';
+    return (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || 'DIST-001';
+  }, []);
+
+  const [data, setData] = useState<PaymentAlert[]>([]);
+
+  useEffect(() => {
+    const invoices = salesInvoiceService.getDistributorSalesInvoices(loggedInDistributorCode);
+    const unpaid = invoices.filter(inv => inv.paymentStatus !== 'Paid');
+    
+    const mapped = unpaid.map((inv, idx) => {
+      const amt = inv.grandTotal || 0;
+      const paid = inv.paidAmount || 0;
+      const outst = inv.outstandingAmount ?? (amt - paid);
+      
+      const due = new Date(inv.dueDate);
+      const today = new Date();
+      const diffTime = Math.abs(today.getTime() - due.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const isOverdue = due < today;
+
+      return {
+        id: inv.id || String(idx + 1),
+        customerName: inv.retailerName || inv.retailer || 'Unknown Retailer',
+        invoiceNo: inv.invoiceNo,
+        dueDate: inv.dueDate,
+        outstandingAmount: outst,
+        daysOverdue: isOverdue ? diffDays : 0,
+        priority: (outst > 10000 ? 'Critical' : (outst > 5000 ? 'High' : 'Medium')) as any,
+        assignedTo: 'Finance Team',
+        status: (isOverdue ? 'Pending' : 'In Follow-Up') as any,
+        history: [
+          { date: inv.date, action: 'Invoice Generated', notes: 'System generated sales invoice.' }
+        ]
+      };
+    });
+
+    setData(mapped.length > 0 ? mapped : [
+      { id: '1', customerName: 'City Pharmacy', invoiceNo: 'SAL-INV-2023-001', dueDate: '15-Jul-2026', outstandingAmount: 5600, daysOverdue: 2, priority: 'Medium', assignedTo: 'Finance Team', status: 'Pending', history: [] },
+      { id: '2', customerName: 'Wellness Medicos', invoiceNo: 'SAL-INV-2023-002', dueDate: '16-Jul-2026', outstandingAmount: 8960, daysOverdue: 1, priority: 'High', assignedTo: 'Finance Team', status: 'Pending', history: [] }
+    ]);
+  }, [loggedInDistributorCode]);
 
   // Filters State
   const [search, setSearch] = useState('');

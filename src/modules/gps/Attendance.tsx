@@ -141,6 +141,13 @@ export default function Attendance() {
   useEffect(() => {
     const fetchRecords = async () => {
       try {
+        const activeRole = localStorage.getItem('activeRole');
+        if (activeRole === 'SUPER_ADMIN' || activeRole === 'ADMIN') {
+          const data = await attendanceService.loadAllAttendance();
+          setRecords(data);
+          return;
+        }
+
         const rawMrId = localStorage.getItem('mrId');
         if (!rawMrId) {
           setRecords([]);

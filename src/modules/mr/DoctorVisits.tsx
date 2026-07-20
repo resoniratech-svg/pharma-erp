@@ -632,7 +632,15 @@ export default function DoctorVisits() {
   useEffect(() => {
     async function loadData() {
       try {
-        const loadedVisits = await doctorVisitService.loadDoctorVisits(mrId);
+        const activeRole = localStorage.getItem('activeRole')?.toLowerCase();
+        let loadedVisits;
+        
+        if (activeRole === 'super-admin' || activeRole === 'super_admin' || activeRole === 'admin') {
+          loadedVisits = await doctorVisitService.loadAllDoctorVisits();
+        } else {
+          loadedVisits = await doctorVisitService.loadDoctorVisits(mrId);
+        }
+        
         setVisits(loadedVisits);
         const loadedDocs = await doctorService.getDoctors();
         setDoctors(loadedDocs);
@@ -1009,9 +1017,12 @@ export default function DoctorVisits() {
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Mobile Number</label>
-            <input type="tel" value={newMobile} readOnly={selectedDocId !== 'NEW_DOCTOR'} onChange={(e) => setNewMobile(e.target.value)}
+            <input type="tel" value={newMobile} readOnly={selectedDocId !== 'NEW_DOCTOR'} onChange={(e) => {
+                const cleaned = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+                setNewMobile(cleaned);
+              }}
               className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none ${selectedDocId === 'NEW_DOCTOR' ? 'bg-white focus:border-violet-500 text-slate-900' : 'bg-slate-50 text-slate-500'}`}
-              placeholder={selectedDocId === 'NEW_DOCTOR' ? 'Enter Mobile Number' : 'e.g. 9876543210'} />
+              placeholder={selectedDocId === 'NEW_DOCTOR' ? 'Enter Mobile Number' : 'e.g. 9876543210'} maxLength={10} />
           </div>
 
           <div className="grid grid-cols-2 gap-3">

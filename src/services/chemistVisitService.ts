@@ -62,6 +62,34 @@ export const chemistVisitService = {
     return visitsCache;
   },
 
+  async loadAllChemistVisits(): Promise<ChemistVisit[]> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>(`/chemist-visits`);
+      if (response.success && Array.isArray(response.data)) {
+        visitsCache = response.data.map(v => ({
+          id: String(v.id),
+          mrId: v.mrId,
+          chemistName: v.chemist?.name || "Chemist",
+          mobile: v.chemist?.mobile || "",
+          address: v.chemist?.address || "",
+          visitDate: v.visitDate ? v.visitDate.split('T')[0] : new Date().toISOString().split('T')[0],
+          visitTime: v.visitDate ? new Date(v.visitDate).toTimeString().slice(0, 5) : "10:00",
+          visitType: 'Routine Visit',
+          productsDiscussed: v.productsDiscussed || "",
+          orderValue: String(v.orderValue || 0),
+          remarks: v.remarks || "",
+          status: 'Completed',
+          latitude: v.latitude ? String(v.latitude) : undefined,
+          longitude: v.longitude ? String(v.longitude) : undefined,
+        }));
+        localStorage.setItem("chemist_visits", JSON.stringify(visitsCache));
+      }
+    } catch (err) {
+      console.error("Failed to load all chemist visits from backend:", err);
+    }
+    return visitsCache;
+  },
+
   async addChemistVisit(mrId: number, visit: Partial<ChemistVisit> & { chemistId: number }): Promise<ChemistVisit> {
     const dbPayload = {
       mrId,

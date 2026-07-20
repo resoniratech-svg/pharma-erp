@@ -104,8 +104,10 @@
 
 
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Truck, MapPin, AlertTriangle, Clock, Package } from 'lucide-react';
+import { dispatchService } from '../../services/dispatchService';
+import authService from '../../services/authService';
 import {
   PageHeader,
   FilterBar,
@@ -137,6 +139,67 @@ const mockData: DispatchAlert[] = [
 export default function DispatchAlerts() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [data, setData] = useState<DispatchAlert[]>([]);
+
+  const loggedInDistributorCode = useMemo(() => {
+    const user = authService.getCurrentUser();
+    const role = localStorage.getItem('activeRole') || (user as any)?.role || '';
+    if (role === 'SUPER_ADMIN') return 'DIST-001';
+    return (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || 'DIST-001';
+  }, []);
+
+  useEffect(() => {
+    async function loadAlerts() {
+      let dispatches: any[] = [];
+      try {
+        const res = await dispatchService.getAll();
+        if (Array.isArray(res)) {
+          dispatches = res;
+        }
+      } catch (e) {
+        console.error("Failed to load dispatches:", e);
+      }
+
+      const inbound = dispatches
+        .filter((d: any) => !loggedInDistributorCode || d.distributorCode === loggedInDistributorCode)
+        .map((d: any) => ({
+          id: d.id || d.dispatchNo,
+          challanNo: d.dispatchNo || 'N/A',
+          distributor: d.distributorName || 'Metro Pharma Distributors',
+          expectedDelivery: d.expectedDeliveryDate || 'TBD',
+          delay: d.dispatchStatus === 'Delayed' ? '2 Days' : (d.dispatchStatus === 'Exception' ? 'Transit Exception' : '-'),
+          status: (d.dispatchStatus === 'Exception' ? 'Exception' : (d.dispatchStatus === 'Delayed' ? 'Delayed' : 'Out for Delivery')) as any
+        }));
+
+      const outboundRaw = localStorage.getItem('pharma_erp_outbound_dispatches');
+      let outbound: any[] = [];
+      if (outboundRaw) {
+        try {
+          const parsed = JSON.parse(outboundRaw);
+          if (Array.isArray(parsed)) {
+            outbound = parsed
+              .filter((d: any) => !loggedInDistributorCode || d.distributorCode === loggedInDistributorCode)
+              .map((d: any) => ({
+                id: d.id || d.dispatchNo,
+                challanNo: d.dispatchNo || 'N/A',
+                distributor: d.retailerName || d.retailer || 'Unknown Retailer',
+                expectedDelivery: d.expectedDeliveryDate || 'TBD',
+                delay: d.status === 'Delayed' ? '1 Day' : (d.status === 'Exception' ? 'Transit Issue' : '-'),
+                status: (d.status === 'Exception' ? 'Exception' : (d.status === 'Delayed' ? 'Delayed' : 'Out for Delivery')) as any
+              }));
+          }
+        } catch (e) {}
+      }
+
+      const combined = [...inbound, ...outbound].filter(
+        d => d.status === 'Delayed' || d.status === 'Exception' || d.status === 'Out for Delivery'
+      );
+
+      setData(combined.length > 0 ? combined : mockData);
+    }
+
+    loadAlerts();
+  }, [loggedInDistributorCode]);
 
   const columns: Column<DispatchAlert>[] = [
     { key: 'challanNo', label: 'Challan No.', render: (row) => <span className="font-semibold text-slate-900">{row.challanNo}</span> },
@@ -159,16 +222,16 @@ export default function DispatchAlerts() {
     }
   ];
 
-  const filteredData = mockData.filter((item) => {
+  const filteredData = data.filter((item) => {
     const matchSearch = item.challanNo.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   });
 
-  const totalAlerts = mockData.length;
-  const delayedCount = mockData.filter(m => m.status === 'Delayed').length;
-  const exceptionsCount = mockData.filter(m => m.status === 'Exception').length;
-  const transitCount = mockData.filter(m => m.status === 'Out for Delivery').length;
+  const totalAlerts = data.length;
+  const delayedCount = data.filter(m => m.status === 'Delayed').length;
+  const exceptionsCount = data.filter(m => m.status === 'Exception').length;
+  const transitCount = data.filter(m => m.status === 'Out for Delivery').length;
 
   return (
     <div className="animate-in fade-in duration-500">

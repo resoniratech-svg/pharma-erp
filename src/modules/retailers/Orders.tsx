@@ -116,6 +116,19 @@ export default function Orders() {
 
   const [cartItems, setCartItems] = useState<OrderItem[]>([]);
   const [userRetailerContext, setUserRetailerContext] = useState<any>(null);
+  const [schemes, setSchemes] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchSchemes = async () => {
+      try {
+        const data = await schemeService.getAll();
+        setSchemes(data || []);
+      } catch (e) {
+        console.error("Failed to load schemes:", e);
+      }
+    };
+    fetchSchemes();
+  }, []);
 
   useEffect(() => {
     try {
@@ -287,7 +300,13 @@ export default function Orders() {
         distName = userRetailerContext.assignedDistributor;
     }
 
-    if (!distCode) return null;
+    if (!distCode) {
+      // Fallback for administrators / users without a linked profile
+      distId = '1';
+      distCode = 'DIST-001';
+      distName = 'Metro Pharma Distributors';
+    }
+
     return { id: distId, code: distCode, name: distName };
   };
 
@@ -316,7 +335,6 @@ export default function Orders() {
 
   const calculateSchemeDiscount = (items: OrderItem[]) => {
     try {
-      const schemes = schemeService.getAll ? schemeService.getAll() : [];
       let totalDiscount = 0;
       
       const today = new Date();

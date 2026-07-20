@@ -87,8 +87,11 @@
 
 //////////////////////////////////////////////////////////////////
 
-import { useState } from 'react';
-import { ShoppingCart, TrendingDown, AlertTriangle, Truck, PackageSearch } from 'lucide-react';
+import { useState, useEffect, useMemo } from 'react';
+import { TrendingDown, AlertTriangle, PackageSearch } from 'lucide-react';
+import { inventoryService } from '../../services/inventoryService';
+import { productService } from '../../services/productService';
+import authService from '../../services/authService';
 import {
   PageHeader,
   FilterBar,
@@ -120,6 +123,46 @@ const mockData: ReorderAlert[] = [
 export default function ReorderAlerts() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [data, setData] = useState<ReorderAlert[]>([]);
+
+  const loggedInDistributorCode = useMemo(() => {
+    const user = authService.getCurrentUser();
+    const role = localStorage.getItem('activeRole') || (user as any)?.role || '';
+    if (role === 'SUPER_ADMIN') return 'DIST-001';
+    return (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || 'DIST-001';
+  }, []);
+
+  useEffect(() => {
+    Promise.all([
+      inventoryService.loadInventory(),
+      productService.loadProducts()
+    ]).then(([allInventory, allProducts]) => {
+      const myInventory = allInventory.filter(
+        record => record.warehouseId === loggedInDistributorCode || record.warehouseCode === loggedInDistributorCode
+      );
+
+      const mappedAlerts: ReorderAlert[] = [];
+      myInventory.forEach((inv, index) => {
+        const product = allProducts.find(p => p.code === inv.productCode);
+        const minStock = product?.minimumStock ? Number(product.minimumStock) : 50;
+        const reorderLevel = product?.reorderLevel ? Number(product.reorderLevel) : 100;
+        
+        if (inv.availableQty <= reorderLevel) {
+          const status = inv.availableQty <= minStock ? 'Critical' : 'Low Stock';
+          mappedAlerts.push({
+            id: inv.id || String(index + 1),
+            productName: inv.productName || product?.name || 'Unknown',
+            currentStock: inv.availableQty,
+            reorderLevel: reorderLevel,
+            supplier: product?.manufacturer || 'Preferred Supplier',
+            status
+          });
+        }
+      });
+
+      setData(mappedAlerts.length > 0 ? mappedAlerts : mockData);
+    });
+  }, [loggedInDistributorCode]);
 
   const columns: Column<ReorderAlert>[] = [
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.productName}</span> },
@@ -133,23 +176,18 @@ export default function ReorderAlerts() {
         const variant = row.status === 'Critical' ? 'danger' : 'warning';
         return <Badge variant={variant}>{row.status}</Badge>;
       },
-    },
-    {
-      key: 'action',
-      label: '',
-      render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><ShoppingCart className="w-4 h-4 mr-1" /> Generate PO</ActionButton>
     }
   ];
 
-  const filteredData = mockData.filter((item) => {
+  const filteredData = data.filter((item) => {
     const matchSearch = item.productName.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   });
 
-  const criticalCount = mockData.filter(m => m.status === 'Critical').length;
-  const lowStockCount = mockData.filter(m => m.status === 'Low Stock').length;
-  const totalAlerts = mockData.length;
+  const criticalCount = data.filter(m => m.status === 'Critical').length;
+  const lowStockCount = data.filter(m => m.status === 'Low Stock').length;
+  const totalAlerts = data.length;
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -158,7 +196,7 @@ export default function ReorderAlerts() {
         subtitle="Products that have fallen below their minimum stock threshold."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
         <SummaryCard
           title="Critical Shortages"
           value={criticalCount.toString()}
@@ -182,14 +220,6 @@ export default function ReorderAlerts() {
           icon={<PackageSearch className="w-6 h-6" />}
           colorClass="text-indigo-600"
           bgClass="bg-indigo-50"
-        />
-        <SummaryCard
-          title="Pending POs"
-          value="4" 
-          subtitle="Awaiting supplier delivery"
-          icon={<Truck className="w-6 h-6" />}
-          colorClass="text-blue-600"
-          bgClass="bg-blue-50"
         />
       </div>
 

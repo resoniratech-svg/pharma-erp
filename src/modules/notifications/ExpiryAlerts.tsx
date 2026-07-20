@@ -103,8 +103,12 @@
 
 ////////////////////////////////////////////////////////////////
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AlertTriangle, ArchiveX, CheckCircle2, Package } from 'lucide-react';
+import { inventoryService } from '../../services/inventoryService';
+import { batchService } from '../../services/batchService';
+import { productService } from '../../services/productService';
+import authService from '../../services/authService';
 import {
   PageHeader,
   FilterBar,
@@ -138,6 +142,63 @@ const mockData: ExpiryAlert[] = [
 export default function ExpiryAlerts() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [data, setData] = useState<ExpiryAlert[]>([]);
+
+  const loggedInDistributorCode = useMemo(() => {
+    const user = authService.getCurrentUser();
+    const role = localStorage.getItem('activeRole') || (user as any)?.role || '';
+    if (role === 'SUPER_ADMIN') return 'DIST-001';
+    return (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || 'DIST-001';
+  }, []);
+
+  useEffect(() => {
+    Promise.all([
+      inventoryService.loadInventory(),
+      batchService.loadBatches(),
+      productService.loadProducts()
+    ]).then(([allInventory, allBatches, allProducts]) => {
+      const myInventory = allInventory.filter(
+        record => record.warehouseId === loggedInDistributorCode || record.warehouseCode === loggedInDistributorCode
+      );
+
+      const mappedAlerts: ExpiryAlert[] = [];
+      const today = new Date();
+
+      myInventory.forEach((inv, index) => {
+        const batch = allBatches.find(b => b.batchNo === inv.batchNo && b.productCode === inv.productCode);
+        const product = allProducts.find(p => p.code === inv.productCode);
+        
+        const expiryDateStr = batch?.expDate || '';
+        if (expiryDateStr) {
+          const exp = new Date(expiryDateStr);
+          const diffTime = exp.getTime() - today.getTime();
+          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+          
+          let status: 'Expired' | 'Near Expiry' | 'Safe' = 'Safe';
+          if (diffDays < 0) {
+            status = 'Expired';
+          } else if (diffDays <= 90) {
+            status = 'Near Expiry';
+          }
+
+          if (status !== 'Safe') {
+            mappedAlerts.push({
+              id: inv.id || String(index + 1),
+              productName: inv.productName || product?.name || 'Unknown',
+              batchNo: inv.batchNo,
+              warehouse: inv.warehouseName || 'My Warehouse',
+              expiryDate: new Date(expiryDateStr).toLocaleDateString('en-GB'),
+              daysToExpiry: diffDays,
+              stockQty: inv.availableQty,
+              status
+            });
+          }
+        }
+      });
+
+      setData(mappedAlerts.length > 0 ? mappedAlerts : mockData);
+    });
+  }, [loggedInDistributorCode]);
 
   const columns: Column<ExpiryAlert>[] = [
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.productName}</span> },
@@ -179,16 +240,16 @@ export default function ExpiryAlerts() {
     }
   ];
 
-  const filteredData = mockData.filter((item) => {
+  const filteredData = data.filter((item) => {
     const matchSearch = item.productName.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   });
 
-  const expiredCount = mockData.filter(m => m.status === 'Expired').length;
-  const nearExpiryCount = mockData.filter(m => m.status === 'Near Expiry').length;
-  const safeCount = mockData.filter(m => m.status === 'Safe').length;
-  const totalBatches = mockData.length;
+  const expiredCount = data.filter(m => m.status === 'Expired').length;
+  const nearExpiryCount = data.filter(m => m.status === 'Near Expiry').length;
+  const safeCount = data.filter(m => m.status === 'Safe').length;
+  const totalBatches = data.length;
 
   return (
     <div className="animate-in fade-in duration-500">

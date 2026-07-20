@@ -78,7 +78,7 @@ export default function PricingManagement() {
   const fetchPricings = async () => {
     try {
       const savedData = await pricingService.getAll();
-      const allProducts = productService.getProducts();
+      const allProducts = await productService.loadProducts();
       
       let loadedData = (savedData.length > 0 ? savedData : []).map((item: any) => {
         const product = allProducts.find((p: any) => p.id === String(item.productId));
@@ -136,8 +136,9 @@ export default function PricingManagement() {
   }, []);
 
   useEffect(() => {
-    const savedProducts = productService.getProducts();
-    setProducts(savedProducts.filter((p: any) => p.status === 'Active'));
+    productService.loadProducts().then(refreshedProducts => {
+      setProducts(refreshedProducts.filter((p: any) => p.status === 'Active'));
+    });
   }, []);
 
   useEffect(() => {
@@ -540,6 +541,17 @@ export default function PricingManagement() {
           );
           productService.saveProducts(updatedProducts);
           setProducts(updatedProducts.filter((p: any) => p.status === 'Active'));
+
+          // Sync updated pricing to product master database
+          const matchedProduct = productsList.find(p => p.code === updatedRecord.productCode || p.id === String(updatedRecord.productId));
+          if (matchedProduct) {
+            productService.updateProduct(matchedProduct.id, {
+              ...matchedProduct,
+              mrp: String(mrpVal),
+              ptr: String(ptrVal),
+              pts: String(ptsVal)
+            }).catch(err => console.error("Failed to sync updated Pricing to product master:", err));
+          }
         }
         
         activityLogService.addLog({
@@ -601,6 +613,17 @@ export default function PricingManagement() {
           );
           productService.saveProducts(updatedProducts);
           setProducts(updatedProducts.filter((p: any) => p.status === 'Active'));
+
+          // Sync new pricing to product master database
+          const matchedProduct = productsList.find(p => p.code === mappedRecord.productCode || p.id === String(mappedRecord.productId));
+          if (matchedProduct) {
+            productService.updateProduct(matchedProduct.id, {
+              ...matchedProduct,
+              mrp: String(mrpVal),
+              ptr: String(ptrVal),
+              pts: String(ptsVal)
+            }).catch(err => console.error("Failed to sync new Pricing to product master:", err));
+          }
         }
 
         activityLogService.addLog({

@@ -3,6 +3,7 @@ import { Download, Eye,  Filter, ChevronDown, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import authService from '../../services/authService';
 
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
@@ -106,14 +107,16 @@ const getInvoiceStatus = (inv: Invoice): Invoice['status'] => {
 
 export default function OutstandingTracking() {
   const loggedInDistributorCode = useMemo(() => {
-    const raw = localStorage.getItem('pharma_erp_distributors');
-    if (raw) {
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed.length > 0) return parsed[0].code || parsed[0].distributorCode || parsed[0].id;
-      } catch (e) {}
+    const user = authService.getCurrentUser();
+    const role = localStorage.getItem('activeRole') || (user as any)?.role || '';
+    if (role === 'SUPER_ADMIN') {
+      return '';
     }
-    return 'DIST-001';
+    let code = (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || '';
+    if (!code && user?.email === 'distributor@pharmaerp.com') {
+      return 'DIST-001';
+    }
+    return code;
   }, []);
 
   const [records, setRecords] = useState<OutstandingRecord[]>([]);

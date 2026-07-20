@@ -114,6 +114,23 @@ export default function Ledgers() {
     }
 
     if (transactions.length === 0) {
+      // Load invoices and distributors for data enrichment
+      const invoiceData = localStorage.getItem('pharma_erp_invoices') || localStorage.getItem('pharma_erp_sales_invoices');
+      let invoices: any[] = [];
+      if (invoiceData) {
+        try {
+          invoices = JSON.parse(invoiceData);
+        } catch (e) {}
+      }
+
+      const distData = localStorage.getItem('pharma_erp_distributors');
+      let distributors: any[] = [];
+      if (distData) {
+        try {
+          distributors = JSON.parse(distData);
+        } catch (e) {}
+      }
+
       // Build from integration points if no explicit ledger exists
       const outData = localStorage.getItem('pharma_erp_outstanding_records');
       if (outData) {
@@ -122,10 +139,12 @@ export default function Ledgers() {
           records.forEach(rec => {
             if (rec.invoices) {
               rec.invoices.forEach((inv: any) => {
+                const matchedDist = distributors.find(d => (d.code || d.distributorCode || d.id) === rec.distributorCode);
+                const distName = rec.distributorName || (matchedDist ? (matchedDist.name || matchedDist.distributorName) : '');
                 transactions.push({
                   id: inv.id || inv.invoiceNo,
                   date: inv.date,
-                  distributor: rec.distributorName,
+                  distributor: distName || 'Metro Pharma Distributors',
                   distributorCode: rec.distributorCode,
                   contactPerson: rec.contactPerson || '',
                   refNo: inv.invoiceNo,
@@ -145,17 +164,22 @@ export default function Ledgers() {
         try {
           const payments: any[] = JSON.parse(payData);
           payments.forEach(pay => {
+            const matchedInv = invoices.find(inv => inv.invoiceNo === pay.invoiceNo);
+            const distCode = pay.distributorCode || (matchedInv ? matchedInv.distributorCode : 'DIST-001');
+            const matchedDist = distributors.find(d => (d.code || d.distributorCode || d.id) === distCode);
+            const distName = pay.distributorName || pay.distributor || (matchedDist ? (matchedDist.name || matchedDist.distributorName) : 'Metro Pharma Distributors');
+
             transactions.push({
               id: pay.id || pay.receiptNo || pay.refNo,
-              date: pay.date,
-              distributor: pay.distributorName || pay.distributor,
-              distributorCode: pay.distributorCode,
+              date: pay.date || pay.paymentDate || (matchedInv ? matchedInv.date : ''),
+              distributor: distName,
+              distributorCode: distCode,
               contactPerson: pay.contactPerson || '',
-              refNo: pay.receiptNo || pay.refNo,
+              refNo: pay.receiptNo || pay.refNo || pay.transactionRef || pay.id,
               type: 'Payment',
               debitAmount: 0,
               creditAmount: pay.amount || pay.creditAmount,
-              remarks: pay.remarks || 'Payment Received'
+              remarks: pay.remarks || pay.notes || 'Payment Received'
             });
           });
         } catch (e) {}
@@ -166,10 +190,12 @@ export default function Ledgers() {
         try {
           const notes: any[] = JSON.parse(cnData);
           notes.forEach(note => {
+            const matchedDist = distributors.find(d => (d.code || d.distributorCode || d.id) === note.distributorCode);
+            const distName = note.distributorName || note.distributor || (matchedDist ? (matchedDist.name || matchedDist.distributorName) : 'Metro Pharma Distributors');
             transactions.push({
               id: note.id || note.noteNo || note.refNo,
               date: note.date,
-              distributor: note.distributorName || note.distributor,
+              distributor: distName,
               distributorCode: note.distributorCode,
               contactPerson: note.contactPerson || '',
               refNo: note.noteNo || note.refNo,
@@ -187,10 +213,12 @@ export default function Ledgers() {
         try {
           const notes: any[] = JSON.parse(dnData);
           notes.forEach(note => {
+            const matchedDist = distributors.find(d => (d.code || d.distributorCode || d.id) === note.distributorCode);
+            const distName = note.distributorName || note.distributor || (matchedDist ? (matchedDist.name || matchedDist.distributorName) : 'Metro Pharma Distributors');
             transactions.push({
               id: note.id || note.noteNo || note.refNo,
               date: note.date,
-              distributor: note.distributorName || note.distributor,
+              distributor: distName,
               distributorCode: note.distributorCode,
               contactPerson: note.contactPerson || '',
               refNo: note.noteNo || note.refNo,
@@ -254,8 +282,8 @@ export default function Ledgers() {
   const filteredData = roleFilteredData.filter((item) => {
     const searchLower = search.toLowerCase();
     const matchSearch = activeRole === ROLE_SUPER_ADMIN 
-      ? item.distributor.toLowerCase().includes(searchLower) || item.refNo.toLowerCase().includes(searchLower)
-      : item.refNo.toLowerCase().includes(searchLower);
+      ? (item.distributor || '').toLowerCase().includes(searchLower) || (item.refNo || '').toLowerCase().includes(searchLower)
+      : (item.refNo || '').toLowerCase().includes(searchLower);
       
     const matchType = typeFilter ? item.type === typeFilter : true;
     const matchDate = dateRange ? item.date === getDDMMYYYY(new Date(dateRange)) : true;

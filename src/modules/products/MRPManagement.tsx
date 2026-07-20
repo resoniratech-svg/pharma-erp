@@ -42,14 +42,15 @@ export default function MRPManagement() {
   const [products, setProducts] = useState<any[]>([]);
 
   useEffect(() => {
-    const savedProducts = productService.getProducts();
-    setProducts(savedProducts);
+    productService.loadProducts().then(refreshedProducts => {
+      setProducts(refreshedProducts);
 
-    let records = mrpService.getAll();
-    records = mrpService.activateScheduledMRPs(records);
-    mrpService.saveAll(records);
-    
-    setData(records);
+      let records = mrpService.getAll();
+      records = mrpService.activateScheduledMRPs(records);
+      mrpService.saveAll(records);
+      
+      setData(records);
+    });
   }, []);
 
   const activeProducts = products.filter(p => p.status === 'Active');
@@ -269,6 +270,15 @@ export default function MRPManagement() {
         );
         productService.saveProducts(updatedProducts);
         setProducts(updatedProducts);
+
+        // Sync updated MRP to backend database
+        const matchedProduct = products.find(p => p.code === updatedRecord.productCode);
+        if (matchedProduct) {
+          productService.updateProduct(matchedProduct.id, {
+            ...matchedProduct,
+            mrp: String(updatedRecord.currentMrp)
+          }).catch(err => console.error("Failed to sync updated MRP to database:", err));
+        }
       }
 
       allRecords = allRecords.map(item => item.id === updatedRecord.id ? updatedRecord : item);
@@ -313,6 +323,15 @@ export default function MRPManagement() {
         );
         productService.saveProducts(updatedProducts);
         setProducts(updatedProducts);
+
+        // Sync new MRP to backend database
+        const matchedProduct = products.find(p => p.code === newRecord.productCode);
+        if (matchedProduct) {
+          productService.updateProduct(matchedProduct.id, {
+            ...matchedProduct,
+            mrp: String(newRecord.currentMrp)
+          }).catch(err => console.error("Failed to sync new MRP to database:", err));
+        }
       }
       
       mrpService.saveAll(allRecords);

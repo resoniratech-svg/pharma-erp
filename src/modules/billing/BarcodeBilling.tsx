@@ -88,6 +88,7 @@ export default function BarcodeBilling() {
   const [paymentMode, setPaymentMode] = useState('Cash');
   const [amountReceived, setAmountReceived] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
+  const [schemesState, setSchemesState] = useState<any[]>([]);
 
   // Held Bills State
   const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
@@ -112,6 +113,18 @@ export default function BarcodeBilling() {
         console.error(e);
       }
     }
+  }, []);
+
+  useEffect(() => {
+    const fetchSchemes = async () => {
+      try {
+        const data = await schemeService.getAll();
+        setSchemesState(data || []);
+      } catch (e) {
+        console.error("Failed to load schemes:", e);
+      }
+    };
+    fetchSchemes();
   }, []);
 
   // Save held bills persistently
@@ -220,7 +233,7 @@ export default function BarcodeBilling() {
     const product = productsList.find(p => p.code === productCode);
     if (!product) return { discountPercent: 0, freeQty: 0 };
 
-    const schemes = schemeService.getAll();
+    const schemes = schemesState;
     const todayStr = new Date().toISOString().split('T')[0];
 
     // Filter active schemes

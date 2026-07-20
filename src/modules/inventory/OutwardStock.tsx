@@ -25,6 +25,7 @@ import { stockLedgerService } from "../../services/stockLedgerService";
 import { batchService } from "../../services/batchService";
 import activityLogService from "../../services/activityLogService";
 import authService from "../../services/authService";
+import { distributorMasterService } from "../../services/distributorMasterService";
 
 // --- Data Models ---
 
@@ -121,7 +122,7 @@ function ClientCombobox({
           setOpen(true);
         }}
         onFocus={() => setOpen(true)}
-        placeholder="Search or add client..."
+        placeholder="Search or add distributor..."
       />
       {open && (
         <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-md shadow-lg max-h-60 overflow-y-auto">
@@ -200,12 +201,27 @@ export default function OutwardStock() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<Outward | null>(null);
   
-  // Extract unique clients dynamically + mock defaults
+  // Extract unique distributors dynamically from master profile + transaction records
   const knownClients = useMemo(() => {
-    const unique = new Set(MOCK_CLIENTS);
+    const unique = new Set<string>();
+    
+    try {
+      const createdDists = distributorMasterService.getAll();
+      createdDists.forEach(d => {
+        if (d.name) {
+          unique.add(d.name);
+        } else if (d.code) {
+          unique.add(d.code);
+        }
+      });
+    } catch (e) {
+      console.error(e);
+    }
+
     outwardRecords.forEach(r => {
       if (r.client) unique.add(r.client);
     });
+
     return Array.from(unique).sort();
   }, [outwardRecords]);
 
@@ -216,6 +232,12 @@ export default function OutwardStock() {
     warehouseId: "",
     referenceNumber: '',
     status: 'Processing' as Outward['status'],
+    transporter: 'Delhivery',
+    lrNumber: '',
+    vehicleNumber: '',
+    driverName: '',
+    driverMobile: '',
+    expectedDeliveryDate: '',
   });
 
   const [formProducts, setFormProducts] = useState<DispatchLineItem[]>([]);
@@ -265,7 +287,7 @@ export default function OutwardStock() {
   const columns: Column<Outward>[] = [
     { key: 'dispatchNo', label: 'Dispatch Number', render: (row) => <span className="font-semibold text-violet-700">{row.dispatchNo}</span> },
     { key: 'date', label: 'Outward Date', render: (row) => formatDate(row.date) },
-    { key: 'client', label: 'Client / Buyer', render: (row) => <span className="font-medium text-slate-800">{row.client}</span> },
+    { key: 'client', label: 'Distributor / Buyer', render: (row) => <span className="font-medium text-slate-800">{row.client}</span> },
     {
       key: "warehouseName",
       label: "Warehouse",
@@ -315,7 +337,7 @@ export default function OutwardStock() {
     const exportData = filteredData.map(row => ({
       'Dispatch Number': row.dispatchNo,
       'Outward Date': formatDate(row.date),
-      'Client / Buyer': row.client,
+      'Distributor / Buyer': row.client,
       'Warehouse': `${row.warehouseCode} - ${row.warehouseName}`,
       'Reference Number': row.referenceNumber || '',
       'Total Items': row.itemsCount,
@@ -336,7 +358,7 @@ export default function OutwardStock() {
   };
 
   const handleExportCSV = () => {
-    const headers = ['Dispatch Number', 'Outward Date', 'Client / Buyer', 'Warehouse', 'Reference Number', 'Total Items', 'Total Quantity', 'Total Value', 'Status', 'Created By', 'Created On'];
+    const headers = ['Dispatch Number', 'Outward Date', 'Distributor / Buyer', 'Warehouse', 'Reference Number', 'Total Items', 'Total Quantity', 'Total Value', 'Status', 'Created By', 'Created On'];
     const csvContent = [
       headers.join(','),
       ...filteredData.map(row => 
@@ -377,6 +399,12 @@ export default function OutwardStock() {
       warehouseId: '',
       referenceNumber: '',
       status: 'Processing',
+      transporter: 'Delhivery',
+      lrNumber: '',
+      vehicleNumber: '',
+      driverName: '',
+      driverMobile: '',
+      expectedDeliveryDate: '',
     });
     setFormProducts([]);
     setShowCreateModal(true);
@@ -487,6 +515,11 @@ export default function OutwardStock() {
       return;
     }
 
+    if (!formData.transporter || !formData.lrNumber.trim() || !formData.vehicleNumber.trim() || !formData.expectedDeliveryDate) {
+      alert("Please fill all required logistics fields (*): Transporter, LR Number, Vehicle Number, and Expected Delivery Date.");
+      return;
+    }
+
     if (formProducts.length === 0) {
       alert("Please add at least one product to dispatch.");
       return;
@@ -528,6 +561,12 @@ export default function OutwardStock() {
       totalQuantity: autoCalculatedMetrics.totalQuantity,
       totalValue: autoCalculatedMetrics.totalValue,
       status: formData.status,
+      transporter: formData.transporter,
+      lrNumber: formData.lrNumber,
+      vehicleNumber: formData.vehicleNumber,
+      driverName: formData.driverName,
+      driverMobile: formData.driverMobile,
+      expectedDeliveryDate: formData.expectedDeliveryDate,
       items: formProducts.map(p => {
         const productId = productService.getProducts().find(prod => prod.name === p.product)?.id || 0;
         const batchId = batchService.getAll().find(b => b.batchNo === p.batchNo && b.productId === String(productId))?.id || 0;
@@ -752,7 +791,7 @@ export default function OutwardStock() {
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-slate-700 mb-1">
-                      Client / Buyer *
+                      Distributor / Buyer *
                     </label>
                     <ClientCombobox 
                       value={formData.client} 
@@ -982,6 +1021,91 @@ export default function OutwardStock() {
                 </div>
               </section>
 
+              {/* Logistics & Transport Details */}
+              <section className="mb-6">
+                <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-4">
+                  Logistics & Transport Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Transporter *
+                    </label>
+                    <select
+                      value={formData.transporter}
+                      onChange={(e) => setFormData({ ...formData, transporter: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-700"
+                    >
+                      <option value="Delhivery">Delhivery</option>
+                      <option value="VRL Logistics">VRL Logistics</option>
+                      <option value="Gati">Gati</option>
+                      <option value="Blue Dart">Blue Dart</option>
+                      <option value="Trackon">Trackon</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      LR Number / Challan No *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.lrNumber}
+                      onChange={(e) => setFormData({ ...formData, lrNumber: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                      placeholder="e.g. 654321"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Vehicle Number *
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.vehicleNumber}
+                      onChange={(e) => setFormData({ ...formData, vehicleNumber: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                      placeholder="e.g. TS 09 EX 1234"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Driver Name
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.driverName}
+                      onChange={(e) => setFormData({ ...formData, driverName: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                      placeholder="e.g. Ramesh Kumar"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Driver Mobile
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.driverMobile}
+                      onChange={(e) => setFormData({ ...formData, driverMobile: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                      placeholder="e.g. 9876543210"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Expected Delivery Date *
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.expectedDeliveryDate}
+                      onChange={(e) => setFormData({ ...formData, expectedDeliveryDate: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                    />
+                  </div>
+                </div>
+              </section>
+
               {/* Status Section */}
               <section>
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">
@@ -1047,7 +1171,7 @@ export default function OutwardStock() {
                   value={formatDate(selectedRecord.date)}
                 />
                 <DrawerField
-                  label="Client / Buyer"
+                  label="Distributor / Buyer"
                   value={selectedRecord.client}
                 />
                 <DrawerField

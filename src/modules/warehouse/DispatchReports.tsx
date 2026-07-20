@@ -59,7 +59,7 @@ export default function DispatchReports() {
       
       let deliveryStatus = c.status as string;
       if (c.status === 'Cancelled') deliveryStatus = 'Returned';
-      if (c.status === 'Generated') deliveryStatus = 'Pending';
+      if (c.status === 'Generated') deliveryStatus = 'In Transit';
       
       return {
         id: c.id,
@@ -301,7 +301,6 @@ export default function DispatchReports() {
         if (row.deliveryStatus === 'Delivered') variant = 'success';
         if (row.deliveryStatus === 'In Transit') variant = 'info';
         if (row.deliveryStatus === 'Delayed' || row.deliveryStatus === 'Returned') variant = 'danger';
-        if (row.deliveryStatus === 'Pending') variant = 'warning';
         return <Badge variant={variant}>{row.deliveryStatus}</Badge>;
       },
     },
@@ -355,7 +354,6 @@ export default function DispatchReports() {
           onChange={setStatusFilter}
           options={[
             { label: 'All Statuses', value: 'All' },
-            { label: 'Pending', value: 'Pending' },
             { label: 'In Transit', value: 'In Transit' },
             { label: 'Delivered', value: 'Delivered' },
             { label: 'Delayed', value: 'Delayed' },

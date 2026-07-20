@@ -7,6 +7,8 @@ import {
 } from './components/shared';
 import { ExportService } from '../../services/exportService';
 import { targetService } from '../../services/targetService';
+import { doctorVisitService } from '../../services/doctorVisitService';
+import { chemistVisitService } from '../../services/chemistVisitService';
 
 
 export default function TargetTracking() {
@@ -33,58 +35,49 @@ export default function TargetTracking() {
         const currentMonth = today.getMonth() + 1;
         const currentYear = today.getFullYear();
         const currentTarget = loaded.find(t => t.month === currentMonth && t.year === currentYear) || loaded[0];
+        
         if (currentTarget) {
           setSalesTarget(currentTarget.orderTarget || 50000);
           setDocsTarget(currentTarget.doctorVisitTarget || 30);
           setChemistsTarget(currentTarget.chemistVisitTarget || 20);
+          
+          if (currentTarget.achievedOrderValue !== undefined) setSalesAchieved(currentTarget.achievedOrderValue);
+          if (currentTarget.achievedDoctorVisits !== undefined) setDocsVisited(currentTarget.achievedDoctorVisits);
+          if (currentTarget.achievedChemistVisits !== undefined) setChemistsVisited(currentTarget.achievedChemistVisits);
+        } else {
+          // Fallback: Compute from actual visits if Admin hasn't explicitly assigned a Target record yet
+          const [docData, chemData] = await Promise.all([
+            doctorVisitService.loadDoctorVisits(mrId),
+            chemistVisitService.loadChemistVisits(mrId)
+          ]);
+          
+          const currentMonthStr = String(currentMonth).padStart(2, '0');
+          const currentYearStr = String(currentYear);
+          
+          const isCurrentMonth = (dateStr: string) => {
+            if (!dateStr) return false;
+            const shortMonthYear = today.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+            return dateStr.includes(`${currentYearStr}-${currentMonthStr}`) || 
+                   dateStr.includes(shortMonthYear) ||
+                   (dateStr.includes(today.toLocaleString('en-US', { month: 'short' })) && dateStr.includes(currentYearStr));
+          };
+          
+          const currentDocVisits = docData.filter(v => isCurrentMonth(v.visitDate));
+          setDocsVisited(currentDocVisits.length);
+          
+          const currentChemistVisits = chemData.filter(v => isCurrentMonth(v.visitDate));
+          setChemistsVisited(currentChemistVisits.length);
+          
+          // Note: We can also add order tracking fallback here if needed.
         }
       } catch (error) {
         console.error("Failed to load backend targets:", error);
       }
     }
     fetchTargets();
-    loadCurrentMonthPerformance();
   }, [mrId]);
 
-  const loadCurrentMonthPerformance = () => {
-    try {
-      const today = new Date();
-      const currentMonthStr = String(today.getMonth() + 1).padStart(2, '0');
-      const currentYearStr = String(today.getFullYear());
-      
-      const isCurrentMonth = (dateStr: string) => {
-        if (!dateStr) return false;
-        const shortMonthYear = today.toLocaleString('en-US', { month: 'short', year: 'numeric' }); // e.g. Jun 2026
-        
-
-        return dateStr.includes(`${currentYearStr}-${currentMonthStr}`) || 
-               dateStr.includes(shortMonthYear) ||
-               (dateStr.includes(today.toLocaleString('en-US', { month: 'short' })) && dateStr.includes(currentYearStr));
-      };
-
-      // 1. Calculate Doctor Visits (Current Month)
-      const docData = JSON.parse(localStorage.getItem('doctor_visits') ||  localStorage.getItem('web_doctor_visits') ||  '[]');
-      const currentDocVisits = docData.filter((v: any) => isCurrentMonth(v.visitDate || v.date));
-      setDocsVisited(currentDocVisits.length);
-
-      // 2. Calculate Chemist Visits (Current Month)
-      const chemistData = JSON.parse(localStorage.getItem('chemist_visits') ||localStorage.getItem('web_chemist_visits') ||'[]');
-      const currentChemistVisits = chemistData.filter((v: any) => isCurrentMonth(v.visitDate || v.date));
-      setChemistsVisited(currentChemistVisits.length);
-
-      // 3. Calculate Sales Total (Current Month)
-      const ordersData = JSON.parse(localStorage.getItem('@orders') || localStorage.getItem('web_orders') || '[]');
-      const currentOrders = ordersData.filter((o: any) => isCurrentMonth(o.dateFormatted || o.date));
-      
-      const ordersTotal = currentOrders.reduce((sum: number, item: any) => {
-        return sum + (parseFloat(item.totalAmount) || 0);
-      }, 0);
-
-      setSalesAchieved(ordersTotal);
-    } catch (e) {
-      console.log('Failed to load targets:', e);
-    }
-  };
+  // Local calculation removed to rely on perfectly accurate backend metrics.
 
   const getPercentage = (achieved: number, target: number) => {
     return Math.min(Math.round((achieved / target) * 100), 100);

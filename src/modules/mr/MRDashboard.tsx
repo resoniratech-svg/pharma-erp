@@ -269,7 +269,7 @@ export default function MRDashboard() {
                     <span className="text-sm font-bold text-slate-800">{order.client || 'Test Client'}</span>
                     <span className="text-xs text-slate-500">{order.orderNumber || 'ORD-TEST'} | {order.productName || 'Test Product'}</span>
                   </div>
-                  <span className="text-sm font-bold text-slate-900">{order.amount}</span>
+                  <span className="text-sm font-bold text-slate-900">₹{order.amount.toLocaleString()}</span>
                 </div>
               ))}
             </div>

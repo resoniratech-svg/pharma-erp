@@ -49,17 +49,26 @@ export default function CurrentStock() {
 
   const loggedInDistributorCode = useMemo(() => {
     const user = authService.getCurrentUser();
-    return (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || '';
+    const role = localStorage.getItem('activeRole') || (user as any)?.role || '';
+    if (role === 'SUPER_ADMIN') {
+      return '';
+    }
+    let code = (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || '';
+    if (!code && user?.email === 'distributor@pharmaerp.com') {
+      return 'DIST-001';
+    }
+    return code;
   }, []);
 
   useEffect(() => {
     // Load inventory from service and filter by logged-in distributor
     if (loggedInDistributorCode) {
-      const allInventory = inventoryService.getAll();
-      const myInventory = allInventory.filter(
-        record => record.warehouseId === loggedInDistributorCode || record.warehouseCode === loggedInDistributorCode
-      );
-      setRawInventory(myInventory);
+      inventoryService.loadInventory().then(allInventory => {
+        const myInventory = allInventory.filter(
+          record => record.warehouseId === loggedInDistributorCode || record.warehouseCode === loggedInDistributorCode
+        );
+        setRawInventory([...myInventory].sort((a, b) => Number(b.id) - Number(a.id)));
+      });
     }
   }, [loggedInDistributorCode]);
 
@@ -84,7 +93,7 @@ export default function CurrentStock() {
       const myInventory = updatedInventory.filter(
         record => record.warehouseId === loggedInDistributorCode || record.warehouseCode === loggedInDistributorCode
       );
-      setRawInventory(myInventory);
+      setRawInventory([...myInventory].sort((a, b) => Number(b.id) - Number(a.id)));
     }
   };
 

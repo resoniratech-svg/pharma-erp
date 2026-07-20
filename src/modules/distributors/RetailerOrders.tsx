@@ -5,6 +5,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generateInvoicePdf } from '../../documents/generators/pdfGenerator';
 import { billingService } from '../../services/billingService';
+import { paymentService } from '../../services/paymentService';
 
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
@@ -44,9 +45,13 @@ interface RetailerOrder {
   paymentStatus: 'Paid' | 'Unpaid' | 'Partial';
   status: OrderStatus;
   items: OrderItem[];
-  schemeInfo: SchemeInfo;
-  grossAmount: number;
+  schemeInfo?: SchemeInfo;
+  schemeDiscount?: number;
+  grossAmount?: number;
+  amount?: number;
   netAmount: number;
+  distributorCode?: string;
+  distributorId?: string;
 }
 
 // --- Seed Mock Data if not present ---
@@ -104,7 +109,10 @@ const initialOrders: RetailerOrder[] = [
   }
 ];
 
-const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCurrency = (amount: number | undefined | null) => {
+  if (amount === null || amount === undefined || isNaN(amount)) return '₹ 0.00';
+  return `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+};
 
 const formatCurrencyOrDash = (amount: number | null | undefined) => {
   if (amount === null || amount === undefined || isNaN(amount)) return '--';
@@ -120,17 +128,17 @@ export default function RetailerOrders() {
     return str ? JSON.parse(str) : null;
   }, []);
 
-  // ==========================================================================
-  // DEVELOPMENT DISTRIBUTOR IDENTITY CONTEXT
-  // (In production, replace this block with: const loggedInDistributorCode = authUser?.linkedDistributorCode || null;)
-  // ==========================================================================
   const loggedInDistributorCode = useMemo(() => {
-    if (authUser?.linkedDistributorCode) {
-      return authUser.linkedDistributorCode;
+    const role = localStorage.getItem('activeRole') || authUser?.role || '';
+    if (role === 'SUPER_ADMIN') {
+      return '';
     }
-    return 'DIST-001'; 
+    let code = authUser?.linkedDistributorCode || authUser?.distributorCode || '';
+    if (!code && (authUser?.email === 'distributor@pharmaerp.com' || authUser?.fullName === 'Amit Kumar' || role === 'DISTRIBUTOR')) {
+      return 'DIST-001';
+    }
+    return code;
   }, [authUser]);
-  // ==========================================================================
 
   // 3. Resolve Distributor Details from Distributor Master
   const loggedInDistributor = useMemo(() => {
@@ -253,6 +261,30 @@ export default function RetailerOrders() {
     setViewOrder(null);
   };
 
+  const updateOrderPaymentStatus = (orderId: string, newStatus: string) => {
+    const target = orders.find(o => o.id === orderId);
+    if (target && newStatus === 'Paid') {
+      try {
+        paymentService.create({
+          invoiceNo: target.invoiceNo || target.orderNo,
+          amount: target.netAmount || target.amount || 0,
+          paymentDate: new Date().toISOString().split('T')[0],
+          paymentMethod: 'Bank Transfer',
+          transactionRef: `TXN-${Math.floor(100000 + Math.random() * 900000)}`,
+          status: 'Completed',
+          notes: `Payment recorded for order ${target.orderNo}`,
+          retailerCode: target.retailerCode,
+          retailerName: target.retailerName || (target as any).retailer
+        });
+      } catch (e) {
+        console.error("Failed to auto-create payment entry:", e);
+      }
+    }
+    const updated = orders.map(o => o.id === orderId ? { ...o, paymentStatus: newStatus as any } : o);
+    saveOrders(updated);
+    setViewOrder(null);
+  };
+
   const handleGenerateInvoice = (order: RetailerOrder) => {
     const nextInvoiceNo = billingService.getNextInvoiceNo();
     const invoiceDate = new Date().toISOString().split('T')[0];
@@ -280,9 +312,9 @@ export default function RetailerOrders() {
         total: item.amount,
         stock: 9999
       })),
-      subTotal: order.grossAmount,
-      cgstTotal: order.grossAmount * 0.06,
-      sgstTotal: order.grossAmount * 0.06,
+      subTotal: order.grossAmount ?? order.amount ?? 0,
+      cgstTotal: (order.grossAmount ?? order.amount ?? 0) * 0.06,
+      sgstTotal: (order.grossAmount ?? order.amount ?? 0) * 0.06,
       igstTotal: 0,
       grandTotal: order.netAmount,
       paymentMode: 'Credit',
@@ -318,8 +350,8 @@ export default function RetailerOrders() {
         gstPct: 12,
         amount: item.amount
       })),
-      subtotal: order.grossAmount,
-      gstAmount: order.grossAmount * 0.12,
+      subtotal: order.grossAmount ?? order.amount ?? 0,
+      gstAmount: (order.grossAmount ?? order.amount ?? 0) * 0.12,
       netAmount: order.netAmount,
       paidAmount: order.paymentStatus === 'Paid' ? order.netAmount : 0,
       outstandingAmount: order.paymentStatus === 'Paid' ? 0 : order.netAmount
@@ -329,19 +361,30 @@ export default function RetailerOrders() {
 
   // --- Filtering ---
   const visibleOrders = useMemo(() => {
-    if (activeRole !== ROLE_DISTRIBUTOR || !loggedInDistributorCode) return [];
+    if (activeRole !== ROLE_DISTRIBUTOR) return [];
 
     return orders.filter(item => {
       const retailer = getRetailerDetails(item.retailerCode);
-      if (!retailer.code) return false;
+      
+      const explicitlyBelongs = item.distributorCode === loggedInDistributorCode || 
+                                item.distributorId === loggedInDistributorCode;
 
-      const isLinked = retailer.assignedDistributors.some((d: any) => 
-        d.code === loggedInDistributorCode || 
-        d.distributorCode === loggedInDistributorCode || 
-        d.id === loggedInDistributorCode
-      );
+      let isLinked = false;
+      if (Array.isArray(retailer.assignedDistributors)) {
+        isLinked = retailer.assignedDistributors.some((d: any) => 
+          d === loggedInDistributorCode ||
+          (d && (d.code === loggedInDistributorCode || 
+                 d.distributorCode === loggedInDistributorCode || 
+                 d.id === loggedInDistributorCode))
+        );
+      } else if (typeof retailer.assignedDistributors === 'string') {
+         isLinked = retailer.assignedDistributors === loggedInDistributorCode;
+      }
 
-      if (!isLinked) return false;
+      // If it's a mock order and no code is provided, show it if we are the default distributor
+      const isMockDefault = !item.distributorCode && loggedInDistributorCode === 'DIST-001';
+
+      if (!explicitlyBelongs && !isLinked && !isMockDefault) return false;
 
       const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase()) || 
                           (retailer.name && retailer.name.toLowerCase().includes(search.toLowerCase()));
@@ -436,7 +479,9 @@ export default function RetailerOrders() {
 
   const getStatusVariant = (status: OrderStatus): BadgeVariant => {
     switch (status) {
-      case 'Pending Approval': return 'warning';
+      case 'Pending Approval': 
+      case 'Pending': 
+        return 'warning';
       case 'Approved': return 'info';
       case 'Invoice Generated': return 'neutral';
       case 'Dispatched': return 'info';
@@ -455,7 +500,12 @@ export default function RetailerOrders() {
   // --- Columns ---
   const columns: Column<RetailerOrder>[] = [
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-slate-900">{row.orderNo}</span> },
-    { key: 'retailerName', label: 'Retailer', render: (row) => <span className="font-semibold text-violet-700">{getRetailerDetails(row.retailerCode).name || '--'}</span> },
+    { key: 'retailerName', label: 'Retailer', render: (row) => <span className="font-semibold text-violet-700">{row.retailerName || row.retailer || getRetailerDetails(row.retailerCode).name || '--'}</span> },
+    { key: 'products', label: 'Products', render: (row) => {
+        const productNames = row.items?.map(i => i.productName).join(', ') || '--';
+        return <span className="text-sm text-slate-500 truncate max-w-[200px] block" title={productNames}>{productNames}</span>;
+      } 
+    },
     { key: 'date', label: 'Order Date' },
     { key: 'netAmount', label: 'Order Value', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.netAmount)}</span> },
     { key: 'paymentStatus', label: 'Payment Status', render: (row) => <Badge variant={getPaymentVariant(row.paymentStatus)}>{row.paymentStatus}</Badge> },
@@ -471,7 +521,7 @@ export default function RetailerOrders() {
               <Eye className="w-4 h-4" />
             </button>
             
-            {currentStatus === 'Pending Approval' && (
+            {(currentStatus === 'Pending Approval' || currentStatus === 'Pending') && (
               <div className="flex items-center gap-2 ml-1">
                 <button onClick={() => updateOrderStatus(row.id, 'Approved')} className="flex items-center gap-1 px-2.5 py-1 text-xs font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-md transition-colors shadow-sm" title="Approve">
                   <CheckCircle className="w-3.5 h-3.5" />
@@ -589,8 +639,8 @@ export default function RetailerOrders() {
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Retailer Information</h3>
                 <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                  <DrawerField label="Retailer Name" value={<span className="font-medium text-violet-700">{retailerDetails.name || '--'}</span>} />
-                  <DrawerField label="Retailer Code" value={retailerDetails.code || '--'} />
+                  <DrawerField label="Retailer Name" value={<span className="font-medium text-violet-700">{viewOrder.retailerName || (viewOrder as any).retailer || retailerDetails.name || '--'}</span>} />
+                  <DrawerField label="Retailer Code" value={viewOrder.retailerCode || retailerDetails.code || '--'} />
                   <DrawerField label="GST Number" value={retailerDetails.gstNumber || '--'} />
                   <DrawerField label="Mobile Number" value={retailerDetails.mobileNumber || '--'} />
                   <DrawerField label="Address" value={retailerDetails.address || '--'} />
@@ -631,9 +681,9 @@ export default function RetailerOrders() {
               <div>
                 <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Scheme Information</h3>
                 <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                  <DrawerField label="Applied Scheme" value={<span className="text-emerald-600 font-medium">{viewOrder.schemeInfo.appliedScheme}</span>} />
-                  <DrawerField label="Discount Amount" value={<span className="text-slate-900 font-medium">{formatCurrency(viewOrder.schemeInfo.discountAmount)}</span>} />
-                  <DrawerField label="Free Quantity" value={viewOrder.schemeInfo.freeQuantity > 0 ? <span className="font-medium text-emerald-600">{viewOrder.schemeInfo.freeQuantity} units</span> : 'None'} />
+                  <DrawerField label="Applied Scheme" value={<span className="text-emerald-600 font-medium">{viewOrder.schemeInfo?.appliedScheme || 'N/A'}</span>} />
+                  <DrawerField label="Discount Amount" value={<span className="text-slate-900 font-medium">{formatCurrency(viewOrder.schemeInfo?.discountAmount ?? viewOrder.schemeDiscount ?? 0)}</span>} />
+                  <DrawerField label="Free Quantity" value={viewOrder.schemeInfo?.freeQuantity ? (viewOrder.schemeInfo.freeQuantity > 0 ? <span className="font-medium text-emerald-600">{viewOrder.schemeInfo.freeQuantity} units</span> : 'None') : 'None'} />
                 </div>
               </div>
 
@@ -642,11 +692,11 @@ export default function RetailerOrders() {
                 <div className="space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
                   <div className="flex justify-between text-sm text-slate-600">
                     <span>Gross Amount</span>
-                    <span className="font-medium text-slate-900">{formatCurrency(viewOrder.grossAmount)}</span>
+                    <span className="font-medium text-slate-900">{formatCurrency(viewOrder.grossAmount ?? viewOrder.amount ?? 0)}</span>
                   </div>
                   <div className="flex justify-between text-sm text-emerald-600">
                     <span>Discount Amount</span>
-                    <span>- {formatCurrency(viewOrder.schemeInfo.discountAmount)}</span>
+                    <span>- {formatCurrency(viewOrder.schemeInfo?.discountAmount ?? viewOrder.schemeDiscount ?? 0)}</span>
                   </div>
                   <div className="flex justify-between text-base font-bold text-slate-900 pt-3 border-t border-slate-200 mt-2">
                     <span>Net Amount</span>
@@ -656,7 +706,7 @@ export default function RetailerOrders() {
               </div>
 
               <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-                {currentStatus === 'Pending Approval' && (
+                {(currentStatus === 'Pending Approval' || currentStatus === 'Pending') && (
                   <>
                     <ActionButton variant="secondary" onClick={() => updateOrderStatus(viewOrder.id, 'Rejected')}>Reject Order</ActionButton>
                     <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Approved')}>Approve Order</ActionButton>
@@ -664,6 +714,11 @@ export default function RetailerOrders() {
                 )}
                 {currentStatus === 'Approved' && (
                   <ActionButton onClick={() => handleGenerateInvoice(viewOrder)}>Generate Invoice</ActionButton>
+                )}
+                {(viewOrder.paymentStatus === 'Unpaid' || viewOrder.paymentStatus === 'Partial') && (
+                  <button onClick={() => updateOrderPaymentStatus(viewOrder.id, 'Paid')} className="px-4 py-2 text-sm font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 hover:bg-emerald-100 rounded-lg transition-colors shadow-sm">
+                    Mark as Paid
+                  </button>
                 )}
                 {currentStatus === 'Invoice Generated' && (
                   <ActionButton onClick={() => handleDownloadInvoice(viewOrder)}>Download Invoice</ActionButton>

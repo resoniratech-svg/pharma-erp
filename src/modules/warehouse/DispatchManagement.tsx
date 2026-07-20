@@ -90,6 +90,7 @@ export default function DispatchManagement() {
   const [newDriverName, setNewDriverName] = useState('');
   const [newDriverMobile, setNewDriverMobile] = useState('');
   const [newRemarks, setNewRemarks] = useState('');
+  const [newExpectedDeliveryDate, setNewExpectedDeliveryDate] = useState('');
   const [newProducts, setNewProducts] = useState<OrderProduct[]>([]);
 
   const [showTransporterDropdown, setShowTransporterDropdown] = useState(false);
@@ -247,6 +248,19 @@ export default function DispatchManagement() {
       setNewCustomer(record.distributorName);
       setDispatchAddress(record.deliveryLocation || 'Address from customer profile');
       setNewProducts([]);
+
+      if (record.expectedDeliveryDate) {
+        let formatted = record.expectedDeliveryDate;
+        if (record.expectedDeliveryDate.includes('-')) {
+          const parts = record.expectedDeliveryDate.split('-');
+          if (parts.length === 3 && parts[2].length === 4) {
+            formatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
+          }
+        }
+        setNewExpectedDeliveryDate(formatted);
+      } else {
+        setNewExpectedDeliveryDate('');
+      }
       
       const orderProducts = record.items || [];
       const validWarehouses = warehouses.filter(wh => {
@@ -523,7 +537,8 @@ export default function DispatchManagement() {
         remarks: tRemarks,
         totalItems: newProducts.length,
         totalQuantity: totalQty,
-        orderData: selectedReference
+        orderData: selectedReference,
+        expectedDeliveryDate: newExpectedDeliveryDate
       };
       
       const newDispatchObj: any = distributorDispatchService.processDispatch(dispatchData, currentUser);
@@ -543,6 +558,7 @@ export default function DispatchManagement() {
       setNewDriverName('');
       setNewDriverMobile('');
       setNewRemarks('');
+      setNewExpectedDeliveryDate('');
       setNewProducts([]);
       setSelectedInventoryId('');
       setDispatchType('');
@@ -615,6 +631,7 @@ export default function DispatchManagement() {
     setNewDriverName('');
     setNewDriverMobile('');
     setNewRemarks('');
+    setNewExpectedDeliveryDate('');
     setNewProducts([]);
     setSelectedInventoryId('');
     setDispatchType('');
@@ -803,6 +820,10 @@ export default function DispatchManagement() {
               <div>
                 <label className="block text-sm font-medium mb-1">Dispatch Date *</label>
                 <input type="date" value={newDate} onChange={e => setNewDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Expected Delivery Date</label>
+                <input type="date" value={newExpectedDeliveryDate} onChange={e => setNewExpectedDeliveryDate(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
               </div>
               <div>
                 <label className="block text-sm font-medium mb-1">Dispatch Type *</label>

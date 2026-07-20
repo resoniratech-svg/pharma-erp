@@ -87,8 +87,9 @@
 
 //////////////////////////////////////////////////////////////
 
-import { useState } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { AlertOctagon, AlertTriangle, BellRing, Activity } from 'lucide-react';
+import authService from '../../services/authService';
 import {
   PageHeader,
   FilterBar,
@@ -122,6 +123,57 @@ export default function ActivityNotifications() {
   const [search, setSearch] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [moduleFilter, setModuleFilter] = useState(''); // 🛡️ New Module Filter State
+  const [data, setData] = useState<NotificationLog[]>([]);
+
+  const loggedInDistributorCode = useMemo(() => {
+    const user = authService.getCurrentUser();
+    const role = localStorage.getItem('activeRole') || (user as any)?.role || '';
+    if (role === 'SUPER_ADMIN') return 'DIST-001';
+    return (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || 'DIST-001';
+  }, []);
+
+  useEffect(() => {
+    // Generate dynamic notifications from real data
+    const logs: NotificationLog[] = [];
+    
+    // 1. Retailer Orders
+    try {
+      const orders = JSON.parse(localStorage.getItem('pharma_erp_retailer_orders') || '[]');
+      orders
+        .filter((o: any) => o.distributorCode === loggedInDistributorCode)
+        .slice(0, 5)
+        .forEach((o: any, idx: number) => {
+          logs.push({
+            id: `order-${idx}`,
+            timestamp: 'Today, 10:30 AM',
+            message: `New order ${o.orderNo || o.id} received from ${o.retailerName || 'Retailer'}`,
+            module: 'Sales',
+            type: 'Info',
+            status: 'Unread'
+          });
+        });
+    } catch (e) {}
+
+    // 2. Outbound Dispatches
+    try {
+      const dispatches = JSON.parse(localStorage.getItem('pharma_erp_outbound_dispatches') || '[]');
+      dispatches
+        .filter((d: any) => d.distributorCode === loggedInDistributorCode)
+        .slice(0, 3)
+        .forEach((d: any, idx: number) => {
+          logs.push({
+            id: `dispatch-${idx}`,
+            timestamp: 'Yesterday, 02:20 PM',
+            message: `Shipment ${d.dispatchNo} marked as ${d.status || 'In Transit'} for ${d.retailerName || 'Retailer'}`,
+            module: 'Inventory',
+            type: d.status === 'Exception' ? 'Critical' : 'Info',
+            status: 'Read'
+          });
+        });
+    } catch (e) {}
+
+    setData(logs.length > 0 ? logs : mockData);
+  }, [loggedInDistributorCode]);
 
   const columns: Column<NotificationLog>[] = [
     { key: 'timestamp', label: 'Date & Time', render: (row) => <span className="text-slate-600 text-xs">{row.timestamp}</span> },
@@ -151,17 +203,17 @@ export default function ActivityNotifications() {
     }
   ];
 
-  const filteredData = mockData.filter((item) => {
+  const filteredData = data.filter((item) => {
     const matchSearch = item.message.toLowerCase().includes(search.toLowerCase());
     const matchType = typeFilter ? item.type === typeFilter : true;
     const matchModule = moduleFilter ? item.module === moduleFilter : true; // 🛡️ Added to filtering logic
     return matchSearch && matchType && matchModule;
   });
 
-  const totalNotifications = mockData.length;
-  const unreadCount = mockData.filter(m => m.status === 'Unread').length;
-  const criticalLogs = mockData.filter(m => m.type === 'Critical').length;
-  const warningLogs = mockData.filter(m => m.type === 'Warning').length;
+  const totalNotifications = data.length;
+  const unreadCount = data.filter(m => m.status === 'Unread').length;
+  const criticalLogs = data.filter(m => m.type === 'Critical').length;
+  const warningLogs = data.filter(m => m.type === 'Warning').length;
 
   return (
     <div className="animate-in fade-in duration-500">

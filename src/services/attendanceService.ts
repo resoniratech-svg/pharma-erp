@@ -34,6 +34,39 @@ export const attendanceService = {
     return attendanceRecords;
   },
 
+  async loadAllAttendance(): Promise<AttendanceRecord[]> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>(`/attendance`);
+      if (response.success && Array.isArray(response.data)) {
+        const mappedRecords = response.data.map(r => {
+          const checkIn = r.checkInTime ? new Date(r.checkInTime) : null;
+          const checkOut = r.checkOutTime ? new Date(r.checkOutTime) : null;
+          return {
+            id: String(r.id),
+            date: r.attendanceDate ? r.attendanceDate.split('T')[0] : new Date().toISOString().split('T')[0],
+            repName: r.mr?.name || "Medical Representative",
+            checkInTime: checkIn ? checkIn.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-',
+            checkOutTime: checkOut ? checkOut.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-',
+            status: 'Present',
+            location: checkIn ? `Lat: ${r.checkInLatitude}, Lng: ${r.checkInLongitude}` : 'N/A',
+            latitude: r.checkInLatitude || undefined,
+            longitude: r.checkInLongitude || undefined,
+            checkInDateTime: r.checkInTime || undefined,
+            checkOutDateTime: r.checkOutTime || undefined,
+            dayStatus: checkOut ? 'Completed' : 'In-Progress',
+            checkOutLatitude: r.checkOutLatitude || undefined,
+            checkOutLongitude: r.checkOutLongitude || undefined,
+          } as AttendanceRecord;
+        });
+        
+        return mappedRecords;
+      }
+    } catch (e) {
+      console.error("Failed to load all attendance from backend:", e);
+    }
+    return [];
+  },
+
   async loadAttendance(mrId: number): Promise<AttendanceRecord[]> {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>(`/attendance`);

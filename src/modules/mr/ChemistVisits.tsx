@@ -525,7 +525,15 @@ export default function ChemistVisits() {
   useEffect(() => {
     async function loadData() {
       try {
-        const loadedVisits = await chemistVisitService.loadChemistVisits(mrId);
+        const activeRole = localStorage.getItem('activeRole')?.toLowerCase();
+        let loadedVisits;
+        
+        if (activeRole === 'super-admin' || activeRole === 'super_admin' || activeRole === 'admin') {
+          loadedVisits = await chemistVisitService.loadAllChemistVisits();
+        } else {
+          loadedVisits = await chemistVisitService.loadChemistVisits(mrId);
+        }
+        
         const mappedVisits = loadedVisits.map(v => ({
           id: v.id,
           mrName: '',
@@ -544,6 +552,7 @@ export default function ChemistVisits() {
           status: 'Completed' as const,
         }));
         setVisits(mappedVisits);
+        
         const loadedChemists = await chemistService.getChemists();
         setChemists(loadedChemists);
       } catch (error) {
@@ -648,7 +657,13 @@ export default function ChemistVisits() {
         longitude: visitLng,
       });
 
-      const updatedList = await chemistVisitService.loadChemistVisits(mrId);
+      const activeRole = localStorage.getItem('activeRole')?.toLowerCase();
+      let updatedList;
+      if (activeRole === 'super-admin' || activeRole === 'super_admin' || activeRole === 'admin') {
+        updatedList = await chemistVisitService.loadAllChemistVisits();
+      } else {
+        updatedList = await chemistVisitService.loadChemistVisits(mrId);
+      }
       setVisits(updatedList.map(v => ({
         id: v.id,
         mrName: '',
@@ -880,9 +895,12 @@ export default function ChemistVisits() {
 
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-1">Mobile Number</label>
-            <input type="tel" value={newMobile} readOnly={selectedChemId !== 'NEW_CHEMIST'} onChange={(e) => setNewMobile(e.target.value)}
+            <input type="tel" value={newMobile} readOnly={selectedChemId !== 'NEW_CHEMIST'} onChange={(e) => {
+                const cleaned = e.target.value.replace(/[^0-9]/g, '').slice(0, 10);
+                setNewMobile(cleaned);
+              }}
               className={`w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none ${selectedChemId === 'NEW_CHEMIST' ? 'bg-white focus:border-violet-500 text-slate-900' : 'bg-slate-50 text-slate-500'}`}
-              placeholder={selectedChemId === 'NEW_CHEMIST' ? 'Enter Mobile Number' : 'e.g. 9876543210'} />
+              placeholder={selectedChemId === 'NEW_CHEMIST' ? 'Enter Mobile Number' : 'e.g. 9876543210'} maxLength={10} />
           </div>
 
           <div>

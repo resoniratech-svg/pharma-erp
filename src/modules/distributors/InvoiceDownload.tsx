@@ -64,11 +64,15 @@ const formatCurrency = (amount: number) => {
 
 const getDDMMYYYY = (dateStr: string) => {
   if (!dateStr || dateStr === '-') return '-';
-  if (dateStr.includes('-')) {
-    const parts = dateStr.split('-');
+  let cleanStr = dateStr;
+  if (dateStr.includes('T')) {
+    cleanStr = dateStr.split('T')[0];
+  }
+  if (cleanStr.includes('-')) {
+    const parts = cleanStr.split('-');
     if (parts.length === 3) {
       if (parts[2].length === 4) { // DD-MM-YYYY
-        return dateStr;
+        return cleanStr;
       } else if (parts[0].length === 4) { // YYYY-MM-DD
         const d = parts[2].padStart(2, '0');
         const m = parts[1].padStart(2, '0');
@@ -171,10 +175,10 @@ export default function InvoiceDownload() {
         id: it.id,
         productName: it.productName,
         productCode: it.productCode,
-        quantity: it.qty,
-        unitPrice: it.ptr,
-        gstPct: it.gst,
-        lineAmount: it.amount,
+        quantity: it.qty ?? it.quantity ?? 0,
+        unitPrice: it.ptr ?? it.rate ?? it.unitPrice ?? 0,
+        gstPct: it.gst ?? it.gstPct ?? 0,
+        lineAmount: it.amount ?? it.lineAmount ?? 0,
         batchNumber: it.batchNumber,
         expiry: it.expiry
       }));
@@ -202,8 +206,8 @@ export default function InvoiceDownload() {
         id: inv.id,
         invoiceNo: inv.invoiceNo,
         orderNo: inv.orderNo,
-        retailer: inv.retailerName,
-        retailerCode: inv.retailerCode,
+        retailer: inv.retailerName || inv.retailer,
+        retailerCode: inv.retailerCode || (inv as any).retailerCode || '',
         distributorCode: inv.distributorCode,
         billingAddress: inv.billingAddress,
         gstNumber: 'N/A', // fallback

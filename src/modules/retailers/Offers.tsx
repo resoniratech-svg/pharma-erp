@@ -38,6 +38,53 @@ export default function Offers() {
       } catch (e) {
         setAllOffers([]);
       }
+    } else {
+      const defaultOffers = [
+        {
+          id: 'o_1',
+          offerCode: 'OFF001',
+          offerName: 'Monsoon Volume Boost',
+          offerType: 'Volume Offer',
+          applicableLevel: 'All Assigned Retailers',
+          applicableSelection: 'All Visible Products',
+          applicableProductType: 'All Visible Products',
+          minOrderValue: 25000,
+          maxBenefit: 5000,
+          offerValue: 10,
+          priority: 'High',
+          validFrom: '2026-07-01',
+          validTo: '2026-07-31',
+          status: 'Active',
+          remarks: 'Applicable on orders above 25k.',
+          distributorCode: 'DIST-001',
+          distributorName: 'Metro Pharma Distributors',
+          createdBy: 'System',
+          createdDate: new Date().toISOString()
+        },
+        {
+          id: 'o_2',
+          offerCode: 'OFF003',
+          offerName: 'Special Pharmacist Discount',
+          offerType: 'Discount Offer',
+          applicableLevel: 'All Assigned Retailers',
+          applicableSelection: 'All Visible Products',
+          applicableProductType: 'All Visible Products',
+          minOrderValue: 5000,
+          maxBenefit: 1000,
+          offerValue: 5,
+          priority: 'Medium',
+          validFrom: '2026-07-01',
+          validTo: '2026-07-31',
+          status: 'Active',
+          remarks: 'Applicable on orders above 5k.',
+          distributorCode: 'DIST-001',
+          distributorName: 'Metro Pharma Distributors',
+          createdBy: 'System',
+          createdDate: new Date().toISOString()
+        }
+      ];
+      setAllOffers(defaultOffers);
+      localStorage.setItem('pharma_erp_trade_offers', JSON.stringify(defaultOffers));
     }
   }, []);
 
@@ -87,6 +134,11 @@ export default function Offers() {
     const distCode = user.linkedDistributorCode || (user as any).distributorCode;
     if (distCode) {
       return [{ code: distCode, name: 'Assigned Distributor' }];
+    }
+
+    const roleIdUpper = String(user.roleId || '').toUpperCase();
+    if (roleIdUpper === 'RETAILER') {
+      return [{ code: 'DIST-001', name: 'Metro Pharma Distributors' }];
     }
 
     if (user.roleId === 'Super Admin' || user.roleId === 'Admin' || user.roleId === 'Distributor' || user.roleId === 'MR') {

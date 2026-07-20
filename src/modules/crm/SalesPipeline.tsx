@@ -229,39 +229,39 @@ export default function SalesPipeline() {
         />
       </div>
 
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm min-h-[400px] flex flex-col items-center justify-center">
-         <p className="text-slate-500 font-medium mb-6">Real-Time Pipeline Funnel Visualization</p>
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+         <p className="text-slate-500 font-medium mb-6">Pipeline Stages Overview</p>
          
          {/* ✅ Added Professional Empty State */}
          {!hasData ? (
-           <div className="w-full max-w-xl h-48 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-500 bg-slate-50/50">
+           <div className="w-full h-48 border-2 border-dashed border-slate-200 rounded-xl flex flex-col items-center justify-center text-slate-500 bg-slate-50/50">
              <p className="font-semibold text-slate-700">No pipeline data available.</p>
              <p className="text-sm mt-1 text-slate-500">Create and assign leads to start tracking sales performance.</p>
            </div>
          ) : (
-           <div className="w-full max-w-xl space-y-4">
+           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
              {/* Stage 1 */}
-             <div className="w-full h-12 bg-slate-100 rounded-lg border border-slate-200 flex items-center justify-between px-6 transition-all hover:bg-slate-200">
-                <span className="font-semibold text-slate-700">1. Prospecting / Leads</span>
-                <span className="text-slate-600 font-mono font-semibold">{metrics.leads} Deals</span>
+             <div className="p-4 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition-colors">
+               <h4 className="text-slate-500 text-sm font-medium mb-1">1. Prospecting / Leads</h4>
+               <p className="text-2xl font-bold text-slate-800">{metrics.leads} <span className="text-sm font-normal text-slate-500">Deals</span></p>
              </div>
              
              {/* Stage 2 */}
-             <div className="w-11/12 h-12 bg-indigo-50 rounded-lg border border-indigo-100 mx-auto flex items-center justify-between px-6 transition-all hover:bg-indigo-100">
-                <span className="font-semibold text-indigo-700">2. Qualification</span>
-                <span className="text-indigo-600 font-mono font-semibold">{metrics.qualification} Deals</span>
+             <div className="p-4 rounded-xl border border-indigo-100 bg-indigo-50 hover:bg-indigo-100 transition-colors">
+               <h4 className="text-indigo-600 text-sm font-medium mb-1">2. Qualification</h4>
+               <p className="text-2xl font-bold text-indigo-900">{metrics.qualification} <span className="text-sm font-normal text-indigo-600/70">Deals</span></p>
              </div>
              
              {/* Stage 3 */}
-             <div className="w-4/5 h-12 bg-amber-50 rounded-lg border border-amber-100 mx-auto flex items-center justify-between px-6 transition-all hover:bg-amber-100">
-                <span className="font-semibold text-amber-700">3. Proposal / Negotiation</span>
-                <span className="text-amber-600 font-mono font-semibold">{metrics.negotiation} Deals</span>
+             <div className="p-4 rounded-xl border border-amber-100 bg-amber-50 hover:bg-amber-100 transition-colors">
+               <h4 className="text-amber-600 text-sm font-medium mb-1">3. Proposal / Negotiation</h4>
+               <p className="text-2xl font-bold text-amber-900">{metrics.negotiation} <span className="text-sm font-normal text-amber-600/70">Deals</span></p>
              </div>
              
              {/* Stage 4 */}
-             <div className="w-3/5 h-12 bg-emerald-50 rounded-lg border border-emerald-100 mx-auto flex items-center justify-between px-6 transition-all hover:bg-emerald-100">
-                <span className="font-semibold text-emerald-700">4. Closed Won</span>
-                <span className="text-emerald-600 font-mono font-semibold">{metrics.won} Deals</span>
+             <div className="p-4 rounded-xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 transition-colors">
+               <h4 className="text-emerald-600 text-sm font-medium mb-1">4. Closed Won</h4>
+               <p className="text-2xl font-bold text-emerald-900">{metrics.won} <span className="text-sm font-normal text-emerald-600/70">Deals</span></p>
              </div>
            </div>
          )}

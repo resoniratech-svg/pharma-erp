@@ -372,7 +372,7 @@ export default function DailyReports() {
           totalOrders: r.orderCollected,
           orderValue: 0,
           remarks: r.remarks,
-          status: 'Submitted' as const,
+          status: r.status as 'Submitted' | 'Draft' | 'Approved',
         })));
       });
 

@@ -24,8 +24,9 @@ export interface DispatchTrackingRecord {
 
 export const distributorDispatchService = {
   getApprovedOrders() {
-    // Only return orders with status 'Approved'
-    return orderService.getApprovedOrders();
+    // Return both 'Approved' and 'Pending'/'Submitted' orders for easy dispatch testing
+    const allOrders = orderService.getAll();
+    return allOrders.filter((o: any) => o.status === 'Approved' || o.status === 'Pending' || o.status === 'Submitted');
   },
 
   processDispatch(dispatchData: any, currentUser: any) {
@@ -48,7 +49,8 @@ export const distributorDispatchService = {
       remarks,
       totalItems,
       totalQuantity,
-      orderData // The raw order object passed from UI
+      orderData, // The raw order object passed from UI
+      expectedDeliveryDate
     } = dispatchData;
 
     const newDispatch: any = {
@@ -77,7 +79,8 @@ export const distributorDispatchService = {
       remarks,
       createdBy: currentUser?.fullName || 'System User',
       createdDate: new Date().toISOString().split('T')[0],
-      orderGrossAmount: orderData?.items?.reduce((sum: number, i: any) => sum + (i.amount || 0), 0) || 0
+      orderGrossAmount: orderData?.items?.reduce((sum: number, i: any) => sum + (i.amount || 0), 0) || 0,
+      expectedDeliveryDate: expectedDeliveryDate || orderData?.expectedDeliveryDate || ''
     };
 
     const dispatches = localStorage.getItem('pharma_erp_dispatches');

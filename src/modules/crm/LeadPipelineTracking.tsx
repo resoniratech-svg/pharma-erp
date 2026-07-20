@@ -203,7 +203,6 @@ interface CRMLead {
 const PIPELINE_STAGES = ['New', 'Assigned', 'Contacted', 'Qualified', 'Proposal Sent', 'Converted', 'Lost'];
 
 export default function LeadPipelineTracking() {
-  const [viewMode, setViewMode] = useState<'kanban'|'table'>('kanban');
   const [leads, setLeads] = useState<CRMLead[]>([]); // ✅ Applied interface
 
   useEffect(() => {
@@ -256,25 +255,6 @@ export default function LeadPipelineTracking() {
     } catch(e) { console.error("Failed to log pipeline activity", e); }
   };
 
-  // Drag and Drop Handlers
-  const handleDragStart = (e: React.DragEvent, leadId: string) => {
-    e.dataTransfer.setData('leadId', leadId);
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault(); 
-  };
-
-  const handleDrop = (e: React.DragEvent, stage: string) => {
-    e.preventDefault();
-    const leadId = e.dataTransfer.getData('leadId');
-    if (leadId) {
-      const lead = leads.find(l => l.id === leadId);
-      if (lead && lead.status !== stage) {
-        updateLeadStage(leadId, stage);
-      }
-    }
-  };
 
   // Auto-Probability Calculation
   const getProbability = (stage: string) => {
@@ -377,10 +357,6 @@ export default function LeadPipelineTracking() {
         subtitle="Monitor and drag-and-drop leads through every stage from creation to conversion."
         actions={
           <div className="flex gap-2">
-            <div className="bg-white border border-slate-200 p-1 rounded-lg flex mr-2">
-              <button onClick={() => setViewMode('kanban')} className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === 'kanban' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Kanban</button>
-              <button onClick={() => setViewMode('table')} className={`px-3 py-1 text-sm font-medium rounded-md transition-colors ${viewMode === 'table' ? 'bg-slate-100 text-slate-900' : 'text-slate-500 hover:text-slate-700'}`}>Table</button>
-            </div>
             <ActionButton onClick={handleExport} variant="secondary" icon={<Download className="w-4 h-4" />}>Export Pipeline</ActionButton>
           </div>
         }
@@ -423,65 +399,13 @@ export default function LeadPipelineTracking() {
       </div>
 
       <div className="flex-1 flex flex-col min-h-0">
-        {viewMode === 'table' ? (
-          <TableCard>
-            <DataTable
-              columns={columns}
-              data={tableData}
-              emptyMessage="No pipeline data found."
-            />
-          </TableCard>
-        ) : (
-          <div className="flex gap-4 overflow-x-auto pb-4 h-full snap-x">
-            {PIPELINE_STAGES.map((stage, idx) => {
-              const stageLeads = leads.filter(l => (l.status || 'New') === stage);
-              return (
-                <div 
-                  key={idx} 
-                  className="min-w-[300px] w-[300px] bg-slate-50/50 border border-slate-200 rounded-xl flex flex-col h-full snap-start transition-colors hover:bg-slate-50"
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, stage)}
-                >
-                  <div className="p-3 border-b border-slate-200 bg-slate-100 rounded-t-xl flex justify-between items-center">
-                    <h3 className="font-semibold text-slate-800 text-sm flex items-center gap-2">
-                      {stage}
-                      <span className="bg-slate-200 text-slate-600 text-xs px-2 py-0.5 rounded-full">{stageLeads.length}</span>
-                    </h3>
-                  </div>
-                  <div className="p-3 flex-1 overflow-y-auto space-y-3">
-                    {stageLeads.length > 0 ? stageLeads.map(lead => {
-                      const prob = getProbability(lead.status || 'New');
-                      const sType = getStatusType(lead.status || 'New');
-                      
-                      return (
-                        <div 
-                          key={lead.id} 
-                          draggable
-                          onDragStart={(e) => handleDragStart(e, lead.id)}
-                          className="bg-white p-4 rounded-lg border border-slate-200 shadow-sm cursor-grab hover:border-violet-300 hover:shadow-md active:cursor-grabbing transition-all"
-                        >
-                          <div className="flex justify-between items-start mb-2">
-                            <span className="text-xs font-semibold text-slate-500">{lead.id}</span>
-                            {sType === 'Won' ? <Badge variant="success">Won</Badge> : sType === 'Lost' ? <Badge variant="danger">Lost</Badge> : null}
-                          </div>
-                          <h4 className="font-semibold text-slate-900 text-sm mb-1">{lead.name}</h4>
-                          <p className="text-xs text-slate-500 mb-3 flex items-center justify-between">
-                            {lead.assignedTo || 'Unassigned'}
-                            <span className="font-mono font-bold text-[#163c78]">{prob}</span>
-                          </p>
-                        </div>
-                      )
-                    }) : (
-                      <div className="h-24 border-2 border-dashed border-slate-200 rounded-lg flex items-center justify-center text-slate-400 text-xs bg-slate-50/50">
-                        Drop lead here
-                      </div>
-                    )}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
+        <TableCard>
+          <DataTable
+            columns={columns}
+            data={tableData}
+            emptyMessage="No pipeline data found."
+          />
+        </TableCard>
       </div>
     </div>
   );

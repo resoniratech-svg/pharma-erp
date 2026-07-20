@@ -56,28 +56,14 @@ export default function ProfileSettings() {
     reader.readAsDataURL(file);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     // Profile Information Validation
     if (!name.trim()) return alert("Full Name is required.");
     if (!/^\+?[0-9\s\-]{10,15}$/.test(mobile)) return alert("Please enter a valid mobile number.");
 
-  //  // Password Validation
-  //   if (newPassword || confirmPassword || currentPassword) {
-  //     if (!currentPassword) return alert("Please enter your current password to change it.");
-  //     const existingPassword = authService.getCurrentUser()?.password || "";
-  //     if (currentPassword !== existingPassword) return alert("Current password does not match.");
-      
-  //     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(newPassword)) {
-  //       return alert("New password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.");
-  //     }
-  //     if (newPassword !== confirmPassword) return alert("Confirm password does not match the new password.");
-  //   }
-    
-      // Password Validation
+    // Password Validation
     if (newPassword) {
       if (!currentPassword) return alert("Please enter your current password to change it.");
-      const existingPassword = authService.getCurrentUser()?.password || "";
-      if (currentPassword !== existingPassword) return alert("Current password does not match.");
       
       if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/.test(newPassword)) {
         return alert("New password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.");
@@ -85,58 +71,38 @@ export default function ProfileSettings() {
       if (newPassword !== confirmPassword) return alert("Confirm password does not match the new password.");
     }
   
-    const updatedUser = {
-      ...authUser,
-      fullName: name,
-      email,
-      mobile,
-      profileImage,
-      password: newPassword || authUser?.password || "Password123!",
-    };
-
-    // // 1. Update overall profile management database state
-    // authService.updateProfile(updatedUser);
-
-    // // 2. Sync the active session token/object in localStorage
-    // localStorage.setItem('authUser', JSON.stringify(updatedUser));
-
-    // // 3. Update component state safely
-    // setUser(updatedUser);
-    
-        // 1. Update overall profile management database state
-    authService.updateProfile(updatedUser);
-
-    // 2. Sync the active session token/object in localStorage
-    localStorage.setItem('authUser', JSON.stringify(updatedUser));
-
-    // 3. Update component state safely
-    setUser(updatedUser);
-
-    // 4. Sync with the persistent user database key so it persists across logout/login
     try {
-      const storedDb = localStorage.getItem('web_users_database');
-      let dbUsers = storedDb ? JSON.parse(storedDb) : [];
-      if (dbUsers.length > 0) {
-        dbUsers = dbUsers.map((u: any) => u.id === updatedUser.id ? { ...u, ...updatedUser } : u);
-        localStorage.setItem('web_users_database', JSON.stringify(dbUsers));
+      const updatedUser = await authService.updateProfile({
+        name,
+        email,
+        mobile,
+        profileImage,
+        currentPassword,
+        newPassword
+      });
+
+      if (updatedUser) {
+        setUser(updatedUser);
+
+        activityLogService.addLog({
+          userId: updatedUser.id,
+          userName: updatedUser.fullName,
+          action: newPassword ? "Updated Profile & Password" : "Updated Profile",
+          module: "Profile Settings",
+        });
+
+        if (newPassword) {
+          setCurrentPassword('');
+          setNewPassword('');
+          setConfirmPassword('');
+        }
+
+        alert(newPassword ? "Profile and password updated successfully." : "Profile updated successfully.");
       }
-    } catch (e) {
-      console.error("Failed to sync profile to persistent db", e);
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || "Failed to update profile.");
     }
-    activityLogService.addLog({
-      userId: updatedUser?.id,
-      userName: updatedUser?.fullName,
-      action: newPassword ? "Updated Profile & Password" : "Updated Profile",
-      module: "Profile Settings",
-    });
-
-    if (newPassword) {
-      setCurrentPassword('');
-      setNewPassword('');
-      setConfirmPassword('');
-    }
-
-    alert(newPassword ? "Profile and password updated successfully." : "Profile updated successfully.");
   };
 
   return (

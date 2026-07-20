@@ -31,6 +31,11 @@
 
 export const validateCheckIn = (): boolean => {
   try {
+    const activeRole = localStorage.getItem('activeRole');
+    if (activeRole === 'SUPER_ADMIN' || activeRole === 'ADMIN') {
+      return true; // Bypass check for admins
+    }
+
     const todayCheckin = JSON.parse(localStorage.getItem("today_checkin") || "{}");
 
     if (!todayCheckin.checkedIn) {

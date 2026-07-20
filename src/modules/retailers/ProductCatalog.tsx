@@ -101,8 +101,13 @@ export default function ProductCatalog() {
       return [{ code: distCode, name: 'Assigned Distributor' }];
     }
 
+    const roleIdUpper = String(user.roleId || '').toUpperCase();
+    if (roleIdUpper === 'RETAILER') {
+      return [{ code: 'DIST-001', name: 'Metro Pharma Distributors' }];
+    }
+
     // Fallback for Admin, Super Admin, Distributor, MR roles to avoid blank screens
-    if (user.roleId === 'Super Admin' || user.roleId === 'Admin' || user.roleId === 'Distributor' || user.roleId === 'MR') {
+    if (roleIdUpper === 'SUPER_ADMIN' || roleIdUpper === 'ADMIN' || roleIdUpper === 'DISTRIBUTOR' || roleIdUpper === 'MR') {
       const allInventory = inventoryService.getAll();
       const uniqueDistCodes = Array.from(new Set(allInventory.map(inv => inv.warehouseCode || inv.warehouseId)));
       return uniqueDistCodes.map(code => ({ code, name: `Distributor ${code}` }));

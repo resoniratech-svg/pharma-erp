@@ -57,10 +57,14 @@ interface OrderHistoryItem {
 
 const getDDMMYYYY = (dateStr: string) => {
   if (!dateStr || dateStr === '-' || dateStr === 'TBD' || dateStr === 'N/A' || dateStr === 'Not Dispatched') return dateStr;
-  if (dateStr.includes('-')) {
-    const parts = dateStr.split('-');
+  let cleanStr = dateStr;
+  if (dateStr.includes('T')) {
+    cleanStr = dateStr.split('T')[0];
+  }
+  if (cleanStr.includes('-')) {
+    const parts = cleanStr.split('-');
     if (parts.length === 3) {
-      if (parts[2].length === 4) return dateStr;
+      if (parts[2].length === 4) return cleanStr;
       if (parts[0].length === 4) {
         return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
       }
@@ -111,27 +115,34 @@ export default function OrderHistory() {
           else if (o.status === 'Rejected' || o.status === 'Cancelled') derivedDispatch = 'Pending';
         }
         
+        // Dynamically compute financial aggregates from items if missing
+        const computedGross = o.items ? o.items.reduce((sum: number, i: any) => sum + Number(i.amount || (i.qty * i.ptr) || 0), 0) : 0;
+        const computedDiscount = o.items ? o.items.reduce((sum: number, i: any) => i.scheme === '5% Off' ? sum + (Number(i.amount || (i.qty * i.ptr) || 0) * 0.05) : sum, 0) : 0;
+        const afterDisc = computedGross - computedDiscount;
+        const computedGst = Math.round(afterDisc * 0.12); // default 12% GST
+        const computedNet = afterDisc + computedGst;
+
         return {
           id: o.id || o.orderNo,
           orderNo: o.orderNo || 'N/A',
           distributor: o.distributorName || o.distributor || 'General Distributor',
           orderDate: getDDMMYYYY(o.date || o.orderDate || new Date().toISOString().split('T')[0]),
-          orderValue: Number(o.netAmount || o.totalAmount || o.orderValue || 0),
+          orderValue: Number(o.netAmount || o.totalAmount || o.orderValue || computedNet),
           dispatchStatus: derivedDispatch,
           paymentStatus: o.paymentStatus || 'Unpaid',
-          deliveryDate: getDDMMYYYY(o.deliveryDate || 'TBD'),
+          deliveryDate: getDDMMYYYY(o.deliveryDate || o.expectedDeliveryDate || 'TBD'),
           orderStatus: o.status || o.orderStatus || 'Submitted',
           deliveryAddress: o.deliveryLocation || o.deliveryAddress || 'Main Warehouse Depot',
-          grossAmount: Number(o.grossAmount || o.totalAmount || 0),
-          schemeDiscount: Number(o.schemeDiscount || 0),
-          taxAmount: Number(o.taxAmount || 0),
-          netAmount: Number(o.netAmount || o.totalAmount || 0),
+          grossAmount: Number(o.grossAmount || o.totalAmount || computedGross),
+          schemeDiscount: Number(o.schemeDiscount || computedDiscount),
+          taxAmount: Number(o.taxAmount || computedGst),
+          netAmount: Number(o.netAmount || o.totalAmount || computedNet),
           dispatchNo: o.dispatchNo || 'Not Dispatched',
           lrNumber: o.lrNumber || 'N/A',
           vehicleDetails: o.vehicleDetails || 'N/A',
           expectedDeliveryDate: getDDMMYYYY(o.expectedDeliveryDate || 'TBD'),
           invoiceNo: o.invoiceNo || 'Not Generated',
-          outstandingAmount: Number(o.outstandingAmount !== undefined ? o.outstandingAmount : (o.paymentStatus === 'Paid' ? 0 : (o.netAmount || o.totalAmount || 0))),
+          outstandingAmount: Number(o.outstandingAmount !== undefined ? o.outstandingAmount : (o.paymentStatus === 'Paid' ? 0 : (o.netAmount || o.totalAmount || computedNet))),
           items: Array.isArray(o.items) ? o.items.map((i: any) => ({
             product: i.productName || i.product || 'Unknown Product',
             qty: Number(i.quantity || i.qty || 0),

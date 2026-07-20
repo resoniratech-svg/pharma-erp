@@ -53,7 +53,7 @@ export const dailyReportService = {
           orderCollected: Number(dr.ordersCollected || 0),
           sampleGiven: dr.samplesDistributed || 0,
           remarks: dr.remarks || "",
-          status: 'Submitted',
+          status: dr.status === "Draft" ? "Draft" : dr.status === "Approved" ? "Approved" : "Submitted",
         }));
         localStorage.setItem("web_daily_reports", JSON.stringify(reportsCache));
       }
@@ -72,7 +72,7 @@ export const dailyReportService = {
       samplesDistributed: report.sampleGiven || 0,
       ordersCollected: report.orderCollected || 0,
       remarks: report.remarks || "",
-      status: "SUBMITTED",
+      status: report.status || "Submitted",
     };
 
     const response = await apiRequest<{ success: boolean; data: any }>('/daily-reports', {
@@ -100,7 +100,7 @@ export const dailyReportService = {
       orderCollected: Number(created.ordersCollected),
       sampleGiven: created.samplesDistributed,
       remarks: created.remarks || "",
-      status: 'Submitted',
+      status: created.status === "Draft" ? "Draft" : created.status === "Approved" ? "Approved" : "Submitted",
     };
 
     reportsCache = [mapped, ...reportsCache];

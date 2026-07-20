@@ -57,7 +57,8 @@ export class AuthService {
       email: user.email,
       roleId: user.role,
       mobile: '',
-      employeeCode: mr ? mr.mrCode : '',
+      employeeCode: mr ? mr.mrCode : ((user as any).linkedRetailerCode || ''),
+      linkedDistributorCode: (user as any).linkedDistributorCode || '',
       department: mr ? 'Sales & Marketing' : 'Management',
       password: password, // Keep the entered password for compatibility with settings
     };
@@ -95,20 +96,29 @@ export class AuthService {
     localStorage.removeItem('mrTerritory');
   }
 
-  updateProfile(updatedData: any) {
+  async updateProfile(updatedData: any) {
     const currentUser = this.getCurrentUser();
-
     if (!currentUser) return null;
+
+    const response = await apiRequest<{ success: boolean; data: any; message: string }>('/auth/profile', {
+      method: 'PUT',
+      bodyData: updatedData,
+    });
+
+    if (!response.success) {
+      throw new Error(response.message || 'Failed to update profile');
+    }
 
     const updatedUser = {
       ...currentUser,
-      ...updatedData,
+      fullName: response.data?.name || updatedData.name || currentUser.fullName,
+      email: response.data?.email || updatedData.email || currentUser.email,
+      mobile: response.data?.mobile || updatedData.mobile || currentUser.mobile,
+      profileImage: response.data?.profileImage || updatedData.profileImage || currentUser.profileImage,
+      password: updatedData.newPassword || currentUser.password,
     };
 
-    localStorage.setItem(
-      'authUser',
-      JSON.stringify(updatedUser)
-    );
+    localStorage.setItem('authUser', JSON.stringify(updatedUser));
 
     return updatedUser;
   }

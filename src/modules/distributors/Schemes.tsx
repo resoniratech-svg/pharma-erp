@@ -70,10 +70,14 @@ interface Offer {
 
 const getDDMMYYYY = (dateStr: string) => {
   if (!dateStr || dateStr === '-') return '-';
-  if (dateStr.includes('-')) {
-    const parts = dateStr.split('-');
+  let cleanStr = dateStr;
+  if (dateStr.includes('T')) {
+    cleanStr = dateStr.split('T')[0];
+  }
+  if (cleanStr.includes('-')) {
+    const parts = cleanStr.split('-');
     if (parts.length === 3) {
-      if (parts[2].length === 4) return dateStr;
+      if (parts[2].length === 4) return cleanStr;
       if (parts[0].length === 4) {
         return `${parts[2].padStart(2, '0')}-${parts[1].padStart(2, '0')}-${parts[0]}`;
       }
@@ -296,27 +300,35 @@ export default function Schemes() {
 
   // Sync schemes and offers data
   useEffect(() => {
-    const savedData = schemeService.getAll();
-    if (savedData && savedData.length > 0) {
-      const normalizedData = savedData.map((item: any) => ({
-        id: item.id || Date.now().toString(),
-        schemeCode: item.schemeCode || '',
-        schemeName: item.name || item.schemeName || '',
-        schemeType: item.type || item.schemeType || 'Quantity Scheme',
-        applicableTo: item.applicableTo || 'All Distributors',
-        validFrom: getDDMMYYYY(item.validFrom || ''),
-        validTo: getDDMMYYYY(item.validTo || ''),
-        status: calculateSchemeStatus(item.validFrom || '', item.validTo || ''),
-        benefit: item.benefit || `${item.benefitType || ''} ${item.benefitValue || ''}`.trim() || `Buy ${item.minQuantity || 10} Get ${item.freeQuantity || 1} Free`,
-        product: item.applicableSelection || item.product || '',
-        category: item.category || '',
-        brand: item.brand || '',
-        remarks: item.remarks || ''
-      }));
-      setSchemesList(normalizedData);
-    } else {
-      setSchemesList([]);
-    }
+    const fetchSchemes = async () => {
+      try {
+        const savedData = await schemeService.getAll();
+        if (savedData && savedData.length > 0) {
+          const normalizedData = savedData.map((item: any) => ({
+            id: item.id || Date.now().toString(),
+            schemeCode: item.code || item.schemeCode || '',
+            schemeName: item.name || item.schemeName || '',
+            schemeType: item.type || item.schemeType || 'Quantity Scheme',
+            applicableTo: item.applicableTo || 'All Distributors',
+            validFrom: getDDMMYYYY(item.startDate || item.validFrom || ''),
+            validTo: getDDMMYYYY(item.endDate || item.validTo || ''),
+            status: calculateSchemeStatus(item.startDate || item.validFrom || '', item.endDate || item.validTo || ''),
+            benefit: item.benefit || `${item.benefitType || ''} ${item.benefitValue || ''}`.trim() || `Buy ${item.minQuantity || 10} Get ${item.freeQuantity || 1} Free`,
+            product: item.applicableSelection || item.product || '',
+            category: item.category || '',
+            brand: item.brand || '',
+            remarks: item.remarks || ''
+          }));
+          setSchemesList(normalizedData);
+        } else {
+          setSchemesList([]);
+        }
+      } catch (e) {
+        console.error("Failed to load schemes:", e);
+        setSchemesList([]);
+      }
+    };
+    fetchSchemes();
 
     // Load offers
     const savedOffers = localStorage.getItem('pharma_erp_trade_offers');

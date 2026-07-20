@@ -66,6 +66,19 @@ export default function Reorders() {
   const [data, setData] = useState<Reorder[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [schemesState, setSchemesState] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchSchemes = async () => {
+      try {
+        const data = await schemeService.getAll();
+        setSchemesState(data || []);
+      } catch (e) {
+        console.error("Failed to load schemes:", e);
+      }
+    };
+    fetchSchemes();
+  }, []);
   
   const [viewDetails, setViewDetails] = useState<Reorder | null>(null);
   const [reorderItem, setReorderItem] = useState<Reorder | null>(null);
@@ -118,7 +131,7 @@ export default function Reorders() {
     try {
       const inventory = inventoryService.getAll ? inventoryService.getAll() : [];
       const products = (productService as any).getProducts ? (productService as any).getProducts() : [];
-      const schemes = schemeService.getAll ? schemeService.getAll() : [];
+      const schemes = schemesState;
       
       const ordersStr = localStorage.getItem('pharma_erp_retailer_orders');
       const allOrders = ordersStr ? JSON.parse(ordersStr) : [];

@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Plus, Download, Filter, Eye, Edit, Trash2, CheckCircle, XCircle, CheckSquare } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Plus, Download, Filter, Eye, DollarSign } from 'lucide-react';
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
   TableCard, DataTable, Badge, Drawer, DrawerField
@@ -7,110 +7,180 @@ import {
 import { type Column, type BadgeVariant } from './components/shared';
 import { jsPDF } from 'jspdf';
 import { applyCreditNoteTemplate } from '../../documents/templates/CreditNoteTemplate';
-
-type CNStatus = 'Draft' | 'Pending Approval' | 'Approved' | 'Applied' | 'Cancelled';
-
-interface CreditNoteData {
-  id: string;
-  cnNo: string;
-  cnDate: string;
-  customerName: string;
-  customerType: string;
-  againstInvoiceNo: string;
-  invoiceDate: string;
-  cnType: string;
-  reason: string;
-  creditAmount: number;
-  gstAdjustment: number;
-  status: CNStatus;
-}
-
-const mockData: CreditNoteData[] = [
-  { id: '1', cnNo: 'CN/26/045', cnDate: '16-Oct-2026', customerName: 'Apollo Pharmacy', customerType: 'Retailer', againstInvoiceNo: 'INV/26/001', invoiceDate: '10-Oct-2026', cnType: 'Sales Return', reason: 'Damaged Goods', creditAmount: 1500, gstAdjustment: 180, status: 'Approved' },
-  { id: '2', cnNo: 'CN/26/046', cnDate: '17-Oct-2026', customerName: 'MedPlus Store', customerType: 'Hospital', againstInvoiceNo: 'INV/26/002', invoiceDate: '12-Oct-2026', cnType: 'Rate Difference', reason: 'Price Adjustment', creditAmount: 450, gstAdjustment: 54, status: 'Pending Approval' },
-  { id: '3', cnNo: 'CN/26/047', cnDate: '18-Oct-2026', customerName: 'City Clinic', customerType: 'Clinic', againstInvoiceNo: 'INV/26/005', invoiceDate: '15-Oct-2026', cnType: 'Discount Adjustment', reason: 'Promotional Discount', creditAmount: 1200, gstAdjustment: 144, status: 'Draft' },
-  { id: '4', cnNo: 'CN/26/048', cnDate: '19-Oct-2026', customerName: 'Wellness Medicos', customerType: 'Retailer', againstInvoiceNo: 'INV/26/008', invoiceDate: '18-Oct-2026', cnType: 'Sales Return', reason: 'Wrong Billing', creditAmount: 3400, gstAdjustment: 408, status: 'Applied' },
-];
-
-const mockInvoiceDetails = {
-  customerName: 'Apollo Pharmacy',
-  customerType: 'Retailer',
-  gstin: '27ABCDE1234F1Z5',
-  invoiceDate: '10-Oct-2026',
-  products: [
-    { id: 'p1', name: 'Paracetamol 500mg', batch: 'B001', soldQty: 100, returnQty: 0, unitRate: 15, gstPct: 12 },
-    { id: 'p2', name: 'Amoxicillin 250mg', batch: 'B002', soldQty: 50, returnQty: 0, unitRate: 80, gstPct: 12 },
-  ]
-};
+import { creditNoteService, type CreditNoteData, type CNStatus } from '../../services/creditNoteService';
 
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function CreditNotes() {
-  const [data, setData] = useState<CreditNoteData[]>(mockData);
+  const [data, setData] = useState<CreditNoteData[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [sectionFilter, setSectionFilter] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  // Invoices list for form dropdown
+  const [invoices, setInvoices] = useState<any[]>([]);
 
   // Drawer States
   const [viewRecord, setViewRecord] = useState<CreditNoteData | null>(null);
   const [showCreateForm, setShowCreateForm] = useState(false);
 
   // Form States
-  const [editId, setEditId] = useState<string | null>(null);
   const [formCnType, setFormCnType] = useState('Sales Return');
   const [formInvoiceNo, setFormInvoiceNo] = useState('');
   const [formReason, setFormReason] = useState('Sales Return');
   const [formRemarks, setFormRemarks] = useState('');
-  const [formProducts, setFormProducts] = useState(mockInvoiceDetails.products);
+  const [formProducts, setFormProducts] = useState<any[]>([]);
+  const [formClientInfo, setFormClientInfo] = useState<any>({
+    customerName: '',
+    customerType: '',
+    gstin: '',
+    invoiceDate: '',
+    retailerId: null
+  });
+
+  const loadCreditNotes = async () => {
+    setLoading(true);
+    try {
+      const res = await creditNoteService.getCreditNotes({
+        status: statusFilter || undefined,
+        section: sectionFilter || undefined
+      });
+      setData(res);
+    } catch (err) {
+      console.error("Failed to load credit notes:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadCreditNotes();
+  }, [statusFilter, sectionFilter]);
+
+  useEffect(() => {
+    const loadFormOptions = async () => {
+      try {
+        const res = await creditNoteService.getInvoices();
+        setInvoices(res);
+      } catch (err) {
+        console.error("Failed to fetch invoices:", err);
+      }
+    };
+    loadFormOptions();
+  }, []);
 
   const resetForm = () => {
-    setEditId(null);
     setFormCnType('Sales Return');
     setFormInvoiceNo('');
     setFormReason('Sales Return');
     setFormRemarks('');
-    setFormProducts(mockInvoiceDetails.products);
+    setFormProducts([]);
+    setFormClientInfo({
+      customerName: '',
+      customerType: '',
+      gstin: '',
+      invoiceDate: '',
+      retailerId: null
+    });
+  };
+
+  const handleInvoiceChange = async (invoiceIdStr: string) => {
+    setFormInvoiceNo(invoiceIdStr);
+    if (!invoiceIdStr) {
+      setFormProducts([]);
+      setFormClientInfo({
+        customerName: '',
+        customerType: '',
+        gstin: '',
+        invoiceDate: '',
+        retailerId: null
+      });
+      return;
+    }
+
+    const invoiceId = parseInt(invoiceIdStr, 10);
+    try {
+      const details = await creditNoteService.getInvoiceById(invoiceId);
+      if (details) {
+        setFormClientInfo({
+          customerName: details.retailer ? details.retailer.name : 'N/A',
+          customerType: details.retailer ? 'Retailer' : 'N/A',
+          gstin: details.retailer ? details.retailer.gstNumber : 'N/A',
+          invoiceDate: new Date(details.invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
+          retailerId: details.retailerId || null
+        });
+
+        if (details.invoiceItems && details.invoiceItems.length > 0) {
+          setFormProducts(details.invoiceItems.map((ii: any) => ({
+            id: String(ii.id),
+            productId: ii.productId,
+            name: ii.product ? ii.product.name : 'Unknown Product',
+            batchId: ii.productId, // Fallback to productId since relation schema allows direct reference
+            batch: ii.product && ii.product.batches && ii.product.batches[0] ? ii.product.batches[0].batchNumber : 'Default-Batch',
+            soldQty: ii.quantity,
+            returnQty: 0,
+            unitRate: ii.rate,
+            gstPct: ii.gst
+          })));
+        }
+      }
+    } catch (err) {
+      console.error("Failed to load invoice details:", err);
+    }
   };
 
   const getStatusVariant = (status: CNStatus): BadgeVariant => {
     switch (status) {
-      case 'Approved': case 'Applied': return 'success';
-      case 'Pending Approval': return 'warning';
-      case 'Draft': return 'neutral';
-      case 'Cancelled': return 'danger';
+      case 'PAID': return 'success';
+      case 'PARTIALLY_PAID': return 'warning';
+      case 'PENDING': return 'neutral';
       default: return 'neutral';
     }
   };
 
-  const handleAction = (id: string, action: string, e?: React.MouseEvent) => {
+  const handleSettle = async (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
-    if (action === 'Delete') {
-      if (window.confirm('Are you sure you want to delete this Draft Credit Note?')) {
-        setData(prev => prev.filter(item => item.id !== id));
+    const amountStr = window.prompt("Enter payment/adjustment amount to settle:");
+    if (!amountStr) return;
+    const amount = parseFloat(amountStr);
+    if (isNaN(amount) || amount <= 0) {
+      alert("Please enter a valid positive number.");
+      return;
+    }
+    const remarks = window.prompt("Enter settlement remarks:") || undefined;
+
+    try {
+      const updated = await creditNoteService.settleCreditNote(id, amount, remarks);
+      alert("Settlement recorded successfully!");
+      if (viewRecord && viewRecord.id === id) {
+        setViewRecord(updated);
       }
-    } else if (action === 'Edit') {
-      const record = data.find(item => item.id === id);
-      if (record) {
-        setEditId(id);
-        setFormCnType(record.cnType);
-        setFormInvoiceNo(record.againstInvoiceNo === 'INV/26/000' ? '' : record.againstInvoiceNo);
-        setFormReason(record.reason);
-        // We do not have stored remarks/products, so we just pre-populate what we have
-        setFormRemarks('Adjustment for ' + record.reason);
-        setShowCreateForm(true);
-      }
-    } else if (action === 'Approve') {
-      setData(prev => prev.map(item => item.id === id ? { ...item, status: 'Approved' } : item));
-    } else if (action === 'Reject') {
-      setData(prev => prev.map(item => item.id === id ? { ...item, status: 'Cancelled' } : item));
-    } else if (action === 'Apply Credit') {
-      setData(prev => prev.map(item => item.id === id ? { ...item, status: 'Applied' } : item));
+      loadCreditNotes();
+    } catch (err: any) {
+      alert("Failed to settle credit note: " + err.message);
     }
   };
 
   const downloadPDF = (record: CreditNoteData, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const doc = new jsPDF();
-    applyCreditNoteTemplate(doc, record);
+    // Convert backend data format to match PDF template requirements
+    const pdfData = {
+      id: record.id,
+      cnNo: record.cnNo,
+      cnDate: record.cnDate,
+      customerName: record.customerName,
+      customerType: record.customerType,
+      againstInvoiceNo: record.againstInvoiceNo,
+      invoiceDate: record.invoiceDate,
+      cnType: record.cnType,
+      reason: record.reason,
+      creditAmount: record.taxableAmount,
+      gstAdjustment: record.gstAmount,
+      status: record.status as any
+    };
+    applyCreditNoteTemplate(doc, pdfData);
     doc.save(`${record.cnNo.replace(/\//g, '-')}.pdf`);
   };
 
@@ -119,8 +189,8 @@ export default function CreditNotes() {
     { key: 'customerName', label: 'Customer Name', render: (row) => <span className="font-medium text-violet-700">{row.customerName}</span> },
     { key: 'againstInvoiceNo', label: 'Against Invoice', render: (row) => <span className="font-mono text-xs text-slate-600">{row.againstInvoiceNo}</span> },
     { key: 'cnDate', label: 'Credit Note Date' },
-    { key: 'creditAmount', label: 'Credit Amount', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.creditAmount)}</span> },
-    { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status}</Badge> },
+    { key: 'creditAmount', label: 'Credit Amount', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.totalAmount)}</span> },
+    { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status.replace('_', ' ')}</Badge> },
     {
       key: 'actions',
       label: 'Actions',
@@ -129,22 +199,8 @@ export default function CreditNotes() {
           <button onClick={() => setViewRecord(row)} className="text-slate-400 hover:text-[#163c78] transition-colors p-1" title="View"><Eye className="w-4 h-4" /></button>
           <button onClick={(e) => downloadPDF(row, e)} className="text-slate-400 hover:text-[#163c78] p-1" title="Download PDF"><Download className="w-4 h-4" /></button>
           
-          {row.status === 'Draft' && (
-            <>
-              <button onClick={(e) => handleAction(row.id, 'Edit', e)} className="text-slate-400 hover:text-blue-600 p-1" title="Edit"><Edit className="w-4 h-4" /></button>
-              <button onClick={(e) => handleAction(row.id, 'Delete', e)} className="text-slate-400 hover:text-rose-600 p-1" title="Delete"><Trash2 className="w-4 h-4" /></button>
-            </>
-          )}
-
-          {row.status === 'Pending Approval' && (
-            <>
-              <button onClick={(e) => handleAction(row.id, 'Approve', e)} className="text-emerald-600 hover:text-emerald-700 p-1 font-semibold flex items-center gap-1 text-xs" title="Approve"><CheckCircle className="w-3.5 h-3.5" /> Approve</button>
-              <button onClick={(e) => handleAction(row.id, 'Reject', e)} className="text-rose-600 hover:text-rose-700 p-1 font-semibold flex items-center gap-1 text-xs" title="Reject"><XCircle className="w-3.5 h-3.5" /> Reject</button>
-            </>
-          )}
-
-          {row.status === 'Approved' && (
-            <button onClick={(e) => handleAction(row.id, 'Apply Credit', e)} className="text-blue-600 hover:text-blue-700 p-1 font-semibold flex items-center gap-1 text-xs" title="Apply Credit"><CheckSquare className="w-3.5 h-3.5" /> Apply</button>
+          {row.status !== 'PAID' && (
+            <button onClick={(e) => handleSettle(row.id, e)} className="text-emerald-600 hover:text-emerald-700 p-1 font-semibold flex items-center gap-1 text-xs" title="Settle/Adjust"><DollarSign className="w-3.5 h-3.5" /> Settle</button>
           )}
         </div>
       )
@@ -155,10 +211,9 @@ export default function CreditNotes() {
     return data.filter(item => {
       const s = search.toLowerCase();
       const matchSearch = item.cnNo.toLowerCase().includes(s) || item.customerName.toLowerCase().includes(s) || item.againstInvoiceNo.toLowerCase().includes(s);
-      const matchStatus = statusFilter ? item.status === statusFilter : true;
-      return matchSearch && matchStatus;
+      return matchSearch;
     });
-  }, [data, search, statusFilter]);
+  }, [data, search]);
 
   // Form Calculations
   const calcValues = useMemo(() => {
@@ -178,36 +233,38 @@ export default function CreditNotes() {
     };
   }, [formProducts]);
 
-  const handleSubmit = (asDraft: boolean) => {
-    if (editId) {
-      setData(prev => prev.map(item => item.id === editId ? {
-        ...item,
-        againstInvoiceNo: formInvoiceNo || 'INV/26/000',
-        cnType: formCnType,
-        reason: formReason,
-        creditAmount: calcValues.taxable,
-        gstAdjustment: calcValues.totalGst,
-        status: asDraft ? 'Draft' : 'Pending Approval'
-      } : item));
-    } else {
-      const newRecord: CreditNoteData = {
-        id: Math.random().toString(),
-        cnNo: `CN/26/0${Math.floor(100 + Math.random() * 900)}`,
-        cnDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
-        customerName: mockInvoiceDetails.customerName,
-        customerType: mockInvoiceDetails.customerType,
-        againstInvoiceNo: formInvoiceNo || 'INV/26/000',
-        invoiceDate: mockInvoiceDetails.invoiceDate,
-        cnType: formCnType,
-        reason: formReason,
-        creditAmount: calcValues.taxable,
-        gstAdjustment: calcValues.totalGst,
-        status: asDraft ? 'Draft' : 'Pending Approval'
-      };
-      setData([newRecord, ...data]);
+  const handleSubmit = async () => {
+    const itemsPayload = formProducts
+      .filter(p => p.returnQty > 0)
+      .map(p => ({
+        productId: p.productId,
+        batchId: p.batchId || 1,
+        quantity: p.returnQty,
+        disposition: formCnType === 'Expiry Return' ? 'EXPIRED_DUMP' : (formCnType === 'Damaged Goods' ? 'DESTRUCTION' : 'SALABLE')
+      }));
+
+    if (itemsPayload.length === 0 && (formCnType === 'Sales Return' || formCnType === 'Expiry Return')) {
+      alert("Please enter a return quantity for at least one product.");
+      return;
     }
-    setShowCreateForm(false);
-    resetForm();
+
+    const payload = {
+      cnType: formCnType,
+      reason: formReason,
+      remarks: formRemarks,
+      retailerId: formClientInfo.retailerId ? Number(formClientInfo.retailerId) : undefined,
+      againstInvoiceId: formInvoiceNo ? Number(formInvoiceNo) : undefined,
+      items: itemsPayload
+    };
+
+    try {
+      await creditNoteService.createCreditNote(payload);
+      setShowCreateForm(false);
+      resetForm();
+      loadCreditNotes();
+    } catch (err: any) {
+      alert("Failed to create credit note: " + err.message);
+    }
   };
 
   const updateProductQty = (id: string, qty: number) => {
@@ -226,7 +283,6 @@ export default function CreditNotes() {
         subtitle="Manage credit notes issued against sales returns, price differences, or discounts."
         actions={
           <>
-            <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />}>Export Register</ActionButton>
             <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => { resetForm(); setShowCreateForm(true); }}>Create Credit Note</ActionButton>
           </>
         }
@@ -244,23 +300,36 @@ export default function CreditNotes() {
           onChange={setStatusFilter}
           options={[
             { label: 'All Status', value: '' },
-            { label: 'Draft', value: 'Draft' },
-            { label: 'Pending Approval', value: 'Pending Approval' },
-            { label: 'Approved', value: 'Approved' },
-            { label: 'Applied', value: 'Applied' },
-            { label: 'Cancelled', value: 'Cancelled' },
+            { label: 'Pending', value: 'PENDING' },
+            { label: 'Partially Paid', value: 'PARTIALLY_PAID' },
+            { label: 'Paid', value: 'PAID' },
           ]}
           placeholder="Status"
+        />
+        <SelectFilter
+          value={sectionFilter}
+          onChange={setSectionFilter}
+          options={[
+            { label: 'All Sections', value: '' },
+            { label: 'Distributor', value: 'distributor' },
+            { label: 'Retailer', value: 'retailer' },
+            { label: 'Medical Representative (MR)', value: 'mr' },
+          ]}
+          placeholder="Section"
         />
       </FilterBar>
 
       <TableCard>
         <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
-          <DataTable
-            columns={columns}
-            data={visibleData}
-            emptyMessage="No credit notes match the selected filters."
-          />
+          {loading ? (
+            <div className="p-8 text-center text-slate-500">Loading Credit Notes...</div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={visibleData}
+              emptyMessage="No credit notes match the selected filters."
+            />
+          )}
         </div>
       </TableCard>
 
@@ -269,7 +338,7 @@ export default function CreditNotes() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <div className="flex items-center justify-between mb-6">
-              <h2 className="text-xl font-bold text-slate-900">{editId ? 'Edit Credit Note' : 'Create Credit Note'}</h2>
+              <h2 className="text-xl font-bold text-slate-900">Create Credit Note</h2>
               <button onClick={() => { setShowCreateForm(false); resetForm(); }} className="text-slate-500 hover:text-slate-800">✕</button>
             </div>
             
@@ -290,12 +359,11 @@ export default function CreditNotes() {
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Credit Note Type</label>
                 <select className="w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 bg-white" value={formCnType} onChange={e => setFormCnType(e.target.value)}>
-                  <option>Sales Return</option>
-                  <option>Expiry Return</option>
-                  <option>Damaged Goods</option>
-                  <option>Rate Difference</option>
-                  <option>Discount Adjustment</option>
-                  <option>Manual Credit</option>
+                  <option value="Sales Return">Sales Return</option>
+                  <option value="Expiry Return">Expiry Return</option>
+                  <option value="Damaged Goods">Damaged Goods/Breakage</option>
+                  <option value="Rate Difference">Rate Difference</option>
+                  <option value="Discount Adjustment">Discount Adjustment</option>
                 </select>
               </div>
 
@@ -305,27 +373,28 @@ export default function CreditNotes() {
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Select Invoice</label>
-                <select className="w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 bg-white" value={formInvoiceNo} onChange={e => setFormInvoiceNo(e.target.value)}>
+                <select className="w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 bg-white" value={formInvoiceNo} onChange={e => handleInvoiceChange(e.target.value)}>
                   <option value="">-- Select Invoice --</option>
-                  <option value="INV/26/001">INV/26/001</option>
-                  <option value="INV/26/002">INV/26/002</option>
+                  {invoices.map(inv => (
+                    <option key={inv.id} value={inv.id}>{inv.invoiceNumber}</option>
+                  ))}
                 </select>
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Invoice Date</label>
-                <input type="text" disabled value={formInvoiceNo ? mockInvoiceDetails.invoiceDate : ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                <input type="text" disabled value={formClientInfo.invoiceDate} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
               </div>
               <div className="md:col-span-2">
                 <label className="block text-sm font-medium mb-1">Customer Name</label>
-                <input type="text" disabled value={formInvoiceNo ? mockInvoiceDetails.customerName : ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                <input type="text" disabled value={formClientInfo.customerName} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
               </div>
               <div className="md:col-span-3">
                 <label className="block text-sm font-medium mb-1">Customer Type</label>
-                <input type="text" disabled value={formInvoiceNo ? mockInvoiceDetails.customerType : ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                <input type="text" disabled value={formClientInfo.customerType} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
               </div>
               <div className="md:col-span-3">
                 <label className="block text-sm font-medium mb-1">GSTIN</label>
-                <input type="text" disabled value={formInvoiceNo ? mockInvoiceDetails.gstin : ''} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
+                <input type="text" disabled value={formClientInfo.gstin} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
               </div>
 
               {/* SECTION 3: REASON */}
@@ -335,13 +404,13 @@ export default function CreditNotes() {
               <div className="md:col-span-3">
                 <label className="block text-sm font-medium mb-1">Reason</label>
                 <select className="w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 bg-white" value={formReason} onChange={e => setFormReason(e.target.value)}>
-                  <option>Sales Return</option>
-                  <option>Expiry Return</option>
-                  <option>Damaged Goods</option>
-                  <option>Wrong Billing</option>
-                  <option>Price Adjustment</option>
-                  <option>Promotional Discount</option>
-                  <option>Other</option>
+                  <option value="Sales Return">Sales Return</option>
+                  <option value="Expiry Return">Expiry Return</option>
+                  <option value="Damaged Goods">Damaged Goods</option>
+                  <option value="Wrong Billing">Wrong Billing</option>
+                  <option value="Price Adjustment">Price Adjustment</option>
+                  <option value="Promotional Discount">Promotional Discount</option>
+                  <option value="Other">Other</option>
                 </select>
               </div>
               <div className="md:col-span-3">
@@ -350,7 +419,7 @@ export default function CreditNotes() {
               </div>
 
               {/* SECTION 4: PRODUCT DETAILS */}
-              {formInvoiceNo && (
+              {formInvoiceNo && formProducts.length > 0 && (
                 <>
                   <div className="md:col-span-6 mt-4">
                     <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">4. Product Adjustment Details</h3>
@@ -434,8 +503,7 @@ export default function CreditNotes() {
 
               <div className="md:col-span-6 pt-6 mt-4 border-t border-slate-100 flex justify-end gap-3">
                 <ActionButton variant="secondary" onClick={() => { setShowCreateForm(false); resetForm(); }}>Cancel</ActionButton>
-                <ActionButton variant="secondary" onClick={() => handleSubmit(true)}>Save Draft</ActionButton>
-                <ActionButton onClick={() => handleSubmit(false)}>Submit Credit Note</ActionButton>
+                <ActionButton onClick={handleSubmit}>Submit Credit Note</ActionButton>
               </div>
             </div>
           </div>
@@ -449,20 +517,8 @@ export default function CreditNotes() {
             <div className="flex flex-wrap gap-2 pb-4 border-b border-slate-100">
                <ActionButton icon={<Download className="w-4 h-4"/>} onClick={() => downloadPDF(viewRecord)}>Download PDF</ActionButton>
                
-               {viewRecord.status === 'Draft' && (
-                 <>
-                  <ActionButton icon={<Edit className="w-4 h-4"/>} onClick={() => { handleAction(viewRecord.id, 'Edit'); setViewRecord(null); }}>Edit</ActionButton>
-                  <ActionButton variant="secondary" className="text-rose-600 border-rose-200 hover:bg-rose-50" icon={<Trash2 className="w-4 h-4"/>} onClick={() => { handleAction(viewRecord.id, 'Delete'); setViewRecord(null); }}>Delete</ActionButton>
-                 </>
-               )}
-               {viewRecord.status === 'Pending Approval' && (
-                 <>
-                  <ActionButton className="bg-emerald-600 hover:bg-emerald-700" icon={<CheckCircle className="w-4 h-4"/>} onClick={() => { handleAction(viewRecord.id, 'Approve'); setViewRecord({...viewRecord, status: 'Approved'}); }}>Approve</ActionButton>
-                  <ActionButton variant="secondary" className="text-rose-600 border-rose-200 hover:bg-rose-50" icon={<XCircle className="w-4 h-4"/>} onClick={() => { handleAction(viewRecord.id, 'Reject'); setViewRecord({...viewRecord, status: 'Cancelled'}); }}>Reject</ActionButton>
-                 </>
-               )}
-               {viewRecord.status === 'Approved' && (
-                 <ActionButton className="bg-blue-600 hover:bg-blue-700" icon={<CheckSquare className="w-4 h-4"/>} onClick={() => { handleAction(viewRecord.id, 'Apply Credit'); setViewRecord({...viewRecord, status: 'Applied'}); }}>Apply Credit</ActionButton>
+               {viewRecord.status !== 'PAID' && (
+                 <ActionButton className="bg-emerald-600 hover:bg-emerald-700" icon={<DollarSign className="w-4 h-4"/>} onClick={(e) => handleSettle(viewRecord.id, e)}>Settle Credit</ActionButton>
                )}
             </div>
 
@@ -471,7 +527,7 @@ export default function CreditNotes() {
               <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <DrawerField label="CN Number" value={<span className="font-semibold text-slate-900">{viewRecord.cnNo}</span>} />
                 <DrawerField label="Date" value={viewRecord.cnDate} />
-                <DrawerField label="Status" value={<Badge variant={getStatusVariant(viewRecord.status)}>{viewRecord.status}</Badge>} />
+                <DrawerField label="Status" value={<Badge variant={getStatusVariant(viewRecord.status)}>{viewRecord.status.replace('_', ' ')}</Badge>} />
                 <DrawerField label="Type" value={viewRecord.cnType} />
               </div>
             </div>
@@ -490,34 +546,21 @@ export default function CreditNotes() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">SECTION 3 – Reason</h3>
               <div className="grid grid-cols-1 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <DrawerField label="Reason" value={viewRecord.reason} />
+                {viewRecord.remarks && <DrawerField label="Remarks" value={viewRecord.remarks} />}
               </div>
             </div>
 
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">SECTION 5 – Financial Summary</h3>
               <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                <DrawerField label="Taxable Amount" value={formatCurrency(viewRecord.creditAmount)} />
-                <DrawerField label="GST Adjustment" value={formatCurrency(viewRecord.gstAdjustment)} />
-                <div className="col-span-2">
-                  <DrawerField label="Net Credit Value" value={<span className="font-bold text-lg text-slate-900">{formatCurrency(viewRecord.creditAmount + viewRecord.gstAdjustment)}</span>} />
+                <DrawerField label="Taxable Amount" value={formatCurrency(viewRecord.taxableAmount)} />
+                <DrawerField label="GST Adjustment" value={formatCurrency(viewRecord.gstAmount)} />
+                <DrawerField label="Total Credit Value" value={formatCurrency(viewRecord.totalAmount)} />
+                <DrawerField label="Amount Settled" value={formatCurrency(viewRecord.amountSettled)} />
+                <div className="col-span-2 border-t border-slate-200 pt-3">
+                  <DrawerField label="Remaining Balance" value={<span className="font-bold text-lg text-slate-900">{formatCurrency(viewRecord.totalAmount - viewRecord.amountSettled)}</span>} />
                 </div>
               </div>
-            </div>
-
-            {(viewRecord.status === 'Approved' || viewRecord.status === 'Applied') && (
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">SECTION 6 – Approval Audit</h3>
-                <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                  <DrawerField label="Created By" value="Admin" />
-                  <DrawerField label="Created Date" value={viewRecord.cnDate} />
-                  <DrawerField label="Approved By" value="Finance Manager" />
-                  <DrawerField label="Approval Date" value={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')} />
-                </div>
-              </div>
-            )}
-
-            <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-              <ActionButton variant="secondary" onClick={() => setViewRecord(null)}>Close</ActionButton>
             </div>
           </div>
         )}

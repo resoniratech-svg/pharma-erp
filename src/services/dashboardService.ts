@@ -219,9 +219,12 @@ export const dashboardService = {
     const orders = safeJsonParse('web_orders');
     return orders.slice(0, 3).map((o: any) => ({
       client: o.customerName || o.client || 'Unknown Customer',
+      chemistName: o.customerName || o.client || 'Unknown Customer',
       orderNumber: o.orderNumber || 'ORD-XXX',
       productName: o.productName || 'General Product',
-      amount: `₹${parseFloat(o.totalAmount || 0).toLocaleString()}`
+      amount: parseFloat(o.totalAmount || 0),
+      date: o.date || o.dateFormatted || new Date().toISOString().split('T')[0],
+      status: o.status === 'PENDING' ? 'Pending' : (o.status === 'DELIVERED' ? 'Approved' : o.status || 'Pending')
     }));
   },
 
