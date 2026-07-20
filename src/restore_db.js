@@ -25,7 +25,12 @@ async function main() {
     }
 
     console.log('Reading local_dump.sql...');
-    const sql = fs.readFileSync(dumpPath, 'utf8');
+    let sql = fs.readFileSync(dumpPath, 'utf8');
+
+    console.log('Cleaning SQL (removing backslash commands)...');
+    sql = sql.split('\n')
+             .filter(line => !line.trim().startsWith('\\'))
+             .join('\n');
 
     console.log('Executing database dump SQL (this may take a few seconds)...');
     await client.query(sql);

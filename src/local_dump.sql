@@ -2,7 +2,7 @@
 -- PostgreSQL database dump
 --
 
-\restrict swi6FlIF9x6sbEEAwU9dpKcUdShYJuOsMtyrA2kRGPBT50EsLDgDchwp4clcTxZ
+\restrict LNaHGjhCJPl5Crx7ZSIcnNiBmwpQ7LGaU74vpQGuRtA7ZKJHcdGEwOZqcwku1ui
 
 -- Dumped from database version 18.3
 -- Dumped by pg_dump version 18.3
@@ -3375,754 +3375,620 @@ ALTER TABLE ONLY public."WarehouseTransferItem" ALTER COLUMN id SET DEFAULT next
 -- Data for Name: Activity; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Activity" (id, "mrId", "activityType", title, description, "activityDate", status, "createdAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: Attendance; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Attendance" (id, "mrId", "attendanceDate", "checkInTime", "checkOutTime", "checkInLatitude", "checkInLongitude", "checkOutLatitude", "checkOutLongitude", status, "createdAt") FROM stdin;
-3	1	2026-07-15 06:04:54.937	2026-07-15 06:04:54.953	2026-07-15 06:05:05.256	18.44675852827867	79.13330316003842	18.44675852827867	79.13330316003842	PRESENT	2026-07-15 06:04:54.958
-4	1	2026-07-15 06:06:04.455	2026-07-15 06:06:04.459	2026-07-15 06:06:04.459	18.44706106025037	79.13333109448098	18.44706106025037	79.13333109448098	PRESENT	2026-07-15 06:06:04.461
-5	1	2026-07-16 04:38:53.729	2026-07-16 04:38:53.739	2026-07-16 04:39:10.287	18.44683484039824	79.133108216904	18.44683484039824	79.133108216904	PRESENT	2026-07-16 04:38:53.751
-6	1	2026-07-16 06:20:53.991	2026-07-16 06:20:54	2026-07-16 07:33:44.459	18.44683029904585	79.13338499478371	18.4467668942204	79.1333535600681	PRESENT	2026-07-16 06:20:54.004
-\.
+INSERT INTO public."Attendance" (id, "mrId", "attendanceDate", "checkInTime", "checkOutTime", "checkInLatitude", "checkInLongitude", "checkOutLatitude", "checkOutLongitude", status, "createdAt") VALUES (3, 1, '2026-07-15 06:04:54.937', '2026-07-15 06:04:54.953', '2026-07-15 06:05:05.256', 18.44675852827867, 79.13330316003842, 18.44675852827867, 79.13330316003842, 'PRESENT', '2026-07-15 06:04:54.958');
+INSERT INTO public."Attendance" (id, "mrId", "attendanceDate", "checkInTime", "checkOutTime", "checkInLatitude", "checkInLongitude", "checkOutLatitude", "checkOutLongitude", status, "createdAt") VALUES (4, 1, '2026-07-15 06:06:04.455', '2026-07-15 06:06:04.459', '2026-07-15 06:06:04.459', 18.44706106025037, 79.13333109448098, 18.44706106025037, 79.13333109448098, 'PRESENT', '2026-07-15 06:06:04.461');
+INSERT INTO public."Attendance" (id, "mrId", "attendanceDate", "checkInTime", "checkOutTime", "checkInLatitude", "checkInLongitude", "checkOutLatitude", "checkOutLongitude", status, "createdAt") VALUES (5, 1, '2026-07-16 04:38:53.729', '2026-07-16 04:38:53.739', '2026-07-16 04:39:10.287', 18.44683484039824, 79.133108216904, 18.44683484039824, 79.133108216904, 'PRESENT', '2026-07-16 04:38:53.751');
+INSERT INTO public."Attendance" (id, "mrId", "attendanceDate", "checkInTime", "checkOutTime", "checkInLatitude", "checkInLongitude", "checkOutLatitude", "checkOutLongitude", status, "createdAt") VALUES (6, 1, '2026-07-16 06:20:53.991', '2026-07-16 06:20:54', '2026-07-16 07:33:44.459', 18.44683029904585, 79.13338499478371, 18.4467668942204, 79.1333535600681, 'PRESENT', '2026-07-16 06:20:54.004');
 
 
 --
 -- Data for Name: Batch; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Batch" (id, "batchNumber", "productId", "manufacturingDate", "expiryDate", quantity, "createdAt", "updatedAt") FROM stdin;
-4	BAT-000003	12	2026-07-14 00:00:00	2026-07-30 00:00:00	41	2026-07-14 13:42:42.555	2026-07-14 13:42:42.555
-5	BAT-000004	10	2026-07-14 00:00:00	2026-07-23 00:00:00	29	2026-07-14 13:43:04.16	2026-07-14 13:43:04.16
-6	BAT-000005	10	2026-07-14 00:00:00	2026-08-04 00:00:00	15	2026-07-14 13:43:59.69	2026-07-14 13:43:59.69
-7	BAT-000006	14	2026-07-15 00:00:00	2026-10-29 00:00:00	40	2026-07-15 05:03:57.601	2026-07-15 05:03:57.601
-8	BAT-000007	15	2026-07-01 00:00:00	2026-09-30 00:00:00	100	2026-07-16 03:58:19.25	2026-07-16 03:58:19.25
-9	B-PCM-001	9	2026-01-01 00:00:00	2028-12-31 00:00:00	1010	2026-07-18 06:38:05.707	2026-07-18 06:50:09.261
-\.
+INSERT INTO public."Batch" (id, "batchNumber", "productId", "manufacturingDate", "expiryDate", quantity, "createdAt", "updatedAt") VALUES (4, 'BAT-000003', 12, '2026-07-14 00:00:00', '2026-07-30 00:00:00', 41, '2026-07-14 13:42:42.555', '2026-07-14 13:42:42.555');
+INSERT INTO public."Batch" (id, "batchNumber", "productId", "manufacturingDate", "expiryDate", quantity, "createdAt", "updatedAt") VALUES (5, 'BAT-000004', 10, '2026-07-14 00:00:00', '2026-07-23 00:00:00', 29, '2026-07-14 13:43:04.16', '2026-07-14 13:43:04.16');
+INSERT INTO public."Batch" (id, "batchNumber", "productId", "manufacturingDate", "expiryDate", quantity, "createdAt", "updatedAt") VALUES (6, 'BAT-000005', 10, '2026-07-14 00:00:00', '2026-08-04 00:00:00', 15, '2026-07-14 13:43:59.69', '2026-07-14 13:43:59.69');
+INSERT INTO public."Batch" (id, "batchNumber", "productId", "manufacturingDate", "expiryDate", quantity, "createdAt", "updatedAt") VALUES (7, 'BAT-000006', 14, '2026-07-15 00:00:00', '2026-10-29 00:00:00', 40, '2026-07-15 05:03:57.601', '2026-07-15 05:03:57.601');
+INSERT INTO public."Batch" (id, "batchNumber", "productId", "manufacturingDate", "expiryDate", quantity, "createdAt", "updatedAt") VALUES (8, 'BAT-000007', 15, '2026-07-01 00:00:00', '2026-09-30 00:00:00', 100, '2026-07-16 03:58:19.25', '2026-07-16 03:58:19.25');
+INSERT INTO public."Batch" (id, "batchNumber", "productId", "manufacturingDate", "expiryDate", quantity, "createdAt", "updatedAt") VALUES (9, 'B-PCM-001', 9, '2026-01-01 00:00:00', '2028-12-31 00:00:00', 1010, '2026-07-18 06:38:05.707', '2026-07-18 06:50:09.261');
 
 
 --
 -- Data for Name: Branch; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Branch" (id, name, code, address, city, "companyId", "isActive", "createdAt", "updatedAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: Chemist; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Chemist" (id, "chemistCode", name, mobile, email, address, territory, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") FROM stdin;
-1	CHM-762387	charan	5434554343		kamareddy	Default Territory			t	2026-07-15 06:07:21.962
-2	CHM-665570	srinadh	9733744748		kmm	Default Territory			t	2026-07-16 05:55:05.687
-3	CHM-878926	one eight			delhi	Default Territory			t	2026-07-16 05:59:28.158
-4	CHM-874621	saikiran			karimnagar	Default Territory			t	2026-07-16 06:11:48.535
-5	CHM-628381	madhu			khammam	Default Territory			t	2026-07-16 06:12:24.479
-6	CHM-947273	pavan			khammam	Default Territory			t	2026-07-16 06:21:20.512
-7	CHM-887823	asdfg			gfsdff	Default Territory			t	2026-07-16 06:22:20.013
-8	CHM-857771	harish			karimnagar	Default Territory			t	2026-07-16 06:28:13.495
-\.
+INSERT INTO public."Chemist" (id, "chemistCode", name, mobile, email, address, territory, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") VALUES (1, 'CHM-762387', 'charan', '5434554343', '', 'kamareddy', 'Default Territory', '', '', true, '2026-07-15 06:07:21.962');
+INSERT INTO public."Chemist" (id, "chemistCode", name, mobile, email, address, territory, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") VALUES (2, 'CHM-665570', 'srinadh', '9733744748', '', 'kmm', 'Default Territory', '', '', true, '2026-07-16 05:55:05.687');
+INSERT INTO public."Chemist" (id, "chemistCode", name, mobile, email, address, territory, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") VALUES (3, 'CHM-878926', 'one eight', '', '', 'delhi', 'Default Territory', '', '', true, '2026-07-16 05:59:28.158');
+INSERT INTO public."Chemist" (id, "chemistCode", name, mobile, email, address, territory, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") VALUES (4, 'CHM-874621', 'saikiran', '', '', 'karimnagar', 'Default Territory', '', '', true, '2026-07-16 06:11:48.535');
+INSERT INTO public."Chemist" (id, "chemistCode", name, mobile, email, address, territory, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") VALUES (5, 'CHM-628381', 'madhu', '', '', 'khammam', 'Default Territory', '', '', true, '2026-07-16 06:12:24.479');
+INSERT INTO public."Chemist" (id, "chemistCode", name, mobile, email, address, territory, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") VALUES (6, 'CHM-947273', 'pavan', '', '', 'khammam', 'Default Territory', '', '', true, '2026-07-16 06:21:20.512');
+INSERT INTO public."Chemist" (id, "chemistCode", name, mobile, email, address, territory, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") VALUES (7, 'CHM-887823', 'asdfg', '', '', 'gfsdff', 'Default Territory', '', '', true, '2026-07-16 06:22:20.013');
+INSERT INTO public."Chemist" (id, "chemistCode", name, mobile, email, address, territory, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") VALUES (8, 'CHM-857771', 'harish', '', '', 'karimnagar', 'Default Territory', '', '', true, '2026-07-16 06:28:13.495');
 
 
 --
 -- Data for Name: ChemistVisit; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") FROM stdin;
-1	1	1	2026-07-15 06:07:21.969			0	18.44706106025037	79.13333109448098	2026-07-15 06:07:21.977
-2	1	2	2026-07-16 05:55:05.692			0	18.44683484039824	79.133108216904	2026-07-16 05:55:05.702
-3	1	3	2026-07-16 05:59:28.172			0	18.44683484039824	79.133108216904	2026-07-16 05:59:28.185
-4	1	3	2026-07-16 06:11:13.36			0	18.44683484039824	79.133108216904	2026-07-16 06:11:13.377
-5	1	4	2026-07-16 06:11:48.542			0	18.44683484039824	79.133108216904	2026-07-16 06:11:48.554
-6	1	5	2026-07-16 06:12:24.486			0	18.44683484039824	79.133108216904	2026-07-16 06:12:24.5
-7	1	6	2026-07-16 06:21:20.517			0	18.44683029904585	79.13338499478371	2026-07-16 06:21:20.526
-8	1	7	2026-07-16 06:22:20.018			0	18.44683029904585	79.13338499478371	2026-07-16 06:22:20.026
-9	1	7	2026-07-16 06:22:41.454			0	18.44683029904585	79.13338499478371	2026-07-16 06:22:41.467
-10	1	8	2026-07-16 06:28:13.508			0	18.44683029904585	79.13338499478371	2026-07-16 06:28:13.519
-11	1	7	2026-07-16 07:17:12.517			0	18.44683029904585	79.13338499478371	2026-07-16 07:17:12.534
-\.
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (1, 1, 1, '2026-07-15 06:07:21.969', '', '', 0, 18.44706106025037, 79.13333109448098, '2026-07-15 06:07:21.977');
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (2, 1, 2, '2026-07-16 05:55:05.692', '', '', 0, 18.44683484039824, 79.133108216904, '2026-07-16 05:55:05.702');
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (3, 1, 3, '2026-07-16 05:59:28.172', '', '', 0, 18.44683484039824, 79.133108216904, '2026-07-16 05:59:28.185');
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (4, 1, 3, '2026-07-16 06:11:13.36', '', '', 0, 18.44683484039824, 79.133108216904, '2026-07-16 06:11:13.377');
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (5, 1, 4, '2026-07-16 06:11:48.542', '', '', 0, 18.44683484039824, 79.133108216904, '2026-07-16 06:11:48.554');
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (6, 1, 5, '2026-07-16 06:12:24.486', '', '', 0, 18.44683484039824, 79.133108216904, '2026-07-16 06:12:24.5');
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (7, 1, 6, '2026-07-16 06:21:20.517', '', '', 0, 18.44683029904585, 79.13338499478371, '2026-07-16 06:21:20.526');
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (8, 1, 7, '2026-07-16 06:22:20.018', '', '', 0, 18.44683029904585, 79.13338499478371, '2026-07-16 06:22:20.026');
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (9, 1, 7, '2026-07-16 06:22:41.454', '', '', 0, 18.44683029904585, 79.13338499478371, '2026-07-16 06:22:41.467');
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (10, 1, 8, '2026-07-16 06:28:13.508', '', '', 0, 18.44683029904585, 79.13338499478371, '2026-07-16 06:28:13.519');
+INSERT INTO public."ChemistVisit" (id, "mrId", "chemistId", "visitDate", remarks, "productsDiscussed", "orderValue", latitude, longitude, "createdAt") VALUES (11, 1, 7, '2026-07-16 07:17:12.517', '', '', 0, 18.44683029904585, 79.13338499478371, '2026-07-16 07:17:12.534');
 
 
 --
 -- Data for Name: Company; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Company" (id, name, email, phone, address, "isActive", "createdAt", "updatedAt") FROM stdin;
-1	Default Pharma Company	info@pharmaerp.com	\N	\N	t	2026-07-14 07:41:48.526	2026-07-14 07:41:48.526
-\.
+INSERT INTO public."Company" (id, name, email, phone, address, "isActive", "createdAt", "updatedAt") VALUES (1, 'Default Pharma Company', 'info@pharmaerp.com', NULL, NULL, true, '2026-07-14 07:41:48.526', '2026-07-14 07:41:48.526');
 
 
 --
 -- Data for Name: CompanyFeaturePermission; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."CompanyFeaturePermission" (id, "companyId", "featureId", enabled, "createdAt", "updatedAt") FROM stdin;
-1	1	1	t	2026-07-14 13:11:16.04	2026-07-14 13:11:16.04
-2	1	2	t	2026-07-14 13:11:16.056	2026-07-14 13:11:16.056
-3	1	3	t	2026-07-14 13:11:16.061	2026-07-14 13:11:16.061
-\.
+INSERT INTO public."CompanyFeaturePermission" (id, "companyId", "featureId", enabled, "createdAt", "updatedAt") VALUES (1, 1, 1, true, '2026-07-14 13:11:16.04', '2026-07-14 13:11:16.04');
+INSERT INTO public."CompanyFeaturePermission" (id, "companyId", "featureId", enabled, "createdAt", "updatedAt") VALUES (2, 1, 2, true, '2026-07-14 13:11:16.056', '2026-07-14 13:11:16.056');
+INSERT INTO public."CompanyFeaturePermission" (id, "companyId", "featureId", enabled, "createdAt", "updatedAt") VALUES (3, 1, 3, true, '2026-07-14 13:11:16.061', '2026-07-14 13:11:16.061');
 
 
 --
 -- Data for Name: CreditNote; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."CreditNote" (id, "cnNo", "cnDate", status, "cnType", reason, remarks, "retailerId", "distributorId", "mrId", "againstInvoiceId", "taxableAmount", "gstAmount", "totalAmount", "amountSettled", "approvedByUserId", "approvedAt", "createdAt") FROM stdin;
-1	CN/26/0920	2026-07-18 06:44:50.832	PAID	Sales Return	Expiry Return	the stock was expired	1	\N	\N	1	150	18	168	168	1	2026-07-18 06:50:09.271	2026-07-18 06:44:50.832
-2	CN/26/0265	2026-07-18 06:50:58.894	PENDING	Sales Return	Price Adjustment		1	\N	\N	1	75	9	84	0	\N	\N	2026-07-18 06:50:58.894
-\.
+INSERT INTO public."CreditNote" (id, "cnNo", "cnDate", status, "cnType", reason, remarks, "retailerId", "distributorId", "mrId", "againstInvoiceId", "taxableAmount", "gstAmount", "totalAmount", "amountSettled", "approvedByUserId", "approvedAt", "createdAt") VALUES (1, 'CN/26/0920', '2026-07-18 06:44:50.832', 'PAID', 'Sales Return', 'Expiry Return', 'the stock was expired', 1, NULL, NULL, 1, 150, 18, 168, 168, 1, '2026-07-18 06:50:09.271', '2026-07-18 06:44:50.832');
+INSERT INTO public."CreditNote" (id, "cnNo", "cnDate", status, "cnType", reason, remarks, "retailerId", "distributorId", "mrId", "againstInvoiceId", "taxableAmount", "gstAmount", "totalAmount", "amountSettled", "approvedByUserId", "approvedAt", "createdAt") VALUES (2, 'CN/26/0265', '2026-07-18 06:50:58.894', 'PENDING', 'Sales Return', 'Price Adjustment', '', 1, NULL, NULL, 1, 75, 9, 84, 0, NULL, NULL, '2026-07-18 06:50:58.894');
 
 
 --
 -- Data for Name: CreditNoteItem; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."CreditNoteItem" (id, "creditNoteId", "productId", "batchId", quantity, rate, "gstPercent", "totalAmount", disposition) FROM stdin;
-1	1	9	9	10	15	12	168	SALABLE
-2	2	9	9	5	15	12	84	SALABLE
-\.
+INSERT INTO public."CreditNoteItem" (id, "creditNoteId", "productId", "batchId", quantity, rate, "gstPercent", "totalAmount", disposition) VALUES (1, 1, 9, 9, 10, 15, 12, 168, 'SALABLE');
+INSERT INTO public."CreditNoteItem" (id, "creditNoteId", "productId", "batchId", quantity, rate, "gstPercent", "totalAmount", disposition) VALUES (2, 2, 9, 9, 5, 15, 12, 84, 'SALABLE');
 
 
 --
 -- Data for Name: DailyReport; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."DailyReport" (id, "mrId", "reportDate", "doctorVisits", "chemistVisits", "samplesDistributed", "ordersCollected", remarks, status, "createdAt") FROM stdin;
-1	1	2026-07-15 00:00:00	1	1	0	1.000000000000000000000000000000	got good	SUBMITTED	2026-07-15 06:28:48.608
-2	1	2026-07-16 00:00:00	0	0	0	1.000000000000000000000000000000		SUBMITTED	2026-07-16 06:54:01.09
-3	1	2026-07-16 00:00:00	2	10	0	1.000000000000000000000000000000		Draft	2026-07-16 07:32:38.711
-\.
+INSERT INTO public."DailyReport" (id, "mrId", "reportDate", "doctorVisits", "chemistVisits", "samplesDistributed", "ordersCollected", remarks, status, "createdAt") VALUES (1, 1, '2026-07-15 00:00:00', 1, 1, 0, 1.000000000000000000000000000000, 'got good', 'SUBMITTED', '2026-07-15 06:28:48.608');
+INSERT INTO public."DailyReport" (id, "mrId", "reportDate", "doctorVisits", "chemistVisits", "samplesDistributed", "ordersCollected", remarks, status, "createdAt") VALUES (2, 1, '2026-07-16 00:00:00', 0, 0, 0, 1.000000000000000000000000000000, '', 'SUBMITTED', '2026-07-16 06:54:01.09');
+INSERT INTO public."DailyReport" (id, "mrId", "reportDate", "doctorVisits", "chemistVisits", "samplesDistributed", "ordersCollected", remarks, status, "createdAt") VALUES (3, 1, '2026-07-16 00:00:00', 2, 10, 0, 1.000000000000000000000000000000, '', 'Draft', '2026-07-16 07:32:38.711');
 
 
 --
 -- Data for Name: DeliveryTracking; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."DeliveryTracking" (id, "lrTrackingId", "receiverName", "receiverMobile", "deliveryDate", status, remarks, "createdAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: Dispatch; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Dispatch" (id, "batchId", "warehouseId", "customerName", quantity, "dispatchDate", status, remarks, "createdAt", "createdBy", "createdDate", "dispatchNo", "dispatchType", "driverMobile", "driverName", "lrNumber", "orderId", products, "sourceWarehouse", "totalItems", "totalQuantity", transporter, "vehicleNumber", "expectedDeliveryDate") FROM stdin;
-1	\N	2	Metro Pharma Distributors	\N	2026-07-18 10:57:04.368	DELIVERED	\N	2026-07-18 10:57:04.368	System Administrator	2026-07-18	OUT-2026-005	Distributor Order	\N	\N	\N	N/A	[{"rate": 45, "amount": 2250, "batchId": 9, "batchNo": "B-PCM-001", "quantity": 50, "productId": 9, "productCode": "PRD-20260714-131404", "productName": "ghijkl"}]	afgewscvds	1	50	\N	\N	\N
-2	\N	2	Care Pharmacy	\N	2026-07-18 11:13:42.048	PENDING	\N	2026-07-18 11:13:42.048	System Administrator	2026-07-18	OUT-2026-006	Distributor Order	\N	\N	\N	N/A	[{"rate": 45, "amount": 2250, "batchId": 9, "batchNo": "B-PCM-001", "quantity": 50, "productId": 9, "productCode": "PRD-20260714-131404", "productName": "ghijkl"}]	afgewscvds	1	50	\N	\N	\N
-3	\N	2	Metro Pharma Distributors	\N	2026-07-18 11:14:51.006	DELIVERED	EXPECTED_DELIVERY_DATE: 2026-07-22 | 	2026-07-18 11:14:51.006	System Administrator	2026-07-18	OUT-2026-007	Distributor Order	543354321	gowtham	654321	N/A	[{"rate": 45, "amount": 2700, "batchId": 9, "batchNo": "B-PCM-001", "quantity": 60, "productId": 9, "productCode": "PRD-20260714-131404", "productName": "ghijkl"}]	afgewscvds	1	60	VRL Logistics	234566543	\N
-4	\N	6	Metro Pharma Distributors	\N	2026-07-18 12:24:17.877	DELIVERED	EXPECTED_DELIVERY_DATE: 2026-07-30 | 	2026-07-18 12:24:17.877	System Administrator	2026-07-18	OUT-2026-008	Distributor Order	987654567	jashuva	765455	N/A	[{"rate": 35, "amount": 350, "batchId": 7, "batchNo": "BAT-000006", "quantity": 10, "productId": 14, "productCode": "PRD-20260715-103153", "productName": "oxygen"}]	kamareddy warehouse	1	10	Delhivery	876556	\N
-\.
+INSERT INTO public."Dispatch" (id, "batchId", "warehouseId", "customerName", quantity, "dispatchDate", status, remarks, "createdAt", "createdBy", "createdDate", "dispatchNo", "dispatchType", "driverMobile", "driverName", "lrNumber", "orderId", products, "sourceWarehouse", "totalItems", "totalQuantity", transporter, "vehicleNumber", "expectedDeliveryDate") VALUES (1, NULL, 2, 'Metro Pharma Distributors', NULL, '2026-07-18 10:57:04.368', 'DELIVERED', NULL, '2026-07-18 10:57:04.368', 'System Administrator', '2026-07-18', 'OUT-2026-005', 'Distributor Order', NULL, NULL, NULL, 'N/A', '[{"rate": 45, "amount": 2250, "batchId": 9, "batchNo": "B-PCM-001", "quantity": 50, "productId": 9, "productCode": "PRD-20260714-131404", "productName": "ghijkl"}]', 'afgewscvds', 1, 50, NULL, NULL, NULL);
+INSERT INTO public."Dispatch" (id, "batchId", "warehouseId", "customerName", quantity, "dispatchDate", status, remarks, "createdAt", "createdBy", "createdDate", "dispatchNo", "dispatchType", "driverMobile", "driverName", "lrNumber", "orderId", products, "sourceWarehouse", "totalItems", "totalQuantity", transporter, "vehicleNumber", "expectedDeliveryDate") VALUES (2, NULL, 2, 'Care Pharmacy', NULL, '2026-07-18 11:13:42.048', 'PENDING', NULL, '2026-07-18 11:13:42.048', 'System Administrator', '2026-07-18', 'OUT-2026-006', 'Distributor Order', NULL, NULL, NULL, 'N/A', '[{"rate": 45, "amount": 2250, "batchId": 9, "batchNo": "B-PCM-001", "quantity": 50, "productId": 9, "productCode": "PRD-20260714-131404", "productName": "ghijkl"}]', 'afgewscvds', 1, 50, NULL, NULL, NULL);
+INSERT INTO public."Dispatch" (id, "batchId", "warehouseId", "customerName", quantity, "dispatchDate", status, remarks, "createdAt", "createdBy", "createdDate", "dispatchNo", "dispatchType", "driverMobile", "driverName", "lrNumber", "orderId", products, "sourceWarehouse", "totalItems", "totalQuantity", transporter, "vehicleNumber", "expectedDeliveryDate") VALUES (3, NULL, 2, 'Metro Pharma Distributors', NULL, '2026-07-18 11:14:51.006', 'DELIVERED', 'EXPECTED_DELIVERY_DATE: 2026-07-22 | ', '2026-07-18 11:14:51.006', 'System Administrator', '2026-07-18', 'OUT-2026-007', 'Distributor Order', '543354321', 'gowtham', '654321', 'N/A', '[{"rate": 45, "amount": 2700, "batchId": 9, "batchNo": "B-PCM-001", "quantity": 60, "productId": 9, "productCode": "PRD-20260714-131404", "productName": "ghijkl"}]', 'afgewscvds', 1, 60, 'VRL Logistics', '234566543', NULL);
+INSERT INTO public."Dispatch" (id, "batchId", "warehouseId", "customerName", quantity, "dispatchDate", status, remarks, "createdAt", "createdBy", "createdDate", "dispatchNo", "dispatchType", "driverMobile", "driverName", "lrNumber", "orderId", products, "sourceWarehouse", "totalItems", "totalQuantity", transporter, "vehicleNumber", "expectedDeliveryDate") VALUES (4, NULL, 6, 'Metro Pharma Distributors', NULL, '2026-07-18 12:24:17.877', 'DELIVERED', 'EXPECTED_DELIVERY_DATE: 2026-07-30 | ', '2026-07-18 12:24:17.877', 'System Administrator', '2026-07-18', 'OUT-2026-008', 'Distributor Order', '987654567', 'jashuva', '765455', 'N/A', '[{"rate": 35, "amount": 350, "batchId": 7, "batchNo": "BAT-000006", "quantity": 10, "productId": 14, "productCode": "PRD-20260715-103153", "productName": "oxygen"}]', 'kamareddy warehouse', 1, 10, 'Delhivery', '876556', NULL);
 
 
 --
 -- Data for Name: Distributor; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Distributor" (id, name, mobile) FROM stdin;
-1	Metro Pharma Distributors	9012345678
-2	Sri Balaji Agencies	9023456789
-3	Venkateshwara Medical Agencies	9034567890
-\.
+INSERT INTO public."Distributor" (id, name, mobile) VALUES (1, 'Metro Pharma Distributors', '9012345678');
+INSERT INTO public."Distributor" (id, name, mobile) VALUES (2, 'Sri Balaji Agencies', '9023456789');
+INSERT INTO public."Distributor" (id, name, mobile) VALUES (3, 'Venkateshwara Medical Agencies', '9034567890');
 
 
 --
 -- Data for Name: Doctor; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Doctor" (id, "doctorCode", name, specialization, hospital, mobile, email, address, territory, "isActive", "createdAt") FROM stdin;
-1	DOC-432074	Dr. Madhu	cardiologist	medicor	2345432343		medicor	Default Territory	t	2026-07-15 06:06:43.098
-2	DOC-853961	Dr. charan	mentalist	mental hospital	8433433255		mental hospital	Default Territory	t	2026-07-16 05:54:01.824
-\.
+INSERT INTO public."Doctor" (id, "doctorCode", name, specialization, hospital, mobile, email, address, territory, "isActive", "createdAt") VALUES (1, 'DOC-432074', 'Dr. Madhu', 'cardiologist', 'medicor', '2345432343', '', 'medicor', 'Default Territory', true, '2026-07-15 06:06:43.098');
+INSERT INTO public."Doctor" (id, "doctorCode", name, specialization, hospital, mobile, email, address, territory, "isActive", "createdAt") VALUES (2, 'DOC-853961', 'Dr. charan', 'mentalist', 'mental hospital', '8433433255', '', 'mental hospital', 'Default Territory', true, '2026-07-16 05:54:01.824');
 
 
 --
 -- Data for Name: DoctorVisit; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."DoctorVisit" (id, "mrId", "doctorId", "visitDate", remarks, "productsDiscussed", "samplesGiven", latitude, longitude, "createdAt") FROM stdin;
-1	1	1	2026-07-15 06:06:43.105			0	18.44706106025037	79.13333109448098	2026-07-15 06:06:43.116
-2	1	2	2026-07-16 05:54:01.833			0	18.44683484039824	79.133108216904	2026-07-16 05:54:01.847
-3	1	2	2026-07-16 07:16:50.334			0	18.44683029904585	79.13338499478371	2026-07-16 07:16:50.349
-\.
+INSERT INTO public."DoctorVisit" (id, "mrId", "doctorId", "visitDate", remarks, "productsDiscussed", "samplesGiven", latitude, longitude, "createdAt") VALUES (1, 1, 1, '2026-07-15 06:06:43.105', '', '', 0, 18.44706106025037, 79.13333109448098, '2026-07-15 06:06:43.116');
+INSERT INTO public."DoctorVisit" (id, "mrId", "doctorId", "visitDate", remarks, "productsDiscussed", "samplesGiven", latitude, longitude, "createdAt") VALUES (2, 1, 2, '2026-07-16 05:54:01.833', '', '', 0, 18.44683484039824, 79.133108216904, '2026-07-16 05:54:01.847');
+INSERT INTO public."DoctorVisit" (id, "mrId", "doctorId", "visitDate", remarks, "productsDiscussed", "samplesGiven", latitude, longitude, "createdAt") VALUES (3, 1, 2, '2026-07-16 07:16:50.334', '', '', 0, 18.44683029904585, 79.13338499478371, '2026-07-16 07:16:50.349');
 
 
 --
 -- Data for Name: Expense; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Expense" (id, "expenseType", amount, remarks, "expenseDate") FROM stdin;
-\.
 
 
 --
 -- Data for Name: ExpenseClaim; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."ExpenseClaim" (id, "mrId", "expenseType", amount, "expenseDate", description, "receiptUrl", status, "submittedAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: Feature; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Feature" (id, name, description, "moduleId", "createdAt", "updatedAt") FROM stdin;
-1	Product Master Management	Product Master Management	1	2026-07-14 13:11:16.035	2026-07-14 13:11:16.035
-2	Batch Management	Batch Management	1	2026-07-14 13:11:16.055	2026-07-14 13:11:16.055
-3	Inventory Management	Inventory Management	1	2026-07-14 13:11:16.059	2026-07-14 13:11:16.059
-\.
+INSERT INTO public."Feature" (id, name, description, "moduleId", "createdAt", "updatedAt") VALUES (1, 'Product Master Management', 'Product Master Management', 1, '2026-07-14 13:11:16.035', '2026-07-14 13:11:16.035');
+INSERT INTO public."Feature" (id, name, description, "moduleId", "createdAt", "updatedAt") VALUES (2, 'Batch Management', 'Batch Management', 1, '2026-07-14 13:11:16.055', '2026-07-14 13:11:16.055');
+INSERT INTO public."Feature" (id, name, description, "moduleId", "createdAt", "updatedAt") VALUES (3, 'Inventory Management', 'Inventory Management', 1, '2026-07-14 13:11:16.059', '2026-07-14 13:11:16.059');
 
 
 --
 -- Data for Name: FollowUp; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."FollowUp" (id, "mrId", "doctorId", "chemistId", "meetingId", title, remarks, "followUpDate", status, "createdAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: GSTRecord; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."GSTRecord" (id, "hsnCode", description, "gstPercent", "effectiveDate", "createdBy", "lastUpdatedBy", "createdAt", "updatedAt", remarks, status) FROM stdin;
-1	9876	this the thing the output is getting	5	2026-07-14 00:00:00	System Administrator	System Administrator	2026-07-14 11:42:40.446	2026-07-14 11:42:40.446	\N	Active
-2	5678	hgfggfdsdfgfd	18	2026-07-14 00:00:00	System Administrator	System Administrator	2026-07-14 11:43:01.412	2026-07-14 11:43:01.412	\N	Active
-3	4567	not the expected thing happened	28	2026-07-15 00:00:00	System Administrator	System Administrator	2026-07-14 11:52:40.748	2026-07-14 11:53:06.766	jhgffghjhvchjvchjhvcgjhv	Active
-4	9876	this the thing the output is getting	12	2026-07-14 00:00:00	System Administrator	System Administrator	2026-07-14 11:55:21.829	2026-07-14 11:55:21.829		Active
-5	4534	this is the test from the hub	28	2026-07-15 00:00:00	System Administrator	System Administrator	2026-07-15 04:34:28.326	2026-07-15 04:34:28.326	sdfghjkuytrerhgfddv	Active
-6	567890	ben ten is my favourite cartoon	12	2026-07-16 00:00:00	System Administrator	System Administrator	2026-07-16 03:49:13.368	2026-07-16 03:49:13.368	go to heaven	Active
-\.
+INSERT INTO public."GSTRecord" (id, "hsnCode", description, "gstPercent", "effectiveDate", "createdBy", "lastUpdatedBy", "createdAt", "updatedAt", remarks, status) VALUES (1, '9876', 'this the thing the output is getting', 5, '2026-07-14 00:00:00', 'System Administrator', 'System Administrator', '2026-07-14 11:42:40.446', '2026-07-14 11:42:40.446', NULL, 'Active');
+INSERT INTO public."GSTRecord" (id, "hsnCode", description, "gstPercent", "effectiveDate", "createdBy", "lastUpdatedBy", "createdAt", "updatedAt", remarks, status) VALUES (2, '5678', 'hgfggfdsdfgfd', 18, '2026-07-14 00:00:00', 'System Administrator', 'System Administrator', '2026-07-14 11:43:01.412', '2026-07-14 11:43:01.412', NULL, 'Active');
+INSERT INTO public."GSTRecord" (id, "hsnCode", description, "gstPercent", "effectiveDate", "createdBy", "lastUpdatedBy", "createdAt", "updatedAt", remarks, status) VALUES (3, '4567', 'not the expected thing happened', 28, '2026-07-15 00:00:00', 'System Administrator', 'System Administrator', '2026-07-14 11:52:40.748', '2026-07-14 11:53:06.766', 'jhgffghjhvchjvchjhvcgjhv', 'Active');
+INSERT INTO public."GSTRecord" (id, "hsnCode", description, "gstPercent", "effectiveDate", "createdBy", "lastUpdatedBy", "createdAt", "updatedAt", remarks, status) VALUES (4, '9876', 'this the thing the output is getting', 12, '2026-07-14 00:00:00', 'System Administrator', 'System Administrator', '2026-07-14 11:55:21.829', '2026-07-14 11:55:21.829', '', 'Active');
+INSERT INTO public."GSTRecord" (id, "hsnCode", description, "gstPercent", "effectiveDate", "createdBy", "lastUpdatedBy", "createdAt", "updatedAt", remarks, status) VALUES (5, '4534', 'this is the test from the hub', 28, '2026-07-15 00:00:00', 'System Administrator', 'System Administrator', '2026-07-15 04:34:28.326', '2026-07-15 04:34:28.326', 'sdfghjkuytrerhgfddv', 'Active');
+INSERT INTO public."GSTRecord" (id, "hsnCode", description, "gstPercent", "effectiveDate", "createdBy", "lastUpdatedBy", "createdAt", "updatedAt", remarks, status) VALUES (6, '567890', 'ben ten is my favourite cartoon', 12, '2026-07-16 00:00:00', 'System Administrator', 'System Administrator', '2026-07-16 03:49:13.368', '2026-07-16 03:49:13.368', 'go to heaven', 'Active');
 
 
 --
 -- Data for Name: HSNCode; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."HSNCode" (id, code, description, status, remarks, "createdAt", "updatedAt") FROM stdin;
-2	1234	my problme is to solve tge problkem	Active		2026-07-14 11:22:12.381	2026-07-14 11:22:12.381
-3	4567	not the expected thing happened	Active		2026-07-14 11:22:41.229	2026-07-14 11:22:41.229
-6	4534	this is the test from the hub	Active	dfghhgerccvb	2026-07-15 04:33:54.631	2026-07-15 04:33:54.631
-8	234432	vxb czvfsda	Active		2026-07-20 09:30:48.959	2026-07-20 09:30:48.959
-\.
+INSERT INTO public."HSNCode" (id, code, description, status, remarks, "createdAt", "updatedAt") VALUES (2, '1234', 'my problme is to solve tge problkem', 'Active', '', '2026-07-14 11:22:12.381', '2026-07-14 11:22:12.381');
+INSERT INTO public."HSNCode" (id, code, description, status, remarks, "createdAt", "updatedAt") VALUES (3, '4567', 'not the expected thing happened', 'Active', '', '2026-07-14 11:22:41.229', '2026-07-14 11:22:41.229');
+INSERT INTO public."HSNCode" (id, code, description, status, remarks, "createdAt", "updatedAt") VALUES (6, '4534', 'this is the test from the hub', 'Active', 'dfghhgerccvb', '2026-07-15 04:33:54.631', '2026-07-15 04:33:54.631');
+INSERT INTO public."HSNCode" (id, code, description, status, remarks, "createdAt", "updatedAt") VALUES (8, '234432', 'vxb czvfsda', 'Active', '', '2026-07-20 09:30:48.959', '2026-07-20 09:30:48.959');
 
 
 --
 -- Data for Name: Hospital; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Hospital" (id, name, mobile, address) FROM stdin;
-1	Yashoda Hospital	9123456789	Secunderabad
-2	Apollo Hospitals	9234567890	Jubilee Hills
-3	Care Hospital	9345678901	Banjara Hills
-4	Sunshine Clinic	9456789012	Gachibowli
-\.
+INSERT INTO public."Hospital" (id, name, mobile, address) VALUES (1, 'Yashoda Hospital', '9123456789', 'Secunderabad');
+INSERT INTO public."Hospital" (id, name, mobile, address) VALUES (2, 'Apollo Hospitals', '9234567890', 'Jubilee Hills');
+INSERT INTO public."Hospital" (id, name, mobile, address) VALUES (3, 'Care Hospital', '9345678901', 'Banjara Hills');
+INSERT INTO public."Hospital" (id, name, mobile, address) VALUES (4, 'Sunshine Clinic', '9456789012', 'Gachibowli');
 
 
 --
 -- Data for Name: Income; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Income" (id, "incomeType", amount, remarks, "incomeDate") FROM stdin;
-\.
 
 
 --
 -- Data for Name: Inventory; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Inventory" (id, "batchId", quantity, "warehouseId") FROM stdin;
-1	4	-5	2
-2	7	-35	4
-3	5	-25	4
-4	8	50	6
-6	9	900	2
-7	9	110	7
-5	7	8	6
-8	7	10	7
-\.
+INSERT INTO public."Inventory" (id, "batchId", quantity, "warehouseId") VALUES (1, 4, -5, 2);
+INSERT INTO public."Inventory" (id, "batchId", quantity, "warehouseId") VALUES (2, 7, -35, 4);
+INSERT INTO public."Inventory" (id, "batchId", quantity, "warehouseId") VALUES (3, 5, -25, 4);
+INSERT INTO public."Inventory" (id, "batchId", quantity, "warehouseId") VALUES (4, 8, 50, 6);
+INSERT INTO public."Inventory" (id, "batchId", quantity, "warehouseId") VALUES (6, 9, 900, 2);
+INSERT INTO public."Inventory" (id, "batchId", quantity, "warehouseId") VALUES (7, 9, 110, 7);
+INSERT INTO public."Inventory" (id, "batchId", quantity, "warehouseId") VALUES (5, 7, 8, 6);
+INSERT INTO public."Inventory" (id, "batchId", quantity, "warehouseId") VALUES (8, 7, 10, 7);
 
 
 --
 -- Data for Name: Invoice; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Invoice" (id, "retailerId", "invoiceNumber", "invoiceDate", "subTotal", "gstAmount", "totalAmount", status, "createdAt") FROM stdin;
-1	1	INV-2026-0001	2026-07-18 06:38:20.874	150	18	168	PENDING	2026-07-18 06:38:20.877
-\.
+INSERT INTO public."Invoice" (id, "retailerId", "invoiceNumber", "invoiceDate", "subTotal", "gstAmount", "totalAmount", status, "createdAt") VALUES (1, 1, 'INV-2026-0001', '2026-07-18 06:38:20.874', 150, 18, 168, 'PENDING', '2026-07-18 06:38:20.877');
 
 
 --
 -- Data for Name: InvoiceItem; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."InvoiceItem" (id, "invoiceId", "productId", quantity, rate, gst, amount) FROM stdin;
-1	1	9	10	15	12	168
-\.
+INSERT INTO public."InvoiceItem" (id, "invoiceId", "productId", quantity, rate, gst, amount) VALUES (1, 1, 9, 10, 15, 12, 168);
 
 
 --
 -- Data for Name: InwardStock; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."InwardStock" (id, "grnNo", date, "supplierId", "warehouseId", "invoiceNumber", "invoiceDate", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") FROM stdin;
-1	GRN-2026-001	2026-07-14 00:00:00	1	2	\N	\N	1	15	510	Completed		2026-07-14 13:46:21.337
-2	GRN-2026-002	2026-07-15 00:00:00	1	4	\N	\N	2	120	4200	Completed		2026-07-15 05:06:24.585
-3	GRN-2026-003	2026-07-16 00:00:00	2	6	\N	\N	1	50	25	Completed		2026-07-16 04:02:37.008
-4	GRN-2026-004	2026-07-17 00:00:00	2	6	\N	\N	1	18	630	Completed		2026-07-17 12:18:39.824
-\.
+INSERT INTO public."InwardStock" (id, "grnNo", date, "supplierId", "warehouseId", "invoiceNumber", "invoiceDate", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (1, 'GRN-2026-001', '2026-07-14 00:00:00', 1, 2, NULL, NULL, 1, 15, 510, 'Completed', '', '2026-07-14 13:46:21.337');
+INSERT INTO public."InwardStock" (id, "grnNo", date, "supplierId", "warehouseId", "invoiceNumber", "invoiceDate", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (2, 'GRN-2026-002', '2026-07-15 00:00:00', 1, 4, NULL, NULL, 2, 120, 4200, 'Completed', '', '2026-07-15 05:06:24.585');
+INSERT INTO public."InwardStock" (id, "grnNo", date, "supplierId", "warehouseId", "invoiceNumber", "invoiceDate", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (3, 'GRN-2026-003', '2026-07-16 00:00:00', 2, 6, NULL, NULL, 1, 50, 25, 'Completed', '', '2026-07-16 04:02:37.008');
+INSERT INTO public."InwardStock" (id, "grnNo", date, "supplierId", "warehouseId", "invoiceNumber", "invoiceDate", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (4, 'GRN-2026-004', '2026-07-17 00:00:00', 2, 6, NULL, NULL, 1, 18, 630, 'Completed', '', '2026-07-17 12:18:39.824');
 
 
 --
 -- Data for Name: InwardStockItem; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."InwardStockItem" (id, "inwardStockId", "productId", "batchNo", "mfgDate", "expiryDate", quantity, ptr, mrp, "createdAt") FROM stdin;
-1	1	12	BAT-000003	2026-07-14 00:00:00	2026-07-30 00:00:00	15	34	45	2026-07-14 13:46:21.337
-2	2	14	BAT-000006	2026-07-15 00:00:00	2026-10-29 00:00:00	70	35	45	2026-07-15 05:06:24.585
-3	2	10	BAT-000004	2026-07-14 00:00:00	2026-07-23 00:00:00	50	35	45	2026-07-15 05:06:24.585
-4	3	15	BAT-000007	2026-07-01 00:00:00	2026-09-30 00:00:00	50	0.5	5	2026-07-16 04:02:37.008
-5	4	14	BAT-000006	2026-07-15 00:00:00	2026-10-29 00:00:00	18	35	24.98	2026-07-17 12:18:39.824
-\.
+INSERT INTO public."InwardStockItem" (id, "inwardStockId", "productId", "batchNo", "mfgDate", "expiryDate", quantity, ptr, mrp, "createdAt") VALUES (1, 1, 12, 'BAT-000003', '2026-07-14 00:00:00', '2026-07-30 00:00:00', 15, 34, 45, '2026-07-14 13:46:21.337');
+INSERT INTO public."InwardStockItem" (id, "inwardStockId", "productId", "batchNo", "mfgDate", "expiryDate", quantity, ptr, mrp, "createdAt") VALUES (2, 2, 14, 'BAT-000006', '2026-07-15 00:00:00', '2026-10-29 00:00:00', 70, 35, 45, '2026-07-15 05:06:24.585');
+INSERT INTO public."InwardStockItem" (id, "inwardStockId", "productId", "batchNo", "mfgDate", "expiryDate", quantity, ptr, mrp, "createdAt") VALUES (3, 2, 10, 'BAT-000004', '2026-07-14 00:00:00', '2026-07-23 00:00:00', 50, 35, 45, '2026-07-15 05:06:24.585');
+INSERT INTO public."InwardStockItem" (id, "inwardStockId", "productId", "batchNo", "mfgDate", "expiryDate", quantity, ptr, mrp, "createdAt") VALUES (4, 3, 15, 'BAT-000007', '2026-07-01 00:00:00', '2026-09-30 00:00:00', 50, 0.5, 5, '2026-07-16 04:02:37.008');
+INSERT INTO public."InwardStockItem" (id, "inwardStockId", "productId", "batchNo", "mfgDate", "expiryDate", quantity, ptr, mrp, "createdAt") VALUES (5, 4, 14, 'BAT-000006', '2026-07-15 00:00:00', '2026-10-29 00:00:00', 18, 35, 24.98, '2026-07-17 12:18:39.824');
 
 
 --
 -- Data for Name: LRTracking; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."LRTracking" (id, "transportChallanId", "lrNumber", source, destination, status, "createdAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: Lead; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Lead" (id, "leadCode", name, type, mobile, email, address, territory, source, status, "assignedMrId", "createdAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: LeaveRequest; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."LeaveRequest" (id, "mrId", "leaveType", "fromDate", "toDate", reason, status, "appliedAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: Ledger; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Ledger" (id, "retailerId", "transactionType", "referenceNumber", debit, credit, balance, remarks, "createdAt") FROM stdin;
-1	1	CREDIT_NOTE_SETTLEMENT	CN/26/0920	0	168	-168	khcxzdfghjk	2026-07-18 06:50:09.269
-\.
+INSERT INTO public."Ledger" (id, "retailerId", "transactionType", "referenceNumber", debit, credit, balance, remarks, "createdAt") VALUES (1, 1, 'CREDIT_NOTE_SETTLEMENT', 'CN/26/0920', 0, 168, -168, 'khcxzdfghjk', '2026-07-18 06:50:09.269');
 
 
 --
 -- Data for Name: MR; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."MR" (id, "mrCode", name, mobile, email, territory, "joiningDate", status, "createdAt", "userId") FROM stdin;
-1	MR-001	Priya Reddy	8688662767	mr@pharmaerp.com	HQ	2026-07-15 06:03:11.122	ACTIVE	2026-07-15 06:03:11.122	6
-\.
+INSERT INTO public."MR" (id, "mrCode", name, mobile, email, territory, "joiningDate", status, "createdAt", "userId") VALUES (1, 'MR-001', 'Priya Reddy', '8688662767', 'mr@pharmaerp.com', 'HQ', '2026-07-15 06:03:11.122', 'ACTIVE', '2026-07-15 06:03:11.122', 6);
 
 
 --
 -- Data for Name: Meeting; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Meeting" (id, "mrId", "doctorId", "chemistId", title, description, "meetingDate", location, status, "createdAt") FROM stdin;
-1	1	\N	\N	about operations		2026-07-15 09:30:00	\N	SCHEDULED	2026-07-15 06:32:49.717
-\.
+INSERT INTO public."Meeting" (id, "mrId", "doctorId", "chemistId", title, description, "meetingDate", location, status, "createdAt") VALUES (1, 1, NULL, NULL, 'about operations', '', '2026-07-15 09:30:00', NULL, 'SCHEDULED', '2026-07-15 06:32:49.717');
 
 
 --
 -- Data for Name: MeetingChemist; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."MeetingChemist" (id, "meetingId", "chemistId") FROM stdin;
-\.
 
 
 --
 -- Data for Name: MeetingDoctor; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."MeetingDoctor" (id, "meetingId", "doctorId") FROM stdin;
-\.
 
 
 --
 -- Data for Name: MeetingHospital; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."MeetingHospital" (id, "meetingId", "hospitalId") FROM stdin;
-\.
 
 
 --
 -- Data for Name: MeetingStockist; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."MeetingStockist" (id, "meetingId", "stockistId") FROM stdin;
-\.
 
 
 --
 -- Data for Name: Module; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Module" (id, name, description, "createdAt", "updatedAt") FROM stdin;
-1	Core	Core Module	2026-07-14 13:11:16.026	2026-07-14 13:11:16.026
-\.
+INSERT INTO public."Module" (id, name, description, "createdAt", "updatedAt") VALUES (1, 'Core', 'Core Module', '2026-07-14 13:11:16.026', '2026-07-14 13:11:16.026');
 
 
 --
 -- Data for Name: Notification; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Notification" (id, "mrId", title, message, type, "isRead", "createdAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: OutwardStock; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."OutwardStock" (id, "dispatchNo", date, client, "warehouseId", "referenceNumber", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") FROM stdin;
-1	OUT-2026-001	2026-07-14 00:00:00	Apollo Hospitals	2		1	6	204	Processing	\N	2026-07-14 13:46:43.501
-2	OUT-2026-002	2026-07-15 00:00:00	Care Pharmacy	4		1	39	1365	Processing	\N	2026-07-15 05:07:05.016
-3	OUT-2026-003	2026-07-15 00:00:00	City Clinic	4		1	20	700	Processing	\N	2026-07-15 05:07:38.233
-4	OUT-2026-004	2026-07-16 00:00:00	Apollo Hospitals	6	23456776	1	19	9.5	Processing	\N	2026-07-16 04:03:03.074
-5	OUT-2026-005	2026-07-18 00:00:00	Metro Pharma Distributors	2		1	50	2250	Delivered	\N	2026-07-18 10:57:04.332
-6	OUT-2026-006	2026-07-18 00:00:00	Care Pharmacy	2		1	50	2250	Processing	\N	2026-07-18 11:13:42.006
-7	OUT-2026-007	2026-07-18 00:00:00	Metro Pharma Distributors	2		1	60	2700	Delivered	\N	2026-07-18 11:14:50.988
-8	OUT-2026-008	2026-07-18 00:00:00	Metro Pharma Distributors	6		1	10	350	Delivered	\N	2026-07-18 12:24:17.841
-\.
+INSERT INTO public."OutwardStock" (id, "dispatchNo", date, client, "warehouseId", "referenceNumber", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (1, 'OUT-2026-001', '2026-07-14 00:00:00', 'Apollo Hospitals', 2, '', 1, 6, 204, 'Processing', NULL, '2026-07-14 13:46:43.501');
+INSERT INTO public."OutwardStock" (id, "dispatchNo", date, client, "warehouseId", "referenceNumber", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (2, 'OUT-2026-002', '2026-07-15 00:00:00', 'Care Pharmacy', 4, '', 1, 39, 1365, 'Processing', NULL, '2026-07-15 05:07:05.016');
+INSERT INTO public."OutwardStock" (id, "dispatchNo", date, client, "warehouseId", "referenceNumber", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (3, 'OUT-2026-003', '2026-07-15 00:00:00', 'City Clinic', 4, '', 1, 20, 700, 'Processing', NULL, '2026-07-15 05:07:38.233');
+INSERT INTO public."OutwardStock" (id, "dispatchNo", date, client, "warehouseId", "referenceNumber", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (4, 'OUT-2026-004', '2026-07-16 00:00:00', 'Apollo Hospitals', 6, '23456776', 1, 19, 9.5, 'Processing', NULL, '2026-07-16 04:03:03.074');
+INSERT INTO public."OutwardStock" (id, "dispatchNo", date, client, "warehouseId", "referenceNumber", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (5, 'OUT-2026-005', '2026-07-18 00:00:00', 'Metro Pharma Distributors', 2, '', 1, 50, 2250, 'Delivered', NULL, '2026-07-18 10:57:04.332');
+INSERT INTO public."OutwardStock" (id, "dispatchNo", date, client, "warehouseId", "referenceNumber", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (6, 'OUT-2026-006', '2026-07-18 00:00:00', 'Care Pharmacy', 2, '', 1, 50, 2250, 'Processing', NULL, '2026-07-18 11:13:42.006');
+INSERT INTO public."OutwardStock" (id, "dispatchNo", date, client, "warehouseId", "referenceNumber", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (7, 'OUT-2026-007', '2026-07-18 00:00:00', 'Metro Pharma Distributors', 2, '', 1, 60, 2700, 'Delivered', NULL, '2026-07-18 11:14:50.988');
+INSERT INTO public."OutwardStock" (id, "dispatchNo", date, client, "warehouseId", "referenceNumber", "itemsCount", "totalQuantity", "totalValue", status, remarks, "createdAt") VALUES (8, 'OUT-2026-008', '2026-07-18 00:00:00', 'Metro Pharma Distributors', 6, '', 1, 10, 350, 'Delivered', NULL, '2026-07-18 12:24:17.841');
 
 
 --
 -- Data for Name: OutwardStockItem; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."OutwardStockItem" (id, "outwardStockId", "productId", "batchId", quantity, rate) FROM stdin;
-1	1	12	4	6	34
-2	2	14	7	39	35
-3	3	10	5	20	35
-4	4	15	8	19	0.5
-5	5	9	9	50	45
-6	6	9	9	50	45
-7	7	9	9	60	45
-8	8	14	7	10	35
-\.
+INSERT INTO public."OutwardStockItem" (id, "outwardStockId", "productId", "batchId", quantity, rate) VALUES (1, 1, 12, 4, 6, 34);
+INSERT INTO public."OutwardStockItem" (id, "outwardStockId", "productId", "batchId", quantity, rate) VALUES (2, 2, 14, 7, 39, 35);
+INSERT INTO public."OutwardStockItem" (id, "outwardStockId", "productId", "batchId", quantity, rate) VALUES (3, 3, 10, 5, 20, 35);
+INSERT INTO public."OutwardStockItem" (id, "outwardStockId", "productId", "batchId", quantity, rate) VALUES (4, 4, 15, 8, 19, 0.5);
+INSERT INTO public."OutwardStockItem" (id, "outwardStockId", "productId", "batchId", quantity, rate) VALUES (5, 5, 9, 9, 50, 45);
+INSERT INTO public."OutwardStockItem" (id, "outwardStockId", "productId", "batchId", quantity, rate) VALUES (6, 6, 9, 9, 50, 45);
+INSERT INTO public."OutwardStockItem" (id, "outwardStockId", "productId", "batchId", quantity, rate) VALUES (7, 7, 9, 9, 60, 45);
+INSERT INTO public."OutwardStockItem" (id, "outwardStockId", "productId", "batchId", quantity, rate) VALUES (8, 8, 14, 7, 10, 35);
 
 
 --
 -- Data for Name: PackingType; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."PackingType" (id, code, description, status, "createdAt", "updatedAt", name, uom) FROM stdin;
-1	12345	this is an strip packaging	Active	2026-07-14 11:57:47.277	2026-07-14 12:05:17.392	Strip Packing	Strip
-5	3214	hajdks  ahsdfn hasd njd aos js	Active	2026-07-15 04:35:52.688	2026-07-15 04:35:52.688	plastic packing	Vial
-6	65748	this is naturally degradable and environment friendly	Active	2026-07-16 03:51:49.523	2026-07-16 03:51:49.523	paper packing	Tube
-\.
+INSERT INTO public."PackingType" (id, code, description, status, "createdAt", "updatedAt", name, uom) VALUES (1, '12345', 'this is an strip packaging', 'Active', '2026-07-14 11:57:47.277', '2026-07-14 12:05:17.392', 'Strip Packing', 'Strip');
+INSERT INTO public."PackingType" (id, code, description, status, "createdAt", "updatedAt", name, uom) VALUES (5, '3214', 'hajdks  ahsdfn hasd njd aos js', 'Active', '2026-07-15 04:35:52.688', '2026-07-15 04:35:52.688', 'plastic packing', 'Vial');
+INSERT INTO public."PackingType" (id, code, description, status, "createdAt", "updatedAt", name, uom) VALUES (6, '65748', 'this is naturally degradable and environment friendly', 'Active', '2026-07-16 03:51:49.523', '2026-07-16 03:51:49.523', 'paper packing', 'Tube');
 
 
 --
 -- Data for Name: PaymentCollection; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."PaymentCollection" (id, "invoiceId", amount, "paymentMode", "transactionRef", "paymentDate", remarks, "createdAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: PricingMaster; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."PricingMaster" (id, "productId", mrp, ptr, pts, margin, "effectiveDate", "createdAt", "updatedAt", "batchId", status) FROM stdin;
-10	15	10	1.5	1.2	20	2026-07-17 00:00:00	2026-07-17 09:07:31.568	2026-07-17 09:07:31.568	\N	Active
-11	12	25	21	20	4.76	2026-07-17 00:00:00	2026-07-17 09:09:12.344	2026-07-17 09:09:12.344	\N	Active
-12	10	45	28	20	28.57	2026-07-17 00:00:00	2026-07-17 09:16:04.952	2026-07-17 09:16:04.952	\N	Active
-13	15	20	5.5	5.2	5.45	2026-07-17 00:00:00	2026-07-17 09:17:29.383	2026-07-17 09:17:29.383	\N	Active
-\.
+INSERT INTO public."PricingMaster" (id, "productId", mrp, ptr, pts, margin, "effectiveDate", "createdAt", "updatedAt", "batchId", status) VALUES (10, 15, 10, 1.5, 1.2, 20, '2026-07-17 00:00:00', '2026-07-17 09:07:31.568', '2026-07-17 09:07:31.568', NULL, 'Active');
+INSERT INTO public."PricingMaster" (id, "productId", mrp, ptr, pts, margin, "effectiveDate", "createdAt", "updatedAt", "batchId", status) VALUES (11, 12, 25, 21, 20, 4.76, '2026-07-17 00:00:00', '2026-07-17 09:09:12.344', '2026-07-17 09:09:12.344', NULL, 'Active');
+INSERT INTO public."PricingMaster" (id, "productId", mrp, ptr, pts, margin, "effectiveDate", "createdAt", "updatedAt", "batchId", status) VALUES (12, 10, 45, 28, 20, 28.57, '2026-07-17 00:00:00', '2026-07-17 09:16:04.952', '2026-07-17 09:16:04.952', NULL, 'Active');
+INSERT INTO public."PricingMaster" (id, "productId", mrp, ptr, pts, margin, "effectiveDate", "createdAt", "updatedAt", "batchId", status) VALUES (13, 15, 20, 5.5, 5.2, 5.45, '2026-07-17 00:00:00', '2026-07-17 09:17:29.383', '2026-07-17 09:17:29.383', NULL, 'Active');
 
 
 --
 -- Data for Name: Product; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Product" (id, name, code, "categoryId", "hsnCode", gst, mrp, ptr, pts, ptd, "companyId", "createdAt", "updatedAt", "minStock", "batchTracking", "brandName", composition, "expiryTracking", "genericName", manufacturer, "packingType", "packsInBox", "purchasePrice", "reorderLevel", scheme, "sellingPrice", status, "totalUnits", type, "unitsPerPack") FROM stdin;
-9	ghijkl	PRD-20260714-131404	4	34554323	5	55	45	35	\N	1	2026-07-14 07:44:39.032	2026-07-14 07:44:39.032	0	t		Amoxicillin Trihydrate	t		MediCare	sdfbhgfszxcvgfsa		\N	\N	dont buy anything	\N	Active	0	Injection	
-14	oxygen	PRD-20260715-103153	2	9876	12	24.98	35	25	\N	1	2026-07-15 05:02:22.236	2026-07-17 08:56:36.901	0	t	carbon	Paracetamol	t		MediCare	gffgfffgdsdas		\N	\N	buy 100 get 100000	\N	Active	0	Injection	
-12	goat	PRD-20260714-184331	2		0	25	21	20	\N	1	2026-07-14 13:13:59.037	2026-07-17 09:15:34.44	0	t		Paracetamol	t		HealthPlus	Strip Packing		\N	\N	buy 100 get 100000	\N	Active	0	Capsule	
-10	inked	PRD-20260714-131633	1	30041000	33	45	28	20	\N	1	2026-07-14 07:47:27.242	2026-07-17 09:16:04.975	0	t	hoedajdnak	apple	t		HealthPlus	sdfbhgfszxcvgfsa		\N	\N	but 1000 get 00	\N	Active	0	Tablet	
-15	mouse	PRD-20260716-092328	1	567890	12	20	5.5	5.2	\N	1	2026-07-16 03:55:13.84	2026-07-20 09:27:41.775	50	t	biting	poori	t		PharmaCorp	paper packing	50	2	30	buy everything for money	5	Active	500	Capsule	10
-\.
+INSERT INTO public."Product" (id, name, code, "categoryId", "hsnCode", gst, mrp, ptr, pts, ptd, "companyId", "createdAt", "updatedAt", "minStock", "batchTracking", "brandName", composition, "expiryTracking", "genericName", manufacturer, "packingType", "packsInBox", "purchasePrice", "reorderLevel", scheme, "sellingPrice", status, "totalUnits", type, "unitsPerPack") VALUES (9, 'ghijkl', 'PRD-20260714-131404', 4, '34554323', 5, 55, 45, 35, NULL, 1, '2026-07-14 07:44:39.032', '2026-07-14 07:44:39.032', 0, true, '', 'Amoxicillin Trihydrate', true, '', 'MediCare', 'sdfbhgfszxcvgfsa', '', NULL, NULL, 'dont buy anything', NULL, 'Active', '0', 'Injection', '');
+INSERT INTO public."Product" (id, name, code, "categoryId", "hsnCode", gst, mrp, ptr, pts, ptd, "companyId", "createdAt", "updatedAt", "minStock", "batchTracking", "brandName", composition, "expiryTracking", "genericName", manufacturer, "packingType", "packsInBox", "purchasePrice", "reorderLevel", scheme, "sellingPrice", status, "totalUnits", type, "unitsPerPack") VALUES (14, 'oxygen', 'PRD-20260715-103153', 2, '9876', 12, 24.98, 35, 25, NULL, 1, '2026-07-15 05:02:22.236', '2026-07-17 08:56:36.901', 0, true, 'carbon', 'Paracetamol', true, '', 'MediCare', 'gffgfffgdsdas', '', NULL, NULL, 'buy 100 get 100000', NULL, 'Active', '0', 'Injection', '');
+INSERT INTO public."Product" (id, name, code, "categoryId", "hsnCode", gst, mrp, ptr, pts, ptd, "companyId", "createdAt", "updatedAt", "minStock", "batchTracking", "brandName", composition, "expiryTracking", "genericName", manufacturer, "packingType", "packsInBox", "purchasePrice", "reorderLevel", scheme, "sellingPrice", status, "totalUnits", type, "unitsPerPack") VALUES (12, 'goat', 'PRD-20260714-184331', 2, '', 0, 25, 21, 20, NULL, 1, '2026-07-14 13:13:59.037', '2026-07-17 09:15:34.44', 0, true, '', 'Paracetamol', true, '', 'HealthPlus', 'Strip Packing', '', NULL, NULL, 'buy 100 get 100000', NULL, 'Active', '0', 'Capsule', '');
+INSERT INTO public."Product" (id, name, code, "categoryId", "hsnCode", gst, mrp, ptr, pts, ptd, "companyId", "createdAt", "updatedAt", "minStock", "batchTracking", "brandName", composition, "expiryTracking", "genericName", manufacturer, "packingType", "packsInBox", "purchasePrice", "reorderLevel", scheme, "sellingPrice", status, "totalUnits", type, "unitsPerPack") VALUES (10, 'inked', 'PRD-20260714-131633', 1, '30041000', 33, 45, 28, 20, NULL, 1, '2026-07-14 07:47:27.242', '2026-07-17 09:16:04.975', 0, true, 'hoedajdnak', 'apple', true, '', 'HealthPlus', 'sdfbhgfszxcvgfsa', '', NULL, NULL, 'but 1000 get 00', NULL, 'Active', '0', 'Tablet', '');
+INSERT INTO public."Product" (id, name, code, "categoryId", "hsnCode", gst, mrp, ptr, pts, ptd, "companyId", "createdAt", "updatedAt", "minStock", "batchTracking", "brandName", composition, "expiryTracking", "genericName", manufacturer, "packingType", "packsInBox", "purchasePrice", "reorderLevel", scheme, "sellingPrice", status, "totalUnits", type, "unitsPerPack") VALUES (15, 'mouse', 'PRD-20260716-092328', 1, '567890', 12, 20, 5.5, 5.2, NULL, 1, '2026-07-16 03:55:13.84', '2026-07-20 09:27:41.775', 50, true, 'biting', 'poori', true, '', 'PharmaCorp', 'paper packing', '50', 2, 30, 'buy everything for money', 5, 'Active', '500', 'Capsule', '10');
 
 
 --
 -- Data for Name: ProductCategory; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."ProductCategory" (id, name, description, "createdAt", "updatedAt") FROM stdin;
-1	Antibiotics	\N	2026-07-13 13:36:14.079	2026-07-13 13:36:14.079
-2	Analgesics	\N	2026-07-14 07:25:57.644	2026-07-14 07:25:57.644
-3	Tablet	\N	2026-07-14 07:36:21.692	2026-07-14 07:36:21.692
-4	Antipyretics	\N	2026-07-14 07:44:39.021	2026-07-14 07:44:39.021
-\.
+INSERT INTO public."ProductCategory" (id, name, description, "createdAt", "updatedAt") VALUES (1, 'Antibiotics', NULL, '2026-07-13 13:36:14.079', '2026-07-13 13:36:14.079');
+INSERT INTO public."ProductCategory" (id, name, description, "createdAt", "updatedAt") VALUES (2, 'Analgesics', NULL, '2026-07-14 07:25:57.644', '2026-07-14 07:25:57.644');
+INSERT INTO public."ProductCategory" (id, name, description, "createdAt", "updatedAt") VALUES (3, 'Tablet', NULL, '2026-07-14 07:36:21.692', '2026-07-14 07:36:21.692');
+INSERT INTO public."ProductCategory" (id, name, description, "createdAt", "updatedAt") VALUES (4, 'Antipyretics', NULL, '2026-07-14 07:44:39.021', '2026-07-14 07:44:39.021');
 
 
 --
 -- Data for Name: Retailer; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Retailer" (id, "stockistId", name, code, mobile, email, address, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") FROM stdin;
-1	1	Apollo Pharmacy Store 5	RET001	9876543210	apollo5@pharmacy.com	Main Market, Sector 15	27ABCDE1234F1Z5	\N	t	2026-07-18 06:38:05.686
-\.
+INSERT INTO public."Retailer" (id, "stockistId", name, code, mobile, email, address, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") VALUES (1, 1, 'Apollo Pharmacy Store 5', 'RET001', '9876543210', 'apollo5@pharmacy.com', 'Main Market, Sector 15', '27ABCDE1234F1Z5', NULL, true, '2026-07-18 06:38:05.686');
 
 
 --
 -- Data for Name: RetailerOrder; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."RetailerOrder" (id, "retailerId", "orderNumber", "orderDate", "totalAmount", status, "createdAt", "mrId", "chemistId", "hospitalId", "stockistId") FROM stdin;
-3	\N	ORD-254722	2026-07-15 06:27:22.334	486	PENDING	2026-07-15 06:27:22.334	1	1	\N	\N
-4	\N	ORD-680226	2026-07-16 05:58:37.058	126	PENDING	2026-07-16 05:58:37.058	\N	2	\N	\N
-\.
+INSERT INTO public."RetailerOrder" (id, "retailerId", "orderNumber", "orderDate", "totalAmount", status, "createdAt", "mrId", "chemistId", "hospitalId", "stockistId") VALUES (3, NULL, 'ORD-254722', '2026-07-15 06:27:22.334', 486, 'PENDING', '2026-07-15 06:27:22.334', 1, 1, NULL, NULL);
+INSERT INTO public."RetailerOrder" (id, "retailerId", "orderNumber", "orderDate", "totalAmount", status, "createdAt", "mrId", "chemistId", "hospitalId", "stockistId") VALUES (4, NULL, 'ORD-680226', '2026-07-16 05:58:37.058', 126, 'PENDING', '2026-07-16 05:58:37.058', NULL, 2, NULL, NULL);
 
 
 --
 -- Data for Name: RetailerOrderItem; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."RetailerOrderItem" (id, "retailerOrderId", "productId", quantity, rate, amount) FROM stdin;
-1	3	14	12	45	486
-2	4	15	28	5	126
-\.
+INSERT INTO public."RetailerOrderItem" (id, "retailerOrderId", "productId", quantity, rate, amount) VALUES (1, 3, 14, 12, 45, 486);
+INSERT INTO public."RetailerOrderItem" (id, "retailerOrderId", "productId", quantity, rate, amount) VALUES (2, 4, 15, 28, 5, 126);
 
 
 --
 -- Data for Name: RolePermission; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."RolePermission" (id, "companyId", role, "featureId", "createdAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: SchemeMaster; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."SchemeMaster" (id, code, name, "productId", "buyQty", "freeQty", "startDate", "endDate", status, "createdAt", "updatedAt", "batchId", "applicableSelection", "applicableTo", "benefitType", "benefitValue", remarks, type) FROM stdin;
-9	SCH-000001	buy 100 get 100000	\N	13	1	2026-07-14 00:00:00	2026-07-30 00:00:00	Active	2026-07-14 12:59:00.77	2026-07-14 12:59:00.77	\N		All Products	Free Quantity	7	xbnvcxzxcvbnvxcvbcxz	Quantity Discount
-10	SCH-000002	ntg wants to buy	\N	14	3	2026-07-14 00:00:00	2026-08-15 00:00:00	Active	2026-07-14 12:59:39.506	2026-07-14 12:59:39.506	\N	MediCare	Brand	Free Quantity	5	asdfdgdfsdfgdfsdfgfddfgfsdfgfds	Cash Discount
-11	SCH-000003	buy what you want	\N	0	0	2026-07-15 00:00:00	2026-07-20 00:00:00	Active	2026-07-15 04:36:56.395	2026-07-15 04:36:56.395	\N	Tablets	Category	Flat Discount	25	adshb lahfnsv fsdh ahscs	Free Goods
-12	SCH-000004	buy everything for money	\N	0	0	2026-07-16 00:00:00	2026-07-20 00:00:00	Active	2026-07-16 03:53:20.299	2026-07-16 03:53:20.299	\N	PharmaCorp	Brand	Cash Back	10	ntg will get freely	Percentage Discount
-\.
+INSERT INTO public."SchemeMaster" (id, code, name, "productId", "buyQty", "freeQty", "startDate", "endDate", status, "createdAt", "updatedAt", "batchId", "applicableSelection", "applicableTo", "benefitType", "benefitValue", remarks, type) VALUES (9, 'SCH-000001', 'buy 100 get 100000', NULL, 13, 1, '2026-07-14 00:00:00', '2026-07-30 00:00:00', 'Active', '2026-07-14 12:59:00.77', '2026-07-14 12:59:00.77', NULL, '', 'All Products', 'Free Quantity', '7', 'xbnvcxzxcvbnvxcvbcxz', 'Quantity Discount');
+INSERT INTO public."SchemeMaster" (id, code, name, "productId", "buyQty", "freeQty", "startDate", "endDate", status, "createdAt", "updatedAt", "batchId", "applicableSelection", "applicableTo", "benefitType", "benefitValue", remarks, type) VALUES (10, 'SCH-000002', 'ntg wants to buy', NULL, 14, 3, '2026-07-14 00:00:00', '2026-08-15 00:00:00', 'Active', '2026-07-14 12:59:39.506', '2026-07-14 12:59:39.506', NULL, 'MediCare', 'Brand', 'Free Quantity', '5', 'asdfdgdfsdfgdfsdfgfddfgfsdfgfds', 'Cash Discount');
+INSERT INTO public."SchemeMaster" (id, code, name, "productId", "buyQty", "freeQty", "startDate", "endDate", status, "createdAt", "updatedAt", "batchId", "applicableSelection", "applicableTo", "benefitType", "benefitValue", remarks, type) VALUES (11, 'SCH-000003', 'buy what you want', NULL, 0, 0, '2026-07-15 00:00:00', '2026-07-20 00:00:00', 'Active', '2026-07-15 04:36:56.395', '2026-07-15 04:36:56.395', NULL, 'Tablets', 'Category', 'Flat Discount', '25', 'adshb lahfnsv fsdh ahscs', 'Free Goods');
+INSERT INTO public."SchemeMaster" (id, code, name, "productId", "buyQty", "freeQty", "startDate", "endDate", status, "createdAt", "updatedAt", "batchId", "applicableSelection", "applicableTo", "benefitType", "benefitValue", remarks, type) VALUES (12, 'SCH-000004', 'buy everything for money', NULL, 0, 0, '2026-07-16 00:00:00', '2026-07-20 00:00:00', 'Active', '2026-07-16 03:53:20.299', '2026-07-16 03:53:20.299', NULL, 'PharmaCorp', 'Brand', 'Cash Back', '10', 'ntg will get freely', 'Percentage Discount');
 
 
 --
 -- Data for Name: StockMovement; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."StockMovement" (id, quantity, "createdAt", "inventoryId", "movementType", remarks) FROM stdin;
-1	10	2026-07-18 06:50:09.248	6	INWARD	Sales Return Credit Note CN/26/0920
-2	50	2026-07-18 10:57:42.688	6	OUTWARD	Dispatched outward under Dispatch No OUT-2026-005
-3	50	2026-07-18 10:57:57.626	7	INWARD	Received inward under Dispatch No OUT-2026-005
-4	60	2026-07-18 11:21:43.746	6	OUTWARD	Dispatched outward under Dispatch No OUT-2026-007
-5	60	2026-07-18 11:21:59.647	7	INWARD	Received inward under Dispatch No OUT-2026-007
-6	10	2026-07-18 12:24:17.893	5	OUTWARD	Dispatched outward under Dispatch No OUT-2026-008
-7	10	2026-07-18 12:27:50.607	8	INWARD	Received inward under Dispatch No OUT-2026-008
-\.
+INSERT INTO public."StockMovement" (id, quantity, "createdAt", "inventoryId", "movementType", remarks) VALUES (1, 10, '2026-07-18 06:50:09.248', 6, 'INWARD', 'Sales Return Credit Note CN/26/0920');
+INSERT INTO public."StockMovement" (id, quantity, "createdAt", "inventoryId", "movementType", remarks) VALUES (2, 50, '2026-07-18 10:57:42.688', 6, 'OUTWARD', 'Dispatched outward under Dispatch No OUT-2026-005');
+INSERT INTO public."StockMovement" (id, quantity, "createdAt", "inventoryId", "movementType", remarks) VALUES (3, 50, '2026-07-18 10:57:57.626', 7, 'INWARD', 'Received inward under Dispatch No OUT-2026-005');
+INSERT INTO public."StockMovement" (id, quantity, "createdAt", "inventoryId", "movementType", remarks) VALUES (4, 60, '2026-07-18 11:21:43.746', 6, 'OUTWARD', 'Dispatched outward under Dispatch No OUT-2026-007');
+INSERT INTO public."StockMovement" (id, quantity, "createdAt", "inventoryId", "movementType", remarks) VALUES (5, 60, '2026-07-18 11:21:59.647', 7, 'INWARD', 'Received inward under Dispatch No OUT-2026-007');
+INSERT INTO public."StockMovement" (id, quantity, "createdAt", "inventoryId", "movementType", remarks) VALUES (6, 10, '2026-07-18 12:24:17.893', 5, 'OUTWARD', 'Dispatched outward under Dispatch No OUT-2026-008');
+INSERT INTO public."StockMovement" (id, quantity, "createdAt", "inventoryId", "movementType", remarks) VALUES (7, 10, '2026-07-18 12:27:50.607', 8, 'INWARD', 'Received inward under Dispatch No OUT-2026-008');
 
 
 --
 -- Data for Name: Stockist; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Stockist" (id, name, code, mobile, email, address, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") FROM stdin;
-1	Metro Stockists Ltd	ST001	9988776655	metro@stockist.com	Industrial Area, Phase 1	27ABCDE9999F1Z5	\N	t	2026-07-18 06:38:05.667
-\.
+INSERT INTO public."Stockist" (id, name, code, mobile, email, address, "gstNumber", "drugLicenseNumber", "isActive", "createdAt") VALUES (1, 'Metro Stockists Ltd', 'ST001', '9988776655', 'metro@stockist.com', 'Industrial Area, Phase 1', '27ABCDE9999F1Z5', NULL, true, '2026-07-18 06:38:05.667');
 
 
 --
 -- Data for Name: Supplier; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Supplier" (id, name, contact, email, address, "createdAt") FROM stdin;
-1	harish	\N	\N	\N	2026-07-14 13:46:01.561
-2	charan kamareddy	\N	\N	\N	2026-07-16 04:02:13.848
-\.
+INSERT INTO public."Supplier" (id, name, contact, email, address, "createdAt") VALUES (1, 'harish', NULL, NULL, NULL, '2026-07-14 13:46:01.561');
+INSERT INTO public."Supplier" (id, name, contact, email, address, "createdAt") VALUES (2, 'charan kamareddy', NULL, NULL, NULL, '2026-07-16 04:02:13.848');
 
 
 --
 -- Data for Name: Target; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Target" (id, "mrId", month, year, "doctorVisitTarget", "chemistVisitTarget", "orderTarget", "achievedDoctorVisits", "achievedChemistVisits", "achievedOrderValue", status, "createdAt") FROM stdin;
-\.
 
 
 --
 -- Data for Name: TerritoryBeat; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."TerritoryBeat" (id, area, district, state, "totalDoctors", "totalChemists") FROM stdin;
-1	Mumbai Central	Mumbai City	Maharashtra	15	10
-2	Bandra-Khar West	Mumbai Suburban	Maharashtra	20	15
-3	knr	Kannur	Kerala	10	8
-4	pune	Pune	Maharashtra	12	10
-5	delhi	New Delhi	Delhi	18	12
-\.
+INSERT INTO public."TerritoryBeat" (id, area, district, state, "totalDoctors", "totalChemists") VALUES (1, 'Mumbai Central', 'Mumbai City', 'Maharashtra', 15, 10);
+INSERT INTO public."TerritoryBeat" (id, area, district, state, "totalDoctors", "totalChemists") VALUES (2, 'Bandra-Khar West', 'Mumbai Suburban', 'Maharashtra', 20, 15);
+INSERT INTO public."TerritoryBeat" (id, area, district, state, "totalDoctors", "totalChemists") VALUES (3, 'knr', 'Kannur', 'Kerala', 10, 8);
+INSERT INTO public."TerritoryBeat" (id, area, district, state, "totalDoctors", "totalChemists") VALUES (4, 'pune', 'Pune', 'Maharashtra', 12, 10);
+INSERT INTO public."TerritoryBeat" (id, area, district, state, "totalDoctors", "totalChemists") VALUES (5, 'delhi', 'New Delhi', 'Delhi', 18, 12);
 
 
 --
 -- Data for Name: TourPlan; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."TourPlan" (id, "mrId", "tourDate", territory, objective, status, "createdAt") FROM stdin;
-1	1	2026-07-16 00:00:00	clock tower	Field Work	PLANNED	2026-07-15 06:31:02.078
-2	1	2026-07-17 00:00:00	fds	Field Work	PLANNED	2026-07-16 06:54:57.008
-\.
+INSERT INTO public."TourPlan" (id, "mrId", "tourDate", territory, objective, status, "createdAt") VALUES (1, 1, '2026-07-16 00:00:00', 'clock tower', 'Field Work', 'PLANNED', '2026-07-15 06:31:02.078');
+INSERT INTO public."TourPlan" (id, "mrId", "tourDate", territory, objective, status, "createdAt") VALUES (2, 1, '2026-07-17 00:00:00', 'fds', 'Field Work', 'PLANNED', '2026-07-16 06:54:57.008');
 
 
 --
 -- Data for Name: TourPlanChemist; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."TourPlanChemist" (id, "tourPlanId", "chemistId") FROM stdin;
-\.
 
 
 --
 -- Data for Name: TourPlanDoctor; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."TourPlanDoctor" (id, "tourPlanId", "doctorId") FROM stdin;
-\.
 
 
 --
 -- Data for Name: TransportChallan; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."TransportChallan" (id, "dispatchId", "transporterName", "vehicleNumber", "driverName", "driverMobile", "challanNumber", "createdAt", "actualDeliveryDate", "challanDate", "challanNo", "createdBy", "createdDate", customer, "dispatchDate", "dispatchNo", "orderNo", "podDesignation", "podFileName", "podFileType", "podFileUrl", "podReceivedBy", "podRemarks", "podStatus", "podUploadedBy", "podUploadedDate", products, "sourceWarehouse", status, "totalItems", "totalQty") FROM stdin;
-\.
 
 
 --
 -- Data for Name: User; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."User" (id, name, email, password, role, "isActive", "createdAt", "updatedAt", "branchId", "companyId", "currentDeviceId", mobile, "profileImage", "linkedDistributorCode", "linkedRetailerCode") FROM stdin;
-7	Super Admin	admin@gmail.com	$2b$10$RBIqGTRQ5g5PRO8KCFPhaOp47mYziWLlNi2r9D7/CZeEGsR0AFiNa	SUPER_ADMIN	t	2026-07-13 13:10:06.14	2026-07-13 13:10:06.14	\N	\N	\N	\N	\N	\N	\N
-1	System Administrator	superadmin@pharmaerp.com	$2b$10$Z4j.tf2Wqsbrp8lR.9iibOiiMoHmHS6RpKv6btts6T./ZHPHflTga	SUPER_ADMIN	t	2026-07-13 13:10:06.057	2026-07-14 09:55:01.883	\N	1	\N	\N	\N	\N	\N
-2	Rahul Sharma	warehouse@pharmaerp.com	$2b$10$Z4j.tf2Wqsbrp8lR.9iibOiiMoHmHS6RpKv6btts6T./ZHPHflTga	WAREHOUSE_MANAGER	t	2026-07-13 13:10:06.066	2026-07-14 09:55:01.901	\N	1	\N	\N	\N	\N	\N
-3	Sneha Verma	accounts@pharmaerp.com	$2b$10$Z4j.tf2Wqsbrp8lR.9iibOiiMoHmHS6RpKv6btts6T./ZHPHflTga	ACCOUNTANT	t	2026-07-13 13:10:06.068	2026-07-14 09:55:01.903	\N	1	\N	\N	\N	\N	\N
-4	Amit Kumar	distributor@pharmaerp.com	$2b$10$Z4j.tf2Wqsbrp8lR.9iibOiiMoHmHS6RpKv6btts6T./ZHPHflTga	DISTRIBUTOR	t	2026-07-13 13:10:06.07	2026-07-16 12:29:50.319	\N	1	\N	\N	\N	DIST-001	\N
-5	Arun Patel	retailer@pharmaerp.com	$2b$10$Z4j.tf2Wqsbrp8lR.9iibOiiMoHmHS6RpKv6btts6T./ZHPHflTga	RETAILER	t	2026-07-13 13:10:06.073	2026-07-16 12:29:50.319	\N	1	\N	\N	\N	\N	RET-001
-6	Priya Reddy	mr@pharmaerp.com	$2b$10$5m0cU0LKoPO2R74k2DoutObcISG13cWuSIQBA/HLrEzy2cs1H8BLa	MEDICAL_REPRESENTATIVE	t	2026-07-13 13:10:06.075	2026-07-20 05:56:24.338	\N	1	4b22cb47-e7fa-4d14-b428-2718c7ecda64	8688662767	\N	\N	\N
-\.
+INSERT INTO public."User" (id, name, email, password, role, "isActive", "createdAt", "updatedAt", "branchId", "companyId", "currentDeviceId", mobile, "profileImage", "linkedDistributorCode", "linkedRetailerCode") VALUES (7, 'Super Admin', 'admin@gmail.com', '$2b$10$RBIqGTRQ5g5PRO8KCFPhaOp47mYziWLlNi2r9D7/CZeEGsR0AFiNa', 'SUPER_ADMIN', true, '2026-07-13 13:10:06.14', '2026-07-13 13:10:06.14', NULL, NULL, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public."User" (id, name, email, password, role, "isActive", "createdAt", "updatedAt", "branchId", "companyId", "currentDeviceId", mobile, "profileImage", "linkedDistributorCode", "linkedRetailerCode") VALUES (1, 'System Administrator', 'superadmin@pharmaerp.com', '$2b$10$Z4j.tf2Wqsbrp8lR.9iibOiiMoHmHS6RpKv6btts6T./ZHPHflTga', 'SUPER_ADMIN', true, '2026-07-13 13:10:06.057', '2026-07-14 09:55:01.883', NULL, 1, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public."User" (id, name, email, password, role, "isActive", "createdAt", "updatedAt", "branchId", "companyId", "currentDeviceId", mobile, "profileImage", "linkedDistributorCode", "linkedRetailerCode") VALUES (2, 'Rahul Sharma', 'warehouse@pharmaerp.com', '$2b$10$Z4j.tf2Wqsbrp8lR.9iibOiiMoHmHS6RpKv6btts6T./ZHPHflTga', 'WAREHOUSE_MANAGER', true, '2026-07-13 13:10:06.066', '2026-07-14 09:55:01.901', NULL, 1, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public."User" (id, name, email, password, role, "isActive", "createdAt", "updatedAt", "branchId", "companyId", "currentDeviceId", mobile, "profileImage", "linkedDistributorCode", "linkedRetailerCode") VALUES (3, 'Sneha Verma', 'accounts@pharmaerp.com', '$2b$10$Z4j.tf2Wqsbrp8lR.9iibOiiMoHmHS6RpKv6btts6T./ZHPHflTga', 'ACCOUNTANT', true, '2026-07-13 13:10:06.068', '2026-07-14 09:55:01.903', NULL, 1, NULL, NULL, NULL, NULL, NULL);
+INSERT INTO public."User" (id, name, email, password, role, "isActive", "createdAt", "updatedAt", "branchId", "companyId", "currentDeviceId", mobile, "profileImage", "linkedDistributorCode", "linkedRetailerCode") VALUES (4, 'Amit Kumar', 'distributor@pharmaerp.com', '$2b$10$Z4j.tf2Wqsbrp8lR.9iibOiiMoHmHS6RpKv6btts6T./ZHPHflTga', 'DISTRIBUTOR', true, '2026-07-13 13:10:06.07', '2026-07-16 12:29:50.319', NULL, 1, NULL, NULL, NULL, 'DIST-001', NULL);
+INSERT INTO public."User" (id, name, email, password, role, "isActive", "createdAt", "updatedAt", "branchId", "companyId", "currentDeviceId", mobile, "profileImage", "linkedDistributorCode", "linkedRetailerCode") VALUES (5, 'Arun Patel', 'retailer@pharmaerp.com', '$2b$10$Z4j.tf2Wqsbrp8lR.9iibOiiMoHmHS6RpKv6btts6T./ZHPHflTga', 'RETAILER', true, '2026-07-13 13:10:06.073', '2026-07-16 12:29:50.319', NULL, 1, NULL, NULL, NULL, NULL, 'RET-001');
+INSERT INTO public."User" (id, name, email, password, role, "isActive", "createdAt", "updatedAt", "branchId", "companyId", "currentDeviceId", mobile, "profileImage", "linkedDistributorCode", "linkedRetailerCode") VALUES (6, 'Priya Reddy', 'mr@pharmaerp.com', '$2b$10$5m0cU0LKoPO2R74k2DoutObcISG13cWuSIQBA/HLrEzy2cs1H8BLa', 'MEDICAL_REPRESENTATIVE', true, '2026-07-13 13:10:06.075', '2026-07-20 05:56:24.338', NULL, 1, '4b22cb47-e7fa-4d14-b428-2718c7ecda64', '8688662767', NULL, NULL, NULL);
 
 
 --
 -- Data for Name: Warehouse; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."Warehouse" (id, name, code, address, "companyId", "createdAt", "updatedAt", branch, city, "contactPerson", country, "createdBy", email, "gstNumber", "licenseNumber", phone, "pinCode", remarks, state, status, type) FROM stdin;
-2	afgewscvds	WH-000002	sdfghbgfd	1	2026-07-14 13:45:08.114	2026-07-14 13:45:08.114		sdfhgfds	dfggfdsd	rtfd	System Administrator		thgre	fg34565432	3454554234	434543		hgre	Active	Main Warehouse
-3	jackaiajkds,c	WH-000003		1	2026-07-14 13:47:13.09	2026-07-14 13:47:13.09					System Administrator			2345432					Active	Main Warehouse
-4	karimnagar 1	WH-000004		1	2026-07-15 05:04:39.776	2026-07-15 05:04:39.776					System Administrator			234567632					Active	Main Warehouse
-5	khammam 1	WH-000005		1	2026-07-15 05:04:53.664	2026-07-15 05:04:53.664					System Administrator			43234321					Active	Main Warehouse
-6	kamareddy warehouse	WH-000006	kamareddy	1	2026-07-16 04:00:47.669	2026-07-16 04:00:47.669		kamareddy	charan	india	System Administrator	charan@gmail.com	345654345	23476543	9654567876	507165	this is the best warehouse in the world	telangana	Active	Cold Storage
-7	Distributor Warehouse (DIST-001)	DIST-001	Central Logistics Hub	1	2026-07-18 07:02:59.403	2026-07-18 07:02:59.403	Default Branch	\N	\N	\N	System	\N	\N	\N	\N	\N	\N	\N	Active	Main Warehouse
-8	jjjjj	WH-000007		1	2026-07-20 09:27:38.288	2026-07-20 09:27:38.288					System Administrator			8765e4567					Active	Main Warehouse
-\.
+INSERT INTO public."Warehouse" (id, name, code, address, "companyId", "createdAt", "updatedAt", branch, city, "contactPerson", country, "createdBy", email, "gstNumber", "licenseNumber", phone, "pinCode", remarks, state, status, type) VALUES (2, 'afgewscvds', 'WH-000002', 'sdfghbgfd', 1, '2026-07-14 13:45:08.114', '2026-07-14 13:45:08.114', '', 'sdfhgfds', 'dfggfdsd', 'rtfd', 'System Administrator', '', 'thgre', 'fg34565432', '3454554234', '434543', '', 'hgre', 'Active', 'Main Warehouse');
+INSERT INTO public."Warehouse" (id, name, code, address, "companyId", "createdAt", "updatedAt", branch, city, "contactPerson", country, "createdBy", email, "gstNumber", "licenseNumber", phone, "pinCode", remarks, state, status, type) VALUES (3, 'jackaiajkds,c', 'WH-000003', '', 1, '2026-07-14 13:47:13.09', '2026-07-14 13:47:13.09', '', '', '', '', 'System Administrator', '', '', '2345432', '', '', '', '', 'Active', 'Main Warehouse');
+INSERT INTO public."Warehouse" (id, name, code, address, "companyId", "createdAt", "updatedAt", branch, city, "contactPerson", country, "createdBy", email, "gstNumber", "licenseNumber", phone, "pinCode", remarks, state, status, type) VALUES (4, 'karimnagar 1', 'WH-000004', '', 1, '2026-07-15 05:04:39.776', '2026-07-15 05:04:39.776', '', '', '', '', 'System Administrator', '', '', '234567632', '', '', '', '', 'Active', 'Main Warehouse');
+INSERT INTO public."Warehouse" (id, name, code, address, "companyId", "createdAt", "updatedAt", branch, city, "contactPerson", country, "createdBy", email, "gstNumber", "licenseNumber", phone, "pinCode", remarks, state, status, type) VALUES (5, 'khammam 1', 'WH-000005', '', 1, '2026-07-15 05:04:53.664', '2026-07-15 05:04:53.664', '', '', '', '', 'System Administrator', '', '', '43234321', '', '', '', '', 'Active', 'Main Warehouse');
+INSERT INTO public."Warehouse" (id, name, code, address, "companyId", "createdAt", "updatedAt", branch, city, "contactPerson", country, "createdBy", email, "gstNumber", "licenseNumber", phone, "pinCode", remarks, state, status, type) VALUES (6, 'kamareddy warehouse', 'WH-000006', 'kamareddy', 1, '2026-07-16 04:00:47.669', '2026-07-16 04:00:47.669', '', 'kamareddy', 'charan', 'india', 'System Administrator', 'charan@gmail.com', '345654345', '23476543', '9654567876', '507165', 'this is the best warehouse in the world', 'telangana', 'Active', 'Cold Storage');
+INSERT INTO public."Warehouse" (id, name, code, address, "companyId", "createdAt", "updatedAt", branch, city, "contactPerson", country, "createdBy", email, "gstNumber", "licenseNumber", phone, "pinCode", remarks, state, status, type) VALUES (7, 'Distributor Warehouse (DIST-001)', 'DIST-001', 'Central Logistics Hub', 1, '2026-07-18 07:02:59.403', '2026-07-18 07:02:59.403', 'Default Branch', NULL, NULL, NULL, 'System', NULL, NULL, NULL, NULL, NULL, NULL, NULL, 'Active', 'Main Warehouse');
+INSERT INTO public."Warehouse" (id, name, code, address, "companyId", "createdAt", "updatedAt", branch, city, "contactPerson", country, "createdBy", email, "gstNumber", "licenseNumber", phone, "pinCode", remarks, state, status, type) VALUES (8, 'jjjjj', 'WH-000007', '', 1, '2026-07-20 09:27:38.288', '2026-07-20 09:27:38.288', '', '', '', '', 'System Administrator', '', '', '8765e4567', '', '', '', '', 'Active', 'Main Warehouse');
 
 
 --
 -- Data for Name: WarehouseTransfer; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."WarehouseTransfer" (id, "fromWarehouseId", "toWarehouseId", "createdAt", remarks, date, "itemsCount", status, "totalQuantity", "transferNo") FROM stdin;
-1	2	3	2026-07-14 13:47:30.586		2026-07-14 00:00:00	1	In Transit	7	TRF-2026-001
-2	4	5	2026-07-15 05:08:19.44		2026-07-15 00:00:00	1	In Transit	25	TRF-2026-002
-3	4	2	2026-07-15 05:08:57.92		2026-07-15 00:00:00	1	In Transit	35	TRF-2026-003
-4	6	5	2026-07-16 04:04:12.25	safe stock transfer	2026-07-20 00:00:00	1	In Transit	30	TRF-2026-004
-\.
+INSERT INTO public."WarehouseTransfer" (id, "fromWarehouseId", "toWarehouseId", "createdAt", remarks, date, "itemsCount", status, "totalQuantity", "transferNo") VALUES (1, 2, 3, '2026-07-14 13:47:30.586', '', '2026-07-14 00:00:00', 1, 'In Transit', 7, 'TRF-2026-001');
+INSERT INTO public."WarehouseTransfer" (id, "fromWarehouseId", "toWarehouseId", "createdAt", remarks, date, "itemsCount", status, "totalQuantity", "transferNo") VALUES (2, 4, 5, '2026-07-15 05:08:19.44', '', '2026-07-15 00:00:00', 1, 'In Transit', 25, 'TRF-2026-002');
+INSERT INTO public."WarehouseTransfer" (id, "fromWarehouseId", "toWarehouseId", "createdAt", remarks, date, "itemsCount", status, "totalQuantity", "transferNo") VALUES (3, 4, 2, '2026-07-15 05:08:57.92', '', '2026-07-15 00:00:00', 1, 'In Transit', 35, 'TRF-2026-003');
+INSERT INTO public."WarehouseTransfer" (id, "fromWarehouseId", "toWarehouseId", "createdAt", remarks, date, "itemsCount", status, "totalQuantity", "transferNo") VALUES (4, 6, 5, '2026-07-16 04:04:12.25', 'safe stock transfer', '2026-07-20 00:00:00', 1, 'In Transit', 30, 'TRF-2026-004');
 
 
 --
 -- Data for Name: WarehouseTransferItem; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public."WarehouseTransferItem" (id, "warehouseTransferId", "productId", "batchId", quantity, "createdAt") FROM stdin;
-1	1	12	4	7	2026-07-14 13:47:30.586
-2	2	10	5	25	2026-07-15 05:08:19.44
-3	3	14	7	35	2026-07-15 05:08:57.92
-4	4	15	8	30	2026-07-16 04:04:12.25
-\.
+INSERT INTO public."WarehouseTransferItem" (id, "warehouseTransferId", "productId", "batchId", quantity, "createdAt") VALUES (1, 1, 12, 4, 7, '2026-07-14 13:47:30.586');
+INSERT INTO public."WarehouseTransferItem" (id, "warehouseTransferId", "productId", "batchId", quantity, "createdAt") VALUES (2, 2, 10, 5, 25, '2026-07-15 05:08:19.44');
+INSERT INTO public."WarehouseTransferItem" (id, "warehouseTransferId", "productId", "batchId", quantity, "createdAt") VALUES (3, 3, 14, 7, 35, '2026-07-15 05:08:57.92');
+INSERT INTO public."WarehouseTransferItem" (id, "warehouseTransferId", "productId", "batchId", quantity, "createdAt") VALUES (4, 4, 15, 8, 30, '2026-07-16 04:04:12.25');
 
 
 --
 -- Data for Name: _prisma_migrations; Type: TABLE DATA; Schema: public; Owner: -
 --
 
-COPY public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) FROM stdin;
-04f479e1-416e-453b-b0f6-c31327f5efb0	d0b8cf0ae80cec92dad013dc3a49699f13a092357a6c6d70ee976f7ba0464467	2026-07-13 06:10:04.661038-07	20260617103131_add_payment_collection	\N	\N	2026-07-13 06:10:04.642593-07	1
-c971c0e0-c3fa-43c6-b9f6-84697626ba15	06c3a4b268927f9cf5c4e94fc19003408ec04a582cdd64acfe23c9d4596df7f0	2026-07-13 06:10:04.315263-07	20260527100055_init	\N	\N	2026-07-13 06:10:04.282249-07	1
-6b3ff2ae-b093-492b-afee-1e08521b2c69	7752b53281f04b71550c04e020a4ba18852b4f75166aaf56abcc95247d00fb3f	2026-07-13 06:10:04.542006-07	20260616113645_add_dispatch	\N	\N	2026-07-13 06:10:04.530174-07	1
-c9f440dc-af50-4bda-99be-8eede4ba42d8	2b7439ed39cbae23e5893104a3cdb063a9fa195d3b41fc4934a4f97976d32ad8	2026-07-13 06:10:04.330065-07	20260610115224_role_cleanup	\N	\N	2026-07-13 06:10:04.316192-07	1
-b9df0e2a-0005-494d-9781-252936190c06	29669f96add71921b0dfa34bfa01b5b4bb7112bd81b216bb21d61af089758111	2026-07-13 06:10:04.333272-07	20260610131023_add_super_admin	\N	\N	2026-07-13 06:10:04.330875-07	1
-58c49d74-6ff5-4592-a5f3-81957d3e5abd	19adbe0af3b3dbe408c27ec7aff219ac2cd8e33229912212394cc0cef984b162	2026-07-13 06:10:04.365643-07	20260611080400_add_company_branch_structure	\N	\N	2026-07-13 06:10:04.333913-07	1
-7ea85272-c186-492d-bef6-b980b35baa3d	d9654ad3acfb151b7a076d9e326d1d3abb958d6b369cf1ad06a1edbc2885a426	2026-07-13 06:10:04.55373-07	20260616115656_add_transport_challan	\N	\N	2026-07-13 06:10:04.542681-07	1
-9c4a63a9-3a12-486f-8712-c62c112420e2	42a019ae8bbff5e1dc0a8512bb58690ce5306f21ce7fa2223326b9074ecb384f	2026-07-13 06:10:04.392279-07	20260611120704_add_module_feature_permissions	\N	\N	2026-07-13 06:10:04.366302-07	1
-3da32e0e-0f79-4e18-813b-37cbda73d0de	d71d857a598bacb758d40867463c1b9e3ca34e19a39d31547ed0ac7e871f5938	2026-07-13 06:10:04.4008-07	20260612102945_add_role_permissions	\N	\N	2026-07-13 06:10:04.392923-07	1
-1ed711ad-7002-4c43-82b5-395773bcc65b	98066dac5b7d73597b004b4dc17ec5836386178b37938d1fda1b46e7ae2cc50d	2026-07-13 06:10:04.797428-07	20260619054309_add_meeting_module	\N	\N	2026-07-13 06:10:04.787552-07	1
-6a8656d2-7fdd-471c-a109-e5aac97195a5	a6a18598917dbfd7543aa16a956df8ac0d87684aff1729043e208be522c9b542	2026-07-13 06:10:04.462723-07	20260612132146_add_products	\N	\N	2026-07-13 06:10:04.401569-07	1
-d080ee54-0a3d-48af-a1f9-ed8d1ddc60e7	aa9ff9fe7df3f84e6548f13cbded51defdf96856b06cc53d7d8341988837d6a4	2026-07-13 06:10:04.565918-07	20260616120807_add_lr_tracking	\N	\N	2026-07-13 06:10:04.554634-07	1
-b7704907-7da9-4172-8095-2b700c210fef	d810ed08f2d7263c16246f5900d0d736dad63f14b24ff10d80b69069f2747fbd	2026-07-13 06:10:04.468621-07	20260612132652_add_products	\N	\N	2026-07-13 06:10:04.463435-07	1
-d10e78ae-f900-4c8c-b4c0-3a3b34ebbb92	10ba3054b26d8bbce7930296a4d0859df590a49b4bafb2bf9e7dc153915a3694	2026-07-13 06:10:04.477142-07	20260613105301_add_inventory	\N	\N	2026-07-13 06:10:04.469283-07	1
-5604974b-2d43-411e-9e13-cc134cd60a65	2225c7d657fdde777961b6a4559d3321dd1a6d00822fe2b6706b52acf0d021bc	2026-07-13 06:10:04.670047-07	20260617111852_add_ledger	\N	\N	2026-07-13 06:10:04.661723-07	1
-2b8cc93c-da35-4e8d-8df6-633da8178f0c	4553bf6c9a48cd903afcda06e6e87d9676364ceb770bbf0fcacb116f4fd90104	2026-07-13 06:10:04.482952-07	20260613105548_add_inventory	\N	\N	2026-07-13 06:10:04.477811-07	1
-69d81b7a-4e43-4b59-8f29-aacd1a97cb75	c73fc50f705b864bdee38f00c1938086273aa0a4f65264266723ee555a5726ad	2026-07-13 06:10:04.576597-07	20260616122103_add_delivery_tracking	\N	\N	2026-07-13 06:10:04.566794-07	1
-a0481431-a4b9-4664-ba13-b9c4b81f55b0	87b4dd38efd33bf170dc22d7e3f140a29697e5526056e94ecf3d6997dd874427	2026-07-13 06:10:04.516354-07	20260615062756_add_warehouse	\N	\N	2026-07-13 06:10:04.483804-07	1
-1de66639-bba3-462a-a14c-81deb1e7a197	d9da71b50f3960347b3e65ab6da84ee616d53f48f313802c93fdc737de318799	2026-07-13 06:10:04.521817-07	20260615071126_add_stock_movement	\N	\N	2026-07-13 06:10:04.517171-07	1
-8d9827ac-3766-4287-b42a-6000717b5768	ff0024d6e769d61e0b6a46c062a645de4c456294a7ca6993c13ccf6239b01b5f	2026-07-13 06:10:04.529579-07	20260615123943_add_warehouse_transfer	\N	\N	2026-07-13 06:10:04.522508-07	1
-6cebb3db-2f41-46a0-b8ee-8e7852566d41	6a56289033e5f1bf81bf215aaca9a58884683fe509b3a79836b7157ce74cdd4c	2026-07-13 06:10:04.588502-07	20260616123301_add_stockist	\N	\N	2026-07-13 06:10:04.577857-07	1
-3ea63058-8c03-450f-b9e6-4de6e9316617	2dde12589f14b46e48f691af4b982558f0963e731a7dee0fc6d22ed451945709	2026-07-13 06:10:04.724222-07	20260618091035_add_attendance	\N	\N	2026-07-13 06:10:04.713394-07	1
-e68aa70c-4c14-44fb-8308-79aa15b42bf8	68889759c80bb53f2d67e0d2448515ae6e289999704516ceb75d06a449b4b2be	2026-07-13 06:10:04.602565-07	20260616125646_add_retailer	\N	\N	2026-07-13 06:10:04.589629-07	1
-bd75d00c-0f7a-4754-aad7-aa36557cbb74	3bd32af03868a8286e61bb1f25defa75d3c520a707f2fd808b2b6da91ed24390	2026-07-13 06:10:04.682423-07	20260617123603_add_accounting	\N	\N	2026-07-13 06:10:04.670865-07	1
-f5aa31ec-3c29-419b-a9b9-a2abfa118da8	8de2960315fbcb873565a36a1e9b464090823097d73eca2da1331dd58d82213e	2026-07-13 06:10:04.625021-07	20260616133117_add_invoice	\N	\N	2026-07-13 06:10:04.603275-07	1
-6e8956c4-5f5b-43f5-b39f-ba921513c509	8465e21129b59469e62a7e575e32dfb3cc63ceea8660914e05751334293afd82	2026-07-13 06:10:04.641924-07	20260617060327_add_retailer_order	\N	\N	2026-07-13 06:10:04.625836-07	1
-d54efca5-2ceb-489c-b2f0-30331af25008	5b1428dd2f2dfd32f97878d96465a9d5300bf5a0742dc34f6868b0938ed91aca	2026-07-13 06:10:04.7764-07	20260618133039_add_daily_report	\N	\N	2026-07-13 06:10:04.766325-07	1
-a40e30c5-901f-4e1b-92c3-6ca4ab2fd2ea	6badce0ea0859f220fba54f43cbf77038ba84c1d7a34d615a6bdca09e4d61d5c	2026-07-13 06:10:04.693746-07	20260618065252_add_mr	\N	\N	2026-07-13 06:10:04.683157-07	1
-b1ceb4b6-0034-443c-90e8-6792b2aa0e9d	03b2675722fc8350c8538de932da35530e26ac1825fb1a16e61d91e1c52eb1be	2026-07-13 06:10:04.734082-07	20260618103310_add_doctor_visit	\N	\N	2026-07-13 06:10:04.724895-07	1
-be59cefc-ad78-480a-a674-f1c7a797f0c1	8898e39b77572b695b0e9b4947e788196fd7ea27178640faed5cad618b5349eb	2026-07-13 06:10:04.702041-07	20260618070818_add_doctor	\N	\N	2026-07-13 06:10:04.69434-07	1
-686e11b7-9757-4856-9db0-06752ee22282	bb861dc805ae75c254db9115f91862fd442d2d3f2c70aa68cdbe3782c7ea42bd	2026-07-13 06:10:04.712732-07	20260618075531_add_chemist	\N	\N	2026-07-13 06:10:04.702693-07	1
-a46ce5ab-29e6-4c50-8700-91b64011e2de	e3da0671f0fce282bd6a142848674d66916509488ed42f967eccaa33372e900a	2026-07-13 06:10:04.746658-07	20260618112127_add_chemist_visit	\N	\N	2026-07-13 06:10:04.73469-07	1
-965e0f52-1e43-4837-8d62-678b00bb2cc2	a768976d9a15aa57c4bc3e75911fd2b75c24f2c6ae56f3e98ec6110f5134f2c5	2026-07-13 06:10:04.765627-07	20260618120235_add_tour_plan	\N	\N	2026-07-13 06:10:04.747412-07	1
-e078f595-52e6-4003-89bf-f1217a026f54	5f82b8be2401784f1e1c7f78a8f95e3016f2cf1e663fd2cdd7daad7e01def974	2026-07-13 06:10:04.786525-07	20260619050941_add_target_tracking	\N	\N	2026-07-13 06:10:04.777084-07	1
-7edc7d7e-aa44-4869-9592-42a7a66dd084	cc8aafd475f39b36c2331b122d05e7e6d512ad970a4d076c2db3ed28052db04a	2026-07-13 06:10:04.824436-07	20260619093450_add_followup_module	\N	\N	2026-07-13 06:10:04.814412-07	1
-c35e3d36-cbfc-463d-bf28-469a34f97f6f	cd73fe6c38c1a3cf9eba8b9db819ad7bedbbb9d9f52036189ca301a36414c796	2026-07-13 06:10:04.813741-07	20260619060247_add_meeting_module	\N	\N	2026-07-13 06:10:04.798303-07	1
-fa9f99ad-dd27-4525-996f-cf955272402e	2b86fdc425172503137ca9e586b179482c69bdc776084fe676d0bac8c1910829	2026-07-13 06:10:04.833355-07	20260619103942_add_activity_tracking	\N	\N	2026-07-13 06:10:04.825111-07	1
-d238ffe1-f602-4c2e-ae05-3f7936933331	b3fd36c0b44a2ac111230cc44211e48386b60fab232fb39385fc1d45f23cec4f	2026-07-13 06:10:04.844514-07	20260619110507_add_lead_crm	\N	\N	2026-07-13 06:10:04.834215-07	1
-9e2cb947-f466-4dc2-a02c-ddeb5fd97e2d	efc918f9b1d3e2bea39b7de4174e52257d40db7f9308ce4bac3c4850f0131c78	2026-07-13 06:10:04.853357-07	20260619114428_add_leave_request	\N	\N	2026-07-13 06:10:04.845238-07	1
-ac2b4b7d-1266-4c9c-bc4e-c119c3550a79	5c5f8361745ce53d64ae337e1c86d29eba9663289f5cc30cd93f9ba126948da9	2026-07-13 06:10:04.862776-07	20260619132910_add_expense_claims	\N	\N	2026-07-13 06:10:04.854339-07	1
-70ecf901-a0e9-4ad1-a7d4-fd954a8dac41	78712773b38049b114e7fc527125a8429a3fd3270e8d482bc4fc267dd9abd867	2026-07-13 06:10:04.874803-07	20260619134536_add_notifications	\N	\N	2026-07-13 06:10:04.863477-07	1
-9c189ef8-50a4-45f7-9aa5-8c51afe8e800	05eb9a32c87d2ba4a1bf6b8c7d5bb87ff15506c48d9b4906516aa2ef070557a8	2026-07-13 06:10:04.880397-07	20260621093710_add_user_mr_relation	\N	\N	2026-07-13 06:10:04.875479-07	1
-7489b887-1d7b-434f-9e47-a72a4802e111	2ffde85272cf63712b9398d8d672003510d2fdd15b42fd3f2818590c9e43f7ef	2026-07-13 06:10:04.885351-07	20260706064958_extend_product_fields	\N	\N	2026-07-13 06:10:04.881057-07	1
-29c10030-04eb-4065-a6e3-e13a736ec5cc	9ba727b230c22a408330d5ddcbd127573accb35058e43a22a3e115df7d197562	2026-07-13 06:10:04.942957-07	20260710051039_sync_schema	\N	\N	2026-07-13 06:10:04.886064-07	1
-35124747-2fdb-4d22-836e-fa818d34871c	d76b0dd1d28d8c72b19c7d278f0f6e994acdbc0371a8dd3a08ebb208a4236a97	2026-07-13 06:10:05.005924-07	20260711132000_add_inward_outward_supplier_warehouse_transfer	\N	\N	2026-07-13 06:10:04.943914-07	1
-66f965f0-0802-4098-b305-2b74150c4719	c987962439af25079268bfed702a08a9e7f236146ef64159b447c962dcffde11	2026-07-14 03:50:41.871014-07	20260714105041_add_product_master_tables	\N	\N	2026-07-14 03:50:41.61893-07	1
-\.
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('04f479e1-416e-453b-b0f6-c31327f5efb0', 'd0b8cf0ae80cec92dad013dc3a49699f13a092357a6c6d70ee976f7ba0464467', '2026-07-13 06:10:04.661038-07', '20260617103131_add_payment_collection', NULL, NULL, '2026-07-13 06:10:04.642593-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('c971c0e0-c3fa-43c6-b9f6-84697626ba15', '06c3a4b268927f9cf5c4e94fc19003408ec04a582cdd64acfe23c9d4596df7f0', '2026-07-13 06:10:04.315263-07', '20260527100055_init', NULL, NULL, '2026-07-13 06:10:04.282249-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('6b3ff2ae-b093-492b-afee-1e08521b2c69', '7752b53281f04b71550c04e020a4ba18852b4f75166aaf56abcc95247d00fb3f', '2026-07-13 06:10:04.542006-07', '20260616113645_add_dispatch', NULL, NULL, '2026-07-13 06:10:04.530174-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('c9f440dc-af50-4bda-99be-8eede4ba42d8', '2b7439ed39cbae23e5893104a3cdb063a9fa195d3b41fc4934a4f97976d32ad8', '2026-07-13 06:10:04.330065-07', '20260610115224_role_cleanup', NULL, NULL, '2026-07-13 06:10:04.316192-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('b9df0e2a-0005-494d-9781-252936190c06', '29669f96add71921b0dfa34bfa01b5b4bb7112bd81b216bb21d61af089758111', '2026-07-13 06:10:04.333272-07', '20260610131023_add_super_admin', NULL, NULL, '2026-07-13 06:10:04.330875-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('58c49d74-6ff5-4592-a5f3-81957d3e5abd', '19adbe0af3b3dbe408c27ec7aff219ac2cd8e33229912212394cc0cef984b162', '2026-07-13 06:10:04.365643-07', '20260611080400_add_company_branch_structure', NULL, NULL, '2026-07-13 06:10:04.333913-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('7ea85272-c186-492d-bef6-b980b35baa3d', 'd9654ad3acfb151b7a076d9e326d1d3abb958d6b369cf1ad06a1edbc2885a426', '2026-07-13 06:10:04.55373-07', '20260616115656_add_transport_challan', NULL, NULL, '2026-07-13 06:10:04.542681-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('9c4a63a9-3a12-486f-8712-c62c112420e2', '42a019ae8bbff5e1dc0a8512bb58690ce5306f21ce7fa2223326b9074ecb384f', '2026-07-13 06:10:04.392279-07', '20260611120704_add_module_feature_permissions', NULL, NULL, '2026-07-13 06:10:04.366302-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('3da32e0e-0f79-4e18-813b-37cbda73d0de', 'd71d857a598bacb758d40867463c1b9e3ca34e19a39d31547ed0ac7e871f5938', '2026-07-13 06:10:04.4008-07', '20260612102945_add_role_permissions', NULL, NULL, '2026-07-13 06:10:04.392923-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('1ed711ad-7002-4c43-82b5-395773bcc65b', '98066dac5b7d73597b004b4dc17ec5836386178b37938d1fda1b46e7ae2cc50d', '2026-07-13 06:10:04.797428-07', '20260619054309_add_meeting_module', NULL, NULL, '2026-07-13 06:10:04.787552-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('6a8656d2-7fdd-471c-a109-e5aac97195a5', 'a6a18598917dbfd7543aa16a956df8ac0d87684aff1729043e208be522c9b542', '2026-07-13 06:10:04.462723-07', '20260612132146_add_products', NULL, NULL, '2026-07-13 06:10:04.401569-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('d080ee54-0a3d-48af-a1f9-ed8d1ddc60e7', 'aa9ff9fe7df3f84e6548f13cbded51defdf96856b06cc53d7d8341988837d6a4', '2026-07-13 06:10:04.565918-07', '20260616120807_add_lr_tracking', NULL, NULL, '2026-07-13 06:10:04.554634-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('b7704907-7da9-4172-8095-2b700c210fef', 'd810ed08f2d7263c16246f5900d0d736dad63f14b24ff10d80b69069f2747fbd', '2026-07-13 06:10:04.468621-07', '20260612132652_add_products', NULL, NULL, '2026-07-13 06:10:04.463435-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('d10e78ae-f900-4c8c-b4c0-3a3b34ebbb92', '10ba3054b26d8bbce7930296a4d0859df590a49b4bafb2bf9e7dc153915a3694', '2026-07-13 06:10:04.477142-07', '20260613105301_add_inventory', NULL, NULL, '2026-07-13 06:10:04.469283-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('5604974b-2d43-411e-9e13-cc134cd60a65', '2225c7d657fdde777961b6a4559d3321dd1a6d00822fe2b6706b52acf0d021bc', '2026-07-13 06:10:04.670047-07', '20260617111852_add_ledger', NULL, NULL, '2026-07-13 06:10:04.661723-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('2b8cc93c-da35-4e8d-8df6-633da8178f0c', '4553bf6c9a48cd903afcda06e6e87d9676364ceb770bbf0fcacb116f4fd90104', '2026-07-13 06:10:04.482952-07', '20260613105548_add_inventory', NULL, NULL, '2026-07-13 06:10:04.477811-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('69d81b7a-4e43-4b59-8f29-aacd1a97cb75', 'c73fc50f705b864bdee38f00c1938086273aa0a4f65264266723ee555a5726ad', '2026-07-13 06:10:04.576597-07', '20260616122103_add_delivery_tracking', NULL, NULL, '2026-07-13 06:10:04.566794-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('a0481431-a4b9-4664-ba13-b9c4b81f55b0', '87b4dd38efd33bf170dc22d7e3f140a29697e5526056e94ecf3d6997dd874427', '2026-07-13 06:10:04.516354-07', '20260615062756_add_warehouse', NULL, NULL, '2026-07-13 06:10:04.483804-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('1de66639-bba3-462a-a14c-81deb1e7a197', 'd9da71b50f3960347b3e65ab6da84ee616d53f48f313802c93fdc737de318799', '2026-07-13 06:10:04.521817-07', '20260615071126_add_stock_movement', NULL, NULL, '2026-07-13 06:10:04.517171-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('8d9827ac-3766-4287-b42a-6000717b5768', 'ff0024d6e769d61e0b6a46c062a645de4c456294a7ca6993c13ccf6239b01b5f', '2026-07-13 06:10:04.529579-07', '20260615123943_add_warehouse_transfer', NULL, NULL, '2026-07-13 06:10:04.522508-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('6cebb3db-2f41-46a0-b8ee-8e7852566d41', '6a56289033e5f1bf81bf215aaca9a58884683fe509b3a79836b7157ce74cdd4c', '2026-07-13 06:10:04.588502-07', '20260616123301_add_stockist', NULL, NULL, '2026-07-13 06:10:04.577857-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('3ea63058-8c03-450f-b9e6-4de6e9316617', '2dde12589f14b46e48f691af4b982558f0963e731a7dee0fc6d22ed451945709', '2026-07-13 06:10:04.724222-07', '20260618091035_add_attendance', NULL, NULL, '2026-07-13 06:10:04.713394-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('e68aa70c-4c14-44fb-8308-79aa15b42bf8', '68889759c80bb53f2d67e0d2448515ae6e289999704516ceb75d06a449b4b2be', '2026-07-13 06:10:04.602565-07', '20260616125646_add_retailer', NULL, NULL, '2026-07-13 06:10:04.589629-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('bd75d00c-0f7a-4754-aad7-aa36557cbb74', '3bd32af03868a8286e61bb1f25defa75d3c520a707f2fd808b2b6da91ed24390', '2026-07-13 06:10:04.682423-07', '20260617123603_add_accounting', NULL, NULL, '2026-07-13 06:10:04.670865-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('f5aa31ec-3c29-419b-a9b9-a2abfa118da8', '8de2960315fbcb873565a36a1e9b464090823097d73eca2da1331dd58d82213e', '2026-07-13 06:10:04.625021-07', '20260616133117_add_invoice', NULL, NULL, '2026-07-13 06:10:04.603275-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('6e8956c4-5f5b-43f5-b39f-ba921513c509', '8465e21129b59469e62a7e575e32dfb3cc63ceea8660914e05751334293afd82', '2026-07-13 06:10:04.641924-07', '20260617060327_add_retailer_order', NULL, NULL, '2026-07-13 06:10:04.625836-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('d54efca5-2ceb-489c-b2f0-30331af25008', '5b1428dd2f2dfd32f97878d96465a9d5300bf5a0742dc34f6868b0938ed91aca', '2026-07-13 06:10:04.7764-07', '20260618133039_add_daily_report', NULL, NULL, '2026-07-13 06:10:04.766325-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('a40e30c5-901f-4e1b-92c3-6ca4ab2fd2ea', '6badce0ea0859f220fba54f43cbf77038ba84c1d7a34d615a6bdca09e4d61d5c', '2026-07-13 06:10:04.693746-07', '20260618065252_add_mr', NULL, NULL, '2026-07-13 06:10:04.683157-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('b1ceb4b6-0034-443c-90e8-6792b2aa0e9d', '03b2675722fc8350c8538de932da35530e26ac1825fb1a16e61d91e1c52eb1be', '2026-07-13 06:10:04.734082-07', '20260618103310_add_doctor_visit', NULL, NULL, '2026-07-13 06:10:04.724895-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('be59cefc-ad78-480a-a674-f1c7a797f0c1', '8898e39b77572b695b0e9b4947e788196fd7ea27178640faed5cad618b5349eb', '2026-07-13 06:10:04.702041-07', '20260618070818_add_doctor', NULL, NULL, '2026-07-13 06:10:04.69434-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('686e11b7-9757-4856-9db0-06752ee22282', 'bb861dc805ae75c254db9115f91862fd442d2d3f2c70aa68cdbe3782c7ea42bd', '2026-07-13 06:10:04.712732-07', '20260618075531_add_chemist', NULL, NULL, '2026-07-13 06:10:04.702693-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('a46ce5ab-29e6-4c50-8700-91b64011e2de', 'e3da0671f0fce282bd6a142848674d66916509488ed42f967eccaa33372e900a', '2026-07-13 06:10:04.746658-07', '20260618112127_add_chemist_visit', NULL, NULL, '2026-07-13 06:10:04.73469-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('965e0f52-1e43-4837-8d62-678b00bb2cc2', 'a768976d9a15aa57c4bc3e75911fd2b75c24f2c6ae56f3e98ec6110f5134f2c5', '2026-07-13 06:10:04.765627-07', '20260618120235_add_tour_plan', NULL, NULL, '2026-07-13 06:10:04.747412-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('e078f595-52e6-4003-89bf-f1217a026f54', '5f82b8be2401784f1e1c7f78a8f95e3016f2cf1e663fd2cdd7daad7e01def974', '2026-07-13 06:10:04.786525-07', '20260619050941_add_target_tracking', NULL, NULL, '2026-07-13 06:10:04.777084-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('7edc7d7e-aa44-4869-9592-42a7a66dd084', 'cc8aafd475f39b36c2331b122d05e7e6d512ad970a4d076c2db3ed28052db04a', '2026-07-13 06:10:04.824436-07', '20260619093450_add_followup_module', NULL, NULL, '2026-07-13 06:10:04.814412-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('c35e3d36-cbfc-463d-bf28-469a34f97f6f', 'cd73fe6c38c1a3cf9eba8b9db819ad7bedbbb9d9f52036189ca301a36414c796', '2026-07-13 06:10:04.813741-07', '20260619060247_add_meeting_module', NULL, NULL, '2026-07-13 06:10:04.798303-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('fa9f99ad-dd27-4525-996f-cf955272402e', '2b86fdc425172503137ca9e586b179482c69bdc776084fe676d0bac8c1910829', '2026-07-13 06:10:04.833355-07', '20260619103942_add_activity_tracking', NULL, NULL, '2026-07-13 06:10:04.825111-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('d238ffe1-f602-4c2e-ae05-3f7936933331', 'b3fd36c0b44a2ac111230cc44211e48386b60fab232fb39385fc1d45f23cec4f', '2026-07-13 06:10:04.844514-07', '20260619110507_add_lead_crm', NULL, NULL, '2026-07-13 06:10:04.834215-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('9e2cb947-f466-4dc2-a02c-ddeb5fd97e2d', 'efc918f9b1d3e2bea39b7de4174e52257d40db7f9308ce4bac3c4850f0131c78', '2026-07-13 06:10:04.853357-07', '20260619114428_add_leave_request', NULL, NULL, '2026-07-13 06:10:04.845238-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('ac2b4b7d-1266-4c9c-bc4e-c119c3550a79', '5c5f8361745ce53d64ae337e1c86d29eba9663289f5cc30cd93f9ba126948da9', '2026-07-13 06:10:04.862776-07', '20260619132910_add_expense_claims', NULL, NULL, '2026-07-13 06:10:04.854339-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('70ecf901-a0e9-4ad1-a7d4-fd954a8dac41', '78712773b38049b114e7fc527125a8429a3fd3270e8d482bc4fc267dd9abd867', '2026-07-13 06:10:04.874803-07', '20260619134536_add_notifications', NULL, NULL, '2026-07-13 06:10:04.863477-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('9c189ef8-50a4-45f7-9aa5-8c51afe8e800', '05eb9a32c87d2ba4a1bf6b8c7d5bb87ff15506c48d9b4906516aa2ef070557a8', '2026-07-13 06:10:04.880397-07', '20260621093710_add_user_mr_relation', NULL, NULL, '2026-07-13 06:10:04.875479-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('7489b887-1d7b-434f-9e47-a72a4802e111', '2ffde85272cf63712b9398d8d672003510d2fdd15b42fd3f2818590c9e43f7ef', '2026-07-13 06:10:04.885351-07', '20260706064958_extend_product_fields', NULL, NULL, '2026-07-13 06:10:04.881057-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('29c10030-04eb-4065-a6e3-e13a736ec5cc', '9ba727b230c22a408330d5ddcbd127573accb35058e43a22a3e115df7d197562', '2026-07-13 06:10:04.942957-07', '20260710051039_sync_schema', NULL, NULL, '2026-07-13 06:10:04.886064-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('35124747-2fdb-4d22-836e-fa818d34871c', 'd76b0dd1d28d8c72b19c7d278f0f6e994acdbc0371a8dd3a08ebb208a4236a97', '2026-07-13 06:10:05.005924-07', '20260711132000_add_inward_outward_supplier_warehouse_transfer', NULL, NULL, '2026-07-13 06:10:04.943914-07', 1);
+INSERT INTO public._prisma_migrations (id, checksum, finished_at, migration_name, logs, rolled_back_at, started_at, applied_steps_count) VALUES ('66f965f0-0802-4098-b305-2b74150c4719', 'c987962439af25079268bfed702a08a9e7f236146ef64159b447c962dcffde11', '2026-07-14 03:50:41.871014-07', '20260714105041_add_product_master_tables', NULL, NULL, '2026-07-14 03:50:41.61893-07', 1);
 
 
 --
@@ -6014,5 +5880,5 @@ ALTER TABLE ONLY public."Warehouse"
 -- PostgreSQL database dump complete
 --
 
-\unrestrict swi6FlIF9x6sbEEAwU9dpKcUdShYJuOsMtyrA2kRGPBT50EsLDgDchwp4clcTxZ
+\unrestrict LNaHGjhCJPl5Crx7ZSIcnNiBmwpQ7LGaU74vpQGuRtA7ZKJHcdGEwOZqcwku1ui
 
