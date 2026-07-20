@@ -10,6 +10,7 @@ const createDailyReportRepo = async (data) => {
       samplesDistributed: data.samplesDistributed,
       ordersCollected: data.ordersCollected,
       remarks: data.remarks,
+      status: data.status || "SUBMITTED",
     },
     include: {
       mr: true,

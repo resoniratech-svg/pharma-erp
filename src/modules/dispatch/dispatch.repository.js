@@ -11,6 +11,9 @@ const createDispatchRepo = async (
 const getDispatchesRepo =
   async () => {
     return prisma.dispatch.findMany({
+      orderBy: {
+        id: 'desc',
+      },
       include: {
         batch: true,
         warehouse: true,
@@ -29,8 +32,20 @@ const getDispatchByIdRepo =
     });
   };
 
+const updateDispatchRepo = async (id, data) => {
+  return prisma.dispatch.update({
+    where: { id },
+    data,
+    include: {
+      batch: true,
+      warehouse: true,
+    },
+  });
+};
+
 module.exports = {
   createDispatchRepo,
   getDispatchesRepo,
   getDispatchByIdRepo,
+  updateDispatchRepo,
 };

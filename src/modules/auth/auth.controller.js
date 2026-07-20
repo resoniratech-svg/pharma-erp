@@ -83,9 +83,76 @@ const me = async (req, res) => {
   }
 };
 
+const updateProfile = async (req, res) => {
+  try {
+    const { name, email, mobile, profileImage, currentPassword, newPassword } = req.body;
+    const prisma = require("../../config/db");
+    const bcrypt = require("bcrypt");
+
+    const userId = req.user.id;
+    const user = await prisma.user.findUnique({ where: { id: userId }, include: { mr: true } });
+    
+    if (!user) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    let updateData = {
+      name: name || user.name,
+      email: email || user.email,
+    };
+    
+    if (mobile !== undefined) updateData.mobile = mobile;
+    if (profileImage !== undefined) updateData.profileImage = profileImage;
+
+    if (newPassword) {
+      if (!currentPassword) {
+        return res.status(400).json({ success: false, message: "Current password required to set a new password." });
+      }
+      const isMatch = await bcrypt.compare(currentPassword, user.password);
+      if (!isMatch) {
+        return res.status(400).json({ success: false, message: "Incorrect current password." });
+      }
+      updateData.password = await bcrypt.hash(newPassword, 10);
+    }
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        mobile: true,
+        profileImage: true,
+      }
+    });
+
+    if (user.mr) {
+      await prisma.mR.update({
+        where: { id: user.mr.id },
+        data: {
+          name: updateData.name,
+          email: updateData.email,
+          mobile: updateData.mobile || user.mr.mobile,
+        }
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Profile updated successfully",
+      data: updatedUser,
+    });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
   logout,
   me,
+  updateProfile,
 };

@@ -27,4 +27,10 @@ router.get(
   controller.getDispatchById
 );
 
+router.patch(
+  "/:id",
+  authMiddleware,
+  controller.updateDispatch
+);
+
 module.exports = router;

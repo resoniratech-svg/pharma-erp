@@ -16,8 +16,10 @@ model User {
   id Int @id @default(autoincrement())
 
   name     String
-  email    String @unique
-  password String
+  email        String  @unique
+  password     String
+  mobile       String?
+  profileImage String?
 
   role Role
 
@@ -27,12 +29,15 @@ model User {
   branchId Int?
   branch   Branch? @relation(fields: [branchId], references: [id])
 
-  isActive        Boolean @default(true)
-  currentDeviceId String?
+  isActive              Boolean   @default(true)
+  currentDeviceId       String?
+  linkedDistributorCode String?
+  linkedRetailerCode    String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   mr        MR?
+  approvedCreditNotes CreditNote[] @relation("ApprovedCreditNotes")
 }
 
 enum Role {
@@ -213,6 +218,7 @@ model Product {
   warehouseTransferItems WarehouseTransferItem[]
   pricingMasters         PricingMaster[]
   schemeMasters          SchemeMaster[]
+  creditNoteItems        CreditNoteItem[]
 }
 
 model Batch {
@@ -238,6 +244,7 @@ model Batch {
   outwardStockItems OutwardStockItem[]
   pricingMasters    PricingMaster[]
   schemeMasters     SchemeMaster[]
+  creditNoteItems   CreditNoteItem[]
 }
 
 model Inventory {
@@ -514,6 +521,7 @@ model Retailer {
   isActive Boolean @default(true)
 
   createdAt DateTime @default(now())
+  creditNotes CreditNote[]
 }
 
 model Invoice {
@@ -540,6 +548,7 @@ model Invoice {
   paymentCollections PaymentCollection[]
 
   createdAt DateTime @default(now())
+  creditNotes CreditNote[]
 }
 
 model InvoiceItem {
@@ -703,6 +712,7 @@ model MR {
   retailerOrders RetailerOrder[]
 
   createdAt DateTime @default(now())
+  creditNotes CreditNote[]
 }
 
 model Doctor {
@@ -1167,6 +1177,7 @@ model Distributor {
   id     Int    @id @default(autoincrement())
   name   String
   mobile String
+  creditNotes CreditNote[]
 }
 
 model Hospital {
@@ -1332,4 +1343,59 @@ model SchemeMaster {
   updatedAt           DateTime  @updatedAt
   batch               Batch?    @relation(fields: [batchId], references: [id])
   batchId             Int?
+}
+
+model CreditNote {
+  id               Int              @id @default(autoincrement())
+  cnNo             String           @unique // CN/YY/XXXX format
+  cnDate           DateTime         @default(now())
+  status           String           @default("PENDING") // PENDING, PARTIALLY_PAID, PAID
+  cnType           String           // e.g. SALES_RETURN, RATE_DIFFERENCE, DISCOUNT, BREAKAGE
+  reason           String
+  remarks          String?
+  
+  // Dynamic Section Association
+  retailerId       Int?
+  retailer         Retailer?        @relation(fields: [retailerId], references: [id])
+  
+  distributorId    Int?
+  distributor      Distributor?     @relation(fields: [distributorId], references: [id])
+  
+  mrId             Int?
+  mr               MR?              @relation(fields: [mrId], references: [id])
+
+  againstInvoiceId Int?
+  againstInvoice   Invoice?         @relation(fields: [againstInvoiceId], references: [id])
+  
+  items            CreditNoteItem[]
+  
+  // Financial Adjustments
+  taxableAmount    Float            @default(0.0)
+  gstAmount        Float            @default(0.0)
+  totalAmount      Float            @default(0.0)
+  amountSettled    Float            @default(0.0) // Tracks how much has been paid/adjusted
+  
+  approvedByUserId Int?
+  approvedByUser   User?            @relation("ApprovedCreditNotes", fields: [approvedByUserId], references: [id])
+  approvedAt       DateTime?
+  
+  createdAt        DateTime         @default(now())
+}
+
+model CreditNoteItem {
+  id           Int        @id @default(autoincrement())
+  creditNoteId Int
+  creditNote   CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  
+  productId    Int
+  product      Product    @relation(fields: [productId], references: [id])
+  
+  batchId      Int
+  batch        Batch      @relation(fields: [batchId], references: [id])
+  
+  quantity     Int
+  rate         Float      // Sourced from original sales rate
+  gstPercent   Float
+  totalAmount  Float
+  disposition  String     @default("SALABLE") // SALABLE, EXPIRED_DUMP, DESTRUCTION
 }

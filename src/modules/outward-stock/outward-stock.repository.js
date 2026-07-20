@@ -33,7 +33,12 @@ class OutwardStockRepository {
     return prisma.outwardStock.findUnique({
       where: { id: parseInt(id) },
       include: {
-        items: true,
+        items: {
+          include: {
+            product: true,
+            batch: true,
+          }
+        },
         warehouse: true,
       },
     });

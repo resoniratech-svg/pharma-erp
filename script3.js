@@ -1,0 +1,1 @@
+const { PrismaClient } = require('@prisma/client'); const prisma = new PrismaClient(); async function main() { const mr = await prisma.mR.create({ data: { userId: 6, mrCode: 'MR-001', name: 'Priya Reddy', mobile: '9999999999', email: 'mr@pharmaerp.com', territory: 'HQ' } }); console.log('Created MR:', mr); } main().catch(console.error).finally(() => prisma.$disconnect());

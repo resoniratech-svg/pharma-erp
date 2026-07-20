@@ -119,6 +119,9 @@ const retailerOrderItemRoutes =
   const ledgerRoutes =
 require("./modules/ledger/ledger.routes");
 
+const creditNoteRoutes =
+require("./modules/creditNote/creditNote.routes");
+
 const outstandingRoutes =
   require(
     "./modules/outstanding/outstanding.routes"
@@ -362,6 +365,11 @@ app.use(
 app.use(
   "/api/ledgers",
   ledgerRoutes
+);
+
+app.use(
+  "/api/credit-notes",
+  creditNoteRoutes
 );
 
 app.use(

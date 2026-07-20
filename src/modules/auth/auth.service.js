@@ -105,6 +105,8 @@ const loginUser = async (
       name: user.name,
       email: user.email,
       role: user.role,
+      linkedDistributorCode: user.linkedDistributorCode,
+      linkedRetailerCode: user.linkedRetailerCode,
     },
     mr: user.mr
       ? {
