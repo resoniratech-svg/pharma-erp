@@ -1,20 +1,9 @@
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
+const { Client } = require('pg');
 
 async function main() {
   console.log('Starting DB restore process...');
-  
-  // 1. Install pg client dynamically if not present
-  try {
-    require.resolve('pg');
-    console.log('pg client is already installed.');
-  } catch (e) {
-    console.log('Installing pg client dynamically...');
-    execSync('npm install pg', { stdio: 'inherit' });
-  }
-
-  const { Client } = require('pg');
   
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
