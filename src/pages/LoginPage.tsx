@@ -157,7 +157,26 @@ export default function LoginPage() {
     }
 
     // Find the user by email (case-insensitive)
-    const user = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+    let user = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+
+    if (!user) {
+      const storedAdmins = localStorage.getItem('companyAdmins');
+      const companyAdmins = storedAdmins ? JSON.parse(storedAdmins) : [];
+      const companyAdmin = companyAdmins.find((a: any) => a.email.toLowerCase() === email.toLowerCase() && (a.passwordHash === password || a.password === password));
+      
+      if (companyAdmin) {
+        user = {
+          id: companyAdmin.id,
+          email: companyAdmin.email,
+          name: companyAdmin.adminName,
+          password: password,
+          role: 'COMPANY_ADMIN',
+          status: 'Active',
+          tenantId: companyAdmin.id,
+          purchasedModules: companyAdmin.subscription?.purchasedModules || []
+        };
+      }
+    }
 
     if (!user) {
       console.log(`\nRESULT: Authentication Blocked.`);
@@ -189,7 +208,8 @@ export default function LoginPage() {
         'Accountant': 'ACCOUNTANT',
         'Distributor': 'DISTRIBUTOR',
         'Retailer': 'RETAILER',
-        'Medical Representative': 'MEDICAL_REPRESENTATIVE'
+        'Medical Representative': 'MEDICAL_REPRESENTATIVE',
+        'COMPANY_ADMIN': 'COMPANY_ADMIN'
       };
       
       if (map[roleName]) {

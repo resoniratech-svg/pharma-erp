@@ -10,6 +10,7 @@ export interface UserRecord {
   department: string;
   roleId: string;
   avatarUrl?: string;
+  profileImage?: string;
   linkedDistributorCode?: string;
 }
 

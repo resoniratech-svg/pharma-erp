@@ -8,6 +8,7 @@ import {
 } from 'lucide-react';
 
 export const ROLE_SUPER_ADMIN = 'SUPER_ADMIN';
+export const ROLE_COMPANY_ADMIN = 'COMPANY_ADMIN';
 export const ROLE_WAREHOUSE_MANAGER = 'WAREHOUSE_MANAGER';
 export const ROLE_ACCOUNTANT = 'ACCOUNTANT';
 export const ROLE_DISTRIBUTOR = 'DISTRIBUTOR';
@@ -47,6 +48,25 @@ export const ROLES: Role[] = [
       'Global Reports',
       'System Analytics',
       'Core Operations',
+    ],
+  },
+  {
+    id: ROLE_COMPANY_ADMIN,
+    title: 'Company Admin',
+    description: 'Tenant management, users & subscription.',
+    Icon: ShieldCheck,
+    gradFrom: '#3B82F6',
+    gradTo: '#2563EB',
+    accentHex: '#3B82F6',
+    skeletonBar: 'bg-blue-100',
+    skeletonBarLight: 'bg-blue-50',
+    userName: 'Company Admin',
+    userEmail: 'admin@tenant.com',
+    capabilities: [
+      'Tenant Dashboard',
+      'User Management',
+      'Subscription Details',
+      'Module Settings',
     ],
   },
   {

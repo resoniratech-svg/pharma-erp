@@ -145,11 +145,16 @@ export default function UserManagement() {
     let parsedUsers: UserRole[] = savedUsers ? JSON.parse(savedUsers) : seedUsers;
     
     // Schema migration / regeneration check
-    // If the legacy users are missing required fields or have the old 3-character password, regenerate seed users.
     if (parsedUsers.length > 0 && (!parsedUsers[0].password || parsedUsers[0].password === '123')) {
-      // Safe migration impossible or password too short, regenerate seed users
       parsedUsers = seedUsers;
       localStorage.setItem('users', JSON.stringify(seedUsers));
+    }
+    
+    // Tenant Scoping
+    const sessionStr = localStorage.getItem('centralAuthSession');
+    const session = sessionStr ? JSON.parse(sessionStr) : null;
+    if (session?.role === 'COMPANY_ADMIN' && session.tenantId) {
+      parsedUsers = parsedUsers.filter((u: any) => u.tenantId === session.tenantId);
     }
     
     setUsers(parsedUsers);
@@ -200,7 +205,10 @@ export default function UserManagement() {
     if (Object.keys(errors).length > 0) return;
 
     if (editMode) {
-      const updatedUsers = users.map(u => u.id === formData.empId ? {
+      // Fetch all users to update the correct one
+      const allUsersStr = localStorage.getItem('users');
+      const allUsers = allUsersStr ? JSON.parse(allUsersStr) : [];
+      const updatedAllUsers = allUsers.map((u: any) => u.id === formData.empId ? {
         ...u,
         name: formData.fullName,
         email: formData.email,
@@ -211,10 +219,16 @@ export default function UserManagement() {
         status: formData.status as 'Active' | 'Inactive',
         modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
       } : u);
+      
+      const updatedUsers = users.map(u => u.id === formData.empId ? updatedAllUsers.find((au: any) => au.id === formData.empId) : u);
+      
       setUsers(updatedUsers);
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
+      localStorage.setItem('users', JSON.stringify(updatedAllUsers));
     } else {
-      const newUser: UserRole = {
+      const sessionStr = localStorage.getItem('centralAuthSession');
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
+
+      const newUser: any = {
         id: formData.empId,
         name: formData.fullName,
         email: formData.email,
@@ -227,12 +241,17 @@ export default function UserManagement() {
         createdBy: 'Current User',
         createdDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
         modifiedBy: 'Current User',
-        modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+        modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        tenantId: session?.tenantId || null,
+        purchasedModules: session?.purchasedModules || []
       };
 
-      const updatedUsers = [...users, newUser];
-      setUsers(updatedUsers);
-      localStorage.setItem('users', JSON.stringify(updatedUsers));
+      const allUsersStr = localStorage.getItem('users');
+      const allUsers = allUsersStr ? JSON.parse(allUsersStr) : [];
+      
+      const updatedAllUsers = [...allUsers, newUser];
+      setUsers([...users, newUser]);
+      localStorage.setItem('users', JSON.stringify(updatedAllUsers));
       setRoles(roles.map(r => r.name === newUser.role ? { ...r, users: r.users + 1 } : r));
     }
 

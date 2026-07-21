@@ -27,6 +27,7 @@ import {
   Shield,
 } from 'lucide-react';
 import { hasPermission } from '../../constants/permissions';
+import { normalizePurchasedModules } from '../../config/tenantConfig';
 import NotificationDropdown from '../../components/NotificationDropdown';
 import { ROLE_SUPER_ADMIN, ROLE_WAREHOUSE_MANAGER, ROLE_ACCOUNTANT, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_MEDICAL_REPRESENTATIVE, ROLE_TRANSPORT_STAFF, ROLES } from '../../constants/roles';
 import mjLogo from '../../assets/logo/pharmaLOGO.png';
@@ -355,11 +356,29 @@ export function MainLayout() {
 
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
   const activeRoleData = ROLES.find(r => r.id === activeRole) || ROLES[0];
-  const authUserString = localStorage.getItem('authUser');
-  const authUser = authUserString ? JSON.parse(authUserString) : null;
-  const displayName = authUser ? authUser.fullName : activeRoleData.userName;
+  const authUserString = localStorage.getItem('centralAuthSession'); // read from central session
+  const authUserSession = authUserString ? JSON.parse(authUserString) : null;
+  const authUser = authUserSession?.user || (localStorage.getItem('authUser') ? JSON.parse(localStorage.getItem('authUser')!) : null);
+  
+  const displayName = authUser ? authUser.fullName || authUser.adminName || authUser.name : activeRoleData.userName;
   const displayEmail = authUser ? authUser.email : activeRoleData.userEmail;
-  const filteredNavItems = NAV_ITEMS.filter(item => activeRole === ROLE_SUPER_ADMIN || hasPermission(activeRole, item.label));
+  
+  const purchasedModules = authUserSession ? normalizePurchasedModules(authUserSession.purchasedModules) : [];
+
+  const filteredNavItems = NAV_ITEMS.filter(item => {
+    if (activeRole === ROLE_SUPER_ADMIN) {
+      return item.label !== 'Company Admin'; 
+    }
+    if (activeRole === 'COMPANY_ADMIN') {
+      if (item.label === 'Super Admin') return false; // Hide platform admin stuff
+      // Always show Dashboard and Settings
+      if (item.label === 'Dashboard' || item.label === 'Settings' || item.label === 'Company Admin') return true;
+      // Filter the rest by purchased modules
+      return purchasedModules.includes(item.label);
+    }
+    // Tenant user uses role-based permissions
+    return hasPermission(activeRole, item.label);
+  });
 
   // Close sidebar on route change for mobile
   useEffect(() => {

@@ -2,6 +2,7 @@ import { Link, useNavigate } from 'react-router';
 import { motion } from 'framer-motion';
 import { ArrowRight, Lock, ChevronLeft } from 'lucide-react';
 import { ROLES, type Role } from '../constants/roles';
+import { isWorkspaceEnabled, normalizePurchasedModules } from '../config/tenantConfig';
 import mjLogo from '../assets/logo/pharmaLOGO.png';
 
 /* ── Role Card ──────────────────────────────────────────────────── */
@@ -227,7 +228,36 @@ export default function WorkspaceSelection() {
 
         {/* Role grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          {ROLES.filter(role => role.id !== 'TRANSPORT_STAFF').map((role, i) => (
+          {ROLES.filter(role => role.id !== 'TRANSPORT_STAFF').filter(role => {
+            try {
+              const sessionStr = localStorage.getItem('centralAuthSession');
+              if (!sessionStr) return role.id === 'SUPER_ADMIN'; // Fallback for direct access without login
+              
+              const session = JSON.parse(sessionStr);
+              const { role: userRole, purchasedModules } = session;
+              
+              // 1. Super Admin sees all original cards (except Company Admin)
+              if (userRole === 'SUPER_ADMIN') {
+                return role.id !== 'COMPANY_ADMIN';
+              }
+              
+              // 2. Company Admin sees "Company Admin" card, and other cards if they purchased the module
+              if (userRole === 'COMPANY_ADMIN') {
+                if (role.id === 'SUPER_ADMIN') return false; // Never show Super Admin to tenant
+                if (role.id === 'COMPANY_ADMIN') return true; // Always show Company Admin to tenant admin
+                
+                const normalizedModules = normalizePurchasedModules(purchasedModules);
+                return isWorkspaceEnabled(role.id, normalizedModules);
+              }
+              
+              // 3. Tenant User sees ONLY their designated role
+              return role.id === userRole;
+              
+            } catch (e) {
+              console.error('Error filtering roles:', e);
+              return false;
+            }
+          }).map((role, i) => (
             <RoleCard key={role.id} role={role} index={i} />
           ))}
         </div>

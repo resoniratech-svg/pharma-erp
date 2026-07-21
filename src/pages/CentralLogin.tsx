@@ -22,26 +22,60 @@ export default function CentralLogin() {
 
     setLoading(true);
 
-    // Read users from User Management
+    // 1. Try Super Admin (Platform)
     const storedUsers = localStorage.getItem('users');
     let users = storedUsers ? JSON.parse(storedUsers) : null;
-
-    // Fallback to seedUsers if empty
     if (!users || users.length === 0) {
       users = seedUsers;
       localStorage.setItem('users', JSON.stringify(seedUsers));
     }
 
-    // Authenticate using the exact Super Admin credentials
-    const user = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+    let authPayload: any = null;
+    let user = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+
+    if (user && user.role === 'Super Admin') {
+      authPayload = {
+        role: 'SUPER_ADMIN',
+        tenantId: null,
+        purchasedModules: [],
+        user
+      };
+    } else {
+      // 2. Try Company Admin (Tenant Admin)
+      const storedAdmins = localStorage.getItem('companyAdmins');
+      const companyAdmins = storedAdmins ? JSON.parse(storedAdmins) : [];
+      const companyAdmin = companyAdmins.find((a: any) => a.email.toLowerCase() === email.toLowerCase() && (a.passwordHash === password || a.password === password));
+      
+      if (companyAdmin) {
+        authPayload = {
+          role: 'COMPANY_ADMIN',
+          tenantId: companyAdmin.id,
+          purchasedModules: companyAdmin.subscription?.purchasedModules || [],
+          user: {
+            id: companyAdmin.id,
+            email: companyAdmin.email,
+            fullName: companyAdmin.adminName,
+            role: 'COMPANY_ADMIN'
+          }
+        };
+      } else if (user) {
+        // 3. Try Tenant User (created via User Management)
+        authPayload = {
+          role: user.role, // This will be mapped later to actual system role
+          tenantId: user.tenantId,
+          purchasedModules: user.purchasedModules || [],
+          user
+        };
+      }
+    }
 
     setTimeout(() => {
       setLoading(false);
-      if (user && user.role === 'Super Admin') {
-        // Only authenticates the user before allowing access to the existing Workspace
+      if (authPayload) {
+        localStorage.setItem('centralAuthSession', JSON.stringify(authPayload));
         navigate('/workspace');
       } else {
-        setError('Invalid Super Admin credentials.');
+        setError('Invalid email or password.');
       }
     }, 500);
   };

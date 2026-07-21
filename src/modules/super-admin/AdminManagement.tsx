@@ -111,7 +111,18 @@ const existingCompanies = [
 export default function AdminManagement() {
   const [activeMainTab, setActiveMainTab] = useState<'company-admin'|'subscription'>('company-admin');
   const [search, setSearch] = useState('');
-  const [admins, setAdmins] = useState<CompanyAdmin[]>(mockAdmins);
+  const [admins, setAdmins] = useState<CompanyAdmin[]>(() => {
+    const stored = localStorage.getItem('companyAdmins');
+    if (stored) {
+      return JSON.parse(stored);
+    }
+    localStorage.setItem('companyAdmins', JSON.stringify(mockAdmins));
+    return mockAdmins;
+  });
+
+  useEffect(() => {
+    localStorage.setItem('companyAdmins', JSON.stringify(admins));
+  }, [admins]);
   
   // View states
   const [showExportMenu, setShowExportMenu] = useState(false);
