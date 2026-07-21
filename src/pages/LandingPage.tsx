@@ -41,7 +41,7 @@ const Navbar = () => (
       </div>
 
       {/* CTA */}
-      <Link to="/workspace"
+      <Link to="/auth"
         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-full text-sm font-bold text-white transition-all duration-200 shadow-lg hover:-translate-y-0.5 hover:shadow-xl"
         style={{ background: 'linear-gradient(135deg, #1F2937, #374151)' }}>
         Sign In <ArrowRight className="w-3.5 h-3.5" />
@@ -183,7 +183,7 @@ const Hero = () => (
 
         {/* CTAs */}
         <div className="flex items-center gap-5 mt-4">
-          <Link to="/workspace"
+          <Link to="/auth"
             className="inline-flex items-center gap-2.5 px-8 py-4 rounded-full text-base font-bold text-white shadow-xl transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl hover:shadow-primary/30"
             style={{
               backgroundColor: '#0D2C5B',
@@ -202,24 +202,6 @@ const Hero = () => (
       </motion.div>
     </div>
   </section>
-);
-
-/* ═══════════════════════════════════════════════════════════════════
-   TRUSTED BY
-═══════════════════════════════════════════════════════════════════ */
-const TrustedBy = () => (
-  <div className="bg-white/50 backdrop-blur-sm border-y border-slate-200/50 py-8 relative z-20">
-    <div className="max-w-7xl mx-auto px-6">
-      <p className="text-center text-[11px] font-bold uppercase tracking-[0.2em] text-slate-400 mb-6">
-        Trusted by leading pharmaceutical enterprises
-      </p>
-      <div className="flex flex-wrap justify-center gap-14 items-center grayscale opacity-40 hover:grayscale-0 hover:opacity-100 transition-all duration-700">
-        {['SunPharma', 'Cipla', 'Dr. Reddys', 'Lupin', 'Zydus', 'Alkem', 'Torrent'].map((b) => (
-          <span key={b} className="text-sm font-black text-slate-700 tracking-tight">{b}</span>
-        ))}
-      </div>
-    </div>
-  </div>
 );
 
 /* ═══════════════════════════════════════════════════════════════════
@@ -610,7 +592,7 @@ const CTABanner = () => (
           Join leading enterprises optimizing products, inventory, billing, and CRM in a single unified platform.
         </p>
         <div className="flex justify-center items-center gap-4">
-          <Link to="/workspace"
+          <Link to="/auth"
             className="inline-flex items-center gap-3 px-8 py-4 rounded-full text-base font-bold text-white transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl"
             style={{
               backgroundColor: '#0D2C5B',
@@ -718,7 +700,7 @@ export default function LandingPage() {
     <div className="min-h-screen font-sans selection:bg-primary/20 selection:text-slate-900">
       <Navbar />
       <Hero />
-      <TrustedBy />
+
       <FeatureHighlights />
       <BusinessWorkflow />
       <DashboardPreview />

@@ -681,16 +681,180 @@ export default function Dashboard() {
   let displayPrimaryKpis = primaryKpiData;
   let displaySecondaryKpis = secondaryKpiData;
 
-  // Distributor KPIs — scoped to logged-in distributor (DIST-001)
+  // Dynamically compute global KPIs if needed
+  const globalKpis = useMemo(() => {
+    if (![ROLE_SUPER_ADMIN, 'Super Admin', 'System Administrator', ROLE_ACCOUNTANT].includes(activeRole)) return primaryKpiData;
+    
+    const allInvoices = JSON.parse(localStorage.getItem('pharma_erp_sales_invoices') || '[]');
+    const salesTotal = allInvoices.reduce((sum: number, inv: any) => sum + (inv.grandTotal || 0), 0);
+    
+    const allPayments = JSON.parse(localStorage.getItem('pharma_erp_payments') || '[]');
+    const totalPaymentsReceived = allPayments.reduce((sum: number, pay: any) => sum + (pay.amount || 0), 0);
+    
+    const totalOut = Math.max(0, salesTotal - totalPaymentsReceived);
+    
+    return primaryKpiData.map(kpi => {
+      if (kpi.title === 'Total Revenue') {
+        return { ...kpi, value: `₹${(salesTotal / 1000000).toFixed(1)}M` };
+      }
+      if (kpi.title === 'Outstanding Receivables') {
+        return { ...kpi, value: `₹${(totalOut / 1000000).toFixed(1)}M` };
+      }
+      return kpi;
+    });
+  }, [activeRole]);
+
+  displayPrimaryKpis = globalKpis;
+
+  const [distributorData, setDistributorData] = useState({
+    activeOrdersCount: 0,
+    pendingOrdersCount: 0,
+    outstandingAmount: 0,
+    pendingInvoicesCount: 0,
+    recentOrders: [] as any[],
+    notifications: [] as any[],
+  });
+
+  useEffect(() => {
+    if (activeRole !== ROLE_DISTRIBUTOR) return;
+
+    // Load actual ERP data from LocalStorage
+    const allOrders = JSON.parse(localStorage.getItem('pharma_erp_orders') || '[]');
+    const allInvoices = JSON.parse(localStorage.getItem('pharma_erp_sales_invoices') || '[]');
+    const allPayments = JSON.parse(localStorage.getItem('pharma_erp_payments') || '[]');
+    const allDispatches = JSON.parse(localStorage.getItem('pharma_erp_dispatches') || '[]');
+
+    // Assuming we show all distributor data for the local instance, or filter by a specific distributor code if needed.
+    // Here we'll process all of them as it represents the distributor's workspace.
+    
+    // 1. Orders Calculation
+    const activeStatuses = ['Approved', 'Processing', 'Shipped', 'In Transit'];
+    const pendingStatuses = ['Draft', 'Pending', 'Submitted', 'Awaiting Approval'];
+    
+    let activeOrdersCount = 0;
+    let pendingOrdersCount = 0;
+    
+    allOrders.forEach((o: any) => {
+      if (activeStatuses.includes(o.status)) activeOrdersCount++;
+      if (pendingStatuses.includes(o.status)) pendingOrdersCount++;
+    });
+
+    // 2. Outstanding Amount & Invoices
+    let totalInvoiceAmount = 0;
+    let totalPaymentsReceived = 0;
+    let pendingInvoicesCount = 0;
+
+    allInvoices.forEach((inv: any) => {
+      totalInvoiceAmount += (inv.grandTotal || 0);
+      if (inv.paymentStatus !== 'Paid' && inv.status !== 'Completed') {
+        pendingInvoicesCount++;
+      }
+    });
+
+    allPayments.forEach((pay: any) => {
+      if (pay.status === 'Completed' || pay.status === 'Approved') {
+        totalPaymentsReceived += (pay.amount || 0);
+      }
+    });
+
+    const outstandingAmount = Math.max(0, totalInvoiceAmount - totalPaymentsReceived);
+
+    // 3. Recent Orders
+    const sortedOrders = [...allOrders].sort((a: any, b: any) => {
+      const dateA = new Date(a.date || a.orderDate || 0).getTime();
+      const dateB = new Date(b.date || b.orderDate || 0).getTime();
+      return dateB - dateA;
+    }).slice(0, 5).map(o => ({
+      id: o.id || o.orderNumber,
+      client: o.customerName || o.client || 'Unknown Retailer',
+      status: o.status || 'Pending',
+      amount: `₹${(o.totalAmount || o.amount || 0).toLocaleString()}`,
+      date: (o.date || o.orderDate || new Date().toISOString()).split('T')[0]
+    }));
+
+    // 4. Notifications
+    const events: any[] = [];
+    
+    allOrders.slice(-5).forEach((o: any) => {
+      events.push({
+        id: `ord-${o.id}`,
+        timestamp: new Date(o.date || o.orderDate || Date.now()).getTime(),
+        icon: o.status === 'Approved' ? CheckCircle2 : ShoppingCart,
+        iconColor: o.status === 'Approved' ? 'text-emerald-600' : 'text-blue-600',
+        iconBg: o.status === 'Approved' ? 'bg-emerald-50' : 'bg-blue-50',
+        message: `Order ${o.id || o.orderNumber} is now ${o.status || 'Pending'}.`,
+        time: (o.date || o.orderDate || new Date().toISOString()).split('T')[0]
+      });
+    });
+
+    allDispatches.slice(-3).forEach((d: any) => {
+      events.push({
+        id: `disp-${d.id}`,
+        timestamp: new Date(d.createdDate || Date.now()).getTime(),
+        icon: Truck,
+        iconColor: 'text-emerald-600',
+        iconBg: 'bg-emerald-50',
+        message: `Dispatch ${d.dispatchNo} created for order ${d.orderId}.`,
+        time: (d.createdDate || new Date().toISOString()).split('T')[0]
+      });
+    });
+
+    allInvoices.slice(-3).forEach((i: any) => {
+      events.push({
+        id: `inv-${i.id}`,
+        timestamp: new Date(i.date || Date.now()).getTime(),
+        icon: FileText,
+        iconColor: 'text-brand-primary',
+        iconBg: 'bg-brand-light',
+        message: `Invoice ${i.invoiceNo} generated for ₹${(i.grandTotal || 0).toLocaleString()}.`,
+        time: (i.date || new Date().toISOString()).split('T')[0]
+      });
+    });
+
+    allPayments.slice(-3).forEach((p: any) => {
+      events.push({
+        id: `pay-${p.id}`,
+        timestamp: new Date(p.date || Date.now()).getTime(),
+        icon: IndianRupee,
+        iconColor: 'text-emerald-600',
+        iconBg: 'bg-emerald-50',
+        message: `Payment of ₹${(p.amount || 0).toLocaleString()} received.`,
+        time: (p.date || new Date().toISOString()).split('T')[0]
+      });
+    });
+
+    const sortedNotifications = events.sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
+
+    if (sortedNotifications.length === 0) {
+      sortedNotifications.push({
+        id: 'empty-notif',
+        timestamp: Date.now(),
+        icon: Bell,
+        iconColor: 'text-slate-400',
+        iconBg: 'bg-slate-50',
+        message: 'No recent notifications.',
+        time: 'Just now'
+      });
+    }
+
+    setDistributorData({
+      activeOrdersCount,
+      pendingOrdersCount,
+      outstandingAmount,
+      pendingInvoicesCount,
+      recentOrders: sortedOrders,
+      notifications: sortedNotifications
+    });
+  }, [activeRole]);
+
+  // Distributor KPIs — scoped to logged-in distributor
   const distributorKpis = useMemo(() => {
     if (activeRole !== ROLE_DISTRIBUTOR) return [];
-    const myOrders = distributorOrders;
-    const activeOrdersCount = myOrders.filter(o => o.status === 'Submitted' || o.status === 'Fulfilled').length;
-    const pendingOrdersCount = myOrders.filter(o => o.status === 'Draft').length;
+    
     return [
       {
         title: 'Active Orders',
-        value: activeOrdersCount.toString(),
+        value: distributorData.activeOrdersCount.toString(),
         trend: 'In progress',
         isPositive: true,
         icon: ShoppingCart,
@@ -702,9 +866,9 @@ export default function Dashboard() {
       },
       {
         title: 'Pending Orders',
-        value: pendingOrdersCount.toString(),
+        value: distributorData.pendingOrdersCount.toString(),
         trend: 'Awaiting submission',
-        isPositive: pendingOrdersCount === 0,
+        isPositive: distributorData.pendingOrdersCount === 0,
         icon: Clock,
         iconColor: 'text-amber-600',
         iconBg: 'bg-amber-50',
@@ -714,7 +878,7 @@ export default function Dashboard() {
       },
       {
         title: 'Outstanding Amount',
-        value: '₹3,24,500',
+        value: `₹${distributorData.outstandingAmount.toLocaleString()}`,
         trend: 'Due this month',
         isPositive: false,
         icon: IndianRupee,
@@ -726,7 +890,7 @@ export default function Dashboard() {
       },
       {
         title: 'Pending Invoices',
-        value: '4',
+        value: distributorData.pendingInvoicesCount.toString(),
         trend: 'Needs review',
         isPositive: false,
         icon: FileText,
@@ -737,18 +901,155 @@ export default function Dashboard() {
         borderGradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c7d2fe 100%)',
       },
     ];
+  }, [activeRole, distributorData]);
+
+  const [retailerData, setRetailerData] = useState({
+    activeOrdersCount: 0,
+    pendingDeliveriesCount: 0,
+    outstandingBalance: 0,
+    pendingInvoicesCount: 0,
+    recentOrders: [] as any[],
+    notifications: [] as any[],
+  });
+
+  useEffect(() => {
+    if (activeRole !== ROLE_RETAILER) return;
+
+    // Load actual ERP data from LocalStorage
+    const allOrders = JSON.parse(localStorage.getItem('pharma_erp_retailer_orders') || '[]');
+    const allInvoices = JSON.parse(localStorage.getItem('pharma_erp_sales_invoices') || '[]');
+    const allPayments = JSON.parse(localStorage.getItem('pharma_erp_payments') || '[]');
+    const allDispatches = JSON.parse(localStorage.getItem('pharma_erp_dispatches') || '[]');
+
+    // 1. Orders Calculation (Retailer placed orders)
+    const activeStatuses = ['Approved', 'Processing', 'Shipped', 'In Transit', 'Delivered'];
+    const pendingDeliveriesStatuses = ['Pending', 'Submitted', 'Processing', 'Approved']; 
+    
+    let activeOrdersCount = 0;
+    let pendingDeliveriesCount = 0;
+    
+    allOrders.forEach((o: any) => {
+      const status = o.status || 'Pending';
+      if (activeStatuses.includes(status)) activeOrdersCount++;
+      if (pendingDeliveriesStatuses.includes(status)) pendingDeliveriesCount++;
+    });
+
+    // 2. Outstanding Balance & Invoices
+    let totalInvoiceAmount = 0;
+    let totalPaymentsMade = 0;
+    let pendingInvoicesCount = 0;
+
+    allInvoices.forEach((inv: any) => {
+      totalInvoiceAmount += (inv.grandTotal || 0);
+      if (inv.paymentStatus !== 'Paid' && inv.status !== 'Completed') {
+        pendingInvoicesCount++;
+      }
+    });
+
+    allPayments.forEach((pay: any) => {
+      if (pay.status === 'Completed' || pay.status === 'Approved') {
+        totalPaymentsMade += (pay.amount || 0);
+      }
+    });
+
+    const outstandingBalance = Math.max(0, totalInvoiceAmount - totalPaymentsMade);
+
+    // 3. Recent Orders
+    const sortedOrders = [...allOrders].sort((a: any, b: any) => {
+      const dateA = new Date(a.date || a.orderDate || 0).getTime();
+      const dateB = new Date(b.date || b.orderDate || 0).getTime();
+      return dateB - dateA;
+    }).slice(0, 5).map(o => ({
+      id: o.id || o.orderNumber,
+      client: o.distributorName || o.distributor || 'Super Stockist',
+      status: o.status || 'Pending',
+      amount: `₹${(o.totalAmount || o.amount || 0).toLocaleString()}`,
+      date: (o.date || o.orderDate || new Date().toISOString()).split('T')[0]
+    }));
+
+    // 4. Notifications
+    const events: any[] = [];
+    
+    allOrders.slice(-5).forEach((o: any) => {
+      events.push({
+        id: `r-ord-${o.id}`,
+        timestamp: new Date(o.date || o.orderDate || Date.now()).getTime(),
+        icon: o.status === 'Approved' ? CheckCircle2 : ShoppingBag,
+        iconColor: o.status === 'Approved' ? 'text-emerald-600' : 'text-blue-600',
+        iconBg: o.status === 'Approved' ? 'bg-emerald-50' : 'bg-blue-50',
+        message: `Your Order ${o.id || o.orderNumber} is now ${o.status || 'Pending'}.`,
+        time: (o.date || o.orderDate || new Date().toISOString()).split('T')[0]
+      });
+    });
+
+    allDispatches.slice(-3).forEach((d: any) => {
+      events.push({
+        id: `r-disp-${d.id}`,
+        timestamp: new Date(d.createdDate || Date.now()).getTime(),
+        icon: Truck,
+        iconColor: 'text-amber-600',
+        iconBg: 'bg-amber-50',
+        message: `Your order ${d.orderId} has been dispatched.`,
+        time: (d.createdDate || new Date().toISOString()).split('T')[0]
+      });
+    });
+
+    allInvoices.slice(-3).forEach((i: any) => {
+      events.push({
+        id: `r-inv-${i.id}`,
+        timestamp: new Date(i.date || Date.now()).getTime(),
+        icon: FileText,
+        iconColor: 'text-brand-primary',
+        iconBg: 'bg-brand-light',
+        message: `New Invoice ${i.invoiceNo} generated for ₹${(i.grandTotal || 0).toLocaleString()}.`,
+        time: (i.date || new Date().toISOString()).split('T')[0]
+      });
+    });
+
+    allPayments.slice(-3).forEach((p: any) => {
+      events.push({
+        id: `r-pay-${p.id}`,
+        timestamp: new Date(p.date || Date.now()).getTime(),
+        icon: IndianRupee,
+        iconColor: 'text-emerald-600',
+        iconBg: 'bg-emerald-50',
+        message: `Your payment of ₹${(p.amount || 0).toLocaleString()} was received.`,
+        time: (p.date || new Date().toISOString()).split('T')[0]
+      });
+    });
+
+    const sortedNotifications = events.sort((a, b) => b.timestamp - a.timestamp).slice(0, 5);
+
+    if (sortedNotifications.length === 0) {
+      sortedNotifications.push({
+        id: 'r-empty-notif',
+        timestamp: Date.now(),
+        icon: Bell,
+        iconColor: 'text-slate-400',
+        iconBg: 'bg-slate-50',
+        message: 'No recent notifications.',
+        time: 'Just now'
+      });
+    }
+
+    setRetailerData({
+      activeOrdersCount,
+      pendingDeliveriesCount,
+      outstandingBalance,
+      pendingInvoicesCount,
+      recentOrders: sortedOrders,
+      notifications: sortedNotifications
+    });
   }, [activeRole]);
 
-  // Retailer KPIs — scoped to logged-in retailer (RET-001)
+  // Retailer KPIs — scoped to logged-in retailer
   const retailerKpis = useMemo(() => {
     if (activeRole !== ROLE_RETAILER) return [];
-    const myOrders = retailerOrders;
-    const activeOrdersCount = myOrders.filter(o => o.status === 'Shipped' || o.status === 'Delivered').length;
-    const pendingDeliveriesCount = myOrders.filter(o => o.status === 'Pending').length;
+    
     return [
       {
         title: 'Active Orders',
-        value: activeOrdersCount.toString(),
+        value: retailerData.activeOrdersCount.toString(),
         trend: 'In transit',
         isPositive: true,
         icon: ShoppingBag,
@@ -760,9 +1061,9 @@ export default function Dashboard() {
       },
       {
         title: 'Pending Deliveries',
-        value: pendingDeliveriesCount.toString(),
+        value: retailerData.pendingDeliveriesCount.toString(),
         trend: 'Awaiting dispatch',
-        isPositive: pendingDeliveriesCount === 0,
+        isPositive: retailerData.pendingDeliveriesCount === 0,
         icon: Truck,
         iconColor: 'text-amber-600',
         iconBg: 'bg-amber-50',
@@ -772,7 +1073,7 @@ export default function Dashboard() {
       },
       {
         title: 'Outstanding Balance',
-        value: '₹14,500',
+        value: `₹${retailerData.outstandingBalance.toLocaleString()}`,
         trend: 'Due this month',
         isPositive: false,
         icon: IndianRupee,
@@ -784,7 +1085,7 @@ export default function Dashboard() {
       },
       {
         title: 'Pending Invoices',
-        value: '2',
+        value: retailerData.pendingInvoicesCount.toString(),
         trend: 'Needs review',
         isPositive: false,
         icon: FileText,
@@ -795,7 +1096,7 @@ export default function Dashboard() {
         borderGradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c7d2fe 100%)',
       },
     ];
-  }, [activeRole]);
+  }, [activeRole, retailerData]);
 
   if (activeRole === ROLE_WAREHOUSE_MANAGER) {
     displayPrimaryKpis = wmKpis;
@@ -991,38 +1292,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* ── Quick Access for Retailer ── */}
-        {activeRole === ROLE_RETAILER && (
-          <motion.div variants={itemVariants} className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm flex flex-col mb-6">
-            <h2 className="text-lg font-bold text-slate-800 mb-6">Quick Access</h2>
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 flex-1">
-              <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 hover:bg-brand-light rounded-2xl transition-colors group">
-                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Search className="w-6 h-6 text-brand-primary" />
-                </div>
-                <span className="text-xs font-semibold text-slate-700">Browse Products</span>
-              </button>
-              <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 hover:bg-emerald-50 rounded-2xl transition-colors group">
-                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <ShoppingBag className="w-6 h-6 text-emerald-600" />
-                </div>
-                <span className="text-xs font-semibold text-slate-700">Place Order</span>
-              </button>
-              <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 hover:bg-blue-50 rounded-2xl transition-colors group">
-                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Clock className="w-6 h-6 text-blue-600" />
-                </div>
-                <span className="text-xs font-semibold text-slate-700">Order History</span>
-              </button>
-              <button className="flex flex-col items-center justify-center gap-3 p-4 bg-slate-50 hover:bg-amber-50 rounded-2xl transition-colors group">
-                <div className="w-12 h-12 rounded-full bg-white shadow-sm flex items-center justify-center group-hover:scale-110 transition-transform">
-                  <Download className="w-6 h-6 text-amber-600" />
-                </div>
-                <span className="text-xs font-semibold text-slate-700">Download Invoices</span>
-              </button>
-            </div>
-          </motion.div>
-        )}
+
 
         {/* ── Quick Actions (Super Admin Only - Fully Hidden from Distributors) ── */}
        {/* {isSuperAdmin && (
@@ -1162,15 +1432,15 @@ export default function Dashboard() {
                     )
                   ) : activeRole === ROLE_DISTRIBUTOR ? (
                     /* ── Distributor read-only order rows (no Actions column) ── */
-                    distributorOrders.map((order) => {
+                    distributorData.recentOrders.length > 0 ? distributorData.recentOrders.map((order) => {
                       let StatusIcon = Clock;
                       let statusColor = 'text-amber-600';
                       let statusBg = 'bg-amber-50';
-                      if (order.status === 'Submitted' || order.status === 'Fulfilled') {
+                      if (order.status === 'Approved' || order.status === 'Processing' || order.status === 'Shipped') {
                         StatusIcon = CheckCircle2;
                         statusColor = 'text-emerald-600';
                         statusBg = 'bg-emerald-50';
-                      } else if (order.status === 'Cancelled') {
+                      } else if (order.status === 'Cancelled' || order.status === 'Rejected') {
                         StatusIcon = XCircle;
                         statusColor = 'text-rose-600';
                         statusBg = 'bg-rose-50';
@@ -1189,17 +1459,27 @@ export default function Dashboard() {
                           <td className="py-4 px-6 text-sm font-medium text-slate-500">{order.date}</td>
                         </tr>
                       );
-                    })
+                    }) : (
+                      <tr>
+                        <td colSpan={5} className="py-8 text-center text-slate-500 text-sm bg-slate-50/50">
+                          No recent orders found.
+                        </td>
+                      </tr>
+                    )
                   ) : activeRole === ROLE_RETAILER ? (
                     /* ── Retailer read-only order rows (no Actions column) ── */
-                    retailerOrders.map((order) => {
+                    retailerData.recentOrders.length > 0 ? retailerData.recentOrders.map((order) => {
                       let StatusIcon = Clock;
                       let statusColor = 'text-amber-600';
                       let statusBg = 'bg-amber-50';
-                      if (order.status === 'Shipped' || order.status === 'Delivered') {
+                      if (order.status === 'Approved' || order.status === 'Processing' || order.status === 'Shipped' || order.status === 'Delivered') {
                         StatusIcon = CheckCircle2;
                         statusColor = 'text-emerald-600';
                         statusBg = 'bg-emerald-50';
+                      } else if (order.status === 'Cancelled' || order.status === 'Rejected') {
+                        StatusIcon = XCircle;
+                        statusColor = 'text-rose-600';
+                        statusBg = 'bg-rose-50';
                       }
                       return (
                         <tr key={order.id} className="hover:bg-slate-50/80 transition-colors cursor-default">
@@ -1214,7 +1494,13 @@ export default function Dashboard() {
                           <td className="py-4 px-6 text-sm font-bold text-slate-700">{order.amount}</td>
                         </tr>
                       );
-                    })
+                    }) : (
+                      <tr>
+                        <td colSpan={4} className="py-8 text-center text-slate-500 text-sm bg-slate-50/50">
+                          No recent orders found.
+                        </td>
+                      </tr>
+                    )
                   ) : (
                     recentOrders.map((order) => {
                       let StatusIcon = Clock;
@@ -1266,7 +1552,7 @@ export default function Dashboard() {
               </h2>
             </div>
             <ul className="divide-y divide-slate-100">
-              {(activeRole === ROLE_DISTRIBUTOR ? distributorNotifications : retailerNotifications).map((n) => (
+              {(activeRole === ROLE_DISTRIBUTOR ? distributorData.notifications : activeRole === ROLE_RETAILER ? retailerData.notifications : retailerNotifications).map((n) => (
                 <li key={n.id} className="flex items-start gap-4 px-6 py-4 hover:bg-slate-50/60 transition-colors">
                   <div className={`w-9 h-9 rounded-full flex items-center justify-center flex-shrink-0 ${n.iconBg}`}>
                     <n.icon className={`w-4 h-4 ${n.iconColor}`} />

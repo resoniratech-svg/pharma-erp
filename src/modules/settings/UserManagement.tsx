@@ -1,6 +1,5 @@
-import { useState, useRef, useEffect } from 'react';
-import { UserPlus, X, MoreVertical, Edit2, ShieldAlert } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
+import { useEffect, useState, useRef } from 'react';
+import { Users, Shield, Lock, Search, ChevronDown, Plus, Ban, Eye, CheckCircle } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -10,381 +9,785 @@ import {
   TableCard,
   DataTable,
   Badge,
+  SummaryCard,
+  Drawer,
+  DrawerField
 } from './components/shared';
 import { type Column } from './components/shared';
-import { ROLES } from '../../constants/roles';
+import { motion, AnimatePresence } from 'framer-motion';
 
-interface AppUser {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  role: string;
-  status: 'Active' | 'Locked' | 'Inactive';
-  empId?: string;
-  username?: string;
+import { seedUsers, type UserRole } from '../../data/seedUsers';
+
+function useOnClickOutside(ref: React.RefObject<HTMLElement | null>, handler: (event: MouseEvent | TouchEvent) => void) {
+  useEffect(() => {
+    const listener = (event: MouseEvent | TouchEvent) => {
+      if (!ref.current || ref.current.contains(event.target as Node)) {
+        return;
+      }
+      handler(event);
+    };
+    document.addEventListener("mousedown", listener);
+    document.addEventListener("touchstart", listener);
+    return () => {
+      document.removeEventListener("mousedown", listener);
+      document.removeEventListener("touchstart", listener);
+    };
+  }, [ref, handler]);
 }
 
-const initialMockData: AppUser[] = [
-  { id: '1', name: 'Admin User', email: 'admin@pharmatech.com', phone: '+91 9876543210', role: 'Super Admin', status: 'Active', empId: 'EMP-001', username: 'admin' },
-  { id: '2', name: 'Jane Smith', email: 'jane@pharmatech.com', phone: '+91 9876543211', role: 'Warehouse Manager', status: 'Active', empId: 'EMP-002', username: 'jsmith' },
-  { id: '3', name: 'John Doe', email: 'john@pharmatech.com', phone: '+91 9876543212', role: 'Accountant', status: 'Locked', empId: 'EMP-003', username: 'jdoe' },
-];
+interface DropdownProps {
+  options: { label: string; value: string }[];
+  value: string;
+  onChange: (val: string) => void;
+  placeholder?: string;
+}
 
-function ActionMenu({ row, onEdit, onToggleStatus }: { row: AppUser, onEdit: (row: AppUser) => void, onToggleStatus: (row: AppUser) => void }) {
+const SearchableDropdown = ({ options, value, onChange, placeholder }: DropdownProps) => {
   const [isOpen, setIsOpen] = useState(false);
-  const menuRef = useRef<HTMLDivElement>(null);
+  const [search, setSearch] = useState('');
+  const ref = useRef<HTMLDivElement>(null);
+  
+  useOnClickOutside(ref, () => setIsOpen(false));
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-    if (isOpen) document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [isOpen]);
-
-  const isActive = row.status === 'Active';
+  const filteredOptions = options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()));
+  const selectedOption = options.find((o) => o.value === value);
 
   return (
-    <div className="relative" ref={menuRef}>
-      <button 
-        onClick={(e) => { e.stopPropagation(); setIsOpen(!isOpen); }}
-        className="p-2 text-slate-400 hover:text-[#163c78] hover:bg-[#163c78]/10 rounded-lg transition-colors"
+    <div className="relative" ref={ref}>
+      <div 
+        className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors flex items-center justify-between cursor-pointer"
+        onClick={() => setIsOpen(!isOpen)}
       >
-        <MoreVertical className="w-5 h-5" />
-      </button>
-      
+        <span className={selectedOption ? 'text-slate-900' : 'text-slate-400'}>
+          {selectedOption ? selectedOption.label : placeholder}
+        </span>
+        <ChevronDown className="w-4 h-4 text-slate-400" />
+      </div>
+
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 10 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 10 }}
-            transition={{ duration: 0.15 }}
-            className="absolute right-0 mt-1 w-48 bg-white border border-slate-200 shadow-xl rounded-xl z-50 py-1"
+          <motion.div 
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="absolute z-50 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-xl overflow-hidden"
           >
-            <button onClick={(e) => { e.stopPropagation(); setIsOpen(false); onEdit(row); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors">
-              <Edit2 className="w-4 h-4 text-slate-400" /> Edit User
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); setIsOpen(false); onToggleStatus(row); }} className="w-full text-left px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 flex items-center gap-2 transition-colors border-t border-slate-100 mt-1">
-              <ShieldAlert className="w-4 h-4 text-slate-400" /> {isActive ? 'Deactivate User' : 'Activate User'}
-            </button>
+            <div className="p-2 border-b border-slate-100">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 w-4 h-4 text-slate-400" />
+                <input 
+                  type="text"
+                  autoFocus
+                  value={search}
+                  onChange={e => setSearch(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 bg-slate-50 border-none rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/20"
+                  placeholder="Search roles..."
+                />
+              </div>
+            </div>
+            <div className="max-h-48 overflow-y-auto p-1">
+              {filteredOptions.length > 0 ? filteredOptions.map((opt) => (
+                <div 
+                  key={opt.value}
+                  onClick={() => {
+                    onChange(opt.value);
+                    setIsOpen(false);
+                    setSearch('');
+                  }}
+                  className={`px-3 py-2 text-sm rounded-md cursor-pointer transition-colors ${value === opt.value ? 'bg-[#163c78]/10 text-[#163c78] font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
+                >
+                  {opt.label}
+                </div>
+              )) : (
+                <div className="px-3 py-4 text-sm text-center text-slate-500">No roles found</div>
+              )}
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
     </div>
   );
-}
+};
 
 export default function UserManagement() {
-//  const [users, setUsers] = useState<AppUser[]>(initialMockData);
-const [users, setUsers] = useState<AppUser[]>([]);
-
-// Load data when page opens
-useEffect(() => {
-  const stored = localStorage.getItem('app_users');
-  if (stored) {
-    setUsers(JSON.parse(stored));
-  } else {
-    // Save mock data if database is empty
-    setUsers(initialMockData);
-    localStorage.setItem('app_users', JSON.stringify(initialMockData));
-  }
-}, []);
+  const [roles, setRoles] = useState<{name: string, users: number, status: string}[]>([]);
+  const [users, setUsers] = useState<UserRole[]>([]);
+  
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('');
-  
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  
-  // Modal Form State
-  const [empId, setEmpId] = useState('');
-  const [fullName, setFullName] = useState('');
-  const [email, setEmail] = useState('');
-  const [mobile, setMobile] = useState('');
-  const [username, setUsername] = useState('');
-  const [role, setRole] = useState('');
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [status, setStatus] = useState<'Active' | 'Inactive'>('Active');
+  const [selectedRole, setSelectedRole] = useState('Super Admin');
 
-  const handleEdit = (row: AppUser) => {
-    setEditingId(row.id);
-    setEmpId(row.empId || '');
-    setFullName(row.name);
-    setEmail(row.email);
-    setMobile(row.phone || '');
-    setUsername(row.username || '');
-    setRole(row.role);
-    setStatus((row.status === 'Locked' ? 'Inactive' : row.status) as 'Active' | 'Inactive');
-    setPassword('');
-    setConfirmPassword('');
-    setIsModalOpen(true);
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [editMode, setEditMode] = useState(false);
+  const [formErrors, setFormErrors] = useState<{ [key: string]: string }>({});
+  const [showViewDrawer, setShowViewDrawer] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<UserRole | null>(null);
+
+  const [showResetDialog, setShowResetDialog] = useState(false);
+  const [showLockDialog, setShowLockDialog] = useState(false);
+  const [showStatusDialog, setShowStatusDialog] = useState(false);
+  const [targetUser, setTargetUser] = useState<UserRole | null>(null);
+
+  const [formData, setFormData] = useState({
+    empId: '',
+    fullName: '',
+    email: '',
+    phone: '',
+    username: '',
+    roleId: '',
+    password: '',
+    confirmPassword: '',
+    status: 'Active'
+  });
+
+  useEffect(() => {
+    const savedUsers = localStorage.getItem('users');
+    let parsedUsers: UserRole[] = savedUsers ? JSON.parse(savedUsers) : seedUsers;
+    
+    // Schema migration / regeneration check
+    // If the legacy users are missing required fields or have the old 3-character password, regenerate seed users.
+    if (parsedUsers.length > 0 && (!parsedUsers[0].password || parsedUsers[0].password === '123')) {
+      // Safe migration impossible or password too short, regenerate seed users
+      parsedUsers = seedUsers;
+      localStorage.setItem('users', JSON.stringify(seedUsers));
+    }
+    
+    setUsers(parsedUsers);
+
+    const customRolesRaw = localStorage.getItem("custom_roles");
+    const customRoles = customRolesRaw ? JSON.parse(customRolesRaw) : [];
+    
+    const systemRoleNames = [
+      'Super Admin', 'Warehouse Manager', 'Accountant', 
+      'Distributor', 'Retailer', 'Medical Representative'
+    ];
+    
+    const allRolesData = [
+      ...systemRoleNames.map(name => ({ title: name, status: 'Active' })),
+      ...customRoles
+    ];
+
+    const mappedRoles = allRolesData.map(r => {
+      const count = parsedUsers.filter((u: UserRole) => u.role === r.title).length;
+      return {
+        name: r.title,
+        users: count,
+        status: r.status || 'Active'
+      };
+    });
+
+    setRoles(mappedRoles);
+  }, []);
+
+  const handleCreateUser = () => {
+    const errors: { [key: string]: string } = {};
+
+    if (!formData.fullName.trim()) errors.fullName = "Full Name is required";
+    if (!formData.email.trim()) errors.email = "Email Address is required";
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Invalid email format";
+    
+    if (!formData.username.trim()) errors.username = "Username is required";
+    if (!formData.roleId) errors.roleId = "Role is required";
+
+    if (!editMode && !formData.password) errors.password = "Password is required";
+    else if (formData.password && formData.password.length < 6) errors.password = "Password must be at least 6 characters";
+
+    if (formData.password && formData.password !== formData.confirmPassword) errors.confirmPassword = "Passwords do not match";
+
+    if (formData.phone && !/^\d{10}$/.test(formData.phone)) errors.phone = "Phone must be 10 digits";
+
+    setFormErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
+    if (editMode) {
+      const updatedUsers = users.map(u => u.id === formData.empId ? {
+        ...u,
+        name: formData.fullName,
+        email: formData.email,
+        mobile: formData.phone,
+        username: formData.username,
+        role: formData.roleId,
+        ...(formData.password ? { password: formData.password } : {}),
+        status: formData.status as 'Active' | 'Inactive',
+        modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      } : u);
+      setUsers(updatedUsers);
+      localStorage.setItem('users', JSON.stringify(updatedUsers));
+    } else {
+      const newUser: UserRole = {
+        id: formData.empId,
+        name: formData.fullName,
+        email: formData.email,
+        mobile: formData.phone,
+        username: formData.username,
+        password: formData.password,
+        role: formData.roleId,
+        status: formData.status as 'Active' | 'Inactive',
+        lastLogin: '-',
+        createdBy: 'Current User',
+        createdDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        modifiedBy: 'Current User',
+        modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      };
+
+      const updatedUsers = [...users, newUser];
+      setUsers(updatedUsers);
+      localStorage.setItem('users', JSON.stringify(updatedUsers));
+      setRoles(roles.map(r => r.name === newUser.role ? { ...r, users: r.users + 1 } : r));
+    }
+
+    setFormData({
+      empId: '', fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
+    });
+    setShowRoleModal(false);
   };
 
-  const handleToggleStatus = (row: AppUser) => {
-    const newStatus = (row.status === 'Active' ? 'Inactive' : 'Active') as AppUser['status'];
-    const updated = users.map(u => u.id === row.id ? { ...u, status: newStatus } : u);
-    setUsers(updated);
-    localStorage.setItem('app_users', JSON.stringify(updated));
-  };
-
-  const columns: Column<AppUser>[] = [
-    { key: 'name', label: 'User Name', render: (row) => <span className="font-bold text-slate-800">{row.name}</span> },
-    { key: 'email', label: 'Email', render: (row) => <span className="text-sm font-medium text-slate-500">{row.email}</span> },
-    { key: 'phone', label: 'Phone Number', render: (row) => <span className="text-sm font-medium text-slate-600">{row.phone}</span> },
-    { key: 'role', label: 'Assigned Role', render: (row) => <Badge variant="purple">{row.role}</Badge> },
+  const columns: Column<UserRole>[] = [
+    { key: "id", label: "Employee ID" },
     {
-      key: 'status',
-      label: 'Status',
+      key: "name",
+      label: "Full Name",
+      render: (row) => (
+        <span className="font-semibold text-slate-900">{row.name}</span>
+      ),
+    },
+    { key: "username", label: "Username" },
+    { key: "email", label: "Email" },
+    {
+      key: "role",
+      label: "Assigned Role",
+      render: (row) => <Badge variant="purple">{row.role}</Badge>,
+    },
+    {
+      key: "status",
+      label: "Status",
       render: (row) => {
-        const variant = row.status === 'Active' ? 'success' : row.status === 'Locked' ? 'danger' : 'neutral';
-        return <Badge variant={variant}>{row.status}</Badge>;
+        const badgeVariant = row.status === "Active" ? "success" : row.status === "Locked" ? "danger" : "neutral";
+        return <Badge variant={badgeVariant}>{row.status}</Badge>;
       },
     },
     {
-      key: 'action',
-      label: 'Actions',
-      render: (row) => <ActionMenu row={row} onEdit={handleEdit} onToggleStatus={handleToggleStatus} />
-    }
+      key: "lastLogin",
+      label: "Last Login",
+      render: (row) => (
+        <span className="text-slate-500 text-sm">{row.lastLogin}</span>
+      ),
+    },
+    {
+      key: "action",
+      label: "Actions",
+      render: (row) => (
+        <div className="flex items-center gap-3">
+          <button 
+            className="text-slate-400 hover:text-[#163c78] transition-colors" 
+            title="View"
+            onClick={() => {
+              setSelectedUser(row);
+              setShowViewDrawer(true);
+            }}
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+          <button 
+            className="text-slate-400 hover:text-rose-600 transition-colors" 
+            title="Lock / Unlock"
+            onClick={() => {
+              setTargetUser(row);
+              setShowLockDialog(true);
+            }}
+          >
+            {row.status === 'Locked' ? <CheckCircle className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+          </button>
+          <button 
+            className="text-slate-400 hover:text-rose-600 transition-colors" 
+            title="Activate / Deactivate"
+            onClick={() => {
+              setTargetUser(row);
+              setShowStatusDialog(true);
+            }}
+          >
+            <Ban className="w-4 h-4" />
+          </button>
+        </div>
+      ),
+    },
   ];
 
   const filteredData = users.filter((item) => {
-    const matchSearch = item.name.toLowerCase().includes(search.toLowerCase());
-    const matchRole = roleFilter ? item.role === roleFilter : true;
+    const matchSearch = 
+      item.name.toLowerCase().includes(search.toLowerCase()) ||
+      item.id.toLowerCase().includes(search.toLowerCase()) ||
+      item.email.toLowerCase().includes(search.toLowerCase());
+
+    const activeRole = selectedRole || roleFilter;
+    const matchRole = activeRole ? item.role === activeRole : true;
+    
     return matchSearch && matchRole;
   });
 
-  const handleSaveUser = () => {
-    if (!fullName || !email || !role || !username || (!editingId && !password)) {
-      alert("Please fill in all required fields.");
-      return;
-    }
-    if (password !== confirmPassword) {
-      alert("Passwords do not match.");
-      return;
-    }
-
-    let updatedUsers: AppUser[] = [];
-
-    if (editingId) {
-      updatedUsers = users.map(u => u.id === editingId ? {
-        ...u,
-        name: fullName,
-        email: email,
-        phone: mobile || 'N/A',
-        role: role,
-        status: status as AppUser['status'],
-        empId: empId,
-        username: username,
-      } : u);
-    } else {
-      const newUser: AppUser = {
-        id: Math.random().toString(36).substring(2, 9),
-        name: fullName,
-        email: email,
-        phone: mobile || 'N/A',
-        role: role,
-        status: status as AppUser['status'],
-        empId: empId,
-        username: username,
-      };
-      updatedUsers = [...users, newUser];
-    }
-    
-    setUsers(updatedUsers);
-    localStorage.setItem('app_users', JSON.stringify(updatedUsers));
-
-    
-    // Reset form
-    setEditingId(null);
-    setEmpId('');
-    setFullName('');
-    setEmail('');
-    setMobile('');
-    setUsername('');
-    setRole('');
-    setPassword('');
-    setConfirmPassword('');
-    setStatus('Active');
-    
-    setIsModalOpen(false);
-  };
-
-  const openAddModal = () => {
-    setEditingId(null);
-    setEmpId('');
-    setFullName('');
-    setEmail('');
-    setMobile('');
-    setUsername('');
-    setRole('');
-    setPassword('');
-    setConfirmPassword('');
-    setStatus('Active');
-    setIsModalOpen(true);
-  };
-
-  const roleOptions = ROLES.map(r => ({ label: r.title, value: r.title }));
+  const activeRolesOptions = roles
+    .filter(r => r.status === 'Active')
+    .map(r => ({ label: r.name, value: r.name }));
 
   return (
     <div className="animate-in fade-in duration-500">
       <PageHeader
         title="User Management"
-        subtitle="Manage employee access, accounts, and application logins."
+        subtitle="Manage system users, assign roles, and monitor user accounts."
         actions={
-          <ActionButton onClick={openAddModal} variant="primary" icon={<UserPlus className="w-4 h-4" />}>
-            Add User
-          </ActionButton>
+          <>
+            <ActionButton
+              variant="secondary"
+              onClick={() => {
+                const csvContent = [
+                  ["Employee ID", "Name", "Email", "Role", "Status", "Last Login"],
+                  ...filteredData.map((user) => [
+                    user.id,
+                    user.name,
+                    user.email,
+                    user.role,
+                    user.status,
+                    user.lastLogin,
+                  ]),
+                ]
+                  .map((row) => row.join(","))
+                  .join("\n");
+
+                const blob = new Blob([csvContent], {
+                  type: "text/csv;charset=utf-8;",
+                });
+
+                const url = URL.createObjectURL(blob);
+
+                const link = document.createElement("a");
+                link.href = url;
+                link.download = "Users.csv";
+
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+
+                URL.revokeObjectURL(url);
+              }}
+            >
+              Export CSV
+            </ActionButton>
+            <ActionButton
+              variant="primary"
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => {
+                setEditMode(false);
+                setFormErrors({});
+                let maxId = 0;
+                users.forEach(u => {
+                  if (u.id.startsWith('EMP')) {
+                    const num = parseInt(u.id.replace('EMP', ''), 10);
+                    if (!isNaN(num) && num > maxId) maxId = num;
+                  }
+                });
+                const nextId = `EMP${(maxId + 1).toString().padStart(3, '0')}`;
+                setFormData({
+                  empId: nextId, fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
+                });
+                setShowRoleModal(true);
+              }}
+            >
+              Create User
+            </ActionButton>
+          </>
         }
       />
 
-      <FilterBar>
-        <div className="flex flex-col sm:flex-row gap-4 w-full md:w-auto items-center">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search user..." />
-          <div className="w-px h-8 bg-slate-200 hidden sm:block" />
-          <SelectFilter
-            value={roleFilter}
-            onChange={setRoleFilter}
-            options={roleOptions}
-            placeholder="All Roles"
-          />
-        </div>
-      </FilterBar>
-
-      <TableCard>
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          emptyMessage="No users found matching your search criteria."
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
+        <SummaryCard
+          title="Total Users"
+          value={users.length.toString()}
+          icon={<Users className="w-6 h-6" />}
+          colorClass="text-[#163c78]"
+          bgClass="bg-violet-100"
         />
-      </TableCard>
 
-      <AnimatePresence>
-        {isModalOpen && (
-          <>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-50"
-              onClick={() => setIsModalOpen(false)}
-            />
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
-              transition={{ duration: 0.2, ease: 'easeOut' }}
-              className="fixed left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-full max-w-3xl bg-white rounded-2xl shadow-2xl border border-slate-200 z-50 flex flex-col max-h-[90vh] overflow-hidden"
+        <SummaryCard
+          title="Active Users"
+          value={users.filter(u => u.status === 'Active').length.toString()}
+          icon={<Users className="w-6 h-6" />}
+          colorClass="text-green-600"
+          bgClass="bg-green-100"
+        />
+
+        <SummaryCard
+          title="Active Roles"
+          value={roles.filter(r => r.status === 'Active').length.toString()}
+          icon={<Shield className="w-6 h-6" />}
+          colorClass="text-blue-600"
+          bgClass="bg-blue-100"
+        />
+
+        <SummaryCard
+          title="Locked Accounts"
+          value={users.filter(u => u.status === 'Locked').length.toString()}
+          icon={<Lock className="w-6 h-6" />}
+          colorClass="text-red-600"
+          bgClass="bg-red-100"
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        <div className="lg:col-span-1 space-y-2 bg-white p-4 rounded-2xl border border-slate-200">
+          <h3 className="font-semibold text-slate-800 mb-3 px-2">
+            Role Management
+          </h3>
+          {roles.map((role) => (
+            <div
+              key={role.name}
+              onClick={() => setSelectedRole(role.name)}
+              className={`px-4 py-3 rounded-lg border cursor-pointer transition-colors ${
+                selectedRole === role.name
+                  ? "bg-[#163c78]/10 text-violet-700 border-violet-200 font-semibold"
+                  : "text-slate-700 border-transparent hover:border-slate-200 hover:bg-slate-50"
+              }`}
             >
-              <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-[#163c78]">
-                    <UserPlus className="w-5 h-5" />
-                  </div>
-                  <h2 className="text-xl font-bold text-slate-800">{editingId ? 'Edit User' : 'Add New User'}</h2>
+              <div className="flex justify-between items-center">
+                <span>{role.name}</span>
+
+                <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
+                  {role.users}
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        <div className="lg:col-span-3">
+          <FilterBar>
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder="Search user..."
+            />
+            <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
+            <SelectFilter
+              value={roleFilter}
+              onChange={setRoleFilter}
+              options={roles.map((role) => ({
+                label: role.name,
+                value: role.name,
+              }))}
+              placeholder="All Roles"
+            />
+          </FilterBar>
+
+          <TableCard>
+            <DataTable columns={columns} data={filteredData} />
+          </TableCard>
+        </div>
+      </div>
+
+      {/* CREATE USER MODAL */}
+      {showRoleModal && (
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
+          onClick={() => setShowRoleModal(false)}
+        >
+          <div 
+            className="bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6 border-b border-slate-100 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center text-[#163c78]">
+                  <Users className="w-5 h-5" />
                 </div>
-                <button
-                  onClick={() => setIsModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                <h2 className="text-xl font-bold text-slate-800">{editMode ? 'Edit User' : 'Create User'}</h2>
+              </div>
+              <button
+                onClick={() => setShowRoleModal(false)}
+                className="text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg p-2 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="md:col-span-2">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Account Details</h3>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Employee ID <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.empId}
+                  readOnly={true}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors text-slate-500 cursor-not-allowed"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Full Name <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.fullName}
+                  onChange={(e) => setFormData({...formData, fullName: e.target.value})}
+                  className={`w-full px-3 py-2.5 bg-white border ${formErrors.fullName ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                />
+                {formErrors.fullName && <p className="text-rose-500 text-xs mt-1">{formErrors.fullName}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Email Address <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  value={formData.email}
+                  onChange={(e) => setFormData({...formData, email: e.target.value})}
+                  className={`w-full px-3 py-2.5 bg-white border ${formErrors.email ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                />
+                {formErrors.email && <p className="text-rose-500 text-xs mt-1">{formErrors.email}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Mobile Number
+                </label>
+                <input
+                  type="tel"
+                  value={formData.phone}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                  className={`w-full px-3 py-2.5 bg-white border ${formErrors.phone ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                />
+                {formErrors.phone && <p className="text-rose-500 text-xs mt-1">{formErrors.phone}</p>}
+              </div>
+
+              <div className="md:col-span-2 mt-2">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">System Access</h3>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Username <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={formData.username}
+                  onChange={(e) => setFormData({...formData, username: e.target.value})}
+                  className={`w-full px-3 py-2.5 bg-white border ${formErrors.username ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                />
+                {formErrors.username && <p className="text-rose-500 text-xs mt-1">{formErrors.username}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Assigned Role <span className="text-rose-500">*</span>
+                </label>
+                <SearchableDropdown 
+                  options={activeRolesOptions}
+                  value={formData.roleId}
+                  onChange={(val: string) => setFormData({...formData, roleId: val})}
+                  placeholder="Select Role..."
+                />
+                {formErrors.roleId && <p className="text-rose-500 text-xs mt-1">{formErrors.roleId}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Password {!editMode && <span className="text-rose-500">*</span>}
+                </label>
+                <input
+                  type="password"
+                  value={formData.password}
+                  onChange={(e) => setFormData({...formData, password: e.target.value})}
+                  className={`w-full px-3 py-2.5 bg-white border ${formErrors.password ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                />
+                {formErrors.password && <p className="text-rose-500 text-xs mt-1">{formErrors.password}</p>}
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Confirm Password {!editMode && <span className="text-rose-500">*</span>}
+                </label>
+                <input
+                  type="password"
+                  value={formData.confirmPassword}
+                  onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                  className={`w-full px-3 py-2.5 bg-white border ${formErrors.confirmPassword ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                />
+                {formErrors.confirmPassword && <p className="text-rose-500 text-xs mt-1">{formErrors.confirmPassword}</p>}
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Status <span className="text-rose-500">*</span>
+                </label>
+                <select
+                  value={formData.status}
+                  onChange={(e) => setFormData({...formData, status: e.target.value})}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors appearance-none cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
-                </button>
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
               </div>
+            </div>
 
-              <div className="p-6 overflow-y-auto flex-1">
-                <div className="space-y-8">
-                  {/* Account Details Section */}
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">Account Details</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Employee ID <span className="text-rose-500">*</span></label>
-                        <input value={empId} onChange={e => setEmpId(e.target.value)} type="text" placeholder="e.g. EMP-1042" className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Full Name <span className="text-rose-500">*</span></label>
-                        <input value={fullName} onChange={e => setFullName(e.target.value)} type="text" placeholder="John Doe" className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Email Address <span className="text-rose-500">*</span></label>
-                        <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="john.doe@example.com" className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Mobile Number</label>
-                        <input value={mobile} onChange={e => setMobile(e.target.value)} type="tel" placeholder="+91 98765 43210" className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors" />
-                      </div>
-                    </div>
-                  </div>
+            <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
+              <ActionButton
+                variant="secondary"
+                onClick={() => setShowRoleModal(false)}
+              >
+                Cancel
+              </ActionButton>
 
-                  <div className="w-full h-px bg-slate-100" />
+              <ActionButton variant="primary" onClick={handleCreateUser}>
+                {editMode ? 'Save Changes' : 'Create User'}
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
 
-                  {/* System Access Section */}
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900 mb-4 uppercase tracking-wider">System Access</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Username <span className="text-rose-500">*</span></label>
-                        <input value={username} onChange={e => setUsername(e.target.value)} type="text" placeholder="johndoe" className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Assigned Role <span className="text-rose-500">*</span></label>
-                        <select value={role} onChange={e => setRole(e.target.value)} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors appearance-none cursor-pointer">
-                          <option value="">Select a role...</option>
-                          {ROLES.map(r => (
-                            <option key={r.id} value={r.title}>{r.title}</option>
-                          ))}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Password {editingId ? '' : <span className="text-rose-500">*</span>}</label>
-                        <input value={password} onChange={e => setPassword(e.target.value)} type="password" placeholder={editingId ? 'Leave blank to keep current' : '••••••••'} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors" />
-                      </div>
-                      <div>
-                        <label className="block text-sm font-semibold text-slate-700 mb-1.5">Confirm Password {editingId ? '' : <span className="text-rose-500">*</span>}</label>
-                        <input value={confirmPassword} onChange={e => setConfirmPassword(e.target.value)} type="password" placeholder={editingId ? 'Leave blank to keep current' : '••••••••'} className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors" />
-                      </div>
-                      <div className="md:col-span-2">
-                        <label className="block text-sm font-semibold text-slate-700 mb-2">Account Status</label>
-                        <div className="flex items-center gap-6">
-                          <label className="flex items-center gap-2 cursor-pointer group">
-                            <div className="relative flex items-center justify-center w-5 h-5">
-                              <input checked={status === 'Active'} onChange={() => setStatus('Active')} type="radio" name="status" className="peer w-4 h-4 text-[#163c78] border-slate-300 focus:ring-violet-500 transition-all opacity-0 absolute" />
-                              <div className="w-4 h-4 rounded-full border border-slate-300 peer-checked:border-[#163c78] peer-checked:bg-[#163c78] transition-all group-hover:border-violet-400"></div>
-                              <div className="absolute w-1.5 h-1.5 bg-white rounded-full opacity-0 peer-checked:opacity-100 transition-opacity"></div>
-                            </div>
-                            <span className="text-sm text-slate-700 font-medium">Active</span>
-                          </label>
-                          <label className="flex items-center gap-2 cursor-pointer group">
-                            <div className="relative flex items-center justify-center w-5 h-5">
-                              <input checked={status === 'Inactive'} onChange={() => setStatus('Inactive')} type="radio" name="status" className="peer w-4 h-4 text-[#163c78] border-slate-300 focus:ring-violet-500 transition-all opacity-0 absolute" />
-                              <div className="w-4 h-4 rounded-full border border-slate-300 peer-checked:border-[#163c78] peer-checked:bg-[#163c78] transition-all group-hover:border-violet-400"></div>
-                              <div className="absolute w-1.5 h-1.5 bg-white rounded-full opacity-0 peer-checked:opacity-100 transition-opacity"></div>
-                            </div>
-                            <span className="text-sm text-slate-700 font-medium">Inactive</span>
-                          </label>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+      {/* VIEW / EDIT DRAWER */}
+      <Drawer 
+        open={showViewDrawer} 
+        onClose={() => setShowViewDrawer(false)} 
+        title="User Details"
+      >
+        {selectedUser && (
+          <div className="flex flex-col h-full">
+            <div className="space-y-4 flex-1">
+              <DrawerField label="Employee ID" value={selectedUser.id} />
+              <DrawerField label="Full Name" value={selectedUser.name} />
+              <DrawerField label="Email Address" value={selectedUser.email} />
+              <DrawerField label="Mobile Number" value={selectedUser.mobile} />
+              <DrawerField label="Username" value={selectedUser.username} />
+              <DrawerField label="Assigned Role" value={selectedUser.role} />
+              <DrawerField label="Account Status" value={selectedUser.status} />
+              <DrawerField label="Last Login" value={selectedUser.lastLogin} />
+              <DrawerField label="Created By" value={selectedUser.createdBy} />
+              <DrawerField label="Created Date" value={selectedUser.createdDate} />
+              <DrawerField label="Modified By" value={selectedUser.modifiedBy} />
+              <DrawerField label="Modified Date" value={selectedUser.modifiedDate} />
+            </div>
 
-              <div className="sticky bottom-0 bg-slate-50/90 backdrop-blur-md border-t border-slate-100 p-4 sm:px-6 flex items-center justify-end gap-3 rounded-b-2xl">
-                <ActionButton variant="secondary" onClick={() => setIsModalOpen(false)}>
-                  Cancel
-                </ActionButton>
-                <ActionButton variant="primary" onClick={handleSaveUser}>
-                  {editingId ? 'Update User' : 'Create User'}
-                </ActionButton>
-              </div>
-            </motion.div>
-          </>
+            <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3 pb-4">
+              <ActionButton variant="secondary" onClick={() => setShowViewDrawer(false)}>
+                Cancel
+              </ActionButton>
+              <ActionButton variant="primary" onClick={() => {
+                setFormErrors({});
+                setFormData({
+                  empId: selectedUser.id,
+                  fullName: selectedUser.name,
+                  email: selectedUser.email,
+                  phone: selectedUser.mobile || '',
+                  username: selectedUser.username || '',
+                  roleId: selectedUser.role,
+                  password: '',
+                  confirmPassword: '',
+                  status: selectedUser.status
+                });
+                setEditMode(true);
+                setShowViewDrawer(false);
+                setShowRoleModal(true);
+              }}>
+                Edit User
+              </ActionButton>
+            </div>
+          </div>
         )}
-      </AnimatePresence>
+      </Drawer>
+
+      {/* RESET PASSWORD DIALOG */}
+      {showResetDialog && targetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">Reset Password</h2>
+            <div className="mb-6 text-sm text-slate-600">
+              <p className="mb-2"><span className="font-semibold text-slate-700">User:</span><br/>{targetUser.name}</p>
+              <p className="mb-4"><span className="font-semibold text-slate-700">Employee ID:</span><br/>{targetUser.id}</p>
+              <p>Generate a temporary password for this user?</p>
+            </div>
+            <div className="flex justify-end gap-3">
+              <ActionButton variant="secondary" onClick={() => setShowResetDialog(false)}>Cancel</ActionButton>
+              <ActionButton variant="primary" onClick={() => {
+                alert('Password reset successfully');
+                setShowResetDialog(false);
+              }}>Reset Password</ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LOCK / UNLOCK DIALOG */}
+      {showLockDialog && targetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">
+              {targetUser.status === 'Locked' ? 'Unlock User' : 'Lock User'}
+            </h2>
+            <div className="mb-6 text-sm text-slate-600">
+              <p className="mb-4"><span className="font-semibold text-slate-700">User:</span><br/>{targetUser.name}</p>
+              {targetUser.status !== 'Locked' && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Reason (optional)</label>
+                  <textarea 
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg text-sm focus:outline-none focus:border-violet-500 transition-colors" 
+                    rows={2} 
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3">
+              <ActionButton variant="secondary" onClick={() => setShowLockDialog(false)}>Cancel</ActionButton>
+              <ActionButton variant="primary" onClick={() => {
+                const newStatus = targetUser.status === 'Locked' ? 'Active' : 'Locked';
+                const updated = users.map(u => u.id === targetUser.id ? { ...u, status: newStatus as UserRole['status'] } : u);
+                setUsers(updated);
+                localStorage.setItem('users', JSON.stringify(updated));
+                setShowLockDialog(false);
+              }}>
+                {targetUser.status === 'Locked' ? 'Unlock User' : 'Lock User'}
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ACTIVATE / DEACTIVATE DIALOG */}
+      {showStatusDialog && targetUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="text-xl font-bold text-slate-800 mb-4">
+              {targetUser.status === 'Active' ? 'Deactivate User' : 'Activate User'}
+            </h2>
+            <div className="mb-6 text-sm text-slate-600">
+              <p className="mb-4"><span className="font-semibold text-slate-700">User:</span><br/>{targetUser.name}</p>
+              {targetUser.status === 'Active' ? (
+                <p>This user will no longer be able to log in.</p>
+              ) : (
+                <p>This user will be reactivated and able to log in.</p>
+              )}
+            </div>
+            <div className="flex justify-end gap-3">
+              <ActionButton variant="secondary" onClick={() => setShowStatusDialog(false)}>Cancel</ActionButton>
+              <ActionButton variant="primary" onClick={() => {
+                const newStatus = targetUser.status === 'Active' ? 'Inactive' : 'Active';
+                const updated = users.map(u => u.id === targetUser.id ? { ...u, status: newStatus as UserRole['status'] } : u);
+                setUsers(updated);
+                localStorage.setItem('users', JSON.stringify(updated));
+                setShowStatusDialog(false);
+              }}>
+                {targetUser.status === 'Active' ? 'Deactivate' : 'Activate'}
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -8,8 +8,10 @@ import {
   Dna, Network, Pill, Activity
 } from 'lucide-react';
 import { ROLES } from '../constants/roles';
-import { USERS } from '../mock-data/mockUsers';
+import authService from '../services/authService';
 import activityLogService from '../services/activityLogService';
+import { permissionService } from '../services/permissionService';
+import { seedUsers } from '../data/seedUsers';
 import mjLogo from '../assets/logo/pharmaLOGO.png';
 
 const MolecularNetwork = ({ className }: { className?: string }) => (
@@ -137,113 +139,122 @@ export default function LoginPage() {
     return ok;
   };
 
-  /* Submit — login against backend API first, fallback to mock user database */
+  /* Submit — authenticate against User Management LocalStorage */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setLoading(true);
 
-    // 1. Try to login against the real backend API
-    try {
-      const BASE_URL = import.meta.env.VITE_API_URL || 'https://pharma-erp-pharma-backend.rrh5yv.easypanel.host/api';
-      
-      let deviceId = localStorage.getItem('deviceId');
-      if (!deviceId) {
-        deviceId = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
-        localStorage.setItem('deviceId', deviceId);
-      }
+    // Read users from User Management
+    const storedUsers = localStorage.getItem('users');
+    let users = storedUsers ? JSON.parse(storedUsers) : null;
 
-      let response = await fetch(`${BASE_URL}/auth/login`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password, deviceId }),
-      });
+    // Seed Authentication Single Source of Truth
+    if (!users || users.length === 0 || !users[0].password || users[0].password === '123') {
+      users = seedUsers;
+      localStorage.setItem('users', JSON.stringify(seedUsers));
+    }
 
-      if (response.status === 409) {
-        const confirmForce = window.confirm("You are already logged in on another device. Do you want to terminate that session and log in here?");
-        if (confirmForce) {
-          response = await fetch(`${BASE_URL}/auth/login`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({ email, password, deviceId, force: true }),
-          });
-        } else {
-          setLoading(false);
-          setEmailErr('Logged in on another device.');
-          setPasswordErr('Logged in on another device.');
-          return;
-        }
-      }
+    // Find the user by email (case-insensitive)
+    const user = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
 
-      const result = await response.json();
-
-      if (response.ok && result.success) {
-        const { token, user, mr } = result.data;
-
-        // Check if user role matches the workspace role
-        if (user.role !== role.id) {
-          setLoading(false);
-          setEmailErr(`Invalid credentials for ${role.title} workspace.`);
-          setPasswordErr('');
-          return;
-        }
-
+    if (!user) {
+      console.log(`\nRESULT: Authentication Blocked.`);
+      console.log(`REASON: No user found where both Email Match and Password Match were TRUE.`);
+      console.log(`=====================================\n`);
+      setTimeout(() => {
         setLoading(false);
-        setSuccess(true);
-
-        await new Promise((res) => setTimeout(res, 700));
-
-        const authUser = {
-          id: String(user.id),
-          email: user.email,
-          fullName: user.name,
-          roleId: user.role,
-          employeeCode: mr ? mr.mrCode : '',
-          department: mr ? 'Sales & Marketing' : 'Management',
-        };
-
-        localStorage.setItem("activeRole", user.role);
-        localStorage.setItem("workspaceRole", role.id);
-        localStorage.setItem("userId", String(user.id));
-        localStorage.setItem("authUser", JSON.stringify(authUser));
-        localStorage.setItem("authToken", token);
-        if (mr) {
-          localStorage.setItem('mrId', String(mr.id));
-          localStorage.setItem('mrCode', mr.mrCode);
-          localStorage.setItem('mrTerritory', mr.territory || '');
-        } else {
-          localStorage.removeItem('mrId');
-          localStorage.removeItem('mrCode');
-          localStorage.removeItem('mrTerritory');
-        }
-
-        activityLogService.addLog({
-          userId: String(user.id),
-          userName: user.name,
-          action: "Login",
-          module: "Authentication",
-        });
-
-        navigate("/workspace/dashboard");
-        return;
-      } else {
-        setLoading(false);
-        setEmailErr(result.message || 'Login failed.');
-        setPasswordErr(result.message || 'Login failed.');
-        return;
-      }
-    } catch (err: any) {
-      setLoading(false);
-      setEmailErr('Backend connection failed.');
-      setPasswordErr('Could not connect to the server.');
-      console.error(err);
+        setEmailErr('Invalid email or password.');
+        setPasswordErr('Invalid email or password.');
+      }, 500);
       return;
     }
+
+    if (user.status !== 'Active') {
+      setTimeout(() => {
+        setLoading(false);
+        setEmailErr('Your account is not active.');
+        setPasswordErr('');
+      }, 500);
+      return;
+    }
+
+    // Map User Management Role Title to System Role ID
+    const mapRoleToId = (roleName: string) => {
+      // Map known role titles to their respective IDs
+      const map: Record<string, string> = {
+        'Super Admin': 'SUPER_ADMIN',
+        'Warehouse Manager': 'WAREHOUSE_MANAGER',
+        'Accountant': 'ACCOUNTANT',
+        'Distributor': 'DISTRIBUTOR',
+        'Retailer': 'RETAILER',
+        'Medical Representative': 'MEDICAL_REPRESENTATIVE'
+      };
+      
+      if (map[roleName]) {
+        return map[roleName];
+      }
+      
+      // Fallback for custom roles: convert to uppercase and replace spaces with underscores
+      return roleName ? roleName.toUpperCase().replace(/\s+/g, '_') : '';
+    };
+
+    const mappedRoleId = mapRoleToId(user.role);
+
+    if (mappedRoleId !== role.id) {
+      setTimeout(() => {
+        setLoading(false);
+        setEmailErr(`Invalid credentials for ${role.title} workspace.`);
+        setPasswordErr('');
+      }, 500);
+      return;
+    }
+
+    // Authentication successful
+    setTimeout(() => {
+      setLoading(false);
+      setSuccess(true);
+      
+      const authToken = 'token-' + user.id + '-' + Date.now();
+      
+      // Create session object matching the expected format
+      const authUser = {
+        id: user.id,
+        email: user.email,
+        fullName: user.name,
+        roleId: mappedRoleId,
+        employeeCode: user.id, // Using UM id as employee code
+        department: 'Management'
+      };
+
+      // Set standard session keys
+      localStorage.setItem('authToken', authToken);
+      localStorage.setItem('authUser', JSON.stringify(authUser));
+      localStorage.setItem('activeRole', mappedRoleId);
+      localStorage.setItem('workspaceRole', role.id);
+      localStorage.setItem('userId', String(user.id));
+      
+      // Initialize permission service
+      permissionService.initialize(mappedRoleId);
+      
+      // Update last login
+      const now = new Date();
+      user.lastLogin = now.toLocaleString('en-US', {
+        month: 'short', day: 'numeric', year: 'numeric',
+        hour: 'numeric', minute: '2-digit', hour12: true
+      });
+      localStorage.setItem('users', JSON.stringify(users));
+      
+      activityLogService.addLog({
+        userId: String(user.id),
+        userName: user.name,
+        action: "Login",
+        module: "Authentication",
+      });
+      
+      navigate("/workspace/dashboard");
+    }, 500);
   };
 
   return (

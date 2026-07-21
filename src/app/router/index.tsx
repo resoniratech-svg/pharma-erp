@@ -4,6 +4,7 @@ import App from '../../App';
 import LandingPage from '../../pages/LandingPage';
 import WorkspaceSelection from '../../pages/WorkspaceSelection';
 import LoginPage from '../../pages/LoginPage';
+import CentralLogin from '../../pages/CentralLogin';
 
 // Products Module
 import ProductMaster from '../../modules/products/ProductMaster';
@@ -162,6 +163,10 @@ export const router = createBrowserRouter([
   {
     path: '/workspace',
     element: <WorkspaceSelection />,
+  },
+  {
+    path: '/auth',
+    element: <CentralLogin />,
   },
   {
     path: '/login',

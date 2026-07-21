@@ -14,27 +14,62 @@ import {
 import { type Column } from './components/shared';
 
 // Mock DB for Company Admins
+interface SubscriptionDetails {
+  plan: 'Starter' | 'Professional' | 'Enterprise' | 'Custom' | string;
+  status: 'Trial' | 'Active' | 'Suspended' | 'Expired' | string;
+  billingCycle: 'Monthly' | 'Quarterly' | 'Half-Yearly' | 'Yearly' | string;
+  subscriptionAmount: number;
+  currency: string;
+  gstPercentage: number;
+  discount: number;
+  finalAmount: number;
+  paymentStatus: 'Pending' | 'Paid' | 'Failed' | string;
+  paymentDate: string;
+  startDate: string;
+  endDate: string;
+  renewalDate: string;
+  autoRenewal: boolean;
+  maxUsers: number;
+  activeUsers: number;
+  storageLimit: string;
+  deviceLimit: string;
+  apiAccessLimit: string;
+  purchasedModules: string[];
+  remarks: string;
+  lastUpdated: string;
+  updatedBy: string;
+}
+
 interface CompanyAdmin {
   id: string;
   adminName: string;
   companyName: string;
   email: string;
   passwordHash: string; // Plaintext for demo as requested
-  permissions: string[];
+  
+  companyCode?: string;
+  gstNumber?: string;
+  pan?: string;
+  address?: string;
+  contactDetails?: string;
+  companyStatus?: string;
+  mobileNumber?: string;
+
+  subscription?: SubscriptionDetails;
 }
 
 const erpModules = [
+  'Dashboard',
   'Product Management',
   'Inventory & Warehouse Management',
   'C&F Management',
-  'Distributor/Stockist Portal',
+  'Distributor Portal',
   'Retailer Ordering System',
-  'CRM',
-  'Orders',
   'Billing',
-  'Finance',
-  'Reports',
-  'Notifications',
+  'Accounting & Finance',
+  'CRM',
+  'Medical Representative',
+  'GPS & Attendance',
   'Settings'
 ];
 
@@ -45,7 +80,7 @@ const mockAdmins: CompanyAdmin[] = [
     companyName: 'PharmaCorp Pvt Ltd',
     email: 'rahul.s@pharmacorp.in',
     passwordHash: 'Pharma@2024!',
-    permissions: ['Product Management', 'Inventory & Warehouse Management', 'Settings']
+    subscription: { plan: 'Professional', status: 'Active', billingCycle: 'Yearly', subscriptionAmount: 120000, currency: 'INR', gstPercentage: 18, discount: 5000, finalAmount: 136600, paymentStatus: 'Paid', paymentDate: '2026-01-05', startDate: '2026-01-01', endDate: '2026-12-31', renewalDate: '2027-01-01', autoRenewal: true, maxUsers: 50, activeUsers: 12, storageLimit: '100GB', deviceLimit: 'Unlimited', apiAccessLimit: '10000/day', purchasedModules: ['Product Management', 'Inventory & Warehouse Management', 'Settings'], remarks: 'Key enterprise client.', lastUpdated: '2026-01-01', updatedBy: 'System' }
   },
   {
     id: 'ADM-002',
@@ -53,7 +88,7 @@ const mockAdmins: CompanyAdmin[] = [
     companyName: 'HealthPlus Labs',
     email: 'priya.d@healthplus.com',
     passwordHash: 'Health#123',
-    permissions: ['CRM', 'Orders', 'Billing', 'Finance', 'Reports']
+    subscription: { plan: 'Starter', status: 'Trial', billingCycle: 'Monthly', subscriptionAmount: 5000, currency: 'INR', gstPercentage: 18, discount: 0, finalAmount: 5900, paymentStatus: 'Pending', paymentDate: '', startDate: '2026-07-01', endDate: '2026-07-31', renewalDate: '2026-08-01', autoRenewal: false, maxUsers: 10, activeUsers: 3, storageLimit: '10GB', deviceLimit: '5', apiAccessLimit: '1000/day', purchasedModules: ['CRM', 'Orders', 'Billing', 'Accounting & Finance', 'Reports & Analytics'], remarks: 'Trial ends soon.', lastUpdated: '2026-07-01', updatedBy: 'System' }
   },
   {
     id: 'ADM-003',
@@ -61,7 +96,7 @@ const mockAdmins: CompanyAdmin[] = [
     companyName: 'MediCare Pharma',
     email: 'amit.p@medicare.in',
     passwordHash: 'Admin@MediCare1',
-    permissions: ['Product Management', 'Inventory & Warehouse Management', 'C&F Management', 'Distributor/Stockist Portal', 'Retailer Ordering System']
+    subscription: { plan: 'Enterprise', status: 'Active', billingCycle: 'Yearly', subscriptionAmount: 250000, currency: 'INR', gstPercentage: 18, discount: 10000, finalAmount: 283200, paymentStatus: 'Paid', paymentDate: '2026-03-10', startDate: '2026-03-15', endDate: '2027-03-14', renewalDate: '2027-03-15', autoRenewal: true, maxUsers: 100, activeUsers: 45, storageLimit: '500GB', deviceLimit: 'Unlimited', apiAccessLimit: '50000/day', purchasedModules: ['Product Management', 'Inventory & Warehouse Management', 'C&F Management', 'Distributor Portal', 'Retailer Ordering System'], remarks: 'Growing fast.', lastUpdated: '2026-03-10', updatedBy: 'System' }
   }
 ];
 
@@ -74,6 +109,7 @@ const existingCompanies = [
 ];
 
 export default function AdminManagement() {
+  const [activeMainTab, setActiveMainTab] = useState<'company-admin'|'subscription'>('company-admin');
   const [search, setSearch] = useState('');
   const [admins, setAdmins] = useState<CompanyAdmin[]>(mockAdmins);
   
@@ -154,16 +190,16 @@ export default function AdminManagement() {
     },
     {
       key: 'id',
-      label: 'Permissions',
+      label: 'Modules',
       render: (row) => (
         <button
           onClick={(e) => {
             e.stopPropagation();
             setSelectedAdminForPermissions(row);
-            setTempPermissions([...row.permissions]);
+            setTempPermissions([...(row.subscription?.purchasedModules || [])]);
           }}
           className="p-2 text-[#163c78] hover:bg-[#163c78]/10 rounded-lg transition-colors flex items-center justify-center border border-transparent hover:border-violet-100"
-          title="Manage Permissions"
+          title="Manage Modules"
         >
           <Shield className="w-5 h-5" />
         </button>
@@ -184,7 +220,7 @@ export default function AdminManagement() {
       'Admin Name': row.adminName,
       'Company Name': row.companyName,
       'Email': row.email,
-      'Permissions': row.permissions.join(', ')
+      'Purchased Modules': (row.subscription?.purchasedModules || []).join(', ')
     }));
 
     const worksheet = XLSX.utils.json_to_sheet(exportData);
@@ -205,7 +241,7 @@ export default function AdminManagement() {
           `"${row.adminName}"`,
           `"${row.companyName}"`,
           `"${row.email}"`,
-          `"${row.permissions.join(', ')}"`
+          `"${(row.subscription?.purchasedModules || []).join(', ')}"`
         ].join(',')
       )
     ].join('\n');
@@ -242,7 +278,14 @@ export default function AdminManagement() {
       companyName: finalCompany,
       email: formEmail.trim(),
       passwordHash: formPassword,
-      permissions: [] // default no permissions
+      subscription: { 
+        plan: 'Starter', status: 'Trial', billingCycle: 'Monthly', 
+        subscriptionAmount: 0, currency: 'INR', gstPercentage: 18, discount: 0, finalAmount: 0,
+        paymentStatus: 'Pending', paymentDate: '',
+        startDate: new Date().toISOString().split('T')[0], endDate: '', renewalDate: '', autoRenewal: false, 
+        maxUsers: 10, activeUsers: 0, storageLimit: '10GB', deviceLimit: '', apiAccessLimit: '', 
+        purchasedModules: [], remarks: 'Newly created.', lastUpdated: new Date().toISOString().split('T')[0], updatedBy: 'System' 
+      }
     };
 
     setAdmins([...admins, newAdmin]);
@@ -261,7 +304,16 @@ export default function AdminManagement() {
     if (!selectedAdminForPermissions) return;
     const updatedList = admins.map(admin => {
       if (admin.id === selectedAdminForPermissions.id) {
-        return { ...admin, permissions: tempPermissions };
+        return { 
+          ...admin, 
+          subscription: { 
+            ...(admin.subscription || { 
+               plan: 'Starter', status: 'Trial', billingCycle: 'Monthly', subscriptionAmount: 0, currency: 'INR', gstPercentage: 18, discount: 0, finalAmount: 0, paymentStatus: 'Pending', paymentDate: '', startDate: '', endDate: '', renewalDate: '', autoRenewal: false, maxUsers: 10, activeUsers: 0, storageLimit: '10GB', deviceLimit: '', apiAccessLimit: '', remarks: '', lastUpdated: new Date().toISOString().split('T')[0], updatedBy: 'System'
+            }), 
+            purchasedModules: tempPermissions,
+            lastUpdated: new Date().toISOString().split('T')[0]
+          } 
+        };
       }
       return admin;
     });
@@ -309,26 +361,51 @@ export default function AdminManagement() {
                 </div>
               )}
             </div>
-            <ActionButton onClick={() => setShowCreateModal(true)}>
-              Create Admin
-            </ActionButton>
+            {activeMainTab === 'company-admin' && (
+              <ActionButton onClick={() => setShowCreateModal(true)}>
+                Create Admin
+              </ActionButton>
+            )}
           </>
         }
       />
 
-      <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search admin, company, or email..." />
-      </FilterBar>
+      <div className="flex border-b border-slate-200 mb-6">
+        <button 
+          onClick={() => setActiveMainTab('company-admin')}
+          className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 ${activeMainTab === 'company-admin' ? 'border-[#163c78] text-[#163c78]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          Company Admin
+        </button>
+        <button 
+          onClick={() => setActiveMainTab('subscription')}
+          className={`px-6 py-3 text-sm font-medium transition-colors border-b-2 ${activeMainTab === 'subscription' ? 'border-[#163c78] text-[#163c78]' : 'border-transparent text-slate-500 hover:text-slate-700'}`}
+        >
+          Subscription
+        </button>
+      </div>
 
-      <TableCard>
-        <div className="overflow-x-auto">
-          <DataTable
-            columns={columns}
-            data={filteredAdmins}
-            emptyMessage="No company admins found."
-          />
-        </div>
-      </TableCard>
+      {activeMainTab === 'company-admin' && (
+        <>
+          <FilterBar>
+            <SearchInput value={search} onChange={setSearch} placeholder="Search admin, company, or email..." />
+          </FilterBar>
+
+          <TableCard>
+            <div className="overflow-x-auto">
+              <DataTable
+                columns={columns}
+                data={filteredAdmins}
+                emptyMessage="No company admins found."
+              />
+            </div>
+          </TableCard>
+        </>
+      )}
+
+      {activeMainTab === 'subscription' && (
+        <SubscriptionTab admins={admins} setAdmins={setAdmins} erpModules={erpModules} />
+      )}
 
       {/* Permission Right Drawer (Inline custom implementation) */}
       {selectedAdminForPermissions && (
@@ -336,7 +413,7 @@ export default function AdminManagement() {
           <div className="fixed inset-0 bg-slate-900/20 backdrop-blur-sm z-[60]" onClick={() => setSelectedAdminForPermissions(null)} />
           <div className="fixed inset-y-0 right-0 z-[70] w-full max-w-md bg-white shadow-2xl flex flex-col animate-in slide-in-from-right duration-300">
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-              <h2 className="text-xl font-bold text-slate-900">Module Permissions</h2>
+              <h2 className="text-xl font-bold text-slate-900">Purchased Modules</h2>
               <button onClick={() => setSelectedAdminForPermissions(null)} className="p-2 text-slate-400 hover:bg-slate-100 rounded-full transition-colors">
                 <X className="w-5 h-5" />
               </button>
@@ -491,6 +568,309 @@ export default function AdminManagement() {
         </div>
       )}
 
+    </div>
+  );
+}
+
+function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdmin[], setAdmins: any, erpModules: string[] }) {
+  const [selectedAdminId, setSelectedAdminId] = useState<string>('');
+  const selectedAdmin = admins.find(a => a.id === selectedAdminId);
+  const [subForm, setSubForm] = useState<SubscriptionDetails | null>(null);
+
+  // Searchable Dropdown State
+  const [formCompanySearch, setFormCompanySearch] = useState('');
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const companySearchRef = useRef<HTMLDivElement>(null);
+  
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (companySearchRef.current && !companySearchRef.current.contains(event.target as Node)) {
+        setShowCompanyDropdown(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  useEffect(() => {
+    if (selectedAdmin) {
+      setSubForm(selectedAdmin.subscription || {
+        plan: 'Starter', status: 'Trial', billingCycle: 'Monthly', 
+        subscriptionAmount: 0, currency: 'INR', gstPercentage: 18, discount: 0, finalAmount: 0,
+        paymentStatus: 'Pending', paymentDate: '',
+        startDate: '', endDate: '', renewalDate: '', autoRenewal: false, 
+        maxUsers: 10, activeUsers: 0, storageLimit: '10GB', deviceLimit: '', apiAccessLimit: '', 
+        purchasedModules: [], remarks: '', lastUpdated: new Date().toISOString().split('T')[0], updatedBy: 'Super Admin'
+      });
+      setFormCompanySearch(`${selectedAdmin.companyName} (${selectedAdmin.adminName})`);
+    } else {
+      setSubForm(null);
+      setFormCompanySearch('');
+    }
+  }, [selectedAdmin]);
+
+  // Auto calculate final amount
+  useEffect(() => {
+    if (subForm) {
+       const amt = Number(subForm.subscriptionAmount) || 0;
+       const gst = Number(subForm.gstPercentage) || 0;
+       const disc = Number(subForm.discount) || 0;
+       const finalAmt = amt + (amt * gst / 100) - disc;
+       if (subForm.finalAmount !== finalAmt) {
+          setSubForm(prev => prev ? { ...prev, finalAmount: finalAmt } : prev);
+       }
+    }
+  }, [subForm?.subscriptionAmount, subForm?.gstPercentage, subForm?.discount]);
+
+  const handleSave = () => {
+    if (!selectedAdminId || !subForm) return;
+    const updated = admins.map(a => {
+      if (a.id === selectedAdminId) {
+        return { ...a, subscription: { ...subForm, lastUpdated: new Date().toISOString().split('T')[0] } };
+      }
+      return a;
+    });
+    setAdmins(updated);
+    alert("Subscription updated successfully.");
+  };
+
+  const filteredDropdownAdmins = admins.filter(a => 
+    a.companyName.toLowerCase().includes(formCompanySearch.toLowerCase()) || 
+    a.adminName.toLowerCase().includes(formCompanySearch.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm relative z-20" ref={companySearchRef}>
+        <label className="block text-sm font-medium text-slate-700 mb-2">Search & Select Tenant Company</label>
+        <div className="relative">
+           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+           <input 
+             type="text" 
+             value={formCompanySearch}
+             onChange={e => { setFormCompanySearch(e.target.value); setShowCompanyDropdown(true); if(e.target.value==='') setSelectedAdminId(''); }}
+             onFocus={() => setShowCompanyDropdown(true)}
+             className="w-full max-w-md pl-9 pr-4 py-2 border border-slate-200 bg-slate-50 rounded-lg text-slate-900 focus:outline-none focus:ring-2 focus:ring-[#163c78]/30"
+             placeholder="Type company or admin name..."
+           />
+        </div>
+        {showCompanyDropdown && (
+           <div className="absolute left-6 mt-1 w-full max-w-md bg-white border border-slate-200 shadow-xl rounded-lg max-h-48 overflow-y-auto py-1">
+             {filteredDropdownAdmins.map(a => (
+               <button 
+                 key={a.id} 
+                 className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-[#163c78]/10 hover:text-[#163c78]" 
+                 onClick={() => { setSelectedAdminId(a.id); setShowCompanyDropdown(false); }}
+               >
+                 <span className="font-medium text-slate-900">{a.companyName}</span> <span className="text-xs text-slate-500">({a.adminName})</span>
+               </button>
+             ))}
+             {filteredDropdownAdmins.length === 0 && (
+               <div className="px-4 py-2 text-sm text-slate-500 italic">No companies found</div>
+             )}
+           </div>
+        )}
+      </div>
+
+      {subForm && selectedAdmin && (
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 relative z-10">
+          <div className="lg:col-span-2 space-y-6">
+            
+            {/* Commercial Subscription Details */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <h3 className="text-base font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Commercial Subscription</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Subscription Plan</label>
+                  <select value={subForm.plan} onChange={e => setSubForm({...subForm, plan: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                    <option>Starter</option>
+                    <option>Professional</option>
+                    <option>Enterprise</option>
+                    <option>Custom</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Status</label>
+                  <select value={subForm.status} onChange={e => setSubForm({...subForm, status: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                    <option>Trial</option>
+                    <option>Active</option>
+                    <option>Suspended</option>
+                    <option>Expired</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Billing Cycle</label>
+                  <select value={subForm.billingCycle} onChange={e => setSubForm({...subForm, billingCycle: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                    <option>Monthly</option>
+                    <option>Quarterly</option>
+                    <option>Half-Yearly</option>
+                    <option>Yearly</option>
+                  </select>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 bg-slate-50 rounded-lg border border-slate-100">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Currency</label>
+                  <input type="text" value={subForm.currency} onChange={e => setSubForm({...subForm, currency: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Base Amount</label>
+                  <input type="number" value={subForm.subscriptionAmount} onChange={e => setSubForm({...subForm, subscriptionAmount: Number(e.target.value)})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">GST (%)</label>
+                  <input type="number" value={subForm.gstPercentage} onChange={e => setSubForm({...subForm, gstPercentage: Number(e.target.value)})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Discount</label>
+                  <input type="number" value={subForm.discount} onChange={e => setSubForm({...subForm, discount: Number(e.target.value)})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+                <div className="md:col-span-4 flex items-center justify-end mt-2 border-t border-slate-200 pt-3">
+                  <span className="text-sm text-slate-500 mr-3">Final Amount:</span>
+                  <span className="text-lg font-bold text-slate-900">{subForm.currency} {subForm.finalAmount.toLocaleString()}</span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Payment Status</label>
+                  <select value={subForm.paymentStatus} onChange={e => setSubForm({...subForm, paymentStatus: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                    <option>Paid</option>
+                    <option>Pending</option>
+                    <option>Failed</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Payment Date</label>
+                  <input type="date" value={subForm.paymentDate} onChange={e => setSubForm({...subForm, paymentDate: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Auto Renewal</label>
+                  <select value={subForm.autoRenewal ? 'Yes' : 'No'} onChange={e => setSubForm({...subForm, autoRenewal: e.target.value === 'Yes'})} className="w-full border border-slate-200 rounded-lg px-3 py-2">
+                    <option>Yes</option>
+                    <option>No</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+                  <input type="date" value={subForm.startDate} onChange={e => setSubForm({...subForm, startDate: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+                  <input type="date" value={subForm.endDate} onChange={e => setSubForm({...subForm, endDate: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Renewal Date</label>
+                  <input type="date" value={subForm.renewalDate} onChange={e => setSubForm({...subForm, renewalDate: e.target.value})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+              </div>
+            </div>
+
+            {/* License Management */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <h3 className="text-base font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">License Management</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Maximum Users</label>
+                  <input type="number" value={subForm.maxUsers} onChange={e => setSubForm({...subForm, maxUsers: parseInt(e.target.value) || 0})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Current Active Users (Read Only)</label>
+                  <input type="number" readOnly value={subForm.activeUsers} className="w-full border border-slate-200 bg-slate-100 text-slate-500 rounded-lg px-3 py-2 cursor-not-allowed" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Storage Limit</label>
+                  <input type="text" value={subForm.storageLimit} onChange={e => setSubForm({...subForm, storageLimit: e.target.value})} placeholder="e.g. 100GB" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Device Limit (Optional)</label>
+                  <input type="text" value={subForm.deviceLimit} onChange={e => setSubForm({...subForm, deviceLimit: e.target.value})} placeholder="e.g. 5" className="w-full border border-slate-200 rounded-lg px-3 py-2" />
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex justify-end mt-4">
+               <button onClick={handleSave} className="bg-[#163c78] text-white px-6 py-2 rounded-lg font-medium hover:bg-[#102b5c] transition-colors shadow-sm">
+                 Save Subscription
+               </button>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            {/* Purchased Modules UI */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <h3 className="text-base font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Purchased Modules</h3>
+              <p className="text-xs text-slate-500 mb-3">Check modules to allocate to this tenant</p>
+              
+              <div className="space-y-2 max-h-64 overflow-y-auto pr-2 mb-4">
+                {erpModules.map(mod => {
+                  const isChecked = (subForm.purchasedModules || []).includes(mod);
+                  return (
+                    <label key={mod} className="flex items-center space-x-2">
+                      <input 
+                        type="checkbox" 
+                        checked={isChecked}
+                        onChange={(e) => {
+                          const updatedPerms = e.target.checked 
+                            ? [...(subForm.purchasedModules || []), mod] 
+                            : (subForm.purchasedModules || []).filter(p => p !== mod);
+                          setSubForm({...subForm, purchasedModules: updatedPerms});
+                        }}
+                        className="rounded border-slate-300 text-[#163c78] focus:ring-[#163c78]"
+                      />
+                      <span className="text-sm text-slate-700">{mod}</span>
+                    </label>
+                  );
+                })}
+              </div>
+
+              {/* Modules Summary Table */}
+              <div className="mt-4 pt-4 border-t border-slate-100">
+                <h4 className="text-sm font-semibold text-slate-900 mb-2">Allocated Summary</h4>
+                <div className="bg-slate-50 rounded-lg border border-slate-200 overflow-hidden">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-100/50 border-b border-slate-200">
+                      <tr>
+                        <th className="px-3 py-2 font-medium text-slate-700">Module</th>
+                        <th className="px-3 py-2 font-medium text-slate-700">Status</th>
+                        <th className="px-3 py-2 font-medium text-slate-700">Activated</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {(subForm.purchasedModules || []).map(m => (
+                        <tr key={m}>
+                          <td className="px-3 py-2 text-slate-900 truncate max-w-[120px]" title={m}>{m}</td>
+                          <td className="px-3 py-2 text-emerald-600 font-medium">Active</td>
+                          <td className="px-3 py-2 text-slate-500">{subForm.startDate || 'N/A'}</td>
+                        </tr>
+                      ))}
+                      {(!subForm.purchasedModules || subForm.purchasedModules.length === 0) && (
+                        <tr><td colSpan={3} className="px-3 py-4 text-center text-slate-500 italic">No modules allocated</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+
+            {/* Internal Notes */}
+            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+              <h3 className="text-base font-bold text-slate-900 mb-4 border-b border-slate-100 pb-2">Internal Notes</h3>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Remarks</label>
+                  <textarea value={subForm.remarks} onChange={e => setSubForm({...subForm, remarks: e.target.value})} rows={3} className="w-full border border-slate-200 rounded-lg px-3 py-2 resize-none"></textarea>
+                </div>
+                <div className="text-xs text-slate-500 space-y-1">
+                  <p>Last Updated: {subForm.lastUpdated}</p>
+                  <p>Updated By: {subForm.updatedBy}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
