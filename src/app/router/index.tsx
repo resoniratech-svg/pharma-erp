@@ -1,4 +1,4 @@
-import { createBrowserRouter } from 'react-router';
+import { createBrowserRouter, Navigate } from 'react-router';
 import { MainLayout } from '../layouts/MainLayout';
 import App from '../../App';
 import LandingPage from '../../pages/LandingPage';
@@ -319,7 +319,7 @@ export const router = createBrowserRouter([
         children: [
           { path: 'gst', element: <GSTBilling /> },
           { path: 'einvoice', element: <EInvoice /> },
-          { path: 'ewaybill', element: <EWayBill /> },
+          { path: 'ewaybill', element: <Navigate to="/workspace/billing/einvoice" replace /> },
           { path: 'pos', element: <BarcodeBilling /> },
           { path: 'multi-rate-billing', element: <MultiRateBilling /> },
           { path: 'credit-notes', element: <CreditNotes /> },

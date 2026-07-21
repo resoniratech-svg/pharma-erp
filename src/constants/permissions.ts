@@ -36,7 +36,6 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'Dashboard',
     'Wholesale Billing System',
     'Accounting & Finance',
-    'Reports',
     'Alerts & Notifications',
     'Settings',
   ],

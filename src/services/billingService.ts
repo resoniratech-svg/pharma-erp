@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient';
+
 // Billing Storage Service
 export interface InvoiceItem {
   id: string;
@@ -53,6 +55,7 @@ export const billingService = {
   },
 
   saveInvoice(invoice: GSTInvoice) {
+    // 1. Instant local storage save
     const invoices = this.getInvoices();
     const existingIndex = invoices.findIndex((inv) => inv.id === invoice.id);
     if (existingIndex >= 0) {
@@ -61,6 +64,24 @@ export const billingService = {
       invoices.unshift(invoice);
     }
     localStorage.setItem(INVOICE_KEY, JSON.stringify(invoices));
+
+    // 2. Asynchronous backend persistence to PostgreSQL
+    const parsedRetailerId = parseInt(invoice.customerId, 10);
+    const retailerId = !isNaN(parsedRetailerId) && parsedRetailerId > 0 ? parsedRetailerId : 1;
+
+    apiRequest('/invoices', {
+      method: 'POST',
+      bodyData: {
+        invoiceNumber: invoice.invoiceNo,
+        retailerId: retailerId,
+        subTotal: invoice.subTotal || 0,
+        gstAmount: (invoice.cgstTotal || 0) + (invoice.sgstTotal || 0) + (invoice.igstTotal || 0),
+        totalAmount: invoice.grandTotal || 0,
+        status: invoice.status || 'PENDING',
+      },
+    }).catch(err => {
+      console.warn("Backend API sync warning for invoice:", invoice.invoiceNo, err.message);
+    });
   },
 
   saveAllInvoices(invoices: GSTInvoice[]) {
@@ -107,9 +128,9 @@ export const billingService = {
   },
 
   saveSalesRegister(invoice: GSTInvoice) {
-    const sales = JSON.parse(localStorage.getItem(SALES_REGISTER_KEY) || "[]");
-    sales.push(invoice);
-    localStorage.setItem(SALES_REGISTER_KEY, JSON.stringify(sales));
+    const register = JSON.parse(localStorage.getItem(SALES_REGISTER_KEY) || "[]");
+    register.push(invoice);
+    localStorage.setItem(SALES_REGISTER_KEY, JSON.stringify(register));
   },
 
   getEInvoices(): Record<string, any> {
@@ -123,25 +144,8 @@ export const billingService = {
   },
 
   saveEInvoiceMetadata(invoiceNo: string, metadata: any) {
-    const data = this.getEInvoices();
-    data[invoiceNo] = metadata;
-    localStorage.setItem(EINVOICE_KEY, JSON.stringify(data));
-  },
-
-  cancelInvoice(invoiceNo: string) {
-    const invoices = this.getInvoices();
-    const match = invoices.find(inv => inv.invoiceNo === invoiceNo);
-    if (match) {
-      match.status = 'Cancelled';
-      this.saveAllInvoices(invoices);
-    }
-
-    // Also update sales register
-    const sales = JSON.parse(localStorage.getItem(SALES_REGISTER_KEY) || "[]");
-    const saleMatch = sales.find((s: any) => s.invoiceNo === invoiceNo);
-    if (saleMatch) {
-      saleMatch.status = 'Cancelled';
-      localStorage.setItem(SALES_REGISTER_KEY, JSON.stringify(sales));
-    }
+    const current = this.getEInvoices();
+    current[invoiceNo] = metadata;
+    localStorage.setItem(EINVOICE_KEY, JSON.stringify(current));
   }
 };

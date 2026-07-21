@@ -47,8 +47,8 @@ export default function DistributorMaster() {
     loadDistributors();
   }, []);
 
-  const loadDistributors = () => {
-    const data = distributorMasterService.getAll();
+  const loadDistributors = async () => {
+    const data = await distributorMasterService.fetchFromApi();
     setDistributors(data);
   };
 

@@ -21,16 +21,46 @@ import activityLogService from '../../services/activityLogService';
 import authService from '../../services/authService';
 import { NotificationService } from '../../services/notificationService';
 import { hasModulePermission } from '../../utils/permissionUtils';
+import { distributorMasterService } from '../../services/distributorMasterService';
 
-// --- DYNAMIC CRM INTEGRATION ---
+// --- DYNAMIC DISTRIBUTOR & CRM INTEGRATION ---
+const distributorMasterList = JSON.parse(localStorage.getItem('pharma_erp_distributor_master') || '[]');
 const crmDistributors = JSON.parse(localStorage.getItem('crm_distributors') || '[]');
-const CUSTOMERS = crmDistributors.map((d: any) => ({ 
+
+const DEFAULT_CUSTOMERS = [
+  { id: 'CUST-001', name: 'MedPlus Store', type: 'Retailer', state: 'Telangana', creditDays: 30 },
+  { id: 'CUST-002', name: 'Apollo Pharmacy', type: 'Hospital Chain', state: 'Karnataka', creditDays: 45 },
+  { id: 'CUST-003', name: 'Wellness Medicos', type: 'Retailer', state: 'Maharashtra', creditDays: 15 },
+  { id: 'CUST-004', name: 'Care Hospitals', type: 'Institutional', state: 'Telangana', creditDays: 30 },
+  { id: 'B2C', name: 'Walk-in / Cash Customer (B2C)', type: 'Counter', state: 'Telangana', creditDays: 0 },
+];
+
+const mappedDistributorMaster = distributorMasterList.map((d: any) => ({
+  id: d.id,
+  name: d.name,
+  type: 'Distributor',
+  state: d.state || 'Telangana',
+  creditDays: d.creditDays || 30
+}));
+
+const mappedCrmDistributors = crmDistributors.map((d: any) => ({ 
   id: d.id, 
   name: d.name, 
   type: d.tier || 'Distributor',
   state: d.state || (d.region === 'South' ? 'Karnataka' : 'Telangana'),
   creditDays: d.creditDays || 30
 }));
+
+// Combine all sources dynamically without duplicates
+const combinedCustomersRaw = [...mappedDistributorMaster, ...mappedCrmDistributors];
+const uniqueCustomerNames = new Set<string>();
+const DYNAMIC_CUSTOMERS = combinedCustomersRaw.filter(c => {
+  if (!c.name || uniqueCustomerNames.has(c.name.toLowerCase())) return false;
+  uniqueCustomerNames.add(c.name.toLowerCase());
+  return true;
+});
+
+const CUSTOMERS = DYNAMIC_CUSTOMERS.length > 0 ? DYNAMIC_CUSTOMERS : DEFAULT_CUSTOMERS;
 
 interface ProductRecord {
   id: string;
@@ -87,19 +117,37 @@ export default function GSTBilling() {
     const groupInventory: Record<string, { batchNo: string; expiry: string; stock: number; ptr: number; mrp?: number; status: string }[]> = {};
     
     savedBatches.forEach(b => {
-      const matchProduct = savedProducts.find((p) => p.code === b.productCode);
-      const prodId = matchProduct ? matchProduct.id : b.productCode;
+      const matchProduct = savedProducts.find((p) => 
+        (b.productId && String(p.id) === String(b.productId)) ||
+        (b.productCode && p.code.toLowerCase() === b.productCode.toLowerCase()) ||
+        (b.productName && p.name.toLowerCase() === b.productName.toLowerCase())
+      );
       
-      if (!groupInventory[prodId]) {
-        groupInventory[prodId] = [];
+      const keysToGroup = new Set<string>();
+      if (matchProduct) {
+        keysToGroup.add(matchProduct.id);
+        keysToGroup.add(matchProduct.code);
       }
-      groupInventory[prodId].push({
+      if (b.productId) keysToGroup.add(String(b.productId));
+      if (b.productCode) keysToGroup.add(b.productCode);
+      if (b.productName) keysToGroup.add(b.productName);
+
+      const batchObj = {
         batchNo: b.batchNo,
         expiry: b.expDate,
-        stock: b.availableQty,
+        stock: Number(b.availableQty) || 0,
         ptr: Number(b.ptr) || 0,
         mrp: Number(b.mrp) || 0,
-        status: b.status || 'Healthy'
+        status: b.status || 'Active'
+      };
+
+      keysToGroup.forEach(key => {
+        if (!groupInventory[key]) {
+          groupInventory[key] = [];
+        }
+        if (!groupInventory[key].some(item => item.batchNo === b.batchNo)) {
+          groupInventory[key].push(batchObj);
+        }
       });
     });
 
@@ -108,6 +156,7 @@ export default function GSTBilling() {
 
   useEffect(() => {
     loadDatabaseDetails();
+    distributorMasterService.fetchFromApi().catch(() => {});
     const fetchSchemes = async () => {
       try {
         const data = await schemeService.getAll();
@@ -235,9 +284,9 @@ export default function GSTBilling() {
             return new Date(expiryStr);
           };
 
-          // Sort batches by expiry date (earliest first - FEFO) - Lock to healthy batches
+          // Sort batches by expiry date (earliest first - FEFO) - Include Active & Healthy batches
           const batch = productInventory
-            .filter(b => b.stock > 0 && !isBatchExpired(b.expiry) && b.status === 'Healthy')
+            .filter(b => b.stock > 0 && !isBatchExpired(b.expiry) && (b.status === 'Active' || b.status === 'Healthy' || !b.status))
             .sort((a, b) => parseExpiry(a.expiry).getTime() - parseExpiry(b.expiry).getTime())[0];
 
           if (product) {
@@ -268,14 +317,11 @@ export default function GSTBilling() {
           const productInventory = inventory[updatedItem.productId] || [];
           const batch = productInventory.find(b => b.batchNo === value);
           if (batch) {
-            if (batch.status !== 'Healthy') {
-              alert(`Warning: Batch ${batch.batchNo} is quarantined/damaged/blocked (${batch.status}). Lock active.`);
-              return item;
-            }
             if (isBatchExpired(batch.expiry)) {
               alert(`Warning: Batch ${batch.batchNo} expired on ${batch.expiry}! Lock active.`);
               return item;
             }
+            updatedItem.batchNo = batch.batchNo;
             updatedItem.ptr = batch.ptr;
             updatedItem.stock = batch.stock;
             updatedItem.mrp = batch.mrp || updatedItem.mrp || 0;
@@ -283,7 +329,7 @@ export default function GSTBilling() {
         }
 
         if (field === 'qty') {
-          if (value > updatedItem.stock) {
+          if (updatedItem.stock > 0 && value > updatedItem.stock) {
             alert(`Insufficient Stock! Only ${updatedItem.stock} units available.`);
             updatedItem.qty = updatedItem.stock;
           }
@@ -296,9 +342,12 @@ export default function GSTBilling() {
           updatedItem.freeQty = promo.freeQty;
         }
 
-        const basePrice = updatedItem.qty * updatedItem.ptr * (1 - updatedItem.discountPercent / 100);
-        const gstAmount = (basePrice * updatedItem.gstPercent) / 100;
-        updatedItem.total = basePrice + gstAmount;
+        // Re-calculate line item total
+        const baseAmt = (updatedItem.qty || 0) * (updatedItem.ptr || 0);
+        const discAmt = (baseAmt * (updatedItem.discountPercent || 0)) / 100;
+        const taxable = Math.max(0, baseAmt - discAmt);
+        const gst = (taxable * (updatedItem.gstPercent || 0)) / 100;
+        updatedItem.total = taxable + gst;
 
         return updatedItem;
       }
@@ -734,7 +783,7 @@ export default function GSTBilling() {
                     <div className="col-span-5">
                       <select required className="w-full px-2 py-1.5 border border-slate-300 rounded bg-white text-xs text-slate-900" value={item.batchNo} onChange={(e) => updateLineItem(item.id, 'batchNo', e.target.value)}>
                         <option value="">Select Batch</option>
-                        {item.productId && (inventory[item.productId] || []).filter(b => !isBatchExpired(b.expiry) && b.status === 'Healthy').map(b => (
+                        {item.productId && (inventory[item.productId] || []).filter(b => b.stock > 0 && !isBatchExpired(b.expiry) && (b.status === 'Active' || b.status === 'Healthy' || !b.status)).map(b => (
                           <option key={b.batchNo} value={b.batchNo}>
                             Batch: {b.batchNo} | Exp: {b.expiry} | Stock: {b.stock} | PTR: {formatCurrency(b.ptr)} | MRP: {formatCurrency(b.mrp || b.ptr * 1.2)}
                           </option>

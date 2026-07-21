@@ -585,7 +585,8 @@ export default function MultiRateBilling() {
  
   // Format Currency Helper
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+    const validAmount = isNaN(amount) || amount == null ? 0 : amount;
+    return new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(validAmount);
   };
 
   useEffect(() => {
@@ -684,7 +685,8 @@ export default function MultiRateBilling() {
         if (!slabMap[gst]) slabMap[gst] = { count: 0, billing: 0, tax: 0 };
         slabMap[gst].count += item.qty;
         
-        const base = item.qty * item.ptr;
+        const itemPrice = Number(item.ptr) || Number(item.unitPrice) || Number(item.price) || (item.total ? item.total / (item.qty || 1) : 0);
+        const base = (item.qty || 0) * itemPrice;
         slabMap[gst].billing += base;
         slabMap[gst].tax += (base * gst) / 100;
       });
@@ -839,8 +841,8 @@ export default function MultiRateBilling() {
         }
       />
 
-      {/* Advanced KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-6 gap-4 mb-8">
+      {/* Advanced KPI Cards - 3 per row in 2 spacious rows */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5 mb-8">
         <SummaryCard
           title="Total Invoices"
           value={kpi.totalInvoices.toString()}

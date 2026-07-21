@@ -11,6 +11,8 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 
+import { billingService } from '../../services/billingService';
+
 // --- Types ---
 type PartyType = 'Customer' | 'Supplier' | 'Distributor' | 'Vendor';
 type Status = 'Current' | 'Partially Paid' | 'Overdue' | 'Critical Overdue';
@@ -138,7 +140,53 @@ export default function Outstanding() {
   const today = new Date();
   
   const computedData: ComputedOutstandingRow[] = useMemo(() => {
-    return mockData.map(party => {
+    // 1. Get live GST Billing Invoices
+    const liveGstInvoices = billingService.getInvoices();
+    
+    // Group GST billing invoices by Customer Name
+    const livePartyMap: Record<string, Invoice[]> = {};
+    liveGstInvoices.forEach(inv => {
+      const partyName = inv.customerName && inv.customerName.trim() ? inv.customerName : 'Walk-in Customer';
+      if (!livePartyMap[partyName]) {
+        livePartyMap[partyName] = [];
+      }
+      livePartyMap[partyName].push({
+        id: inv.id,
+        invoiceNo: inv.invoiceNo,
+        date: inv.date,
+        dueDate: inv.dueDate || inv.date,
+        amount: inv.grandTotal,
+        paidAmount: inv.status === 'Paid' ? inv.grandTotal : 0
+      });
+    });
+
+    const liveParties: PartyRecord[] = Object.keys(livePartyMap).map(partyName => ({
+      id: `live-${partyName.toLowerCase().replace(/[^a-z0-9]/g, '-')}`,
+      partyName,
+      partyType: 'Customer',
+      creditDays: 30,
+      lastPaymentDate: '-',
+      invoices: livePartyMap[partyName]
+    }));
+
+    // Combine sample data + live parties (deduplicating by partyName)
+    const combinedParties: PartyRecord[] = [...mockData];
+    liveParties.forEach(lp => {
+      const idx = combinedParties.findIndex(p => p.partyName.toLowerCase() === lp.partyName.toLowerCase());
+      if (idx >= 0) {
+        // Merge invoices into existing party
+        const existingInvs = combinedParties[idx].invoices;
+        lp.invoices.forEach(linv => {
+          if (!existingInvs.some(ei => ei.invoiceNo === linv.invoiceNo)) {
+            existingInvs.push(linv);
+          }
+        });
+      } else {
+        combinedParties.push(lp);
+      }
+    });
+
+    return combinedParties.map(party => {
       let outstandingAmount = 0;
       let overdueAmount = 0;
       let pendingBills = 0;
@@ -608,6 +656,7 @@ export default function Outstanding() {
                       <th className="px-4 py-3 font-semibold text-right">Amount</th>
                       <th className="px-4 py-3 font-semibold text-right">Paid</th>
                       <th className="px-4 py-3 font-semibold text-right">Balance</th>
+                      <th className="px-4 py-3 font-semibold text-center">Action</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 whitespace-nowrap">
@@ -621,6 +670,22 @@ export default function Outstanding() {
                           <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(inv.amount)}</td>
                           <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(inv.paidAmount)}</td>
                           <td className="px-4 py-3 text-right font-bold text-rose-600">{formatCurrency(bal)}</td>
+                          <td className="px-4 py-3 text-center">
+                            <button
+                              onClick={() => {
+                                const liveInvoices = billingService.getInvoices();
+                                const target = liveInvoices.find(i => i.invoiceNo === inv.invoiceNo);
+                                if (target) {
+                                  billingService.saveInvoice({ ...target, status: 'Paid' });
+                                }
+                                alert(`Invoice ${inv.invoiceNo} marked as Paid!`);
+                                setSelectedParty(null);
+                              }}
+                              className="px-2.5 py-1 text-xs font-semibold bg-emerald-600 text-white rounded hover:bg-emerald-700 transition-colors shadow-sm"
+                            >
+                              Mark Paid
+                            </button>
+                          </td>
                         </tr>
                       );
                     })}

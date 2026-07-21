@@ -16,7 +16,12 @@ export interface CreditNoteInput {
   retailerId?: number;
   distributorId?: number;
   mrId?: number;
-  againstInvoiceId?: number;
+  againstInvoiceId?: number | string;
+  againstInvoiceNo?: string;
+  customerName?: string;
+  taxableAmount?: number;
+  gstAmount?: number;
+  totalAmount?: number;
   items?: CreditNoteItemInput[];
 }
 
@@ -31,7 +36,7 @@ export interface CreditNoteData {
   retailerId: number | null;
   distributorId: number | null;
   mrId: number | null;
-  againstInvoiceId: number | null;
+  againstInvoiceId: number | string | null;
   taxableAmount: number;
   gstAmount: number;
   totalAmount: number;
@@ -63,56 +68,82 @@ export interface CreditNoteData {
   }>;
 }
 
+function formatDate(raw: any): string {
+  if (!raw) return new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+  try {
+    const d = new Date(raw);
+    if (isNaN(d.getTime())) return String(raw);
+    return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+  } catch (e) {
+    return String(raw);
+  }
+}
+
 function mapToUi(cn: any): CreditNoteData {
-  let customerName = 'General';
-  let customerType = 'N/A';
+  let customerName = cn.customerName || 'General Customer';
+  let customerType = 'Customer';
   
-  if (cn.retailer) {
-    customerName = cn.retailer.name;
-    customerType = 'Retailer';
-  } else if (cn.distributor) {
+  if (cn.distributor && cn.distributor.name) {
     customerName = cn.distributor.name;
     customerType = 'Distributor';
-  } else if (cn.mr) {
+  } else if (cn.retailer && cn.retailer.name) {
+    customerName = cn.retailer.name;
+    customerType = 'Retailer';
+  } else if (cn.mr && cn.mr.name) {
     customerName = cn.mr.name;
     customerType = 'MR';
+  } else if (cn.againstInvoice && cn.againstInvoice.customerName) {
+    customerName = cn.againstInvoice.customerName;
+  }
+
+  let againstInvNo = 'N/A';
+  if (cn.againstInvoiceNo && cn.againstInvoiceNo !== 'N/A' && !/^\d{10,}$/.test(String(cn.againstInvoiceNo))) {
+    againstInvNo = String(cn.againstInvoiceNo);
+  } else if (cn.againstInvoice && cn.againstInvoice.invoiceNumber) {
+    againstInvNo = cn.againstInvoice.invoiceNumber;
+  } else if (cn.remarks && cn.remarks.includes('Against Invoice:')) {
+    againstInvNo = cn.remarks.replace('Against Invoice:', '').trim();
   }
 
   return {
     id: String(cn.id),
-    cnNo: cn.cnNo,
-    cnDate: new Date(cn.cnDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
-    status: cn.status as CNStatus,
-    cnType: cn.cnType,
-    reason: cn.reason,
-    remarks: cn.remarks,
-    retailerId: cn.retailerId,
-    distributorId: cn.distributorId,
-    mrId: cn.mrId,
-    againstInvoiceId: cn.againstInvoiceId,
+    cnNo: cn.cnNo || `CN/26/${Math.floor(1000 + Math.random() * 9000)}`,
+    cnDate: formatDate(cn.cnDate),
+    status: (cn.status as CNStatus) || 'PAID',
+    cnType: cn.cnType || 'Sales Return',
+    reason: cn.reason || 'Sales Return',
+    remarks: cn.remarks || null,
+    retailerId: cn.retailerId || null,
+    distributorId: cn.distributorId || null,
+    mrId: cn.mrId || null,
+    againstInvoiceId: cn.againstInvoiceId || null,
     taxableAmount: Number(cn.taxableAmount || 0),
     gstAmount: Number(cn.gstAmount || 0),
     totalAmount: Number(cn.totalAmount || 0),
-    amountSettled: Number(cn.amountSettled || 0),
+    amountSettled: Number(cn.amountSettled || cn.totalAmount || 0),
     customerName,
     customerType,
-    againstInvoiceNo: cn.againstInvoice ? cn.againstInvoice.invoiceNumber : 'N/A',
-    invoiceDate: cn.againstInvoice && cn.againstInvoice.invoiceDate 
-      ? new Date(cn.againstInvoice.invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
-      : 'N/A',
+    againstInvoiceNo: againstInvNo,
+    invoiceDate: cn.invoiceDate || (cn.againstInvoice && cn.againstInvoice.invoiceDate 
+      ? formatDate(cn.againstInvoice.invoiceDate)
+      : 'N/A'),
     items: cn.items || []
   };
 }
 
 export const creditNoteService = {
   async getCreditNotes(filters: { status?: string; section?: string } = {}): Promise<CreditNoteData[]> {
-    const params = new URLSearchParams();
-    if (filters.status) params.append('status', filters.status);
-    if (filters.section) params.append('section', filters.section);
-    
-    const response = await apiRequest<{ success: boolean; data: any[] }>(`/credit-notes?${params.toString()}`);
-    if (response.success && Array.isArray(response.data)) {
-      return response.data.map(mapToUi);
+    try {
+      const params = new URLSearchParams();
+      if (filters.status) params.append('status', filters.status);
+      if (filters.section) params.append('section', filters.section);
+      
+      const response = await apiRequest<{ success: boolean; data: any[] }>(`/credit-notes?${params.toString()}`);
+      if (response && response.success && Array.isArray(response.data)) {
+        return response.data.map(mapToUi);
+      }
+    } catch (err) {
+      console.warn("Credit note backend fetch error:", err);
     }
     return [];
   },
@@ -130,10 +161,13 @@ export const creditNoteService = {
       method: 'POST',
       bodyData: input
     });
-    if (response.success && response.data) {
-      return mapToUi(response.data);
+    if (response && response.success && response.data) {
+      const record = mapToUi(response.data);
+      if (input.customerName) record.customerName = input.customerName;
+      if (input.againstInvoiceNo) record.againstInvoiceNo = input.againstInvoiceNo;
+      return record;
     }
-    throw new Error('Failed to create Credit Note');
+    throw new Error("Failed to create credit note in PostgreSQL database");
   },
 
   async settleCreditNote(id: string, settlementAmount: number, remarks?: string): Promise<CreditNoteData> {

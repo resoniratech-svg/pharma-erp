@@ -11,6 +11,7 @@ import {
   TableCard, DataTable, Badge, Drawer, DrawerField
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
+import { billingService } from '../../services/billingService';
 
 // --- Types ---
 type PaymentStatus = 'Pending' | 'Cleared' | 'Bounced' | 'Cancelled';
@@ -148,16 +149,34 @@ export default function Payments() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Live GST Invoices + Sample Invoices
+  const allAvailableInvoices = useMemo(() => {
+    const liveInvoices = billingService.getInvoices().map(inv => ({
+      ref: inv.invoiceNo,
+      amount: inv.grandTotal,
+      paid: inv.status === 'Paid' ? inv.grandTotal : 0,
+      party: inv.customerName && inv.customerName.trim() ? inv.customerName : 'Walk-in Customer'
+    }));
+
+    const merged = [...liveInvoices];
+    mockInvoices.forEach(mi => {
+      if (!merged.some(m => m.ref === mi.ref)) {
+        merged.push(mi);
+      }
+    });
+    return merged;
+  }, [data]);
+
   // --- Auto Calculation Logic ---
   useEffect(() => {
-    const matched = mockInvoices.find(i => i.ref === formInvoice);
+    const matched = allAvailableInvoices.find(i => i.ref === formInvoice);
     if (matched) {
       setFormInvData({ amount: matched.amount, paid: matched.paid });
       if (!formParty) setFormParty(matched.party);
     } else {
       setFormInvData(null);
     }
-  }, [formInvoice]);
+  }, [formInvoice, allAvailableInvoices]);
 
   // --- Derived Data ---
   const filteredData = useMemo(() => {
@@ -204,11 +223,24 @@ export default function Payments() {
       referenceNo: formRef,
       remarks: formRemarks,
       hasAttachment: false,
-      status: 'Pending',
+      status: 'Cleared',
       createdBy: 'Current User',
       createdDate: new Date().toLocaleString()
     };
     setData([newEntry, ...data]);
+
+    // Update live GST invoice status to Paid if fully paid
+    if (formInvoice) {
+      const liveInvoices = billingService.getInvoices();
+      const targetInv = liveInvoices.find(i => i.invoiceNo === formInvoice);
+      if (targetInv) {
+        billingService.saveInvoice({
+          ...targetInv,
+          status: 'Paid'
+        });
+      }
+    }
+
     setShowNewModal(false);
     
     // Reset
@@ -369,6 +401,24 @@ export default function Payments() {
     {
       key: 'actions', label: 'Actions', render: (row) => (
         <div className="flex items-center justify-end gap-2">
+          {row.status === 'Pending' && (
+            <button
+              onClick={() => {
+                setData(prev => prev.map(item => item.id === row.id ? { ...item, status: 'Cleared' } : item));
+                if (row.invoiceRef) {
+                  const liveInvoices = billingService.getInvoices();
+                  const target = liveInvoices.find(i => i.invoiceNo === row.invoiceRef);
+                  if (target) {
+                    billingService.saveInvoice({ ...target, status: 'Paid' });
+                  }
+                }
+                alert(`Receipt ${row.receiptNo} marked as Cleared! Invoice status updated to Paid.`);
+              }}
+              className="px-2 py-1 text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200 rounded hover:bg-emerald-100 transition-colors"
+            >
+              Mark Cleared
+            </button>
+          )}
           <ActionButton variant="ghost" onClick={() => setSelectedTxn(row)} className="text-slate-400 hover:text-[#163c78] px-2 py-1 flex items-center gap-1">
             <Eye className="w-4 h-4" /> <span className="text-xs hidden lg:inline">View</span>
           </ActionButton>
@@ -534,12 +584,17 @@ export default function Payments() {
             <label className="block text-sm font-medium mb-1">Invoice Reference</label>
             <input 
               type="text" 
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm" 
-              placeholder="e.g., INV/26/001" 
+              list="invoice-refs-list"
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-violet-500" 
+              placeholder="Type or select Invoice No (e.g. GST-20260720-0001)..." 
               value={formInvoice}
               onChange={(e) => setFormInvoice(e.target.value)}
             />
-            <p className="text-xs text-slate-500 mt-1">Mock values: INV/26/001, INV/26/045, PUR/26/001</p>
+            <datalist id="invoice-refs-list">
+              {allAvailableInvoices.map((inv, idx) => (
+                <option key={idx} value={inv.ref}>{inv.party} - {formatCurrency(inv.amount)}</option>
+              ))}
+            </datalist>
           </div>
 
           <div>

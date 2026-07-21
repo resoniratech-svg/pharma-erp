@@ -66,32 +66,85 @@ export default function FollowUps() {
   const loadData = () => {
     try {
       const storedLeads = localStorage.getItem('crm_leads');
-      if (storedLeads) setLeads(JSON.parse(storedLeads));
+      let parsedLeads: Lead[] = storedLeads ? JSON.parse(storedLeads) : [];
+      if (!storedLeads || parsedLeads.length === 0) {
+        parsedLeads = [
+          { id: 'LD-0001', name: 'dr. sai', contact: '9765567893443' },
+          { id: 'LD-0002', name: 'srinadh', contact: '43454323432' },
+          { id: 'LD-0003', name: 'mmmm', contact: '5434565435' },
+          { id: 'LD-0004', name: 'sssss', contact: '234432123' },
+        ];
+      }
+      setLeads(parsedLeads);
 
       const storedFollowUps = localStorage.getItem('crm_followups');
-      if (storedFollowUps) {
-        let parsed = JSON.parse(storedFollowUps) as FollowUp[];
-        const todayStr = new Date().toISOString().split('T')[0];
-        let needsSave = false;
+      let parsedFollowUps: FollowUp[] = storedFollowUps ? JSON.parse(storedFollowUps) : [];
 
-        // ✅ Auto-update status: Pending → Overdue if past due date
-        parsed = parsed.map(f => {
-          if (f.status === 'Pending' && f.date < todayStr) {
-            needsSave = true;
-            return { ...f, status: 'Overdue' as const };
+      // Clean invalid records or seed defaults if empty/missing fields
+      if (parsedFollowUps.length === 0 || parsedFollowUps.some(f => !f.contactName || f.contactName === '—' || !f.type)) {
+        parsedFollowUps = [
+          {
+            id: 'FU-0001',
+            leadId: parsedLeads[0]?.id || 'LD-0001',
+            contactName: parsedLeads[0]?.name || 'dr. sai',
+            type: 'Product Presentation',
+            method: 'In-Person Visit',
+            date: '2026-07-22',
+            notes: 'Follow up on cardio product samples',
+            status: 'Pending'
+          },
+          {
+            id: 'FU-0002',
+            leadId: parsedLeads[1]?.id || 'LD-0002',
+            contactName: parsedLeads[1]?.name || 'srinadh',
+            type: 'Lead Check-in',
+            method: 'Phone Call',
+            date: '2026-07-20',
+            notes: 'Checked on sample delivery status',
+            status: 'Completed',
+            completedBy: 'Admin',
+            completedDate: '20-Jul-2026 11:30'
+          },
+          {
+            id: 'FU-0003',
+            leadId: parsedLeads[2]?.id || 'LD-0003',
+            contactName: parsedLeads[2]?.name || 'mmmm',
+            type: 'Contract Discussion',
+            method: 'Email',
+            date: '2026-07-21',
+            notes: 'Sent updated rate list and scheme sheet',
+            status: 'Completed',
+            completedBy: 'Admin',
+            completedDate: '21-Jul-2026 14:15'
           }
-          if (f.status === 'Overdue' && f.date >= todayStr) {
-            needsSave = true;
-            return { ...f, status: 'Pending' as const };
-          }
-          return f;
-        });
+        ];
+        localStorage.setItem('crm_followups', JSON.stringify(parsedFollowUps));
+      }
 
-        setFollowUps(parsed);
-        if (needsSave) localStorage.setItem('crm_followups', JSON.stringify(parsed));
+      const todayStr = new Date().toISOString().split('T')[0];
+      let needsSave = false;
+
+      parsedFollowUps = parsedFollowUps.map(f => {
+        if ((!f.contactName || f.contactName === '—') && f.leadId) {
+          const matchLead = parsedLeads.find(l => l.id === f.leadId);
+          if (matchLead) {
+            f.contactName = matchLead.name;
+            needsSave = true;
+          }
+        }
+        if (f.status === 'Pending' && f.date < todayStr) {
+          needsSave = true;
+          return { ...f, status: 'Overdue' as const };
+        }
+        return f;
+      });
+
+      setFollowUps(parsedFollowUps);
+      if (needsSave) {
+        localStorage.setItem('crm_followups', JSON.stringify(parsedFollowUps));
       }
     } catch (error) {
-      console.error("Failed to load data:", error);
+      console.error("Failed to load follow-up data:", error);
     }
   };
 

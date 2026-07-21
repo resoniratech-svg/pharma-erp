@@ -13,15 +13,14 @@ const createDefaultPermissions = (roleId: string): PermissionsState => {
   const allowedModules = ROLE_PERMISSIONS[roleId] || [];
 
   const permissions: PermissionsState = {};
+  const isFullAccessRole = roleId === 'SUPER_ADMIN' || roleId === 'ACCOUNTANT' || roleId === 'ROLE_ACCOUNTANT';
 
   allowedModules.forEach((module) => {
     permissions[module] = {
       View: true,
-
-      // Super Admin gets all permissions
-      Create: roleId === 'SUPER_ADMIN',
-      Edit: roleId === 'SUPER_ADMIN',
-      Delete: roleId === 'SUPER_ADMIN',
+      Create: isFullAccessRole,
+      Edit: isFullAccessRole,
+      Delete: isFullAccessRole,
     };
   });
 
@@ -36,23 +35,24 @@ export const hasModulePermission = (
   try {
     let savedPermissions = localStorage.getItem(`permissions_${roleId}`);
 
-    // First login or cleared localStorage
     if (!savedPermissions) {
       const defaults = createDefaultPermissions(roleId);
-
       localStorage.setItem(
         `permissions_${roleId}`,
         JSON.stringify(defaults),
       );
-
       savedPermissions = JSON.stringify(defaults);
     }
 
-    const permissions: PermissionsState = JSON.parse(savedPermissions);
+    const parsed: PermissionsState = JSON.parse(savedPermissions);
 
-    return permissions?.[module]?.[action] ?? false;
-  } catch (error) {
-    console.error('Permission check failed:', error);
-    return false;
+    // Dynamic fallback for Accountant and Super Admin
+    if (roleId === 'SUPER_ADMIN' || roleId === 'ACCOUNTANT' || roleId === 'ROLE_ACCOUNTANT') {
+      return true;
+    }
+
+    return parsed[module]?.[action] ?? false;
+  } catch {
+    return true;
   }
 };

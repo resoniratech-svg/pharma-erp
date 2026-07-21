@@ -174,21 +174,6 @@ const NAV_ITEMS: NavItem[] = [
     ],
   },
   {
-    label: 'Wholesale Billing System',
-    icon: Receipt,
-    subItems: [
-      { label: 'GST Billing', path: '/workspace/billing/gst' },
-      { label: 'E-Invoice Support', path: '/workspace/billing/einvoice' },
-      { label: 'E-Way Bill Support', path: '/workspace/billing/ewaybill' },
-      { label: 'Barcode Billing', path: '/workspace/billing/pos' },
-      { label: 'Credit Note', path: '/workspace/billing/credit-notes' },
-      { label: 'Sales Return', path: '/workspace/billing/sales-returns' },
-      { label: 'Expiry Return', path: '/workspace/billing/expiry-returns' },
-      { label: 'Multi Rate Billing', path: '/workspace/billing/multi-rate-billing' },
-    ],
-  },
-
-  {
     label: 'Pre-Sales CRM',
     icon: HeartHandshake,
     subItems: [
@@ -217,6 +202,19 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Balance Sheet', path: '/workspace/finance/balance-sheet' },
       { label: 'GST Reports', path: '/workspace/finance/gst-reports' },
       { label: 'Bank Reconciliation', path: '/workspace/finance/bank-reco' },
+    ],
+  },
+  {
+    label: 'Wholesale Billing System',
+    icon: Receipt,
+    subItems: [
+      { label: 'GST Billing', path: '/workspace/billing/gst' },
+      { label: 'E-Invoice Support', path: '/workspace/billing/einvoice' },
+      { label: 'Barcode Billing', path: '/workspace/billing/pos' },
+      { label: 'Credit Note', path: '/workspace/billing/credit-notes' },
+      { label: 'Sales Return', path: '/workspace/billing/sales-returns' },
+      { label: 'Expiry Return', path: '/workspace/billing/expiry-returns' },
+      { label: 'Multi Rate Billing', path: '/workspace/billing/multi-rate-billing' },
     ],
   },
   {
@@ -424,6 +422,10 @@ export function MainLayout() {
   {/* Sidebar Nav */}
         <nav className="flex-1 overflow-y-auto no-scrollbar px-4 py-6 space-y-1">
           {filteredNavItems.sort((a, b) => {
+            if (activeRole === ROLE_ACCOUNTANT) {
+              const order = ['Dashboard', 'Wholesale Billing System', 'Accounting & Finance', 'Alerts & Notifications', 'Settings'];
+              return order.indexOf(a.label) - order.indexOf(b.label);
+            }
             if (activeRole === ROLE_DISTRIBUTOR) {
               const order = ['Dashboard', 'Distributor/Stockist Portal',  'Orders', 'Alerts & Notifications', 'Settings'];
               return order.indexOf(a.label) - order.indexOf(b.label);
@@ -439,7 +441,70 @@ export function MainLayout() {
             return 0;
           }).map((rawItem) => {
             const item = { ...rawItem };
-            if ((activeRole === ROLE_WAREHOUSE_MANAGER || activeRole === ROLE_ACCOUNTANT || activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER || activeRole === ROLE_MEDICAL_REPRESENTATIVE || activeRole === ROLE_TRANSPORT_STAFF) && item.label === 'Settings') {
+            if (activeRole === ROLE_ACCOUNTANT) {
+              if (item.label === 'Wholesale Billing System') {
+                const billingOrder = [
+                  'GST Billing',
+                  'Barcode Billing',
+                  'E-Invoice Support',
+                  'Multi Rate Billing',
+                  'Sales Return',
+                  'Expiry Return',
+                  'Credit Note',
+                ];
+                item.subItems = (item.subItems || [])
+                  .filter(sub => billingOrder.includes(sub.label))
+                  .sort((a, b) => billingOrder.indexOf(a.label) - billingOrder.indexOf(b.label));
+              }
+
+              if (item.label === 'Accounting & Finance') {
+                const financeOrder = [
+                  'Party Ledger',
+                  'Payment Tracking',
+                  'Outstanding Tracking',
+                  'Outstanding Aging',
+                  'Profit & Loss',
+                  'Balance Sheet',
+                  'GST Reports',
+                  'Commission System',
+                  'Bank Reconciliation',
+                ];
+                item.subItems = (item.subItems || [])
+                  .filter(sub => financeOrder.includes(sub.label))
+                  .sort((a, b) => financeOrder.indexOf(a.label) - financeOrder.indexOf(b.label));
+              }
+
+              if (item.label === 'Alerts & Notifications') {
+                const notifOrderMap: Record<string, string> = {
+                  'Payment Reminders': 'Payment Reminders',
+                  'Expiry Alerts': 'Expiry Alerts',
+                  'Dispatch Alerts': 'Dispatch Alerts',
+                  'Auto Reorder Alerts': 'Auto Reorder Alerts',
+                  'Activity Notifications': 'System Notifications',
+                  'System Notifications': 'System Notifications',
+                };
+                const notifOrder = [
+                  'Payment Reminders',
+                  'Expiry Alerts',
+                  'Dispatch Alerts',
+                  'Auto Reorder Alerts',
+                  'System Notifications',
+                ];
+                item.subItems = (item.subItems || [])
+                  .map(sub => ({
+                    ...sub,
+                    label: notifOrderMap[sub.label] || sub.label,
+                  }))
+                  .filter(sub => notifOrder.includes(sub.label))
+                  .sort((a, b) => notifOrder.indexOf(a.label) - notifOrder.indexOf(b.label));
+              }
+
+              if (item.label === 'Settings') {
+                item.subItems = (item.subItems || []).filter(sub => sub.label === 'Profile Settings');
+              }
+            }
+
+            if ((activeRole === ROLE_WAREHOUSE_MANAGER || activeRole === ROLE_DISTRIBUTOR || activeRole === ROLE_RETAILER || activeRole === ROLE_MEDICAL_REPRESENTATIVE || activeRole === ROLE_TRANSPORT_STAFF) && item.label === 'Settings') {
               item.subItems = item.subItems?.filter(sub => sub.label === 'Profile Settings');
             }
             if (item.label === 'Distributor/Stockist Portal') {

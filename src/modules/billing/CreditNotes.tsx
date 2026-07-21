@@ -9,6 +9,8 @@ import { jsPDF } from 'jspdf';
 import { applyCreditNoteTemplate } from '../../documents/templates/CreditNoteTemplate';
 import { creditNoteService, type CreditNoteData, type CNStatus } from '../../services/creditNoteService';
 
+import { billingService } from '../../services/billingService';
+
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function CreditNotes() {
@@ -61,8 +63,45 @@ export default function CreditNotes() {
   useEffect(() => {
     const loadFormOptions = async () => {
       try {
-        const res = await creditNoteService.getInvoices();
-        setInvoices(res);
+        const backendInvoices = await creditNoteService.getInvoices();
+        const gstInvoices = billingService.getInvoices();
+
+        const combined: any[] = [];
+        const seenNumbers = new Set<string>();
+
+        gstInvoices.forEach(inv => {
+          const invNo = inv.invoiceNo || inv.invoiceNumber;
+          if (invNo && !seenNumbers.has(invNo)) {
+            seenNumbers.add(invNo);
+            combined.push({
+              id: inv.id || invNo,
+              invoiceNumber: invNo,
+              customerName: inv.customerName,
+              customerType: inv.customerId === 'B2C' ? 'Walk-in / Cash' : 'Distributor / Retailer',
+              invoiceDate: inv.date,
+              gstin: inv.gstin || 'N/A',
+              items: inv.items || []
+            });
+          }
+        });
+
+        backendInvoices.forEach(inv => {
+          const invNo = inv.invoiceNumber || inv.invoiceNo;
+          if (invNo && !seenNumbers.has(invNo)) {
+            seenNumbers.add(invNo);
+            combined.push({
+              id: String(inv.id),
+              invoiceNumber: invNo,
+              customerName: inv.retailer ? inv.retailer.name : (inv.customerName || 'Walk-in Customer'),
+              customerType: inv.retailer ? 'Retailer' : 'Customer',
+              invoiceDate: inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+              gstin: inv.retailer ? inv.retailer.gstNumber : 'N/A',
+              items: inv.invoiceItems || []
+            });
+          }
+        });
+
+        setInvoices(combined);
       } catch (err) {
         console.error("Failed to fetch invoices:", err);
       }
@@ -85,9 +124,9 @@ export default function CreditNotes() {
     });
   };
 
-  const handleInvoiceChange = async (invoiceIdStr: string) => {
-    setFormInvoiceNo(invoiceIdStr);
-    if (!invoiceIdStr) {
+  const handleInvoiceChange = async (selectedVal: string) => {
+    setFormInvoiceNo(selectedVal);
+    if (!selectedVal) {
       setFormProducts([]);
       setFormClientInfo({
         customerName: '',
@@ -99,34 +138,35 @@ export default function CreditNotes() {
       return;
     }
 
-    const invoiceId = parseInt(invoiceIdStr, 10);
-    try {
-      const details = await creditNoteService.getInvoiceById(invoiceId);
-      if (details) {
-        setFormClientInfo({
-          customerName: details.retailer ? details.retailer.name : 'N/A',
-          customerType: details.retailer ? 'Retailer' : 'N/A',
-          gstin: details.retailer ? details.retailer.gstNumber : 'N/A',
-          invoiceDate: new Date(details.invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
-          retailerId: details.retailerId || null
-        });
+    const selectedInv = invoices.find(i => String(i.id) === String(selectedVal) || i.invoiceNumber === selectedVal);
+    if (selectedInv) {
+      const formattedDate = selectedInv.invoiceDate 
+        ? new Date(selectedInv.invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
+        : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
 
-        if (details.invoiceItems && details.invoiceItems.length > 0) {
-          setFormProducts(details.invoiceItems.map((ii: any) => ({
-            id: String(ii.id),
-            productId: ii.productId,
-            name: ii.product ? ii.product.name : 'Unknown Product',
-            batchId: ii.productId, // Fallback to productId since relation schema allows direct reference
-            batch: ii.product && ii.product.batches && ii.product.batches[0] ? ii.product.batches[0].batchNumber : 'Default-Batch',
-            soldQty: ii.quantity,
-            returnQty: 0,
-            unitRate: ii.rate,
-            gstPct: ii.gst
-          })));
-        }
+      setFormClientInfo({
+        customerName: selectedInv.customerName || 'Walk-in Customer',
+        customerType: selectedInv.customerType || 'Customer',
+        gstin: selectedInv.gstin || 'N/A',
+        invoiceDate: formattedDate,
+        retailerId: selectedInv.retailerId || null
+      });
+
+      if (selectedInv.items && selectedInv.items.length > 0) {
+        setFormProducts(selectedInv.items.map((ii: any, idx: number) => ({
+          id: String(ii.id || idx + 1),
+          productId: ii.productId,
+          name: ii.productName || (ii.product ? ii.product.name : 'Product Item'),
+          batchId: ii.batchNo || (ii.batch ? ii.batch.batchNumber : 'DEFAULT'),
+          batch: ii.batchNo || (ii.batch ? ii.batch.batchNumber : 'DEFAULT'),
+          soldQty: ii.qty || ii.quantity || 1,
+          returnQty: 0,
+          unitRate: ii.ptr || ii.rate || 0,
+          gstPct: ii.gstPercent || ii.gst || 12
+        })));
+      } else {
+        setFormProducts([]);
       }
-    } catch (err) {
-      console.error("Failed to load invoice details:", err);
     }
   };
 
@@ -237,9 +277,12 @@ export default function CreditNotes() {
     const itemsPayload = formProducts
       .filter(p => p.returnQty > 0)
       .map(p => ({
-        productId: p.productId,
-        batchId: p.batchId || 1,
+        productId: Number(p.productId) || 1,
+        batchId: 1,
         quantity: p.returnQty,
+        unitRate: p.unitRate,
+        gstPercent: p.gstPct,
+        name: p.name,
         disposition: formCnType === 'Expiry Return' ? 'EXPIRED_DUMP' : (formCnType === 'Damaged Goods' ? 'DESTRUCTION' : 'SALABLE')
       }));
 
@@ -248,12 +291,17 @@ export default function CreditNotes() {
       return;
     }
 
-    const payload = {
+    const payload: any = {
       cnType: formCnType,
       reason: formReason,
       remarks: formRemarks,
       retailerId: formClientInfo.retailerId ? Number(formClientInfo.retailerId) : undefined,
-      againstInvoiceId: formInvoiceNo ? Number(formInvoiceNo) : undefined,
+      againstInvoiceId: formInvoiceNo || undefined,
+      againstInvoiceNo: formClientInfo.againstInvoiceNo || formInvoiceNo || undefined,
+      customerName: formClientInfo.customerName || undefined,
+      taxableAmount: calcValues.taxable,
+      gstAmount: calcValues.totalGst,
+      totalAmount: calcValues.net,
       items: itemsPayload
     };
 

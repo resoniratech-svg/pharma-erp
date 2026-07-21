@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient';
+
 export interface DistributorMasterRecord {
   id: string;
   code: string;
@@ -13,101 +15,106 @@ export interface DistributorMasterRecord {
 const STORAGE_KEY = 'pharma_erp_distributor_master';
 
 export const distributorMasterService = {
-  getAll: (): DistributorMasterRecord[] => {
+  getAll(): DistributorMasterRecord[] {
     const data = localStorage.getItem(STORAGE_KEY);
-    let records: DistributorMasterRecord[] = data ? JSON.parse(data) : [];
-    
-    // Auto-seed default mock distributor (DIST-001) if not present
-    const hasDefault = records.some(r => r.code === 'DIST-001');
-    if (!hasDefault) {
-      const defaultDistributor: DistributorMasterRecord = {
-        id: 'dist-001-default',
-        code: 'DIST-001',
-        name: 'Metro Pharma Distributors',
-        contactPerson: 'Rahul Sharma',
-        mobileNumber: '9876543210',
-        emailAddress: 'metro@pharmaerp.com',
-        status: 'Active',
-        createdDate: '2023-01-01'
-      };
-      records = [defaultDistributor, ...records];
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    }
-    
-    return records;
-  },
-  
-  getById: (id: string): DistributorMasterRecord | undefined => {
-    return distributorMasterService.getAll().find(d => d.id === id);
+    return data ? JSON.parse(data) : [];
   },
 
-  generateCode: (): string => {
-    const records = distributorMasterService.getAll();
-    if (records.length === 0) return 'DSP000001';
+  async fetchFromApi(): Promise<DistributorMasterRecord[]> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/distributors');
+      if (response && response.success && Array.isArray(response.data)) {
+        const mapped: DistributorMasterRecord[] = response.data.map(d => ({
+          id: String(d.id),
+          code: d.code || `DIST-${String(d.id).padStart(3, '0')}`,
+          name: d.name,
+          contactPerson: d.contactPerson || d.name,
+          mobileNumber: d.mobile || d.mobileNumber || '-',
+          emailAddress: d.email || '',
+          status: d.status === 'Inactive' ? 'Inactive' : 'Active',
+          createdDate: d.createdAt ? new Date(d.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+        }));
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Failed to fetch distributors from API, using fallback:", err);
+    }
+    return this.getAll();
+  },
+
+  getById(id: string): DistributorMasterRecord | undefined {
+    return this.getAll().find(d => d.id === id);
+  },
+
+  generateCode(): string {
+    const records = this.getAll();
+    if (records.length === 0) return 'DIST-001';
     
     let maxNumber = 0;
     for (const r of records) {
-      if (r.code && r.code.startsWith('DSP')) {
-        const num = parseInt(r.code.substring(3));
+      if (r.code && (r.code.startsWith('DIST-') || r.code.startsWith('DSP'))) {
+        const numStr = r.code.replace('DIST-', '').replace('DSP', '');
+        const num = parseInt(numStr, 10);
         if (!isNaN(num) && num > maxNumber) {
           maxNumber = num;
         }
       }
     }
-    return `DSP${String(maxNumber + 1).padStart(6, '0')}`;
+    return `DIST-${String(maxNumber + 1).padStart(3, '0')}`;
   },
 
-  create: (record: Omit<DistributorMasterRecord, 'id' | 'code' | 'createdDate'>, password?: string): DistributorMasterRecord => {
-    const records = distributorMasterService.getAll();
-    
+  create(record: Omit<DistributorMasterRecord, 'id' | 'code' | 'createdDate'>, password?: string): DistributorMasterRecord {
+    const records = this.getAll();
+    const generatedCode = this.generateCode();
+
     const newRecord: DistributorMasterRecord = {
       ...record,
       id: Date.now().toString(),
-      code: distributorMasterService.generateCode(),
+      code: generatedCode,
       createdDate: new Date().toISOString().split('T')[0]
     };
     
     records.unshift(newRecord);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    
-    // Add to auth users
-    const authUsers = JSON.parse(localStorage.getItem('pharma_erp_users') || '[]');
-    const newAuthUser = {
-      id: newRecord.id,
-      fullName: newRecord.name,
-      username: newRecord.code,
-      password: password || '123456',
-      role: 'Distributor',
-      status: newRecord.status,
-      contactNo: newRecord.mobileNumber,
-      email: newRecord.emailAddress || '',
-      distributorCode: newRecord.code
-    };
-    authUsers.push(newAuthUser);
-    localStorage.setItem('pharma_erp_users', JSON.stringify(authUsers));
-    
+
+    // Asynchronously send to PostgreSQL database via API
+    apiRequest('/distributors', {
+      method: 'POST',
+      bodyData: {
+        code: generatedCode,
+        name: record.name,
+        contactPerson: record.contactPerson,
+        mobileNumber: record.mobileNumber,
+        emailAddress: record.emailAddress,
+        status: record.status
+      }
+    }).catch(err => {
+      console.warn("Backend API sync warning for distributor:", newRecord.name, err.message);
+    });
+
     return newRecord;
   },
 
-  update: (id: string, updates: Partial<DistributorMasterRecord>): void => {
-    const records = distributorMasterService.getAll();
+  update(id: string, updates: Partial<DistributorMasterRecord>): void {
+    const records = this.getAll();
     const index = records.findIndex(r => r.id === id);
     if (index !== -1) {
       records[index] = { ...records[index], ...updates };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-      
-      // Update auth user
-      const authUsers = JSON.parse(localStorage.getItem('pharma_erp_users') || '[]');
-      const authIndex = authUsers.findIndex((u: any) => u.id === id);
-      if (authIndex !== -1) {
-        if (updates.name) authUsers[authIndex].fullName = updates.name;
-        if (updates.status) authUsers[authIndex].status = updates.status;
-        localStorage.setItem('pharma_erp_users', JSON.stringify(authUsers));
+
+      const numId = parseInt(id, 10);
+      if (!isNaN(numId)) {
+        apiRequest(`/distributors/${numId}`, {
+          method: 'PUT',
+          bodyData: updates
+        }).catch(err => console.warn("Backend API sync warning:", err.message));
       }
     }
   },
 
-  updateStatus: (id: string, status: 'Active' | 'Inactive'): void => {
-    distributorMasterService.update(id, { status });
+  updateStatus(id: string, status: 'Active' | 'Inactive'): void {
+    this.update(id, { status });
   }
 };

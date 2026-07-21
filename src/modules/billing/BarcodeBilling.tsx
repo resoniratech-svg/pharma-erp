@@ -185,26 +185,55 @@ export default function BarcodeBilling() {
     }
   };
 
-  const getProductBatches = (productCode: string) => {
-    const inventory = inventoryService.getAll();
+  const getProductBatches = (productCode: string, productName?: string, productId?: string) => {
     const batches = batchService.getAll();
+    const inventory = inventoryService.getAll();
     
-    const productInventory = inventory.filter(inv => inv.productCode === productCode && inv.availableQty > 0);
-    
-    return productInventory.map(inv => {
-      const batchDetail = batches.find(b => b.batchNo === inv.batchNo);
-      return {
-        batchNo: inv.batchNo,
-        availableQty: inv.availableQty,
-        ptr: inv.ptr || (batchDetail ? batchDetail.ptr : 0),
-        mrp: batchDetail ? batchDetail.mrp : 0,
-        expDate: batchDetail ? batchDetail.expDate : '12/2026',
-        status: batchDetail ? batchDetail.status : 'Healthy',
-        warehouseId: inv.warehouseId,
-        warehouseName: inv.warehouseName
-      };
-    }).filter(b => {
-      if (b.status !== 'Healthy') return false; // Prevent Quarantine, Expired, Blocked, Damaged
+    // Filter batches matching product code, id, or name with available stock
+    const matchingBatches = batches.filter(b => {
+      const isMatch = (b.productCode && b.productCode.toLowerCase() === productCode.toLowerCase()) ||
+                      (productId && String(b.productId) === String(productId)) ||
+                      (productName && b.productName && b.productName.toLowerCase() === productName.toLowerCase());
+      const hasStock = Number(b.availableQty) > 0;
+      return isMatch && hasStock;
+    });
+
+    let finalBatches = matchingBatches.map(b => ({
+      batchNo: b.batchNo,
+      availableQty: Number(b.availableQty),
+      ptr: Number(b.ptr) || 0,
+      mrp: Number(b.mrp) || Number(b.ptr) * 1.2,
+      expDate: b.expDate || '12/2028',
+      status: b.status || 'Active',
+      warehouseId: 'WH-001',
+      warehouseName: 'Main Warehouse'
+    }));
+
+    if (finalBatches.length === 0) {
+      const invMatches = inventory.filter(inv => 
+        (inv.productCode && inv.productCode.toLowerCase() === productCode.toLowerCase()) && 
+        inv.availableQty > 0
+      );
+      finalBatches = invMatches.map(inv => {
+        const batchDetail = batches.find(b => b.batchNo === inv.batchNo);
+        return {
+          batchNo: inv.batchNo,
+          availableQty: inv.availableQty,
+          ptr: inv.ptr || (batchDetail ? Number(batchDetail.ptr) : 0),
+          mrp: batchDetail ? Number(batchDetail.mrp) : (inv.ptr ? inv.ptr * 1.2 : 0),
+          expDate: batchDetail ? batchDetail.expDate : '12/2028',
+          status: batchDetail ? batchDetail.status : 'Active',
+          warehouseId: inv.warehouseId || 'WH-001',
+          warehouseName: inv.warehouseName || 'Main Warehouse'
+        };
+      });
+    }
+
+    return finalBatches.filter(b => {
+      // Exclude Quarantined, Damaged, Blocked, or Expired batches
+      if (b.status === 'Quarantine' || b.status === 'Damaged' || b.status === 'Blocked' || b.status === 'Expired') {
+        return false;
+      }
       if (!b.expDate) return true;
       const parts = b.expDate.split('/');
       if (parts.length === 2) {
@@ -335,35 +364,59 @@ export default function BarcodeBilling() {
     
     let resolvedProductCode = '';
     let barcodeString = '';
+    let resolvedProduct: any = null;
     
     if (matchedBarcode) {
       resolvedProductCode = matchedBarcode.productCode;
       barcodeString = matchedBarcode.barcode;
     } else {
       const productsList = productService.getProducts();
-      const matchedProduct = productsList.find((p: any) => 
+      resolvedProduct = productsList.find((p: any) => 
         p.code.toLowerCase() === query || 
-        p.name.toLowerCase().includes(query)
+        p.name.toLowerCase().includes(query) ||
+        (p.barcode && p.barcode.toLowerCase() === query)
       );
-      if (matchedProduct) {
-        resolvedProductCode = matchedProduct.code;
-        barcodeString = matchedProduct.barcode || '';
+      if (resolvedProduct) {
+        resolvedProductCode = resolvedProduct.code;
+        barcodeString = resolvedProduct.barcode || '';
+      } else {
+        // Direct Batch Lookup
+        const allBatches = batchService.getAll();
+        const matchedBatch = allBatches.find(b => 
+          (b.productName && b.productName.toLowerCase().includes(query)) ||
+          (b.productCode && b.productCode.toLowerCase() === query) ||
+          (b.barcode && b.barcode.toLowerCase() === query) ||
+          (b.batchNo && b.batchNo.toLowerCase() === query)
+        );
+        if (matchedBatch) {
+          resolvedProductCode = matchedBatch.productCode || matchedBatch.productId;
+          barcodeString = matchedBatch.barcode || '';
+          resolvedProduct = {
+            id: matchedBatch.productId || `prd-${matchedBatch.productCode}`,
+            code: matchedBatch.productCode || matchedBatch.productId,
+            name: matchedBatch.productName || query,
+            ptr: matchedBatch.ptr,
+            mrp: matchedBatch.mrp,
+            gst: 12,
+            status: 'Active'
+          };
+        }
       }
     }
     
-    if (!resolvedProductCode) {
+    if (!resolvedProductCode && !resolvedProduct) {
       alert('Product not found! Please check barcode or name.');
       return;
     }
 
     const productsList = productService.getProducts();
-    const product = productsList.find((p: any) => p.code === resolvedProductCode);
-    if (!product || product.status !== 'Active') {
-      alert('Product is not active or does not exist in master catalog.');
+    const product = resolvedProduct || productsList.find((p: any) => p.code === resolvedProductCode);
+    if (!product) {
+      alert('Product does not exist in catalog.');
       return;
     }
 
-    const availableBatches = getProductBatches(resolvedProductCode);
+    const availableBatches = getProductBatches(resolvedProductCode || product.code, product.name, product.id);
     if (availableBatches.length === 0) {
       alert('Product is completely out of stock, expired, or quarantine locked!');
       return;
@@ -371,7 +424,7 @@ export default function BarcodeBilling() {
 
     // FEFO: Select first available batch
     const chosenBatch = availableBatches[0];
-    const existing = cart.find(item => item.productCode === resolvedProductCode && item.batch === chosenBatch.batchNo);
+    const existing = cart.find(item => item.productCode === (product.code || resolvedProductCode) && item.batch === chosenBatch.batchNo);
     
     if (existing) {
       if (existing.qty + 1 > chosenBatch.availableQty) {
@@ -379,18 +432,18 @@ export default function BarcodeBilling() {
         return;
       }
       const newQty = existing.qty + 1;
-      const promo = applyEligibleScheme(resolvedProductCode, newQty, existing.rate);
+      const promo = applyEligibleScheme(product.code, newQty, existing.rate);
       setCart(cart.map(item => item.id === existing.id 
         ? { ...item, qty: newQty, discountPct: promo.discountPercent, freeQty: promo.freeQty } 
         : item
       ));
     } else {
       const rate = chosenBatch.ptr || parseFloat(product.ptr) || 0;
-      const promo = applyEligibleScheme(resolvedProductCode, 1, rate);
+      const promo = applyEligibleScheme(product.code, 1, rate);
       setCart([...cart, {
         id: Math.random().toString(),
         productId: product.id,
-        productCode: product.code,
+        productCode: product.code || resolvedProductCode,
         barcode: barcodeString || product.barcode || '',
         name: product.name,
         batch: chosenBatch.batchNo,
