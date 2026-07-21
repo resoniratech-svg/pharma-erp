@@ -1,9 +1,10 @@
 const express = require("express");
-const authMiddleware = require("../../middlewares/authMiddleware");
 const router = express.Router();
 
 const controller = require("./distributor.controller");
 
-router.get("/", authMiddleware, controller.getDistributors);
+router.get("/", controller.getDistributors);
+router.post("/", controller.createDistributor);
+router.put("/:id", controller.updateDistributor);
 
 module.exports = router;

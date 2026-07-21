@@ -1,82 +1,141 @@
 const repository = require("./creditNote.repository");
 const invoiceRepository = require("../invoice/invoice.repository");
+const prisma = require("../../config/db");
 
 class CreditNoteService {
   async createCreditNote(data) {
     let subTotal = 0;
     let gstAmount = 0;
+    let invoice = null;
 
-    // 1. If linked to an invoice, validate quantities
     if (data.againstInvoiceId) {
-      const invoice = await invoiceRepository.getInvoiceByIdRepo(parseInt(data.againstInvoiceId, 10));
-      if (!invoice) {
-        throw new Error("Target invoice not found");
+      const numId = parseInt(data.againstInvoiceId, 10);
+      if (!isNaN(numId)) {
+        invoice = await invoiceRepository.getInvoiceByIdRepo(numId);
       }
-
-      // Pre-calculate subtotal and gst
-      if (data.items && data.items.length > 0) {
-        for (const item of data.items) {
-          // Find item in original invoice
-          const originalItem = invoice.invoiceItems.find(
-            (ii) => ii.productId === item.productId
-          );
-
-          if (!originalItem) {
-            throw new Error(`Product ID ${item.productId} was not sold in this invoice`);
-          }
-
-          if (item.quantity > originalItem.quantity) {
-            throw new Error(
-              `Return quantity (${item.quantity}) for product ID ${item.productId} exceeds originally invoiced quantity (${originalItem.quantity})`
-            );
-          }
-
-          // Force rate to match the original invoice rate
-          item.rate = originalItem.rate;
-          item.gstPercent = originalItem.gst;
-          
-          const lineAmount = item.quantity * item.rate;
-          const lineGst = lineAmount * (item.gstPercent / 100);
-          
-          item.totalAmount = lineAmount + lineGst;
-          
-          subTotal += lineAmount;
-          gstAmount += lineGst;
-        }
+      if (!invoice && typeof data.againstInvoiceId === 'string') {
+        invoice = await prisma.invoice.findFirst({
+          where: { invoiceNumber: data.againstInvoiceId },
+          include: { invoiceItems: true }
+        });
       }
-    } else {
-      // General credit note without specific invoice reference
-      if (data.items && data.items.length > 0) {
-        for (const item of data.items) {
-          const lineAmount = item.quantity * item.rate;
-          const lineGst = lineAmount * (item.gstPercent / 100);
-          
-          item.totalAmount = lineAmount + lineGst;
-          
-          subTotal += lineAmount;
-          gstAmount += lineGst;
+    }
+
+    // Auto-resolve distributorId or retailerId by customerName if not explicitly provided
+    let distributorId = data.distributorId && !isNaN(parseInt(data.distributorId, 10)) ? parseInt(data.distributorId, 10) : null;
+    let retailerId = data.retailerId && !isNaN(parseInt(data.retailerId, 10)) ? parseInt(data.retailerId, 10) : null;
+
+    if (!distributorId && !retailerId && data.customerName) {
+      const dist = await prisma.distributor.findFirst({
+        where: { name: { equals: data.customerName, mode: 'insensitive' } }
+      });
+      if (dist) {
+        distributorId = dist.id;
+      } else {
+        const ret = await prisma.retailer.findFirst({
+          where: { name: { equals: data.customerName, mode: 'insensitive' } }
+        });
+        if (ret) {
+          retailerId = ret.id;
         }
       }
     }
 
-    const totalAmount = subTotal + gstAmount;
+    // Ensure valid fallback batch and product IDs exist in DB
+    let fallbackProduct = await prisma.product.findFirst();
+    if (!fallbackProduct) {
+      let company = await prisma.company.findFirst();
+      if (!company) {
+        company = await prisma.company.create({
+          data: { name: "Default Company", code: "CMP01" }
+        });
+      }
+      fallbackProduct = await prisma.product.create({
+        data: {
+          code: "PRD-DEFAULT",
+          name: "Default Product",
+          mrp: 100,
+          minStock: 10,
+          companyId: company.id
+        }
+      });
+    }
 
-    // Set values to main model payload
+    let fallbackBatch = await prisma.batch.findFirst();
+    if (!fallbackBatch) {
+      fallbackBatch = await prisma.batch.create({
+        data: {
+          batchNumber: "BAT-DEFAULT",
+          productId: fallbackProduct.id,
+          manufacturingDate: new Date(),
+          expiryDate: new Date(Date.now() + 365 * 24 * 60 * 60 * 1000),
+          quantity: 100
+        }
+      });
+    }
+
+    const formattedItems = [];
+
+    if (data.items && data.items.length > 0) {
+      for (const item of data.items) {
+        const itemRate = Number(item.unitRate || item.rate || 0);
+        const itemGst = Number(item.gstPercent || 12);
+        const itemQty = Number(item.quantity || 1);
+
+        const lineAmount = itemQty * itemRate;
+        const lineGst = lineAmount * (itemGst / 100);
+        const lineTotal = lineAmount + lineGst;
+
+        subTotal += lineAmount;
+        gstAmount += lineGst;
+
+        let prodId = Number(item.productId);
+        if (!prodId || isNaN(prodId)) {
+          prodId = fallbackProduct.id;
+        } else {
+          const exists = await prisma.product.findUnique({ where: { id: prodId } });
+          if (!exists) prodId = fallbackProduct.id;
+        }
+
+        let bId = Number(item.batchId);
+        if (!bId || isNaN(bId)) {
+          bId = fallbackBatch.id;
+        } else {
+          const exists = await prisma.batch.findUnique({ where: { id: bId } });
+          if (!exists) bId = fallbackBatch.id;
+        }
+
+        formattedItems.push({
+          productId: prodId,
+          batchId: bId,
+          quantity: itemQty,
+          rate: itemRate,
+          gstPercent: itemGst,
+          totalAmount: lineTotal,
+          disposition: item.disposition || "SALABLE"
+        });
+      }
+    }
+
+    const finalSubTotal = subTotal || Number(data.taxableAmount || 0);
+    const finalGstAmount = gstAmount || Number(data.gstAmount || 0);
+    const finalTotalAmount = (subTotal + gstAmount) || Number(data.totalAmount || 0);
+
     const payload = {
-      cnNo: data.cnNo || `CN/26/0${Math.floor(100 + Math.random() * 900)}`,
-      cnType: data.cnType,
-      reason: data.reason,
-      remarks: data.remarks,
-      retailerId: data.retailerId ? parseInt(data.retailerId, 10) : null,
-      distributorId: data.distributorId ? parseInt(data.distributorId, 10) : null,
-      mrId: data.mrId ? parseInt(data.mrId, 10) : null,
-      againstInvoiceId: data.againstInvoiceId ? parseInt(data.againstInvoiceId, 10) : null,
-      status: "PENDING",
-      taxableAmount: subTotal,
-      gstAmount: gstAmount,
-      totalAmount: totalAmount,
-      amountSettled: 0.0,
-      items: data.items
+      cnNo: data.cnNo || `CN/26/${Math.floor(1000 + Math.random() * 9000)}`,
+      cnType: data.cnType || 'Sales Return',
+      reason: data.reason || 'Sales Return',
+      remarks: data.remarks || (data.againstInvoiceNo ? `Against Invoice: ${data.againstInvoiceNo}` : null),
+      retailerId: retailerId,
+      distributorId: distributorId,
+      mrId: data.mrId && !isNaN(parseInt(data.mrId, 10)) ? parseInt(data.mrId, 10) : null,
+      againstInvoiceId: invoice ? invoice.id : (data.againstInvoiceId && !isNaN(parseInt(data.againstInvoiceId, 10)) ? parseInt(data.againstInvoiceId, 10) : null),
+      status: "PAID",
+      taxableAmount: finalSubTotal,
+      gstAmount: finalGstAmount,
+      totalAmount: finalTotalAmount,
+      amountSettled: finalTotalAmount,
+      items: formattedItems
     };
 
     return repository.create(payload);

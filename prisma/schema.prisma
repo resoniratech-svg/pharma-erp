@@ -543,6 +543,22 @@ model Invoice {
 
   status String @default("PENDING")
 
+  irnStatus          String    @default("PENDING")
+  irnNumber          String?
+  irnGeneratedOn     DateTime?
+  ackNo              String?
+  ackDate            DateTime?
+
+  signedQrCode       String?
+  jsonPayload        Json?
+
+  nicStatus          String?   @default("PENDING")
+  nicErrorCode       String?
+  nicErrorDesc       String?
+
+  cancellationReason String?
+  cancelledAt        DateTime?
+
   invoiceItems InvoiceItem[]
 
   paymentCollections PaymentCollection[]
@@ -1174,10 +1190,15 @@ model Notification {
 }
 
 model Distributor {
-  id     Int    @id @default(autoincrement())
-  name   String
-  mobile String
-  creditNotes CreditNote[]
+  id            Int          @id @default(autoincrement())
+  code          String?      @unique
+  name          String
+  contactPerson String?
+  mobile        String?
+  email         String?
+  status        String       @default("Active")
+  createdAt     DateTime     @default(now())
+  creditNotes   CreditNote[]
 }
 
 model Hospital {

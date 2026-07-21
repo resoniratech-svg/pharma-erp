@@ -105,6 +105,8 @@ require("./modules/retailer/retailer.routes");
 const invoiceRoutes =
 require("./modules/invoice/invoice.routes");
 
+const eInvoiceRoutes = require("./modules/eInvoice/eInvoice.routes");
+
 const retailerOrderRoutes =
 require(
 "./modules/retailerOrder/retailerOrder.routes"
@@ -345,6 +347,11 @@ app.use(
 app.use(
   "/api/invoices",
   invoiceRoutes
+);
+
+app.use(
+  "/api/einvoices",
+  eInvoiceRoutes
 );
 
 app.use(
