@@ -117,15 +117,26 @@ class PermissionService {
   public getPermissionsForModule(roleId: string | null, moduleName: string): ModulePermissions {
     if (!moduleName) return { ...DEFAULT_MODULE_PERMISSIONS };
 
+    const activeRoleId = roleId || this.currentRoleId || localStorage.getItem('activeRole') || 'SUPER_ADMIN';
+
     let allPermissions: PermissionsState = {};
 
-    if (this.cachedPermissions && (!roleId || this.currentRoleId === roleId)) {
+    if (this.cachedPermissions && this.currentRoleId === activeRoleId) {
       allPermissions = this.cachedPermissions;
-    } else if (roleId) {
-      allPermissions = this.loadPermissionsByRoleId(roleId);
+    } else if (activeRoleId) {
+      allPermissions = this.loadPermissionsByRoleId(activeRoleId);
     }
 
-    return allPermissions[moduleName] || { ...DEFAULT_MODULE_PERMISSIONS };
+    if (allPermissions[moduleName]) {
+      return allPermissions[moduleName];
+    }
+
+    // Default fallback if no custom policy is saved
+    if (activeRoleId === 'SUPER_ADMIN' || activeRoleId === 'COMPANY_ADMIN') {
+      return { View: true, Create: true, Edit: true, Delete: true };
+    }
+
+    return { ...DEFAULT_MODULE_PERMISSIONS };
   }
 
   /**

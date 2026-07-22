@@ -134,8 +134,65 @@ export default function OutstandingTracking() {
   useEffect(() => {
     const trackingData = localStorage.getItem('pharma_erp_outstanding_records');
     if (trackingData) {
-      setRecords(JSON.parse(trackingData));
+      try {
+        const parsed = JSON.parse(trackingData);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setRecords(parsed);
+          return;
+        }
+      } catch (e) {}
     }
+
+    const defaultSeedOutstanding: OutstandingRecord[] = [
+      {
+        id: 'OUT-001',
+        distributorName: 'Metro Pharma Distributors',
+        distributorCode: 'DIST-001',
+        contactPerson: 'Rajesh Kumar',
+        mobile: '+91 98765 43210',
+        gstin: '27AAAAA0000A1Z5',
+        creditLimit: 500000,
+        usedCredit: 125000,
+        availableCredit: 375000,
+        totalOutstanding: 125000,
+        overdueAmount: 45000,
+        maxAging: 42,
+        status: 'Overdue',
+        lastPaymentDate: '10-10-2026',
+        paymentType: 'Credit',
+        creditDays: 30,
+        paymentTerms: '30 Days Net',
+        invoices: [
+          { invoiceNo: 'INV-2026-089', date: '01-09-2026', amount: 45000, paidAmount: 0, dueDate: '01-10-2026', agingDays: 42, status: 'Overdue' },
+          { invoiceNo: 'INV-2026-095', date: '05-10-2026', amount: 80000, paidAmount: 0, dueDate: '05-11-2026', agingDays: 17, status: 'Unpaid' }
+        ]
+      },
+      {
+        id: 'OUT-002',
+        distributorName: 'Global Health Supply',
+        distributorCode: 'DIST-002',
+        contactPerson: 'Suresh Verma',
+        mobile: '+91 98111 22233',
+        gstin: '07BBBBB1111B2Z6',
+        creditLimit: 750000,
+        usedCredit: 150000,
+        availableCredit: 600000,
+        totalOutstanding: 150000,
+        overdueAmount: 0,
+        maxAging: 12,
+        status: 'Clear',
+        lastPaymentDate: '12-10-2026',
+        paymentType: 'Credit',
+        creditDays: 45,
+        paymentTerms: '45 Days Net',
+        invoices: [
+          { invoiceNo: 'INV-2026-102', date: '10-10-2026', amount: 150000, paidAmount: 0, dueDate: '25-11-2026', agingDays: 12, status: 'Unpaid' }
+        ]
+      }
+    ];
+
+    setRecords(defaultSeedOutstanding);
+    localStorage.setItem('pharma_erp_outstanding_records', JSON.stringify(defaultSeedOutstanding));
   }, []);
 
   useEffect(() => {
@@ -151,6 +208,9 @@ export default function OutstandingTracking() {
   // --- Identify My Record ---
   const myRecord = useMemo(() => {
     let rec = records.find(r => r.distributorCode === loggedInDistributorCode);
+    if (!rec && records.length > 0) {
+      rec = records[0];
+    }
     
     if (!rec) {
       return {

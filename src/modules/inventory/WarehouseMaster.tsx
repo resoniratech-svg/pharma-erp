@@ -15,6 +15,7 @@ import {
 import { warehouseService } from '../../services/warehouseService';
 import authService from "../../services/authService";
 import activityLogService from "../../services/activityLogService";
+import { permissionService } from '../../services/permissionService';
 import * as XLSX from "xlsx";
 import { INDIAN_STATES } from '../../constants/indianStates';
 
@@ -333,28 +334,32 @@ export default function WarehouseMaster() {
           >
             View
           </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setNewWarehouse(row);
-              setIsEditingModal(true);
-              setShowFormModal(true);
-            }}
-            className="text-emerald-600 font-medium hover:text-emerald-800"
-            title="Edit"
-          >
-            Edit
-          </button>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setWarehouseToDelete(row);
-            }}
-            className="text-rose-600 font-medium hover:text-rose-800"
-            title="Delete"
-          >
-            <Trash2 className="w-4 h-4" />
-          </button>
+          {canEdit && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setNewWarehouse(row);
+                setIsEditingModal(true);
+                setShowFormModal(true);
+              }}
+              className="text-emerald-600 font-medium hover:text-emerald-800"
+              title="Edit"
+            >
+              Edit
+            </button>
+          )}
+          {canDelete && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setWarehouseToDelete(row);
+              }}
+              className="text-rose-600 font-medium hover:text-rose-800"
+              title="Delete"
+            >
+              <Trash2 className="w-4 h-4" />
+            </button>
+          )}
         </div>
       ),
     },
@@ -399,16 +404,23 @@ export default function WarehouseMaster() {
 
     XLSX.utils.book_append_sheet(workbook, worksheet, "Warehouse Master");
 
-    const fileName = `warehouse_master_${getFormattedDate()}.xlsx`;
+  const fileName = `warehouse_master_${getFormattedDate()}.xlsx`;
 
     XLSX.writeFile(workbook, fileName);
   };
 
+  const activeRole = localStorage.getItem('activeRole') || 'SUPER_ADMIN';
+  const canCreate = permissionService.canCreate(activeRole, 'Inventory & Warehouse Management');
+  const canEdit = permissionService.canEdit(activeRole, 'Inventory & Warehouse Management');
+  const canDelete = permissionService.canDelete(activeRole, 'Inventory & Warehouse Management');
+
   const openNewWarehouseModal = () => {
-    setNewWarehouse({
-      ...defaultNewWarehouse,
-      code: autoGenerateWarehouseCode(),
-    });
+    if (!canCreate) {
+      alert("Creation permission is disabled for Inventory & Warehouse Management in Roles & Permissions.");
+      return;
+    }
+    const autoCode = autoGenerateWarehouseCode();
+    setNewWarehouse({ ...defaultNewWarehouse, code: autoCode });
     setIsEditingModal(false);
     setShowFormModal(true);
   };

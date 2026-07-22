@@ -230,6 +230,59 @@ export default function Ledgers() {
           });
         } catch (e) {}
       }
+
+      if (transactions.length === 0) {
+        transactions.push(
+          {
+            id: 'LEG-1001',
+            date: '01-09-2026',
+            distributor: 'Metro Pharma Distributors',
+            distributorCode: 'DIST-001',
+            contactPerson: 'Rajesh Kumar',
+            refNo: 'INV-2026-089',
+            type: 'Invoice',
+            debitAmount: 45000,
+            creditAmount: 0,
+            remarks: 'Sales Invoice INV-2026-089'
+          },
+          {
+            id: 'LEG-1002',
+            date: '10-09-2026',
+            distributor: 'Metro Pharma Distributors',
+            distributorCode: 'DIST-001',
+            contactPerson: 'Rajesh Kumar',
+            refNo: 'PAY-89012',
+            type: 'Payment',
+            debitAmount: 0,
+            creditAmount: 20000,
+            remarks: 'NEFT Bank Transfer HDFC'
+          },
+          {
+            id: 'LEG-1003',
+            date: '05-10-2026',
+            distributor: 'Metro Pharma Distributors',
+            distributorCode: 'DIST-001',
+            contactPerson: 'Rajesh Kumar',
+            refNo: 'INV-2026-095',
+            type: 'Invoice',
+            debitAmount: 80000,
+            creditAmount: 0,
+            remarks: 'Sales Invoice INV-2026-095'
+          },
+          {
+            id: 'LEG-1004',
+            date: '10-10-2026',
+            distributor: 'Global Health Supply',
+            distributorCode: 'DIST-002',
+            contactPerson: 'Suresh Verma',
+            refNo: 'INV-2026-102',
+            type: 'Invoice',
+            debitAmount: 150000,
+            creditAmount: 0,
+            remarks: 'Sales Invoice INV-2026-102'
+          }
+        );
+      }
     }
 
     // 2. Sort chronologically to correctly calculate running balance

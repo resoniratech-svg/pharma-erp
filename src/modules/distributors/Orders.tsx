@@ -332,14 +332,21 @@ const calculateAgingDays = (invoiceDate: string) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  const activeRole = localStorage.getItem('activeRole') || 'SUPER_ADMIN';
+
   const visibleOrders = useMemo(() => {
-    const base = orders.filter(o => o.distributorCode === loggedInDistributor.code);
+    const isSuperAdminOrAdmin = ['SUPER_ADMIN', 'COMPANY_ADMIN', 'Super Admin', 'Company Admin', 'System Administrator'].includes(activeRole);
+    
+    const base = isSuperAdminOrAdmin
+      ? orders
+      : orders.filter(o => !o.distributorCode || o.distributorCode === loggedInDistributor.code || o.distributorName === loggedInDistributor.name);
+
     return base.filter(item => {
-      const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = (item.orderNo || '').toLowerCase().includes(search.toLowerCase()) || (item.distributorName || '').toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter ? item.status === statusFilter : true;
       return matchSearch && matchStatus;
     });
-  }, [orders, search, statusFilter, loggedInDistributor.code]);
+  }, [orders, search, statusFilter, loggedInDistributor.code, loggedInDistributor.name, activeRole]);
 
   const handleExportExcel = () => {
     const exportData = visibleOrders.map(row => ({
@@ -417,9 +424,10 @@ const calculateAgingDays = (invoiceDate: string) => {
 
   const confirmDeleteOrder = () => {
     if (deleteOrder) {
-      const updated = orders.filter(o => o.id !== deleteOrder.id);
+      const updated = orders.filter(o => o.id !== deleteOrder.id && o.orderNo !== deleteOrder.orderNo);
       setOrders(updated);
       localStorage.setItem("pharma_erp_orders", JSON.stringify(updated));
+      orderService.deleteOrder(deleteOrder.id);
       syncWithOutstandingLedger(updated);
       setDeleteOrder(null);
     }
@@ -589,6 +597,7 @@ const calculateAgingDays = (invoiceDate: string) => {
         items: newOrderItems
       };
       updatedOrders = [newOrder, ...orders];
+      orderService.createOrder(newOrder);
     }
     
     setOrders(updatedOrders);
@@ -653,16 +662,16 @@ const calculateAgingDays = (invoiceDate: string) => {
           </button>
           
           <button 
-            onClick={() => row.status === 'Draft' ? handleEditOrder(row) : null}
-            className={`p-1 transition-colors ${row.status === 'Draft' ? 'text-slate-400 hover:text-blue-600' : 'text-slate-200 cursor-not-allowed'}`} 
+            onClick={() => handleEditOrder(row)}
+            className="p-1 text-slate-400 hover:text-blue-600 transition-colors" 
             title="Edit"
           >
             <Edit className="w-4 h-4" />
           </button>
 
           <button 
-            onClick={() => row.status === 'Draft' ? setDeleteOrder(row) : null} 
-            className={`p-1 transition-colors ${row.status === 'Draft' ? 'text-slate-400 hover:text-red-600' : 'text-slate-200 cursor-not-allowed'}`} 
+            onClick={() => setDeleteOrder(row)} 
+            className="p-1 text-slate-400 hover:text-red-600 transition-colors" 
             title="Delete"
           >
             <Trash2 className="w-4 h-4" />

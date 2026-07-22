@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { Save, CheckCircle2, AlertCircle, Loader2, Plus, X, Edit2, Trash2, Search } from 'lucide-react';
 import { PageHeader, ActionButton } from './components/shared';
 import { ROLES } from '../../constants/roles';
+import { permissionService } from '../../services/permissionService';
+import { apiRequest } from '../../services/apiClient';
 import { motion, AnimatePresence } from 'framer-motion';
 
 const MODULES = [
@@ -116,12 +118,29 @@ export default function RolesPermissions() {
 
     setIsSaving(true);
 
+    // Save to local storage for instant offline resilience
     localStorage.setItem(
       `permissions_${selectedRole.id}`,
       JSON.stringify(permissions),
     );
 
-    await new Promise((resolve) => setTimeout(resolve, 800));
+    // POST role permissions to backend database API endpoint
+    try {
+      await apiRequest('/permissions', {
+        method: 'POST',
+        bodyData: {
+          roleId: selectedRole.id,
+          permissions
+        }
+      });
+    } catch (e) {
+      console.warn("Backend API POST /permissions fallback to local storage:", e);
+    }
+
+    // Refresh active session permission service cache immediately
+    await permissionService.refresh();
+
+    await new Promise((resolve) => setTimeout(resolve, 600));
 
     setIsSaving(false);
     setHasChanges(false);
