@@ -20,14 +20,15 @@ export class ActivityLogService {
     userName?: string;
     action: string;
     module: string;
+    status?: string;
   }) {
     const logs = this.getLogs();
 
     const newLog = {
       id: Date.now().toString(),
+      status: 'Success',
       ...log,
       timestamp: new Date().toISOString(),
-      status: 'Success',
     };
 
     logs.unshift(newLog);

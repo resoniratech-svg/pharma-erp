@@ -31,7 +31,6 @@ export default function UserActivityLogs() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   
   // Filters
-  const [statusFilter, setStatusFilter] = useState('');
   const [activityTypeFilter, setActivityTypeFilter] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
@@ -75,6 +74,16 @@ export default function UserActivityLogs() {
 
   ];
 
+  const categoryMapping: Record<string, string[]> = {
+    "Authentication": ["Login", "Logout", "Failed Login", "Failed Login Attempt", "Password Reset", "Session Timeout", "Authentication"],
+    "Administration": ["Company Management", "User Management", "Subscription Management", "Settings", "Role & Permission Changes"],
+    "Inventory": ["Product Management", "Inventory", "Warehouse", "Batch Management", "Stock Updates"],
+    "Billing & Finance": ["Billing", "Finance", "Payments", "Credit Notes", "Ledger"],
+    "Orders": ["Distributor Orders", "Retailer Orders", "Dispatch", "Sales Returns", "Orders"],
+    "Reports": ["Report Generation", "Reports", "Export", "Print"],
+    "System": ["Import", "System Configuration", "System", "Backup", "Restore", "Background Processes"]
+  };
+
   const filteredData = logs.filter((item) => {
     let match = true;
     if (search) {
@@ -84,8 +93,11 @@ export default function UserActivityLogs() {
         item.module.toLowerCase().includes(search.toLowerCase())
       );
     }
-    if (statusFilter) match = match && item.status === statusFilter;
-    if (activityTypeFilter) match = match && item.activityType === activityTypeFilter;
+    
+    if (activityTypeFilter && activityTypeFilter !== 'All Activities') {
+      const allowed = categoryMapping[activityTypeFilter] || [];
+      match = match && (allowed.includes(item.module) || allowed.includes(item.activity));
+    }
     
     if (fromDate) match = match && new Date(item.dateTime) >= new Date(fromDate);
     if (toDate) {
@@ -101,7 +113,6 @@ export default function UserActivityLogs() {
     const timestamp = new Date().toLocaleString();
     const activeFilters = [
       search && `Search: ${search}`,
-      statusFilter && `Status: ${statusFilter}`,
       activityTypeFilter && `Activity Type: ${activityTypeFilter}`,
       fromDate && `From: ${fromDate}`,
       toDate && `To: ${toDate}`
@@ -174,8 +185,9 @@ export default function UserActivityLogs() {
   const activeSessions = logs.filter(
     (log: any) => log.action === "Login",
   ).length;
+  const todayStr = new Date().toISOString().split('T')[0];
   const failedLogins = logs.filter(
-    (log: any) => log.status === "Failed",
+    (log: any) => log.status === "Failed" && log.dateTime.startsWith(todayStr)
   ).length;
 
   const criticalActivities = logs.filter(
@@ -283,23 +295,16 @@ export default function UserActivityLogs() {
             placeholder="Search user, module, action..."
           />
           <SelectFilter
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              { label: "Success", value: "Success" },
-              { label: "Failed", value: "Failed" },
-              { label: "Warning", value: "Warning" },
-            ]}
-            placeholder="Status"
-          />
-          <SelectFilter
             value={activityTypeFilter}
             onChange={setActivityTypeFilter}
             options={[
-              { label: "Login", value: "Login" },
-              { label: "Configuration", value: "Configuration" },
-              { label: "Approval", value: "Approval" },
-              { label: "Data Export", value: "Data Export" },
+              { label: "All Activities", value: "All Activities" },
+              { label: "Authentication", value: "Authentication" },
+              { label: "Administration", value: "Administration" },
+              { label: "Inventory", value: "Inventory" },
+              { label: "Billing & Finance", value: "Billing & Finance" },
+              { label: "Orders", value: "Orders" },
+              { label: "Reports", value: "Reports" },
               { label: "System", value: "System" },
             ]}
             placeholder="Activity Type"

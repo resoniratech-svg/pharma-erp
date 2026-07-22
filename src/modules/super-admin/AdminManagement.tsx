@@ -100,7 +100,7 @@ const mockAdmins: CompanyAdmin[] = [
   }
 ];
 
-const existingCompanies = [
+const defaultCompanies = [
   'PharmaCorp Pvt Ltd',
   'HealthPlus Labs',
   'MediCare Pharma',
@@ -111,6 +111,12 @@ const existingCompanies = [
 export default function AdminManagement() {
   const [activeMainTab, setActiveMainTab] = useState<'company-admin'|'subscription'>('company-admin');
   const [search, setSearch] = useState('');
+  const [companies, setCompanies] = useState<string[]>(() => {
+    const stored = localStorage.getItem('companyNames');
+    if (stored) return JSON.parse(stored);
+    localStorage.setItem('companyNames', JSON.stringify(defaultCompanies));
+    return defaultCompanies;
+  });
   const [admins, setAdmins] = useState<CompanyAdmin[]>(() => {
     const stored = localStorage.getItem('companyAdmins');
     if (stored) {
@@ -299,7 +305,7 @@ export default function AdminManagement() {
       }
     };
 
-    setAdmins([...admins, newAdmin]);
+    setAdmins([newAdmin, ...admins]);
     setShowCreateModal(false);
     
     // Reset form
@@ -340,7 +346,8 @@ export default function AdminManagement() {
   };
 
   // Filter existing companies for the dropdown
-  const filteredCompanySuggestions = existingCompanies.filter(c => c.toLowerCase().includes(formCompanySearch.toLowerCase()));
+  const filteredCompanySuggestions = companies.filter(c => c.toLowerCase().includes(formCompanySearch.toLowerCase()));
+  const exactMatchExists = companies.some(c => c.toLowerCase().trim() === formCompanySearch.toLowerCase().trim());
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -467,8 +474,8 @@ export default function AdminManagement() {
 
       {/* Create Admin Modal */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 backdrop-blur-[2px] bg-slate-900/40">
-          <div className="bg-white rounded-2xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 w-full max-w-lg overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 backdrop-blur-[2px] bg-slate-900/40" onClick={() => setShowCreateModal(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl flex flex-col animate-in zoom-in-95 duration-200 w-full max-w-lg overflow-hidden" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white">
               <h2 className="text-lg font-bold text-slate-900">Create Company Admin</h2>
               <button onClick={() => setShowCreateModal(false)} className="p-2 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors">
@@ -502,24 +509,39 @@ export default function AdminManagement() {
                   {/* Dropdown for Companies */}
                   {showCompanyDropdown && (
                     <div className="absolute left-0 right-0 top-full mt-1 bg-white border border-slate-200 shadow-xl rounded-lg max-h-48 overflow-y-auto z-10 py-1">
-                      {filteredCompanySuggestions.length > 0 ? (
-                        filteredCompanySuggestions.map(c => (
-                          <button
-                            key={c}
-                            className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-[#163c78]/10 hover:text-violet-700 transition-colors"
-                            onClick={() => {
-                              setFormCompanySearch(c);
-                              setShowCompanyDropdown(false);
-                            }}
-                          >
-                            {c}
-                          </button>
-                        ))
-                      ) : (
-                        <div className="px-4 py-3 text-sm text-slate-500 italic flex flex-col">
-                          <span>No matches found.</span>
-                          <span className="text-[#163c78] font-medium mt-1">Press enter or save to use "{formCompanySearch}" as a new company.</span>
-                        </div>
+                      {filteredCompanySuggestions.map(c => (
+                        <button
+                          key={c}
+                          className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-[#163c78]/10 hover:text-violet-700 transition-colors"
+                          onClick={() => {
+                            setFormCompanySearch(c);
+                            setShowCompanyDropdown(false);
+                          }}
+                        >
+                          {c}
+                        </button>
+                      ))}
+                      
+                      {formCompanySearch.trim() && !exactMatchExists && (
+                        <button
+                          className="w-full text-left px-4 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 transition-colors border-t border-slate-100 flex items-center"
+                          onClick={() => {
+                            const newCompany = formCompanySearch.trim();
+                            const newCompanies = [...companies, newCompany];
+                            setCompanies(newCompanies);
+                            localStorage.setItem('companyNames', JSON.stringify(newCompanies));
+                            setFormCompanySearch(newCompany);
+                            setShowCompanyDropdown(false);
+                          }}
+                        >
+                          + Add "{formCompanySearch.trim()}"
+                        </button>
+                      )}
+                      
+                      {!formCompanySearch.trim() && filteredCompanySuggestions.length === 0 && (
+                         <div className="px-4 py-3 text-sm text-slate-500 italic flex flex-col">
+                           <span>No companies available.</span>
+                         </div>
                       )}
                     </div>
                   )}
@@ -592,6 +614,7 @@ function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdm
   const [formCompanySearch, setFormCompanySearch] = useState('');
   const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
   const companySearchRef = useRef<HTMLDivElement>(null);
+  const [historySearch, setHistorySearch] = useState('');
   
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -648,6 +671,13 @@ function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdm
   const filteredDropdownAdmins = admins.filter(a => 
     a.companyName.toLowerCase().includes(formCompanySearch.toLowerCase()) || 
     a.adminName.toLowerCase().includes(formCompanySearch.toLowerCase())
+  );
+
+  const filteredHistoryAdmins = admins.filter(a => 
+    a.subscription && 
+    (a.companyName.toLowerCase().includes(historySearch.toLowerCase()) || 
+     a.adminName.toLowerCase().includes(historySearch.toLowerCase()) ||
+     a.email.toLowerCase().includes(historySearch.toLowerCase()))
   );
 
   return (
@@ -882,6 +912,92 @@ function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdm
           </div>
         </div>
       )}
+
+      {/* Subscription History Section */}
+      <div className="mt-8 space-y-4">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <h3 className="text-lg font-bold text-slate-900">Subscription History</h3>
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+            <input 
+              type="text" 
+              value={historySearch}
+              onChange={e => setHistorySearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2 border border-slate-200 bg-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#163c78]/30"
+              placeholder="Quick search by company, admin or email..."
+            />
+          </div>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm whitespace-nowrap">
+              <thead className="bg-slate-50 border-b border-slate-200">
+                <tr>
+                  <th className="px-6 py-4 font-semibold text-slate-700">Company Name</th>
+                  <th className="px-6 py-4 font-semibold text-slate-700">Company Admin</th>
+                  <th className="px-6 py-4 font-semibold text-slate-700">Subscription Plan</th>
+                  <th className="px-6 py-4 font-semibold text-slate-700">Status</th>
+                  <th className="px-6 py-4 font-semibold text-slate-700">Billing Cycle</th>
+                  <th className="px-6 py-4 font-semibold text-slate-700">Start Date</th>
+                  <th className="px-6 py-4 font-semibold text-slate-700">End Date</th>
+                  <th className="px-6 py-4 font-semibold text-slate-700">Final Amount</th>
+                  <th className="px-6 py-4 font-semibold text-slate-700">Maximum Users</th>
+                  <th className="px-6 py-4 font-semibold text-slate-700 text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {filteredHistoryAdmins.length > 0 ? (
+                  filteredHistoryAdmins.map(admin => (
+                    <tr key={admin.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-6 py-4 font-medium text-slate-900">{admin.companyName}</td>
+                      <td className="px-6 py-4">
+                        <div className="flex flex-col">
+                          <span className="text-slate-900">{admin.adminName}</span>
+                          <span className="text-xs text-slate-500">{admin.email}</span>
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-slate-700">{admin.subscription?.plan || 'N/A'}</td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium border ${
+                          admin.subscription?.status === 'Active' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          admin.subscription?.status === 'Suspended' ? 'bg-red-50 text-red-700 border-red-200' :
+                          'bg-amber-50 text-amber-700 border-amber-200'
+                        }`}>
+                          {admin.subscription?.status || 'Unknown'}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-slate-700">{admin.subscription?.billingCycle || 'N/A'}</td>
+                      <td className="px-6 py-4 text-slate-700">{admin.subscription?.startDate || 'N/A'}</td>
+                      <td className="px-6 py-4 text-slate-700">{admin.subscription?.endDate || 'N/A'}</td>
+                      <td className="px-6 py-4 text-slate-700">{admin.subscription?.currency} {admin.subscription?.finalAmount?.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-slate-700">{admin.subscription?.maxUsers || 'N/A'}</td>
+                      <td className="px-6 py-4 text-right">
+                        <button
+                          onClick={() => {
+                             setSelectedAdminId(admin.id);
+                             setFormCompanySearch(`${admin.companyName} (${admin.adminName})`);
+                             window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="text-[#163c78] font-medium hover:text-violet-700 transition-colors"
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan={10} className="px-6 py-8 text-center text-slate-500">
+                      No subscription records found.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Mail, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { seedUsers } from '../data/seedUsers';
+import activityLogService from '../services/activityLogService';
 
 export default function CentralLogin() {
   const navigate = useNavigate();
@@ -76,6 +77,12 @@ export default function CentralLogin() {
         navigate('/workspace');
       } else {
         setError('Invalid email or password.');
+        activityLogService.addLog({
+          userName: email || 'Unknown',
+          module: 'Authentication',
+          action: 'Failed Login Attempt',
+          status: 'Failed'
+        });
       }
     }, 500);
   };
