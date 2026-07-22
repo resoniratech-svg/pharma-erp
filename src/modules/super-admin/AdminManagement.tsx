@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Download, ChevronDown, Eye, EyeOff, Shield, X, Check, Search } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
+import { apiRequest } from '../../services/apiClient';
+
 // Using components from super-admin shared where available
 import {
   PageHeader,
@@ -127,8 +129,80 @@ export default function AdminManagement() {
   });
 
   useEffect(() => {
-    localStorage.setItem('companyAdmins', JSON.stringify(admins));
-  }, [admins]);
+    const loadCompanyAdmins = async () => {
+      try {
+        const response = await apiRequest<{ success: boolean; data: any[] }>('/companies');
+        const localStored = localStorage.getItem('companyAdmins');
+        const localAdmins: CompanyAdmin[] = localStored ? JSON.parse(localStored) : [];
+
+        let apiAdmins: CompanyAdmin[] = [];
+        if (response && response.success && Array.isArray(response.data)) {
+          apiAdmins = response.data.map(c => {
+            const adminId = `ADM-${String(c.id).padStart(3, '0')}`;
+            const adminEmail = (c.email || `admin@${c.code ? c.code.toLowerCase() : 'company'}.com`).toLowerCase();
+            
+            // Check if local storage already has saved custom modules for this company admin
+            const existingLocal = localAdmins.find(la => la.id === adminId || la.email.toLowerCase() === adminEmail || la.companyName.toLowerCase() === c.name.toLowerCase());
+            
+            const savedModules = existingLocal?.subscription?.purchasedModules || erpModules;
+
+            return {
+              id: adminId,
+              adminName: c.contactPerson || c.name || 'Company Admin',
+              companyName: c.name,
+              email: c.email || `admin@${c.code ? c.code.toLowerCase() : 'company'}.com`,
+              passwordHash: '********',
+              companyCode: c.code,
+              gstNumber: c.gstNumber,
+              subscription: {
+                plan: existingLocal?.subscription?.plan || 'Enterprise',
+                status: c.status === 'Active' ? 'Active' : 'Trial',
+                billingCycle: existingLocal?.subscription?.billingCycle || 'Yearly',
+                subscriptionAmount: existingLocal?.subscription?.subscriptionAmount || 120000,
+                currency: 'INR',
+                gstPercentage: 18,
+                discount: 0,
+                finalAmount: existingLocal?.subscription?.finalAmount || 141600,
+                paymentStatus: 'Paid',
+                paymentDate: c.createdAt ? c.createdAt.split('T')[0] : '2026-01-01',
+                startDate: c.createdAt ? c.createdAt.split('T')[0] : '2026-01-01',
+                endDate: '2027-01-01',
+                renewalDate: '2027-01-01',
+                autoRenewal: true,
+                maxUsers: existingLocal?.subscription?.maxUsers || 50,
+                activeUsers: 12,
+                storageLimit: '100GB',
+                deviceLimit: 'Unlimited',
+                apiAccessLimit: '10000/day',
+                purchasedModules: savedModules,
+                remarks: existingLocal?.subscription?.remarks || 'Backend Database Active Client',
+                lastUpdated: c.updatedAt ? c.updatedAt.split('T')[0] : '2026-01-01',
+                updatedBy: 'System'
+              }
+            };
+          });
+        }
+
+        // Merge API companies with local stored admins so newly added admins persist across reloads
+        const mergedAdmins = [...apiAdmins];
+        localAdmins.forEach(la => {
+          if (!mergedAdmins.some(ma => ma.email.toLowerCase() === la.email.toLowerCase() || ma.id === la.id)) {
+            mergedAdmins.unshift(la);
+          }
+        });
+
+        const finalAdmins = mergedAdmins.length > 0 ? mergedAdmins : (localAdmins.length > 0 ? localAdmins : mockAdmins);
+        setAdmins(finalAdmins);
+        localStorage.setItem('companyAdmins', JSON.stringify(finalAdmins));
+        const companyNameList = Array.from(new Set(finalAdmins.map(a => a.companyName)));
+        setCompanies(companyNameList);
+        localStorage.setItem('companyNames', JSON.stringify(companyNameList));
+      } catch (e) {
+        console.error("Failed to load companies from backend:", e);
+      }
+    };
+    loadCompanyAdmins();
+  }, []);
   
   // View states
   const [showExportMenu, setShowExportMenu] = useState(false);
@@ -276,7 +350,7 @@ export default function AdminManagement() {
     setShowExportMenu(false);
   };
 
-  const handleCreateAdmin = () => {
+  const handleCreateAdmin = async () => {
     // Determine the actual company to save
     const finalCompany = formCompanySearch.trim() || formCompany;
     
@@ -288,6 +362,22 @@ export default function AdminManagement() {
     
     const emailExists = admins.some(a => a.email.toLowerCase() === formEmail.toLowerCase());
     if (emailExists) return alert("Admin with this email already exists.");
+
+    // Save company to backend database API endpoint
+    try {
+      await apiRequest('/companies', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: finalCompany,
+          code: `COMP-${Date.now().toString().slice(-4)}`,
+          email: formEmail.trim(),
+          contactPerson: formName.trim(),
+          status: 'Active'
+        })
+      });
+    } catch (e) {
+      console.warn("Backend API POST /companies fallback to local database:", e);
+    }
 
     const newAdmin: CompanyAdmin = {
       id: `ADM-NEW-${Date.now()}`,
@@ -301,11 +391,18 @@ export default function AdminManagement() {
         paymentStatus: 'Pending', paymentDate: '',
         startDate: new Date().toISOString().split('T')[0], endDate: '', renewalDate: '', autoRenewal: false, 
         maxUsers: 10, activeUsers: 0, storageLimit: '10GB', deviceLimit: '', apiAccessLimit: '', 
-        purchasedModules: [], remarks: 'Newly created.', lastUpdated: new Date().toISOString().split('T')[0], updatedBy: 'System' 
+        purchasedModules: erpModules, remarks: 'Newly created client.', lastUpdated: new Date().toISOString().split('T')[0], updatedBy: 'System' 
       }
     };
 
-    setAdmins([newAdmin, ...admins]);
+    const updatedAdmins = [newAdmin, ...admins];
+    setAdmins(updatedAdmins);
+    localStorage.setItem('companyAdmins', JSON.stringify(updatedAdmins));
+
+    const updatedCompanyNames = Array.from(new Set([finalCompany, ...companies]));
+    setCompanies(updatedCompanyNames);
+    localStorage.setItem('companyNames', JSON.stringify(updatedCompanyNames));
+
     setShowCreateModal(false);
     
     // Reset form
@@ -315,6 +412,8 @@ export default function AdminManagement() {
     setFormEmail('');
     setFormPassword('');
     setFormConfirmPassword('');
+
+    alert(`Successfully created Company Admin for ${finalCompany}!`);
   };
 
   const handleSavePermissions = () => {
@@ -334,8 +433,24 @@ export default function AdminManagement() {
       }
       return admin;
     });
+
     setAdmins(updatedList);
+    localStorage.setItem('companyAdmins', JSON.stringify(updatedList));
+
+    // Sync centralAuthSession if active user session belongs to this company admin
+    try {
+      const activeSessionStr = localStorage.getItem('centralAuthSession');
+      if (activeSessionStr) {
+        const session = JSON.parse(activeSessionStr);
+        if (session.tenantId === selectedAdminForPermissions.id || session.user?.email?.toLowerCase() === selectedAdminForPermissions.email.toLowerCase()) {
+          session.purchasedModules = tempPermissions;
+          localStorage.setItem('centralAuthSession', JSON.stringify(session));
+        }
+      }
+    } catch (e) {}
+
     setSelectedAdminForPermissions(null);
+    alert("Purchased modules and permissions saved successfully.");
   };
 
   const toggleModulePermission = (mod: string) => {

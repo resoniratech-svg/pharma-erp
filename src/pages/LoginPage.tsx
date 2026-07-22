@@ -139,14 +139,38 @@ export default function LoginPage() {
     return ok;
   };
 
-  /* Submit — authenticate against User Management LocalStorage */
+  /* Submit — authenticate against Backend API, with fallback to LocalStorage */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setLoading(true);
 
-    // Read users from User Management
+    // 1. Try real backend authentication first
+    try {
+      const userRecord = await authService.login(email, password);
+      localStorage.setItem('workspaceRole', role.id);
+      permissionService.initialize(userRecord.roleId);
+
+      activityLogService.addLog({
+        userId: String(userRecord.id),
+        userName: userRecord.fullName,
+        action: "Login",
+        module: "Authentication",
+      });
+
+      setLoading(false);
+      setSuccess(true);
+
+      setTimeout(() => {
+        navigate("/workspace/dashboard");
+      }, 400);
+      return;
+    } catch (backendErr: any) {
+      console.warn("Backend auth failed or offline, falling back to local auth:", backendErr);
+    }
+
+    // 2. Read users from User Management (Fallback)
     const storedUsers = localStorage.getItem('users');
     let users = storedUsers ? JSON.parse(storedUsers) : null;
 
@@ -254,6 +278,14 @@ export default function LoginPage() {
       localStorage.setItem('activeRole', mappedRoleId);
       localStorage.setItem('workspaceRole', role.id);
       localStorage.setItem('userId', String(user.id));
+      
+      const authPayload = {
+        role: mappedRoleId,
+        tenantId: user.tenantId || user.id,
+        purchasedModules: user.purchasedModules || [],
+        user: authUser
+      };
+      localStorage.setItem('centralAuthSession', JSON.stringify(authPayload));
       
       // Initialize permission service
       permissionService.initialize(mappedRoleId);

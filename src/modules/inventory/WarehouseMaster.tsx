@@ -16,6 +16,7 @@ import { warehouseService } from '../../services/warehouseService';
 import authService from "../../services/authService";
 import activityLogService from "../../services/activityLogService";
 import * as XLSX from "xlsx";
+import { INDIAN_STATES } from '../../constants/indianStates';
 
 interface Warehouse {
   id: string;
@@ -606,7 +607,7 @@ export default function WarehouseMaster() {
                     <label className="block text-xs font-medium text-slate-700 mb-1">
                       State
                     </label>
-                    <input
+                    <select
                       value={newWarehouse.state}
                       onChange={(e) =>
                         setNewWarehouse({
@@ -614,8 +615,15 @@ export default function WarehouseMaster() {
                           state: e.target.value,
                         })
                       }
-                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
-                    />
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 bg-white text-sm"
+                    >
+                      <option value="">Select State</option>
+                      {INDIAN_STATES.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">

@@ -12,6 +12,7 @@ import {
   ActionButton
 } from './components/shared';
 import { type Column } from './components/shared';
+import { INDIAN_STATE_OPTIONS } from '../../constants/indianStates';
 
 interface Territory {
   id: string;
@@ -212,16 +213,6 @@ export default function StatePerformance() {
         }
       />
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-        <SummaryCard title="State Revenue" value="₹ 31.7 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
-        <SummaryCard title="Total Orders" value="9,370" icon={<ShoppingCart className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Active Customers" value="1,005" icon={<Users className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
-        <SummaryCard title="Active Territories" value="36" icon={<MapPin className="w-6 h-6" />} colorClass="text-indigo-600" bgClass="bg-indigo-100" />
-        <SummaryCard title="Target Achievement %" value="92%" icon={<Target className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
-        <SummaryCard title="Outstanding Receivables" value="₹ 3.1 Cr" icon={<AlertCircle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
-      </div>
-
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
@@ -255,11 +246,7 @@ export default function StatePerformance() {
           />
           <SelectFilter
             value={stateFilter} onChange={setStateFilter}
-            options={[
-              { label: 'Maharashtra', value: 'Maharashtra' },
-              { label: 'Gujarat', value: 'Gujarat' },
-              { label: 'Karnataka', value: 'Karnataka' },
-            ]}
+            options={INDIAN_STATE_OPTIONS}
             placeholder="State"
           />
           <SelectFilter
@@ -290,6 +277,16 @@ export default function StatePerformance() {
             />
           </div>
         </div>
+      </div>
+
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+        <SummaryCard title="State Revenue" value="₹ 31.7 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
+        <SummaryCard title="Total Orders" value="9,370" icon={<ShoppingCart className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
+        <SummaryCard title="Active Customers" value="1,005" icon={<Users className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
+        <SummaryCard title="Active Territories" value="36" icon={<MapPin className="w-6 h-6" />} colorClass="text-indigo-600" bgClass="bg-indigo-100" />
+        <SummaryCard title="Target Achievement %" value="92%" icon={<Target className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
+        <SummaryCard title="Outstanding Receivables" value="₹ 3.1 Cr" icon={<AlertCircle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
       </div>
 
       {/* Main Table with hidden scrollbar */}

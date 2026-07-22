@@ -42,10 +42,10 @@ export default function MRPManagement() {
   const [products, setProducts] = useState<any[]>([]);
 
   useEffect(() => {
-    productService.loadProducts().then(refreshedProducts => {
+    productService.loadProducts().then(async refreshedProducts => {
       setProducts(refreshedProducts);
 
-      let records = mrpService.getAll();
+      let records = await mrpService.loadMRPs();
       records = mrpService.activateScheduledMRPs(records);
       mrpService.saveAll(records);
       

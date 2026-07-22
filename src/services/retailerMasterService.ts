@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient';
+
 export interface AssignedDistributor {
   code: string;
   name: string;
@@ -21,6 +23,31 @@ export const retailerMasterService = {
   getAll: (): RetailerMasterRecord[] => {
     const data = localStorage.getItem(STORAGE_KEY);
     return data ? JSON.parse(data) : [];
+  },
+
+  async fetchFromApi(): Promise<RetailerMasterRecord[]> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/retailers');
+      if (response && response.success && Array.isArray(response.data)) {
+        const mapped: RetailerMasterRecord[] = response.data.map(r => ({
+          id: String(r.id),
+          code: r.code || `RET${String(r.id).padStart(6, '0')}`,
+          name: r.name,
+          contactPerson: r.contactPerson || r.name,
+          mobileNumber: r.mobile || r.mobileNumber || '-',
+          emailAddress: r.email || r.emailAddress || '',
+          assignedDistributors: r.assignedDistributors || [],
+          status: r.status === 'Inactive' ? 'Inactive' : 'Active',
+          createdDate: r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+        }));
+        
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+        return mapped;
+      }
+    } catch (err) {
+      console.warn("Failed to fetch retailers from API, using fallback:", err);
+    }
+    return this.getAll();
   },
   
   getById: (id: string): RetailerMasterRecord | undefined => {

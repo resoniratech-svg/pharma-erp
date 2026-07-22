@@ -106,14 +106,14 @@ export default function GSTBilling() {
                     hasModulePermission(activeRole, "Billing & Invoicing", "Create");
   const canOverrideGst = activeRole === 'Super Admin' || activeRole === 'Admin';
 
-  const loadDatabaseDetails = () => {
-    const savedInvoices = billingService.getInvoices();
+  const loadDatabaseDetails = async () => {
+    const savedInvoices = await billingService.loadInvoices();
     setInvoices(savedInvoices);
 
-    const savedProducts = productService.getProducts() as ProductRecord[];
+    const savedProducts = (await productService.loadProducts()) as ProductRecord[];
     setProducts(savedProducts || []);
 
-    const savedBatches = batchService.getAll();
+    const savedBatches = await batchService.loadBatches();
     const groupInventory: Record<string, { batchNo: string; expiry: string; stock: number; ptr: number; mrp?: number; status: string }[]> = {};
     
     savedBatches.forEach(b => {

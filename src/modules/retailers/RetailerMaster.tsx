@@ -17,6 +17,7 @@ import type { RetailerMasterRecord } from '../../services/retailerMasterService'
 import { distributorMasterService } from '../../services/distributorMasterService';
 import authService from '../../services/authService';
 import activityLogService from '../../services/activityLogService';
+import { INDIAN_STATES } from '../../constants/indianStates';
 import * as XLSX from 'xlsx';
 
 export default function RetailerMaster() {
@@ -38,6 +39,7 @@ export default function RetailerMaster() {
     contactPerson: '',
     mobileNumber: '',
     emailAddress: '',
+    state: '',
     assignedDistributors: [] as {code: string, name: string}[],
     status: 'Active' as 'Active' | 'Inactive',
     password: '',
@@ -53,13 +55,13 @@ export default function RetailerMaster() {
     loadActiveDistributors();
   }, []);
 
-  const loadRetailers = () => {
-    const data = retailerMasterService.getAll();
+  const loadRetailers = async () => {
+    const data = await retailerMasterService.fetchFromApi();
     setRetailers(data);
   };
   
-  const loadActiveDistributors = () => {
-    const allDistributors = distributorMasterService.getAll();
+  const loadActiveDistributors = async () => {
+    const allDistributors = await distributorMasterService.fetchFromApi();
     const activeDistributors = allDistributors
       .filter(d => d.status === 'Active')
       .map(d => ({ code: d.code, name: d.name }));
@@ -410,6 +412,21 @@ export default function RetailerMaster() {
                       autoComplete="no-autofill"
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
                     />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">State</label>
+                    <select
+                      value={formData.state}
+                      onChange={(e) => setFormData({...formData, state: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm bg-white"
+                    >
+                      <option value="">Select State</option>
+                      {INDIAN_STATES.map((s) => (
+                        <option key={s.value} value={s.value}>
+                          {s.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">Status</label>

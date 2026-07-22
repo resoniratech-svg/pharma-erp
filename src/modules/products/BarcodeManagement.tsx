@@ -76,13 +76,12 @@ export default function BarcodeManagement() {
   const [showProductDropdown, setShowProductDropdown] = useState(false);
 
   useEffect(() => {
-    const savedProducts = productService.getProducts() as Product[];
-    setProducts(savedProducts || []);
-  }, []);
-
-  useEffect(() => {
-    const savedData = barcodeService.getAll();
-    setData(savedData || []);
+    productService.loadProducts().then((savedProducts) => {
+      setProducts((savedProducts as Product[]) || []);
+    });
+    barcodeService.loadBarcodes().then((savedData) => {
+      setData(savedData || []);
+    });
   }, []);
 
   const canCreate = true;

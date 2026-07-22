@@ -1,4 +1,5 @@
-// src/services/barcodeService.ts
+import { apiRequest } from './apiClient';
+
 export interface BarcodeRecord {
   id: string;
   barcode: string;
@@ -23,6 +24,31 @@ export const barcodeService = {
     } catch {
       return [];
     }
+  },
+
+  async loadBarcodes(): Promise<BarcodeRecord[]> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/products');
+      if (response && response.success && Array.isArray(response.data)) {
+        const mappedBarcodes: BarcodeRecord[] = response.data
+          .filter((p: any) => p.code || p.name)
+          .map((p: any) => ({
+            id: String(p.id),
+            barcode: p.barcode || `BC-${p.code || p.id}`,
+            productCode: p.code || `PRD-${p.id}`,
+            productName: p.name || `Product ${p.id}`,
+            type: 'Primary GS1-128',
+            assignedDate: p.createdAt ? new Date(p.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            status: p.status === 'Inactive' ? 'Inactive' : 'Active'
+          }));
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mappedBarcodes));
+        return mappedBarcodes;
+      }
+    } catch (e) {
+      console.error('Failed to load barcodes from backend:', e);
+    }
+    return this.getAll();
   },
 
   saveAll(barcodes: BarcodeRecord[]) {

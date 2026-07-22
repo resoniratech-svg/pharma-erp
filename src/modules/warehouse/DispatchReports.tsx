@@ -50,33 +50,35 @@ export default function DispatchReports() {
   };
 
   useEffect(() => {
-    const challans = transportChallanService.getAllChallans();
-    const formatted = challans.map(c => {
-      const dispatchDateStr = c.dispatchDate || c.challanDate || new Date().toISOString();
-      const dispatchDateObj = new Date(dispatchDateStr);
-      const monthIndex = isNaN(dispatchDateObj.getTime()) ? new Date().getMonth() : dispatchDateObj.getMonth();
-      const month = MONTH_ORDER[monthIndex];
-      
-      let deliveryStatus = c.status as string;
-      if (c.status === 'Cancelled') deliveryStatus = 'Returned';
-      if (c.status === 'Generated') deliveryStatus = 'In Transit';
-      
-      return {
-        id: c.id,
-        dispatchNo: c.dispatchNo || '—',
-        dispatchType: (c as any).dispatchType || 'N/A',
-        dispatchDate: c.dispatchDate || '—',
-        customer: c.customer || '—',
-        transporter: c.transporter || '—',
-        challanNo: c.challanNo || '—',
-        lrNumber: c.challanNo ? c.challanNo.replace('CHL-', 'LR-').replace('CHL', 'LR') : '—',
-        deliveryStatus: deliveryStatus,
-        expectedDelivery: c.challanDate || c.dispatchDate || '—',
-        actualDelivery: c.actualDeliveryDate || '—',
-        month
-      };
+    transportChallanService.loadChallans().then(() => {
+      const challans = transportChallanService.getAllChallans();
+      const formatted = challans.map(c => {
+        const dispatchDateStr = c.dispatchDate || c.challanDate || new Date().toISOString();
+        const dispatchDateObj = new Date(dispatchDateStr);
+        const monthIndex = isNaN(dispatchDateObj.getTime()) ? new Date().getMonth() : dispatchDateObj.getMonth();
+        const month = MONTH_ORDER[monthIndex];
+        
+        let deliveryStatus = c.status as string;
+        if (c.status === 'Cancelled') deliveryStatus = 'Returned';
+        if (c.status === 'Generated') deliveryStatus = 'In Transit';
+        
+        return {
+          id: c.id,
+          dispatchNo: c.dispatchNo || '—',
+          dispatchType: (c as any).dispatchType || 'N/A',
+          dispatchDate: c.dispatchDate || '—',
+          customer: c.customer || '—',
+          transporter: c.transporter || '—',
+          challanNo: c.challanNo || '—',
+          lrNumber: c.challanNo ? c.challanNo.replace('CHL-', 'LR-').replace('CHL', 'LR') : '—',
+          deliveryStatus: deliveryStatus,
+          expectedDelivery: c.challanDate || c.dispatchDate || '—',
+          actualDelivery: c.actualDeliveryDate || '—',
+          month
+        };
+      });
+      setData(formatted);
     });
-    setData(formatted);
 
     function handleClickOutside(event: MouseEvent) {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {

@@ -223,13 +223,7 @@ export default function ProductProfitability() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <SummaryCard title="Total Product Revenue" value="₹ 118.4 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Average Gross Margin %" value="38.5%" icon={<Percent className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
-        <SummaryCard title="Highest Margin Product" value="Amoxicillin 250mg" subtitle="Margin: 51.1%" icon={<TrendingUp className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
-        <SummaryCard title="Lowest Margin Product" value="Surgical Masks (Box)" subtitle="Margin: 10.0%" icon={<TrendingDown className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
-      </div>
-
+      {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
           <SearchInput value={search} onChange={setSearch} placeholder="Search product name..." />
@@ -299,6 +293,14 @@ export default function ProductProfitability() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <SummaryCard title="Total Product Revenue" value="₹ 118.4 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
+        <SummaryCard title="Average Gross Margin %" value="38.5%" icon={<Percent className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
+        <SummaryCard title="Highest Margin Product" value="Amoxicillin 250mg" subtitle="Margin: 51.1%" icon={<TrendingUp className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
+        <SummaryCard title="Lowest Margin Product" value="Surgical Masks (Box)" subtitle="Margin: 10.0%" icon={<TrendingDown className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
       </div>
 
       <div className="mb-6">

@@ -230,13 +230,7 @@ export default function ExportOrderMonitoring() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <SummaryCard title="Total Export Orders" value="142" icon={<Globe className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
-        <SummaryCard title="Active Shipments" value="28" icon={<Plane className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Export Revenue (YTD)" value="$ 1.2M" icon={<CheckCircle className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
-        <SummaryCard title="Pending Customs Clearance" value="12" icon={<AlertTriangle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
-      </div>
-
+      {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
           <SearchInput value={search} onChange={setSearch} placeholder="Search order, customer, invoice..." />
@@ -260,7 +254,7 @@ export default function ExportOrderMonitoring() {
               { label: 'Singapore', value: 'Singapore' },
               { label: 'Germany', value: 'Germany' },
             ]}
-            placeholder="Destination Country"
+            placeholder="Country"
           />
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-slate-600">From</span>
@@ -281,6 +275,14 @@ export default function ExportOrderMonitoring() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <SummaryCard title="Total Export Orders" value="142" icon={<Globe className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
+        <SummaryCard title="Active Shipments" value="28" icon={<Plane className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
+        <SummaryCard title="Export Revenue (YTD)" value="$ 1.2M" icon={<CheckCircle className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
+        <SummaryCard title="Pending Customs Clearance" value="12" icon={<AlertTriangle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
       </div>
 
       <div className="mb-6">

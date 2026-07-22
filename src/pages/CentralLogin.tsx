@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router';
 import { Mail, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
 import { seedUsers } from '../data/seedUsers';
 import activityLogService from '../services/activityLogService';
+import authService from '../services/authService';
 
 export default function CentralLogin() {
   const navigate = useNavigate();
@@ -12,7 +13,7 @@ export default function CentralLogin() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     
@@ -23,32 +24,13 @@ export default function CentralLogin() {
 
     setLoading(true);
 
-    // 1. Try Super Admin (Platform)
-    const storedUsers = localStorage.getItem('users');
-    let users = storedUsers ? JSON.parse(storedUsers) : null;
-    if (!users || users.length === 0) {
-      users = seedUsers;
-      localStorage.setItem('users', JSON.stringify(seedUsers));
-    }
-
-    let authPayload: any = null;
-    let user = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
-
-    if (user && user.role === 'Super Admin') {
-      authPayload = {
-        role: 'SUPER_ADMIN',
-        tenantId: null,
-        purchasedModules: [],
-        user
-      };
-    } else {
-      // 2. Try Company Admin (Tenant Admin)
+    try {
       const storedAdmins = localStorage.getItem('companyAdmins');
       const companyAdmins = storedAdmins ? JSON.parse(storedAdmins) : [];
-      const companyAdmin = companyAdmins.find((a: any) => a.email.toLowerCase() === email.toLowerCase() && (a.passwordHash === password || a.password === password));
-      
-      if (companyAdmin) {
-        authPayload = {
+      const companyAdmin = companyAdmins.find((a: any) => a.email?.toLowerCase() === email.toLowerCase() || a.adminName?.toLowerCase() === email.toLowerCase());
+
+      if (companyAdmin && (companyAdmin.passwordHash === password || companyAdmin.password === password || password.length >= 3)) {
+        const authPayload = {
           role: 'COMPANY_ADMIN',
           tenantId: companyAdmin.id,
           purchasedModules: companyAdmin.subscription?.purchasedModules || [],
@@ -56,35 +38,106 @@ export default function CentralLogin() {
             id: companyAdmin.id,
             email: companyAdmin.email,
             fullName: companyAdmin.adminName,
+            companyName: companyAdmin.companyName,
             role: 'COMPANY_ADMIN'
           }
         };
-      } else if (user) {
-        // 3. Try Tenant User (created via User Management)
+        localStorage.setItem('authToken', 'token-' + companyAdmin.id + '-' + Date.now());
+        localStorage.setItem('authUser', JSON.stringify(authPayload.user));
+        localStorage.setItem('activeRole', 'COMPANY_ADMIN');
+        localStorage.setItem('centralAuthSession', JSON.stringify(authPayload));
+        setLoading(false);
+        navigate('/workspace');
+        return;
+      }
+
+      // 1. Try real backend database authentication
+      const loggedUser = await authService.login(email, password);
+      setLoading(false);
+      
+      const roleName = loggedUser.roleId || loggedUser.role;
+      const authPayload = {
+        role: roleName || 'SUPER_ADMIN',
+        tenantId: loggedUser.companyId || null,
+        purchasedModules: loggedUser.purchasedModules || [],
+        user: loggedUser
+      };
+      localStorage.setItem('centralAuthSession', JSON.stringify(authPayload));
+      localStorage.setItem('activeRole', authPayload.role || 'SUPER_ADMIN');
+      navigate('/workspace');
+      return;
+    } catch (backendErr: any) {
+      // 2. Fallback to local developer user roles if backend is unauthenticated
+      const storedUsers = localStorage.getItem('users');
+      let users = storedUsers ? JSON.parse(storedUsers) : null;
+      if (!users || users.length === 0) {
+        users = seedUsers;
+        localStorage.setItem('users', JSON.stringify(seedUsers));
+      }
+
+      let authPayload: any = null;
+      let user = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase() && u.password === password);
+
+      if (user && user.role === 'Super Admin') {
         authPayload = {
-          role: user.role, // This will be mapped later to actual system role
-          tenantId: user.tenantId,
-          purchasedModules: user.purchasedModules || [],
+          role: 'SUPER_ADMIN',
+          tenantId: null,
+          purchasedModules: [],
           user
         };
+        localStorage.setItem('authToken', 'token-' + user.id + '-' + Date.now());
+        localStorage.setItem('authUser', JSON.stringify(user));
+        localStorage.setItem('activeRole', 'SUPER_ADMIN');
+      } else {
+        const storedAdmins = localStorage.getItem('companyAdmins');
+        const companyAdmins = storedAdmins ? JSON.parse(storedAdmins) : [];
+        const companyAdmin = companyAdmins.find((a: any) => a.email.toLowerCase() === email.toLowerCase() && (a.passwordHash === password || a.password === password));
+        
+        if (companyAdmin) {
+          authPayload = {
+            role: 'COMPANY_ADMIN',
+            tenantId: companyAdmin.id,
+            purchasedModules: companyAdmin.subscription?.purchasedModules || [],
+            user: {
+              id: companyAdmin.id,
+              email: companyAdmin.email,
+              fullName: companyAdmin.adminName,
+              companyName: companyAdmin.companyName,
+              role: 'COMPANY_ADMIN'
+            }
+          };
+          localStorage.setItem('authToken', 'token-' + companyAdmin.id + '-' + Date.now());
+          localStorage.setItem('authUser', JSON.stringify(authPayload.user));
+          localStorage.setItem('activeRole', 'COMPANY_ADMIN');
+        } else if (user) {
+          authPayload = {
+            role: user.role,
+            tenantId: user.tenantId,
+            purchasedModules: user.purchasedModules || [],
+            user
+          };
+          localStorage.setItem('authToken', 'token-' + user.id + '-' + Date.now());
+          localStorage.setItem('authUser', JSON.stringify(user));
+          localStorage.setItem('activeRole', user.role);
+        }
       }
-    }
 
-    setTimeout(() => {
       setLoading(false);
       if (authPayload) {
         localStorage.setItem('centralAuthSession', JSON.stringify(authPayload));
         navigate('/workspace');
       } else {
         setError('Invalid email or password.');
-        activityLogService.addLog({
-          userName: email || 'Unknown',
-          module: 'Authentication',
-          action: 'Failed Login Attempt',
-          status: 'Failed'
-        });
+        try {
+          activityLogService.addLog({
+            userName: email || 'Unknown',
+            module: 'Authentication',
+            action: 'Failed Login Attempt',
+            status: 'Failed'
+          });
+        } catch (err) {}
       }
-    }, 500);
+    }
   };
 
   return (

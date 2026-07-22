@@ -223,13 +223,6 @@ export default function PendingPaymentTracking() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <SummaryCard title="Total Outstanding Receivables" value="₹ 4.2 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Overdue Amount" value="₹ 1.8 Cr" icon={<Clock className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
-        <SummaryCard title="Critical Outstanding Cases" value="24" icon={<AlertCircle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
-        <SummaryCard title="Collection Efficiency %" value="82.4%" icon={<Percent className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
-      </div>
-
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
           <SearchInput value={search} onChange={setSearch} placeholder="Search customer name..." />

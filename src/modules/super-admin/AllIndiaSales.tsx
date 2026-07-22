@@ -22,6 +22,9 @@ import {
   ResponsiveContainer
 } from 'recharts';
 
+import { superAdminDashboardService } from '../../services/superAdminDashboardService';
+import { INDIAN_STATE_OPTIONS } from '../../constants/indianStates';
+
 interface StateSales {
   id: string;
   state: string;
@@ -67,7 +70,13 @@ export default function AllIndiaSales() {
   const [isExportOpen, setIsExportOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  const [metrics, setMetrics] = useState<any>(null);
+
   useEffect(() => {
+    superAdminDashboardService.loadDashboardMetrics().then(res => {
+      setMetrics(res);
+    });
+
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsExportOpen(false);
@@ -242,16 +251,6 @@ export default function AllIndiaSales() {
         }
       />
 
-      {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-        <SummaryCard title="Total Sales Revenue" value="₹ 158.2 Cr" subtitle="Source: Sales Invoices / Billing" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
-        <SummaryCard title="Total Orders" value="46,000" subtitle="Source: Orders Module" icon={<ShoppingCart className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Sales Growth %" value="+8.5%" subtitle="Current vs Previous Period" icon={<TrendingUp className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
-        <SummaryCard title="Active Customers" value="4,175" subtitle="Purchased in selected period" icon={<Users className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
-        <SummaryCard title="Outstanding Receivables" value="₹ 15.9 Cr" subtitle="Source: Outstanding Tracking" icon={<AlertCircle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
-        <SummaryCard title="Top Performing State" value="Maharashtra" subtitle="Highest revenue generating state" icon={<MapPin className="w-6 h-6" />} colorClass="text-indigo-600" bgClass="bg-indigo-100" />
-      </div>
-
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
@@ -285,7 +284,7 @@ export default function AllIndiaSales() {
           />
           <SelectFilter
             value={stateFilter} onChange={setStateFilter}
-            options={mockStateSales.map(s => ({ label: s.state, value: s.state }))}
+            options={INDIAN_STATE_OPTIONS}
             placeholder="State"
           />
           <SelectFilter
@@ -316,6 +315,16 @@ export default function AllIndiaSales() {
             />
           </div>
         </div>
+      </div>
+
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
+        <SummaryCard title="Total Sales Revenue" value={metrics?.totalRevenueStr || "₹ 158.2 Cr"} subtitle="Source: Sales Invoices / Billing" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
+        <SummaryCard title="Total Orders" value={metrics?.totalOrders ? metrics.totalOrders.toLocaleString() : "46,000"} subtitle="Source: Orders Module" icon={<ShoppingCart className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
+        <SummaryCard title="Sales Growth %" value={metrics?.salesGrowthStr || "+8.5%"} subtitle="Current vs Previous Period" icon={<TrendingUp className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
+        <SummaryCard title="Active Customers" value={metrics?.activeCustomers ? metrics.activeCustomers.toLocaleString() : "4,175"} subtitle="Purchased in selected period" icon={<Users className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
+        <SummaryCard title="Outstanding Receivables" value={metrics?.outstandingReceivablesStr || "₹ 15.9 Cr"} subtitle="Source: Outstanding Tracking" icon={<AlertCircle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
+        <SummaryCard title="Top Performing State" value={metrics?.topState || "Maharashtra"} subtitle="Highest revenue generating state" icon={<MapPin className="w-6 h-6" />} colorClass="text-indigo-600" bgClass="bg-indigo-100" />
       </div>
 
       {/* Sales Trend Chart */}

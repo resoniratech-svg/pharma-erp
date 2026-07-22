@@ -39,6 +39,22 @@ export default function UserActivityLogs() {
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    activityLogService.loadLogs().then(data => {
+      if (Array.isArray(data) && data.length > 0) {
+        const formatted = data.map((item: any) => ({
+          id: item.id || Math.random().toString(),
+          dateTime: item.dateTime || new Date().toLocaleString(),
+          user: item.userName || item.user || 'System',
+          module: item.module || item.activityType || 'System',
+          activity: item.action || item.details || 'System Activity',
+          activityType: item.activityType || item.module || 'System',
+          ipAddress: item.ipAddress || '127.0.0.1',
+          status: item.status === 'Failed' ? 'Failed' : item.status === 'Warning' ? 'Warning' : 'Success'
+        }));
+        setLogs(formatted);
+      }
+    });
+
     function handleClickOutside(event: MouseEvent) {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
         setIsExportOpen(false);
@@ -256,37 +272,7 @@ export default function UserActivityLogs() {
       />
      
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <SummaryCard
-          title="Total Events Today"
-          value={logs.length.toString()}
-          icon={<Activity className="w-6 h-6" />}
-          colorClass="text-[#163c78]"
-          bgClass="bg-violet-100"
-        />
-        <SummaryCard
-          title="Active Sessions"
-          value={activeSessions.toString()}
-          icon={<UserCheck className="w-6 h-6" />}
-          colorClass="text-emerald-600"
-          bgClass="bg-emerald-100"
-        />
-        <SummaryCard
-          title="Failed Login Attempts"
-          value={failedLogins.toString()}
-          icon={<ShieldAlert className="w-6 h-6" />}
-          colorClass="text-rose-600"
-          bgClass="bg-rose-100"
-        />
-        <SummaryCard
-          title="Critical Activities"
-          value={criticalActivities.toString()}
-          icon={<AlertTriangle className="w-6 h-6" />}
-          colorClass="text-amber-600"
-          bgClass="bg-amber-100"
-        />
-      </div>
-
+      {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
           <SearchInput
@@ -328,6 +314,38 @@ export default function UserActivityLogs() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <SummaryCard
+          title="Total Events Today"
+          value={logs.length.toString()}
+          icon={<Activity className="w-6 h-6" />}
+          colorClass="text-[#163c78]"
+          bgClass="bg-violet-100"
+        />
+        <SummaryCard
+          title="Active Sessions"
+          value={activeSessions.toString()}
+          icon={<UserCheck className="w-6 h-6" />}
+          colorClass="text-emerald-600"
+          bgClass="bg-emerald-100"
+        />
+        <SummaryCard
+          title="Failed Login Attempts"
+          value={failedLogins.toString()}
+          icon={<ShieldAlert className="w-6 h-6" />}
+          colorClass="text-rose-600"
+          bgClass="bg-rose-100"
+        />
+        <SummaryCard
+          title="Critical Activities"
+          value={criticalActivities.toString()}
+          icon={<AlertTriangle className="w-6 h-6" />}
+          colorClass="text-amber-600"
+          bgClass="bg-amber-100"
+        />
       </div>
 
       <div className="mb-6">

@@ -38,10 +38,11 @@ export const doctorVisitService = {
     return visitsCache;
   },
 
-  async loadDoctorVisits(mrId: number): Promise<DoctorVisit[]> {
+  async loadDoctorVisits(mrId?: number): Promise<DoctorVisit[]> {
     try {
-      const response = await apiRequest<{ success: boolean; data: any[] }>(`/doctor-visits/mr/${mrId}`);
-      if (response.success && Array.isArray(response.data)) {
+      const endpoint = mrId ? `/doctor-visits/mr/${mrId}` : '/doctor-visits';
+      const response = await apiRequest<{ success: boolean; data: any[] }>(endpoint);
+      if (response && response.success && Array.isArray(response.data)) {
         visitsCache = response.data.map(v => ({
           id: String(v.id),
           mrId: v.mrId,
@@ -58,14 +59,15 @@ export const doctorVisitService = {
           prescriptionPotential: 'Medium',
           nextFollowUp: '',
           remarks: v.remarks || "",
-          status: 'Completed',
-          latitude: v.latitude ? String(v.latitude) : undefined,
-          longitude: v.longitude ? String(v.longitude) : undefined,
+          status: (v.status || "Completed") as any,
+          latitude: v.latitude,
+          longitude: v.longitude,
+          distanceVerified: v.distanceVerified
         }));
         localStorage.setItem("doctor_visits", JSON.stringify(visitsCache));
       }
-    } catch (err) {
-      console.error("Failed to load doctor visits from backend:", err);
+    } catch (e) {
+      console.error("Failed to load doctor visits from backend:", e);
     }
     return visitsCache;
   },

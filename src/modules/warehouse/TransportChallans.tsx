@@ -130,8 +130,9 @@ export default function TransportChallans() {
 
   const filteredData = useMemo(() => {
     const sortedChallans = challans.slice().sort((a, b) => {
-      // Sort descending by ID. New challans use Date.now() so they will appear first.
-      return Number(b.id) - Number(a.id);
+      const numA = Number(String(a.id).replace(/\D/g, '')) || 0;
+      const numB = Number(String(b.id).replace(/\D/g, '')) || 0;
+      return numB - numA;
     });
     return sortedChallans.filter((item) => {
       const searchStr = search.toLowerCase();

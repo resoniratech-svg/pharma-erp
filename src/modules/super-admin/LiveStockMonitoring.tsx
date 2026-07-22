@@ -226,13 +226,6 @@ export default function LiveStockMonitoring() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <SummaryCard title="Total Inventory Value" value="₹ 45.2 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Low Stock Products" value="124" icon={<PackageSearch className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
-        <SummaryCard title="Near Expiry Products" value="45" icon={<AlertTriangle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
-        <SummaryCard title="Dead Stock Value" value="₹ 1.2 Cr" icon={<ArchiveX className="w-6 h-6" />} colorClass="text-slate-600" bgClass="bg-slate-100" />
-      </div>
-
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
           <SearchInput value={search} onChange={setSearch} placeholder="Search product name..." />
@@ -249,11 +242,10 @@ export default function LiveStockMonitoring() {
           <SelectFilter
             value={stockStatus} onChange={setStockStatus}
             options={[
-              { label: 'In Stock', value: 'In Stock' },
+              { label: 'Optimal', value: 'Optimal' },
               { label: 'Low Stock', value: 'Low Stock' },
               { label: 'Near Expiry', value: 'Near Expiry' },
-              { label: 'Out Of Stock', value: 'Out Of Stock' },
-              { label: 'Dead Stock', value: 'Dead Stock' },
+              { label: 'Out of Stock', value: 'Out of Stock' },
             ]}
             placeholder="Stock Status"
           />
@@ -266,7 +258,7 @@ export default function LiveStockMonitoring() {
               { label: 'Supplements', value: 'Supplements' },
               { label: 'Consumables', value: 'Consumables' },
             ]}
-            placeholder="Product Category"
+            placeholder="Category"
           />
           <div className="flex items-center gap-2">
             <span className="text-sm font-medium text-slate-600">From</span>
@@ -287,6 +279,13 @@ export default function LiveStockMonitoring() {
             />
           </div>
         </div>
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <SummaryCard title="Total Inventory Value" value="₹ 45.2 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
+        <SummaryCard title="Low Stock Products" value="124" icon={<PackageSearch className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
+        <SummaryCard title="Near Expiry Products" value="45" icon={<AlertTriangle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
+        <SummaryCard title="Dead Stock Value" value="₹ 1.2 Cr" icon={<ArchiveX className="w-6 h-6" />} colorClass="text-slate-600" bgClass="bg-slate-100" />
       </div>
 
       <div className="mb-6">

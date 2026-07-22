@@ -5,6 +5,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { generatePurchaseOrderPdf } from '../../documents/generators/pdfGenerator';
 import { inventoryService } from '../../services/inventoryService';
+import { orderService } from '../../services/orderService';
 
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
@@ -129,6 +130,14 @@ export default function Orders() {
     const savedOrders = localStorage.getItem("pharma_erp_orders");
     return savedOrders ? JSON.parse(savedOrders) : initialOrders;
   });
+
+  useEffect(() => {
+    orderService.loadOrders().then(allOrders => {
+      if (allOrders && allOrders.length > 0) {
+        setOrders(allOrders);
+      }
+    });
+  }, []);
   
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');

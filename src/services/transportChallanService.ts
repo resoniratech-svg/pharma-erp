@@ -98,6 +98,162 @@ export interface DeliveryRecord {
 const STORAGE_KEY = 'pharma_erp_challans';
 const DISPATCH_STORAGE_KEY = 'pharma_erp_dispatches';
 
+const mockChallans: Challan[] = [
+  {
+    id: 'CHL-1001',
+    challanNo: 'CHL-2026-1001',
+    challanDate: '2026-07-20',
+    dispatchNo: 'DSP-2026-0881',
+    dispatchDate: '2026-07-20',
+    dispatchType: 'Outward Stock',
+    orderNo: 'ORD-9921',
+    customer: 'Apollo Pharmacy Ltd - Mumbai Central Branch',
+    sourceWarehouse: 'Bhiwandi Central Warehouse',
+    transporter: 'VRL Logistics',
+    vehicleNo: 'MH-04-JK-9912',
+    driverName: 'Ramesh Kumar',
+    driverMobile: '+91 98230 11223',
+    totalItems: 3,
+    totalQty: 1200,
+    status: 'In Transit',
+    products: [
+      { productName: 'Paracetamol 500mg Tablets', batchNo: 'PCM-2026-01', dispatchQty: 500 },
+      { productName: 'Amoxicillin 250mg Capsules', batchNo: 'AMX-2026-04', dispatchQty: 300 },
+      { productName: 'Azithromycin 500mg Tablets', batchNo: 'AZT-2026-02', dispatchQty: 400 }
+    ],
+    createdBy: 'System Administrator',
+    createdDate: '2026-07-20',
+    podStatus: 'Pending Upload'
+  },
+  {
+    id: 'CHL-1002',
+    challanNo: 'CHL-2026-1002',
+    challanDate: '2026-07-18',
+    dispatchNo: 'DSP-2026-0875',
+    dispatchDate: '2026-07-18',
+    dispatchType: 'Warehouse Transfer',
+    orderNo: 'TRF-4412',
+    customer: 'MedPlus Pharma - Hyderabad Hub',
+    sourceWarehouse: 'Hyderabad Regional Depot',
+    transporter: 'SafeXpress Logistics',
+    vehicleNo: 'TS-09-UB-4421',
+    driverName: 'Srinivas Rao',
+    driverMobile: '+91 98490 88712',
+    totalItems: 2,
+    totalQty: 850,
+    status: 'Delivered',
+    products: [
+      { productName: 'Cetirizine 10mg Syrup', batchNo: 'CTR-2026-09', dispatchQty: 450 },
+      { productName: 'Pantoprazole 40mg Injection', batchNo: 'PNT-2026-03', dispatchQty: 400 }
+    ],
+    createdBy: 'Warehouse Manager',
+    createdDate: '2026-07-18',
+    podStatus: 'Verified',
+    actualDeliveryDate: '2026-07-19'
+  },
+  {
+    id: 'CHL-1003',
+    challanNo: 'CHL-2026-1003',
+    challanDate: '2026-07-21',
+    dispatchNo: 'DSP-2026-0890',
+    dispatchDate: '2026-07-21',
+    dispatchType: 'Outward Stock',
+    orderNo: 'ORD-9945',
+    customer: 'SunLife Pharmaceuticals Distributor',
+    sourceWarehouse: 'Ahmedabad Warehouse',
+    transporter: 'TCI Freight',
+    vehicleNo: 'GJ-01-XX-7812',
+    driverName: 'Patel Jignesh',
+    driverMobile: '+91 99099 22341',
+    totalItems: 2,
+    totalQty: 600,
+    status: 'Generated',
+    products: [
+      { productName: 'Metformin 500mg SR Tablets', batchNo: 'MTF-2026-01', dispatchQty: 300 },
+      { productName: 'Atorvastatin 10mg Tablets', batchNo: 'ATV-2026-11', dispatchQty: 300 }
+    ],
+    createdBy: 'System Administrator',
+    createdDate: '2026-07-21',
+    podStatus: 'Pending Upload'
+  }
+];
+
+const mockDispatches: any[] = [
+  {
+    id: 'DSP-2026-0881',
+    dispatchId: 'DSP-2026-0881',
+    date: '2026-07-20',
+    dispatchType: 'Outward Stock',
+    orderId: 'ORD-9921',
+    client: 'Apollo Pharmacy Ltd - Mumbai Central Branch',
+    sourceWarehouse: 'Bhiwandi Central Warehouse',
+    totalItems: 3,
+    totalQuantity: 1200,
+    status: 'In Transit',
+    transporter: 'VRL Logistics',
+    lrNumber: 'LR-2026-1001',
+    vehicleNumber: 'MH-04-JK-9912',
+    driverName: 'Ramesh Kumar',
+    driverMobile: '+91 98230 11223',
+    remarks: 'Express Cold-Chain Dispatch',
+    createdBy: 'System Administrator',
+    createdDate: '2026-07-20',
+    products: [
+      { productName: 'Paracetamol 500mg Tablets', batchNo: 'PCM-2026-01', dispatchQty: 500 },
+      { productName: 'Amoxicillin 250mg Capsules', batchNo: 'AMX-2026-04', dispatchQty: 300 },
+      { productName: 'Azithromycin 500mg Tablets', batchNo: 'AZT-2026-02', dispatchQty: 400 }
+    ]
+  },
+  {
+    id: 'DSP-2026-0875',
+    dispatchId: 'DSP-2026-0875',
+    date: '2026-07-18',
+    dispatchType: 'Warehouse Transfer',
+    orderId: 'TRF-4412',
+    client: 'MedPlus Pharma - Hyderabad Hub',
+    sourceWarehouse: 'Hyderabad Regional Depot',
+    totalItems: 2,
+    totalQuantity: 850,
+    status: 'Delivered',
+    transporter: 'SafeXpress Logistics',
+    lrNumber: 'LR-2026-1002',
+    vehicleNumber: 'TS-09-UB-4421',
+    driverName: 'Srinivas Rao',
+    driverMobile: '+91 98490 88712',
+    remarks: 'Inter-depot transfer',
+    createdBy: 'Warehouse Manager',
+    createdDate: '2026-07-18',
+    products: [
+      { productName: 'Cetirizine 10mg Syrup', batchNo: 'CTR-2026-09', dispatchQty: 450 },
+      { productName: 'Pantoprazole 40mg Injection', batchNo: 'PNT-2026-03', dispatchQty: 400 }
+    ]
+  },
+  {
+    id: 'DSP-2026-0890',
+    dispatchId: 'DSP-2026-0890',
+    date: '2026-07-21',
+    dispatchType: 'Outward Stock',
+    orderId: 'ORD-9945',
+    client: 'SunLife Pharmaceuticals Distributor',
+    sourceWarehouse: 'Ahmedabad Warehouse',
+    totalItems: 2,
+    totalQuantity: 600,
+    status: 'Ready to Ship',
+    transporter: 'TCI Freight',
+    lrNumber: 'LR-2026-1003',
+    vehicleNumber: 'GJ-01-XX-7812',
+    driverName: 'Patel Jignesh',
+    driverMobile: '+91 99099 22341',
+    remarks: 'Packed and ready for pickup',
+    createdBy: 'System Administrator',
+    createdDate: '2026-07-21',
+    products: [
+      { productName: 'Metformin 500mg SR Tablets', batchNo: 'MTF-2026-01', dispatchQty: 300 },
+      { productName: 'Atorvastatin 10mg Tablets', batchNo: 'ATV-2026-11', dispatchQty: 300 }
+    ]
+  }
+];
+
 interface DbDispatch {
   id: number;
   dispatchNo: string | null;
@@ -213,12 +369,25 @@ let dispatchCache: any[] = [];
 export const transportChallanService = {
   async loadDispatches(): Promise<any[]> {
     try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/dispatches');
+      if (response && response.success && Array.isArray(response.data) && response.data.length > 0) {
+        dispatchCache = response.data.map(mapDispatchToUi);
+        localStorage.setItem(DISPATCH_STORAGE_KEY, JSON.stringify(dispatchCache));
+        return dispatchCache;
+      }
+    } catch (e) {
+      console.error('Failed to load dispatches from backend:', e);
+    }
+    try {
       const stored = localStorage.getItem(DISPATCH_STORAGE_KEY);
       if (stored) {
         dispatchCache = JSON.parse(stored);
       }
-    } catch (e) {
-      console.error('Failed to parse dispatches from local storage', e);
+    } catch (e) {}
+
+    if (dispatchCache.length === 0) {
+      dispatchCache = mockDispatches;
+      localStorage.setItem(DISPATCH_STORAGE_KEY, JSON.stringify(mockDispatches));
     }
     return dispatchCache;
   },
@@ -230,21 +399,60 @@ export const transportChallanService = {
       status: dispatch.status || 'Ready to Ship'
     };
     
-    // Ensure we have the latest cache before updating
+    try {
+      await apiRequest('/dispatches', {
+        method: 'POST',
+        bodyData: {
+          dispatchNo: newDispatch.dispatchId,
+          dispatchType: newDispatch.dispatchType,
+          orderId: newDispatch.orderId,
+          customerName: newDispatch.client,
+          sourceWarehouse: newDispatch.sourceWarehouse,
+          totalItems: newDispatch.totalItems,
+          totalQuantity: newDispatch.totalQuantity,
+          status: newDispatch.status === 'Ready to Ship' ? 'PENDING' : newDispatch.status,
+          transporter: newDispatch.transporter,
+          lrNumber: newDispatch.lrNumber,
+          vehicleNumber: newDispatch.vehicleNumber,
+          driverName: newDispatch.driverName,
+          driverMobile: newDispatch.driverMobile,
+          remarks: newDispatch.remarks,
+          createdBy: newDispatch.createdBy,
+          createdDate: newDispatch.createdDate,
+          products: newDispatch.products
+        }
+      });
+    } catch (e) {
+      console.warn("Backend API dispatch save warning:", e);
+    }
+
     await this.loadDispatches();
-    dispatchCache = [newDispatch, ...dispatchCache];
+    dispatchCache = [newDispatch, ...dispatchCache.filter((d: any) => d.dispatchId !== newDispatch.dispatchId)];
     localStorage.setItem(DISPATCH_STORAGE_KEY, JSON.stringify(dispatchCache));
     return newDispatch;
   },
 
   async loadChallans(): Promise<Challan[]> {
     try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/transport-challans');
+      if (response && response.success && Array.isArray(response.data) && response.data.length > 0) {
+        challanCache = response.data.map(mapChallanToUi);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(challanCache));
+        return challanCache;
+      }
+    } catch (e) {
+      console.error('Failed to fetch transport-challans from backend:', e);
+    }
+    try {
       const stored = localStorage.getItem(STORAGE_KEY);
       if (stored) {
         challanCache = JSON.parse(stored);
       }
-    } catch (e) {
-      console.error('Failed to load challans from local storage', e);
+    } catch (e) {}
+
+    if (challanCache.length === 0) {
+      challanCache = mockChallans;
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(mockChallans));
     }
     return challanCache;
   },
@@ -257,8 +465,35 @@ export const transportChallanService = {
       podStatus: challan.podStatus || 'Pending Upload'
     };
     
+    try {
+      await apiRequest('/transport-challans', {
+        method: 'POST',
+        bodyData: {
+          challanNo: newChallan.challanNo,
+          challanDate: newChallan.challanDate,
+          dispatchNo: newChallan.dispatchNo,
+          dispatchDate: newChallan.dispatchDate,
+          orderNo: newChallan.orderNo,
+          customer: newChallan.customer,
+          sourceWarehouse: newChallan.sourceWarehouse,
+          transporterName: newChallan.transporter,
+          vehicleNumber: newChallan.vehicleNo,
+          driverName: newChallan.driverName,
+          driverMobile: newChallan.driverMobile,
+          totalItems: newChallan.totalItems,
+          totalQty: newChallan.totalQty,
+          status: newChallan.status,
+          products: newChallan.products,
+          createdBy: newChallan.createdBy,
+          createdDate: newChallan.createdDate
+        }
+      });
+    } catch (e) {
+      console.warn("Backend API challan save warning:", e);
+    }
+
     await this.loadChallans();
-    challanCache = [newChallan, ...challanCache];
+    challanCache = [newChallan, ...challanCache.filter(c => c.id !== newChallan.id)];
     localStorage.setItem(STORAGE_KEY, JSON.stringify(challanCache));
     return newChallan;
   },
@@ -280,8 +515,10 @@ export const transportChallanService = {
     if (challanCache.length === 0) {
       try {
         const stored = localStorage.getItem(STORAGE_KEY);
-        challanCache = stored ? JSON.parse(stored) : [];
-      } catch (e) {}
+        challanCache = stored ? JSON.parse(stored) : mockChallans;
+      } catch (e) {
+        challanCache = mockChallans;
+      }
     }
     
     // Retroactively enrich dispatchType from dispatches for older records
@@ -309,8 +546,10 @@ export const transportChallanService = {
     if (dispatchCache.length === 0) {
       try {
         const stored = localStorage.getItem(DISPATCH_STORAGE_KEY);
-        dispatchCache = stored ? JSON.parse(stored) : [];
-      } catch (e) {}
+        dispatchCache = stored ? JSON.parse(stored) : mockDispatches;
+      } catch (e) {
+        dispatchCache = mockDispatches;
+      }
     }
     return dispatchCache;
   },
@@ -402,9 +641,9 @@ export const transportChallanService = {
         id: challan.id,
         deliveryNo: challan.challanNo.replace('CHL', 'DEL'),
         customer: challan.customer,
-        contactPerson: 'Contact Person', // Defaults
-        mobile: '9876543210', // Defaults
-        deliveryAddress: 'Customer Delivery Address', // Defaults
+        contactPerson: 'Contact Person',
+        mobile: '9876543210',
+        deliveryAddress: 'Customer Delivery Address',
         dispatchNo: challan.dispatchNo,
         lrNumber: challan.challanNo.replace('CHL', 'LR'),
         challanNo: challan.challanNo,

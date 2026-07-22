@@ -16,6 +16,7 @@ import {
 } from './components/shared';
 import { inventoryService } from '../../services/inventoryService';
 import { distributorOrderApprovalService } from '../../services/distributorOrderApprovalService';
+import { orderService } from '../../services/orderService';
 
 // --- Types ---
 type OrderStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected' | 'Processing' | 'Partially Fulfilled' | 'Fulfilled' | 'Cancelled' | 'On Hold';
@@ -75,11 +76,9 @@ export default function DistributorOrders() {
   const [outstandingRecords, setOutstandingRecords] = useState<OutstandingRecord[]>([]);
 
   useEffect(() => {
-    const savedOrders = localStorage.getItem("pharma_erp_orders");
-    if (savedOrders) {
-      const allOrders = JSON.parse(savedOrders) as OrderData[];
-      setOrders(allOrders.filter(o => o.status !== 'Draft'));
-    }
+    orderService.loadOrders().then(allOrders => {
+      setOrders(allOrders.filter((o: any) => o.status !== 'Draft'));
+    });
     
     const savedOutstanding = localStorage.getItem("pharma_erp_outstanding_records");
     if (savedOutstanding) {

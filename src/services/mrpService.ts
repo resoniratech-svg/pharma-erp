@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient';
+
 export interface MRPRecord {
   id: string;
   productCode: string;
@@ -23,6 +25,33 @@ export const mrpService = {
   getAll(): MRPRecord[] {
     const data = localStorage.getItem(STORAGE_KEY);
     return data ? JSON.parse(data) : [];
+  },
+
+  async loadMRPs(): Promise<MRPRecord[]> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/pricing');
+      if (response && response.success && Array.isArray(response.data)) {
+        const mapped: MRPRecord[] = response.data.map(p => ({
+          id: String(p.id),
+          productCode: p.product ? p.product.code : (p.productCode || `PRD-${p.productId || p.id}`),
+          productName: p.product ? p.product.name : (p.productName || `Product ${p.productId || p.id}`),
+          category: p.product && p.product.category ? p.product.category.name : (p.category || 'Pharmaceuticals'),
+          currentMrp: Number(p.mrp || p.price || 0),
+          previousMrp: Number(p.previousMrp || 0),
+          effectiveFrom: p.effectiveFrom ? new Date(p.effectiveFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          status: p.status === 'Active' ? 'Active' : (p.status || 'Active'),
+          createdAt: p.createdAt || new Date().toISOString(),
+          updatedAt: p.updatedAt || new Date().toISOString(),
+          createdBy: p.createdBy || 'System',
+          updatedBy: p.updatedBy || 'System'
+        }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+        return mapped;
+      }
+    } catch (e) {
+      console.error("Failed to fetch MRP records from backend:", e);
+    }
+    return this.getAll();
   },
 
   saveAll(records: MRPRecord[]): void {

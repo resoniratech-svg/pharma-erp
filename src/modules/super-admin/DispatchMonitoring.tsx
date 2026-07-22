@@ -228,13 +228,7 @@ export default function DispatchMonitoring() {
         }
       />
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <SummaryCard title="Total Dispatches (MTD)" value="1,245" icon={<Truck className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
-        <SummaryCard title="In Transit" value="128" icon={<Clock className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Delivered Successfully" value="1,117" icon={<CheckCircle2 className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
-        <SummaryCard title="Delayed Shipments" value="24" icon={<AlertTriangle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
-      </div>
-
+      {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
           <SearchInput value={search} onChange={setSearch} placeholder="Search challan, order..." />
@@ -261,10 +255,10 @@ export default function DispatchMonitoring() {
           <SelectFilter
             value={transporter} onChange={setTransporter}
             options={[
-              { label: 'VRL Logistics', value: 'VRL Logistics' },
+              { label: 'BlueDart Logistics', value: 'BlueDart Logistics' },
+              { label: 'DTDC Express', value: 'DTDC Express' },
               { label: 'SafeExpress', value: 'SafeExpress' },
-              { label: 'Gati', value: 'Gati' },
-              { label: 'Blue Dart', value: 'Blue Dart' },
+              { label: 'VRL Logistics', value: 'VRL Logistics' },
             ]}
             placeholder="Transporter"
           />
@@ -287,6 +281,14 @@ export default function DispatchMonitoring() {
             />
           </div>
         </div>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <SummaryCard title="Total Dispatches (MTD)" value="1,245" icon={<Truck className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
+        <SummaryCard title="In Transit" value="128" icon={<Clock className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
+        <SummaryCard title="Delivered Successfully" value="1,117" icon={<CheckCircle2 className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
+        <SummaryCard title="Delayed Shipments" value="24" icon={<AlertTriangle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
       </div>
 
       <div className="mb-6">

@@ -54,6 +54,36 @@ export const billingService = {
     }
   },
 
+  async loadInvoices(): Promise<GSTInvoice[]> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/invoices');
+      if (response && response.success && Array.isArray(response.data)) {
+        const mappedInvoices: GSTInvoice[] = response.data.map((inv: any) => ({
+          id: String(inv.id),
+          invoiceNo: inv.invoiceNumber || inv.invoiceNo || `GST-${inv.id}`,
+          customerId: String(inv.retailerId || inv.customerId || '1'),
+          customerName: inv.retailer ? inv.retailer.name : (inv.customerName || 'Walk-in Customer'),
+          date: inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          dueDate: inv.dueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
+          items: inv.items || [],
+          subTotal: Number(inv.subTotal || 0),
+          cgstTotal: Number(inv.cgstTotal || (inv.gstAmount ? inv.gstAmount / 2 : 0)),
+          sgstTotal: Number(inv.sgstTotal || (inv.gstAmount ? inv.gstAmount / 2 : 0)),
+          igstTotal: Number(inv.igstTotal || 0),
+          grandTotal: Number(inv.totalAmount || inv.grandTotal || 0),
+          paymentMode: inv.paymentMode || 'Cash',
+          status: inv.status || 'PAID'
+        }));
+
+        localStorage.setItem(INVOICE_KEY, JSON.stringify(mappedInvoices));
+        return mappedInvoices;
+      }
+    } catch (e) {
+      console.error('Failed to load invoices from backend API:', e);
+    }
+    return this.getInvoices();
+  },
+
   saveInvoice(invoice: GSTInvoice) {
     // 1. Instant local storage save
     const invoices = this.getInvoices();
