@@ -33,6 +33,9 @@ const getRetailerOrdersRepo =
           }
         },
       },
+      orderBy: {
+        id: 'desc'
+      }
     });
 
   };
@@ -70,11 +73,14 @@ const updateRetailerOrderRepo =
 
 const deleteRetailerOrderRepo =
   async (id) => {
-
-    return prisma.retailerOrder.delete({
-      where: { id },
+    return prisma.$transaction(async (tx) => {
+      await tx.retailerOrderItem.deleteMany({
+        where: { retailerOrderId: id }
+      });
+      return tx.retailerOrder.delete({
+        where: { id },
+      });
     });
-
   };
 
 module.exports = {
