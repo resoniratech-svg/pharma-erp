@@ -30,20 +30,31 @@ export const barcodeService = {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/products');
       if (response && response.success && Array.isArray(response.data)) {
+        const existingBarcodes = this.getAll();
+        const inactiveHistory = existingBarcodes.filter(b => b.status === 'Inactive');
+
         const mappedBarcodes: BarcodeRecord[] = response.data
           .filter((p: any) => p.code || p.name)
-          .map((p: any) => ({
-            id: String(p.id),
-            barcode: p.barcode || '',
-            productCode: p.code || `PRD-${p.id}`,
-            productName: p.name || `Product ${p.id}`,
-            type: 'Primary GS1-128',
-            assignedDate: p.createdAt ? new Date(p.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            status: p.barcode ? 'Active' : 'Unassigned'
-          }));
+          .map((p: any) => {
+            const isAssigned = !!p.barcode;
+            // Try to match with an existing active barcode to preserve its ID and type if it hasn't changed
+            const existingActive = existingBarcodes.find(b => b.productCode === (p.code || `PRD-${p.id}`) && b.status === 'Active' && b.barcode === p.barcode);
+            
+            return {
+              id: existingActive ? existingActive.id : String(p.id),
+              barcode: p.barcode || '',
+              productCode: p.code || `PRD-${p.id}`,
+              productName: p.name || `Product ${p.id}`,
+              type: existingActive ? existingActive.type : 'Primary GS1-128',
+              assignedDate: p.createdAt ? new Date(p.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+              status: isAssigned ? 'Active' as const : 'Unassigned' as const
+            };
+          });
 
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(mappedBarcodes));
-        return mappedBarcodes;
+        const combinedBarcodes = [...inactiveHistory, ...mappedBarcodes];
+
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(combinedBarcodes));
+        return combinedBarcodes;
       }
     } catch (e) {
       console.error('Failed to load barcodes from backend:', e);
