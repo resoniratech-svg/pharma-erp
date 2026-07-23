@@ -86,6 +86,11 @@ export const orderService = {
     });
 
     const finalOrders = mergedOrders.length > 0 ? mergedOrders : initialOrdersSeed;
+    finalOrders.sort((a: any, b: any) => {
+      const idA = parseInt(String(a.id).replace(/\D/g, '') || '0', 10);
+      const idB = parseInt(String(b.id).replace(/\D/g, '') || '0', 10);
+      return idB - idA;
+    });
     localStorage.setItem(STORAGE_KEY, JSON.stringify(finalOrders));
     return finalOrders;
   },
