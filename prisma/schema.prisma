@@ -363,6 +363,7 @@ model Retailer {
   name              String
   code              String          @unique
   mobile            String
+  contactPerson     String?
   email             String?
   address           String?
   gstNumber         String?
