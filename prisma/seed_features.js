@@ -23,15 +23,18 @@ async function main() {
 
   for (const featureName of featuresToEnable) {
     // Ensure the feature exists
-    const feature = await prisma.feature.upsert({
-      where: { name: featureName },
-      update: {},
-      create: {
-        name: featureName,
-        description: `Access to ${featureName}`,
-        moduleId: module.id
-      }
+    let feature = await prisma.feature.findFirst({
+      where: { name: featureName }
     });
+    if (!feature) {
+      feature = await prisma.feature.create({
+        data: {
+          name: featureName,
+          description: `Access to ${featureName}`,
+          moduleId: module.id
+        }
+      });
+    }
 
     // Enable for company 1
     await prisma.companyFeaturePermission.upsert({
