@@ -141,6 +141,7 @@ model Product {
   scheme                 String?
   sellingPrice           Float?
   status                 String                  @default("Active")
+  barcode                String?
   totalUnits             String?
   type                   String?
   unitsPerPack           String?

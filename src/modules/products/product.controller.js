@@ -35,6 +35,7 @@ const createProduct = async (req, res) => {
     const productData = {
       name: req.body.name,
       code: req.body.code,
+      barcode: req.body.barcode || null,
       categoryId: categoryId,
       companyId: targetCompanyId,
       hsnCode: req.body.hsnCode,
@@ -134,7 +135,7 @@ const updateProduct = async (req, res) => {
     
     // Map text fields
     const textFields = [
-      "name", "code", "hsnCode", "genericName", "brandName", "type",
+      "name", "code", "barcode", "hsnCode", "genericName", "brandName", "type",
       "manufacturer", "composition", "scheme", "packingType", "unitsPerPack",
       "packsInBox", "totalUnits", "status"
     ];
