@@ -617,7 +617,7 @@ export default function TransportChallans() {
                 <label className="block text-sm font-medium mb-1">Dispatch Number *</label>
                 <select value={selectedDispatchNo} onChange={e => setSelectedDispatchNo(e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2">
                   <option value="">Select Dispatch</option>
-                  {dispatches.filter(d => ['Ready to Ship', 'Packed', 'Dispatched'].includes(d.status)).map(d => (
+                  {dispatches.filter(d => (d.status || '').toUpperCase() !== 'CANCELLED').map(d => (
                     <option key={d.dispatchId} value={d.dispatchId}>{d.dispatchId}</option>
                   ))}
                 </select>
