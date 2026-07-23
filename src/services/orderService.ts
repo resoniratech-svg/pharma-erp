@@ -59,7 +59,16 @@ export const orderService = {
           expectedDeliveryDate: o.expectedDeliveryDate || new Date().toISOString().split('T')[0],
           totalAmount: Number(o.totalAmount || 0),
           status: o.status === 'PENDING' ? 'Submitted' : o.status === 'APPROVED' ? 'Approved' : (o.status || 'Submitted'),
-          items: o.items || []
+          items: (o.orderItems || o.items || []).map((i: any) => ({
+            productId: i.productId,
+            productCode: i.product?.code || i.productCode || `PRD-${i.productId}`,
+            productName: i.product?.name || i.productName || 'Unknown Product',
+            packType: i.product?.packType || i.packType || '-',
+            ptr: Number(i.rate || i.ptr || 0),
+            quantity: Number(i.quantity || 0),
+            amount: Number(i.amount || 0),
+            scheme: i.scheme || 'No Scheme'
+          }))
         }));
       }
     } catch (e) {
