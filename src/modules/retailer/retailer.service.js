@@ -10,7 +10,7 @@ const createRetailerService = async (data) => {
   if (assignedDistributors && assignedDistributors.length > 0) {
     const distCode = assignedDistributors[0].code;
     const stockist = await prisma.stockist.findUnique({
-      where: { stockistCode: distCode }
+      where: { code: distCode }
     });
     if (stockist) {
       stockistId = stockist.id;
@@ -49,7 +49,7 @@ const updateRetailerService = async (id, data) => {
   if (assignedDistributors && assignedDistributors.length > 0) {
     const distCode = assignedDistributors[0].code;
     const stockist = await prisma.stockist.findUnique({
-      where: { stockistCode: distCode }
+      where: { code: distCode }
     });
     if (stockist) {
       stockistId = stockist.id;
