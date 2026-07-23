@@ -150,5 +150,31 @@ export const mrpService = {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString()
     };
+  },
+
+  async syncMRPToBackend(mrp: MRPRecord, productId?: number): Promise<void> {
+    try {
+      const payload = {
+        productId: productId || parseInt(mrp.id), // If we don't have the real ID, fallback to something
+        mrp: mrp.currentMrp,
+        ptr: 0,
+        pts: 0,
+        margin: 0,
+        effectiveDate: new Date(mrp.effectiveFrom).toISOString(),
+        status: mrp.status
+      };
+      
+      await apiRequest('/pricing', 'POST', payload);
+    } catch (e) {
+      console.error("Failed to sync MRP to backend:", e);
+    }
+  },
+
+  async deleteMRPFromBackend(id: string): Promise<void> {
+    try {
+      await apiRequest(`/pricing/${id}`, 'DELETE');
+    } catch (e) {
+      console.error("Failed to delete MRP from backend:", e);
+    }
   }
 };

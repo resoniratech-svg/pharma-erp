@@ -206,7 +206,7 @@ export default function MRPManagement() {
     setShowModal(true);
   };
 
-  const handleSaveMrp = () => {
+  const handleSaveMrp = async () => {
     if (!newMrp.productCode || !newMrp.newMrp || !newMrp.effectiveDate || !newMrp.revisionReason) {
       alert("Please fill all mandatory fields (*).");
       return;
@@ -262,6 +262,10 @@ export default function MRPManagement() {
         createdBy: selectedItem?.createdBy || currentUser?.fullName || 'System',
         updatedBy: currentUser?.fullName || 'System'
       };
+      
+      const matchedProduct = products.find(p => p.code === updatedRecord.productCode);
+      const productId = matchedProduct ? parseInt(matchedProduct.id) : undefined;
+      await mrpService.syncMRPToBackend(updatedRecord, productId);
 
       if (resolvedStatus === 'Active') {
         allRecords = mrpService.expirePreviousActiveMRP(allRecords, updatedRecord.productCode, updatedRecord.id);
@@ -271,8 +275,7 @@ export default function MRPManagement() {
         productService.saveProducts(updatedProducts);
         setProducts(updatedProducts);
 
-        // Sync updated MRP to backend database
-        const matchedProduct = products.find(p => p.code === updatedRecord.productCode);
+        // Sync updated MRP to backend database (product update)
         if (matchedProduct) {
           productService.updateProduct(matchedProduct.id, {
             ...matchedProduct,
@@ -313,6 +316,10 @@ export default function MRPManagement() {
 
       const newRecord = mrpService.createMRPVersion(payload);
       
+      const matchedProduct = products.find(p => p.code === newRecord.productCode);
+      const productId = matchedProduct ? parseInt(matchedProduct.id) : undefined;
+      await mrpService.syncMRPToBackend(newRecord, productId);
+      
       allRecords = [...allRecords, newRecord];
       
       if (newRecord.status === 'Active') {
@@ -324,8 +331,7 @@ export default function MRPManagement() {
         productService.saveProducts(updatedProducts);
         setProducts(updatedProducts);
 
-        // Sync new MRP to backend database
-        const matchedProduct = products.find(p => p.code === newRecord.productCode);
+        // Sync new MRP to backend database (product update)
         if (matchedProduct) {
           productService.updateProduct(matchedProduct.id, {
             ...matchedProduct,
@@ -348,7 +354,7 @@ export default function MRPManagement() {
     setShowModal(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (itemToDelete) {
       const inUse = checkMrpInUse(itemToDelete);
       if (inUse) {
@@ -357,6 +363,11 @@ export default function MRPManagement() {
         );
         setData(updated);
         mrpService.saveAll(updated);
+        // We sync the updated (cancelled) status to backend instead of deleting
+        const matchedProduct = products.find(p => p.code === itemToDelete.productCode);
+        const productId = matchedProduct ? parseInt(matchedProduct.id) : undefined;
+        await mrpService.syncMRPToBackend(updated.find(u => u.id === itemToDelete.id)!, productId);
+
         activityLogService.addLog({
           userId: currentUser?.id,
           userName: currentUser?.fullName,
@@ -368,6 +379,8 @@ export default function MRPManagement() {
         const updated = data.filter(item => item.id !== itemToDelete.id);
         setData(updated);
         mrpService.saveAll(updated);
+        await mrpService.deleteMRPFromBackend(itemToDelete.id);
+
         activityLogService.addLog({
           userId: currentUser?.id,
           userName: currentUser?.fullName,
