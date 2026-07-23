@@ -6,14 +6,43 @@ const prisma = require("../../config/db");
 const createRetailerService = async (data) => {
   const { assignedDistributors, password, status, mobile, contactPerson, name, code, email } = data;
 
-  let stockistId = 1; // Fallback
+  let stockistId; // No hardcoded fallback
   if (assignedDistributors && assignedDistributors.length > 0) {
     const distCode = assignedDistributors[0].code;
-    const stockist = await prisma.stockist.findUnique({
+    const distName = assignedDistributors[0].name || "Unknown Stockist";
+    
+    let stockist = await prisma.stockist.findUnique({
       where: { code: distCode }
     });
-    if (stockist) {
-      stockistId = stockist.id;
+    
+    if (!stockist) {
+      // Create it if it doesn't exist
+      stockist = await prisma.stockist.create({
+        data: {
+          code: distCode,
+          name: distName,
+          mobile: "0000000000" // Required field
+        }
+      });
+    }
+    
+    stockistId = stockist.id;
+  }
+  
+  // If still no stockist, fallback to first available
+  if (!stockistId) {
+    const firstStockist = await prisma.stockist.findFirst();
+    if (firstStockist) {
+      stockistId = firstStockist.id;
+    } else {
+      const dummyStockist = await prisma.stockist.create({
+        data: {
+          code: "DUMMY",
+          name: "Dummy Stockist",
+          mobile: "0000000000"
+        }
+      });
+      stockistId = dummyStockist.id;
     }
   }
 
@@ -48,12 +77,20 @@ const updateRetailerService = async (id, data) => {
   let stockistId;
   if (assignedDistributors && assignedDistributors.length > 0) {
     const distCode = assignedDistributors[0].code;
-    const stockist = await prisma.stockist.findUnique({
+    const distName = assignedDistributors[0].name || "Unknown Stockist";
+    let stockist = await prisma.stockist.findUnique({
       where: { code: distCode }
     });
-    if (stockist) {
-      stockistId = stockist.id;
+    if (!stockist) {
+      stockist = await prisma.stockist.create({
+        data: {
+          code: distCode,
+          name: distName,
+          mobile: "0000000000"
+        }
+      });
     }
+    stockistId = stockist.id;
   }
 
   const mappedData = {};
