@@ -14,7 +14,7 @@ import {
 import { type Column, type BadgeVariant } from './components/shared';
 
 // --- Types ---
-type OrderStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected' | 'Processing' | 'Partially Fulfilled' | 'Fulfilled' | 'Cancelled';
+type OrderStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'Processing' | 'Partially Fulfilled' | 'Fulfilled' | 'Cancelled';
 
 interface OrderItem {
   productCode: string;
@@ -55,7 +55,7 @@ interface Product {
 const initialOrders: Order[] = [
   {
     id: '1', orderNo: 'ORD-2026-1001', distributorName: 'Metro Pharma Distributors', distributorCode: 'DIST-001',
-    date: '15-10-2026', expectedDeliveryDate: '18-10-2026', status: 'Pending',
+    date: '15-10-2026', expectedDeliveryDate: '18-10-2026', status: 'Submitted',
     deliveryLocation: 'Mumbai Central', warehouse: 'West Zone Hub', remarks: 'Urgent delivery required',
     items: [
       { productCode: 'PRD-001', productName: 'Amoxicillin 500mg', packType: '10x10 Tablets', ptr: 110, quantity: 50, scheme: '10+1 Free', amount: 5500 },
@@ -644,9 +644,9 @@ const calculateAgingDays = (invoiceDate: string) => {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        let variant: BadgeVariant = 'neutral';
-        if (['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled'].includes(row.status)) variant = 'success';
-        if (row.status === 'Pending') variant = 'info';
+        let variant: BadgeVariant = 'secondary';
+        if (['Processing'].includes(row.status)) variant = 'info';
+        if (['Approved', 'Fulfilled', 'Submitted'].includes(row.status)) variant = 'success';
         if (row.status === 'Draft') variant = 'warning';
         if (['Rejected', 'Cancelled'].includes(row.status)) variant = 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
@@ -733,7 +733,7 @@ const calculateAgingDays = (invoiceDate: string) => {
           onChange={setStatusFilter}
           options={[
             { label: 'Draft', value: 'Draft' },
-            { label: 'Pending', value: 'Pending' },
+            { label: 'Submitted', value: 'Submitted' },
             { label: 'Approved', value: 'Approved' },
             { label: 'Processing', value: 'Processing' },
             { label: 'Partially Fulfilled', value: 'Partially Fulfilled' },
@@ -765,7 +765,7 @@ const calculateAgingDays = (invoiceDate: string) => {
                 <DrawerField label="Order Date" value={viewOrder.date} />
                 <DrawerField label="Expected Delivery" value={viewOrder.expectedDeliveryDate} />
                 <DrawerField label="Status" value={
-                  <Badge variant={['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled'].includes(viewOrder.status) ? 'success' : viewOrder.status === 'Pending' ? 'info' : viewOrder.status === 'Draft' ? 'warning' : 'danger'}>
+                  <Badge variant={['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled', 'Submitted'].includes(viewOrder.status) ? 'success' : viewOrder.status === 'Draft' ? 'warning' : 'danger'}>
                     {viewOrder.status}
                   </Badge>
                 } />
@@ -833,7 +833,7 @@ const calculateAgingDays = (invoiceDate: string) => {
                     setViewOrder(null);
                     handleEditOrder(viewOrder);
                   }}>Edit Order</ActionButton>
-                  <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Pending')}>Submit Order</ActionButton>
+                  <ActionButton onClick={() => updateOrderStatus(viewOrder.id, 'Submitted')}>Submit Order</ActionButton>
                 </>
               ) : (
                 <ActionButton variant="secondary" onClick={() => setViewOrder(null)}>Close</ActionButton>
@@ -1101,7 +1101,7 @@ const calculateAgingDays = (invoiceDate: string) => {
               <ActionButton variant="secondary" onClick={() => handleSaveOrder('Draft')} >
                 Save Draft
               </ActionButton>
-              <ActionButton onClick={() => handleSaveOrder('Pending')} >
+              <ActionButton onClick={() => handleSaveOrder('Submitted')} >
                 Submit Order
               </ActionButton>
             </div>
