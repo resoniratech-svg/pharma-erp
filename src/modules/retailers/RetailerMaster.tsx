@@ -119,10 +119,6 @@ export default function RetailerMaster() {
       alert('At least one Distributor must be assigned');
       return;
     }
-    if (!formData.contactPerson.trim()) {
-      alert('Contact Person is required');
-      return;
-    }
     if (!formData.mobileNumber.trim()) {
       alert('Mobile Number is required');
       return;
@@ -385,7 +381,7 @@ export default function RetailerMaster() {
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Contact Person *</label>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Contact Person</label>
                     <input 
                       type="text"
                       value={formData.contactPerson}
