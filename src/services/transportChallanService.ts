@@ -432,6 +432,26 @@ export const transportChallanService = {
     return newDispatch;
   },
 
+  async updateDispatch(id: string, updatedData: any): Promise<any> {
+    try {
+      await apiRequest(`/dispatches/${id}`, {
+        method: 'PATCH',
+        bodyData: updatedData
+      });
+    } catch (e) {
+      console.warn("Backend API dispatch update warning:", e);
+    }
+
+    await this.loadDispatches();
+    const index = dispatchCache.findIndex((d: any) => d.id === id || d.dispatchId === id);
+    if (index !== -1) {
+      dispatchCache[index] = { ...dispatchCache[index], ...updatedData };
+      localStorage.setItem(DISPATCH_STORAGE_KEY, JSON.stringify(dispatchCache));
+      return dispatchCache[index];
+    }
+    return null;
+  },
+
   async loadChallans(): Promise<Challan[]> {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/transport-challans');

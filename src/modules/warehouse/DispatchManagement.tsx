@@ -387,12 +387,12 @@ export default function DispatchManagement() {
       label: 'Status',
       render: (row) => {
         let variant: BadgeVariant = 'neutral';
-        if (row.status === 'Ready to Ship') variant = 'info';
-        if (row.status === 'Packed') variant = 'purple';
-        if (row.status === 'Dispatched') variant = 'warning';
-        if (row.status === 'In Transit') variant = 'warning';
-        if (row.status === 'Delivered') variant = 'success';
-        if (row.status === 'Cancelled') variant = 'danger';
+        const st = (row.status || '').toUpperCase();
+        if (st === 'READY TO SHIP' || st === 'PENDING') variant = 'info';
+        if (st === 'PACKED') variant = 'purple';
+        if (st === 'DISPATCHED' || st === 'IN_TRANSIT' || st === 'IN TRANSIT') variant = 'warning';
+        if (st === 'DELIVERED' || st === 'SUCCESS') variant = 'success';
+        if (st === 'CANCELLED') variant = 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
@@ -723,14 +723,35 @@ export default function DispatchManagement() {
                 <DrawerField label="Customer / Destination" value={selectedDispatch.client} />
                 <DrawerField label="Source Warehouse" value={selectedDispatch.sourceWarehouse} />
                 <DrawerField label="Status" value={
-                  <Badge variant={
-                    selectedDispatch.status === 'Ready to Ship' ? 'info' : 
-                    selectedDispatch.status === 'Packed' ? 'purple' : 
-                    selectedDispatch.status === 'Delivered' ? 'success' : 
-                    selectedDispatch.status === 'Cancelled' ? 'danger' : 'warning'
-                  }>
-                    {selectedDispatch.status}
-                  </Badge>
+                  <div className="flex items-center gap-3">
+                    <Badge variant={
+                      (() => {
+                        const st = (selectedDispatch.status || '').toUpperCase();
+                        if (st === 'READY TO SHIP' || st === 'PENDING') return 'info';
+                        if (st === 'PACKED') return 'purple';
+                        if (st === 'DISPATCHED' || st === 'IN_TRANSIT' || st === 'IN TRANSIT') return 'warning';
+                        if (st === 'DELIVERED' || st === 'SUCCESS') return 'success';
+                        if (st === 'CANCELLED') return 'danger';
+                        return 'neutral';
+                      })()
+                    }>
+                      {selectedDispatch.status}
+                    </Badge>
+                    {(selectedDispatch.status || '').toUpperCase() !== 'SUCCESS' && (selectedDispatch.status || '').toUpperCase() !== 'DELIVERED' && (selectedDispatch.status || '').toUpperCase() !== 'CANCELLED' && (
+                      <button 
+                        onClick={() => {
+                          const newStatus = (selectedDispatch.status || '').toUpperCase() === 'PENDING' ? 'IN_TRANSIT' : 'SUCCESS';
+                          transportChallanService.updateDispatch(selectedDispatch.id, { status: newStatus }).then(() => {
+                            setDispatches(dispatches.map(d => (d.id === selectedDispatch.id || d.dispatchId === selectedDispatch.dispatchId) ? { ...d, status: newStatus } : d));
+                            setSelectedDispatch({ ...selectedDispatch, status: newStatus });
+                          });
+                        }}
+                        className="text-xs font-medium text-violet-600 bg-violet-50 hover:bg-violet-100 px-2 py-1 rounded-md transition-colors"
+                      >
+                        Mark as { (selectedDispatch.status || '').toUpperCase() === 'PENDING' ? 'In Transit' : 'Success' }
+                      </button>
+                    )}
+                  </div>
                 } />
               </div>
             </div>
