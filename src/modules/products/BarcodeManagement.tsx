@@ -185,6 +185,16 @@ export default function BarcodeManagement() {
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   }).sort((a, b) => {
+    // Sort by status first
+    const statusOrder: Record<string, number> = { 'Active': 0, 'Inactive': 1, 'Unassigned': 2 };
+    const orderA = statusOrder[a.status] ?? 3;
+    const orderB = statusOrder[b.status] ?? 3;
+    
+    if (orderA !== orderB) {
+      return orderA - orderB;
+    }
+    
+    // Then sort by date (newest first)
     const dateA = new Date(a.assignedDate || 0).getTime();
     const dateB = new Date(b.assignedDate || 0).getTime();
     return dateB - dateA;
