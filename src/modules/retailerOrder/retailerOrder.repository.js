@@ -27,7 +27,11 @@ const getRetailerOrdersRepo =
         chemist: true,
         hospital: true,
         stockist: true,
-        orderItems: true,
+        orderItems: {
+          include: {
+            product: true
+          }
+        },
       },
     });
 
@@ -44,7 +48,11 @@ const getRetailerOrderByIdRepo =
         chemist: true,
         hospital: true,
         stockist: true,
-        orderItems: true,
+        orderItems: {
+          include: {
+            product: true
+          }
+        },
       },
     });
 
