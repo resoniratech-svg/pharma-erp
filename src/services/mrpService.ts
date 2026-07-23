@@ -31,13 +31,13 @@ export const mrpService = {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/pricing');
       if (response && response.success && Array.isArray(response.data)) {
-        const mapped: MRPRecord[] = response.data.map(p => ({
+        let mapped: MRPRecord[] = response.data.map(p => ({
           id: String(p.id),
           productCode: p.product ? p.product.code : (p.productCode || `PRD-${p.productId || p.id}`),
           productName: p.product ? p.product.name : (p.productName || `Product ${p.productId || p.id}`),
           category: p.product && p.product.category ? p.product.category.name : (p.category || 'Pharmaceuticals'),
           currentMrp: Number(p.mrp || p.price || 0),
-          previousMrp: Number(p.previousMrp || 0),
+          previousMrp: 0, // We will calculate this below
           effectiveFrom: p.effectiveFrom ? new Date(p.effectiveFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           status: p.status === 'Active' ? 'Active' : (p.status || 'Active'),
           createdAt: p.createdAt || new Date().toISOString(),
@@ -45,6 +45,28 @@ export const mrpService = {
           createdBy: p.createdBy || 'System',
           updatedBy: p.updatedBy || 'System'
         }));
+
+        // Calculate previous MRP based on history
+        const groupedByProduct = mapped.reduce((acc, curr) => {
+          if (!acc[curr.productCode]) acc[curr.productCode] = [];
+          acc[curr.productCode].push(curr);
+          return acc;
+        }, {} as Record<string, MRPRecord[]>);
+
+        mapped = [];
+        for (const code in groupedByProduct) {
+          const productRecords = groupedByProduct[code].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+          for (let i = 0; i < productRecords.length; i++) {
+            if (i > 0) {
+              productRecords[i].previousMrp = productRecords[i - 1].currentMrp;
+            }
+          }
+          mapped.push(...productRecords);
+        }
+
+        // Sort everything back by latest updated
+        mapped.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+
         localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
         return mapped;
       }
