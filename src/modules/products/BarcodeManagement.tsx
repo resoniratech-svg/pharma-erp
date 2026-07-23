@@ -137,8 +137,8 @@ export default function BarcodeManagement() {
   const columns: Column<BarcodeRecord>[] = [
     { key: 'productCode', label: 'Product Code' },
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{getProductDisplay(row.productCode, row.productName)}</span> },
-    { key: 'barcode', label: 'Barcode', render: (row) => <span className="font-mono text-slate-800 bg-slate-100 px-2 py-1 rounded">{row.barcode}</span> },
-    { key: 'type', label: 'Barcode Type' },
+    { key: 'barcode', label: 'Barcode', render: (row) => row.barcode ? <span className="font-mono text-slate-800 bg-slate-100 px-2 py-1 rounded">{row.barcode}</span> : <span className="text-slate-400 italic">Unassigned</span> },
+    { key: 'type', label: 'Barcode Type', render: (row) => row.barcode ? row.type : '-' },
     {
       key: 'status',
       label: 'Status',
@@ -161,7 +161,7 @@ export default function BarcodeManagement() {
           >
             View
           </button>
-          {canDelete && (
+          {canDelete && row.barcode && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
@@ -337,6 +337,13 @@ export default function BarcodeManagement() {
         
         if (newBarcode.status === 'Active') {
           const productList = productService.getProducts();
+          const matchedProduct = productList.find((p: any) => p.code === updated.productCode);
+          if (matchedProduct) {
+            productService.updateProduct(matchedProduct.id, {
+              ...matchedProduct,
+              barcode: updated.barcode
+            }).catch(err => console.error("Failed to sync barcode to database:", err));
+          }
           const updatedProducts = productList.map((p: any) =>
             p.code === updated.productCode ? { ...p, barcode: updated.barcode } : p
           );
@@ -378,6 +385,13 @@ export default function BarcodeManagement() {
 
       if (newBarcode.status === 'Active') {
         const productList = productService.getProducts();
+        const matchedProduct = productList.find((p: any) => p.code === created.productCode);
+        if (matchedProduct) {
+          productService.updateProduct(matchedProduct.id, {
+            ...matchedProduct,
+            barcode: created.barcode
+          }).catch(err => console.error("Failed to sync barcode to database:", err));
+        }
         const updatedProducts = productList.map((p: any) =>
           p.code === created.productCode ? { ...p, barcode: created.barcode } : p
         );
@@ -411,6 +425,17 @@ export default function BarcodeManagement() {
       } else {
         barcodeService.deleteBarcode(itemToDelete.id);
         setData(barcodeService.getAll());
+        
+        // Sync barcode deletion to backend database
+        const productList = productService.getProducts();
+        const matchedProduct = productList.find((p: any) => p.code === itemToDelete.productCode);
+        if (matchedProduct) {
+          productService.updateProduct(matchedProduct.id, {
+            ...matchedProduct,
+            barcode: ''
+          }).catch(err => console.error("Failed to clear barcode in database:", err));
+        }
+
         activityLogService.addLog({
           userId: currentUser?.id,
           userName: currentUser?.fullName,

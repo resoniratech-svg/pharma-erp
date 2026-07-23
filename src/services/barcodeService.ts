@@ -34,12 +34,12 @@ export const barcodeService = {
           .filter((p: any) => p.code || p.name)
           .map((p: any) => ({
             id: String(p.id),
-            barcode: p.barcode || `BC-${p.code || p.id}`,
+            barcode: p.barcode || '',
             productCode: p.code || `PRD-${p.id}`,
             productName: p.name || `Product ${p.id}`,
             type: 'Primary GS1-128',
             assignedDate: p.createdAt ? new Date(p.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-            status: p.status === 'Inactive' ? 'Inactive' : 'Active'
+            status: p.barcode ? 'Active' : 'Unassigned'
           }));
 
         localStorage.setItem(STORAGE_KEY, JSON.stringify(mappedBarcodes));
