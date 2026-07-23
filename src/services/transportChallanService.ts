@@ -519,6 +519,15 @@ export const transportChallanService = {
   },
 
   async updateChallan(id: string, updatedData: Partial<Challan>): Promise<Challan> {
+    try {
+      await apiRequest(`/transport-challans/${id}`, {
+        method: 'PUT',
+        bodyData: updatedData
+      });
+    } catch (e) {
+      console.warn("Backend API challan update warning:", e);
+    }
+
     await this.loadChallans();
     const index = challanCache.findIndex(c => c.id === id);
     if (index === -1) {
