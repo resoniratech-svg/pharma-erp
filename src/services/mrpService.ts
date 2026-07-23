@@ -164,7 +164,7 @@ export const mrpService = {
         status: mrp.status
       };
       
-      await apiRequest('/pricing', 'POST', payload);
+      await apiRequest('/pricing', { method: 'POST', bodyData: payload });
     } catch (e) {
       console.error("Failed to sync MRP to backend:", e);
     }
@@ -172,7 +172,7 @@ export const mrpService = {
 
   async deleteMRPFromBackend(id: string): Promise<void> {
     try {
-      await apiRequest(`/pricing/${id}`, 'DELETE');
+      await apiRequest(`/pricing/${id}`, { method: 'DELETE' });
     } catch (e) {
       console.error("Failed to delete MRP from backend:", e);
     }
