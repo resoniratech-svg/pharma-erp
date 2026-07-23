@@ -37,7 +37,7 @@ export const mrpService = {
           productName: p.product ? p.product.name : (p.productName || `Product ${p.productId || p.id}`),
           category: p.product && p.product.category ? p.product.category.name : (p.category || 'Pharmaceuticals'),
           currentMrp: Number(p.mrp || p.price || 0),
-          previousMrp: 0, // We will calculate this below
+          previousMrp: Number(p.previousMrp || 0),
           effectiveFrom: p.effectiveFrom ? new Date(p.effectiveFrom).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           status: p.status === 'Active' ? 'Active' : (p.status || 'Active'),
           createdAt: p.createdAt || new Date().toISOString(),
@@ -45,6 +45,10 @@ export const mrpService = {
           createdBy: p.createdBy || 'System',
           updatedBy: p.updatedBy || 'System'
         }));
+
+        // Try to read existing local storage to preserve previousMrp for records that only have one backend entry
+        const existingLocalStr = localStorage.getItem(STORAGE_KEY);
+        const existingLocal: MRPRecord[] = existingLocalStr ? JSON.parse(existingLocalStr) : [];
 
         // Calculate previous MRP based on history
         const groupedByProduct = mapped.reduce((acc, curr) => {
@@ -57,8 +61,15 @@ export const mrpService = {
         for (const code in groupedByProduct) {
           const productRecords = groupedByProduct[code].sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
           for (let i = 0; i < productRecords.length; i++) {
-            if (i > 0) {
+            if (i > 0 && productRecords[i].previousMrp === 0) {
               productRecords[i].previousMrp = productRecords[i - 1].currentMrp;
+            }
+            // If still 0, try to restore from localStorage
+            if (productRecords[i].previousMrp === 0) {
+              const localRecord = existingLocal.find(l => l.id === productRecords[i].id);
+              if (localRecord && localRecord.previousMrp) {
+                productRecords[i].previousMrp = localRecord.previousMrp;
+              }
             }
           }
           mapped.push(...productRecords);
