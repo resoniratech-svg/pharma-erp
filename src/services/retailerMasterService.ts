@@ -36,8 +36,8 @@ export const retailerMasterService = {
           contactPerson: r.contactPerson || r.name,
           mobileNumber: r.mobile || r.mobileNumber || '-',
           emailAddress: r.email || r.emailAddress || '',
-          assignedDistributors: r.assignedDistributors || [],
-          status: r.status === 'Inactive' ? 'Inactive' : 'Active',
+          assignedDistributors: r.stockist ? [{ code: r.stockist.code || 'N/A', name: r.stockist.name }] : (r.assignedDistributors || []),
+          status: (r.status === 'Inactive' || r.isActive === false) ? 'Inactive' : 'Active',
           createdDate: r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
         }));
         
