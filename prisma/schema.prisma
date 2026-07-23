@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,664 +8,467 @@ datasource db {
 }
 
 model User {
-  id Int @id @default(autoincrement())
-
-  name     String
-  email        String  @unique
-  password     String
-  mobile       String?
-  profileImage String?
-
-  role Role
-
-  companyId Int?
-  company   Company? @relation(fields: [companyId], references: [id])
-
-  branchId Int?
-  branch   Branch? @relation(fields: [branchId], references: [id])
-
-  isActive              Boolean   @default(true)
+  id                    Int          @id @default(autoincrement())
+  name                  String
+  email                 String       @unique
+  password              String
+  role                  Role
+  isActive              Boolean      @default(true)
+  createdAt             DateTime     @default(now())
+  updatedAt             DateTime     @updatedAt
+  branchId              Int?
+  companyId             Int?
   currentDeviceId       String?
+  mobile                String?
+  profileImage          String?
   linkedDistributorCode String?
   linkedRetailerCode    String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  mr        MR?
-  approvedCreditNotes CreditNote[] @relation("ApprovedCreditNotes")
-}
-
-enum Role {
-  SUPER_ADMIN
-  ADMIN
-  WAREHOUSE_MANAGER
-  ACCOUNTANT
-  DISTRIBUTOR
-  RETAILER
-  MEDICAL_REPRESENTATIVE
+  approvedCreditNotes   CreditNote[] @relation("ApprovedCreditNotes")
+  mr                    MR?
+  branch                Branch?      @relation(fields: [branchId], references: [id])
+  company               Company?     @relation(fields: [companyId], references: [id])
 }
 
 model Company {
-  id Int @id @default(autoincrement())
-
-  name    String
-  email   String?
-  phone   String?
-  address String?
-
-  isActive Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  users      User[]
-  branches   Branch[]
-  warehouses Warehouse[]
-
+  id              Int                        @id @default(autoincrement())
+  name            String
+  email           String?
+  phone           String?
+  address         String?
+  isActive        Boolean                    @default(true)
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  branches        Branch[]
+  permissions     CompanyFeaturePermission[]
+  products        Product[]
   rolePermissions RolePermission[]
-
-  permissions CompanyFeaturePermission[]
-
-  products Product[]
+  users           User[]
+  warehouses      Warehouse[]
 }
 
 model Branch {
-  id Int @id @default(autoincrement())
-
-  name String
-  code String?
-
-  address String?
-  city    String?
-
+  id        Int      @id @default(autoincrement())
+  name      String
+  code      String?
+  address   String?
+  city      String?
   companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
-
-  users User[]
-
-  isActive Boolean @default(true)
-
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  company   Company  @relation(fields: [companyId], references: [id])
+  users     User[]
 }
 
 model Module {
-  id Int @id @default(autoincrement())
-
-  name        String  @unique
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
   description String?
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  features Feature[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  features    Feature[]
 }
 
 model Feature {
-  id Int @id @default(autoincrement())
-
-  name        String
-  description String?
-
-  moduleId Int
-  module   Module @relation(fields: [moduleId], references: [id])
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id              Int                        @id @default(autoincrement())
+  name            String
+  description     String?
+  moduleId        Int
+  createdAt       DateTime                   @default(now())
+  updatedAt       DateTime                   @updatedAt
+  permissions     CompanyFeaturePermission[]
+  module          Module                     @relation(fields: [moduleId], references: [id])
   rolePermissions RolePermission[]
-
-  permissions CompanyFeaturePermission[]
 }
 
 model CompanyFeaturePermission {
-  id Int @id @default(autoincrement())
-
+  id        Int      @id @default(autoincrement())
   companyId Int
   featureId Int
-
-  enabled Boolean @default(true)
-
-  company Company @relation(fields: [companyId], references: [id])
-  feature Feature @relation(fields: [featureId], references: [id])
-
+  enabled   Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  company   Company  @relation(fields: [companyId], references: [id])
+  feature   Feature  @relation(fields: [featureId], references: [id])
 
   @@unique([companyId, featureId])
 }
 
 model RolePermission {
-  id Int @id @default(autoincrement())
-
+  id        Int      @id @default(autoincrement())
   companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
-
-  role Role
-
+  role      Role
   featureId Int
-  feature   Feature @relation(fields: [featureId], references: [id])
-
   createdAt DateTime @default(now())
+  company   Company  @relation(fields: [companyId], references: [id])
+  feature   Feature  @relation(fields: [featureId], references: [id])
 }
 
 model ProductCategory {
-  id          Int     @id @default(autoincrement())
-  name        String  @unique
+  id          Int       @id @default(autoincrement())
+  name        String    @unique
   description String?
-
-  products Product[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  products    Product[]
 }
 
 model Product {
-  id Int @id @default(autoincrement())
-
-  name String
-  code String @unique
-
-  categoryId Int
-  category   ProductCategory @relation(fields: [categoryId], references: [id])
-
-  hsnCode String?
-  gst     Float?
-
-  mrp Float
-  ptr Float?
-  pts Float?
-  ptd Float?
-
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
-
-  minStock Int
-
-  genericName    String?
-  brandName      String?
-  type           String?
-  manufacturer   String?
-  composition    String?
-  scheme         String?
-  packingType    String?
-  unitsPerPack   String?
-  packsInBox     String?
-  totalUnits     String?
-  purchasePrice  Float?
-  sellingPrice   Float?
-  reorderLevel   Int?
-  batchTracking  Boolean @default(false)
-  expiryTracking Boolean @default(false)
-  status         String  @default("Active")
-
-  batches Batch[]
-
-  invoiceItems InvoiceItem[]
-
-  retailerOrderItems RetailerOrderItem[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  id                     Int                     @id @default(autoincrement())
+  name                   String
+  code                   String                  @unique
+  categoryId             Int
+  hsnCode                String?
+  gst                    Float?
+  mrp                    Float
+  ptr                    Float?
+  pts                    Float?
+  ptd                    Float?
+  companyId              Int
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  minStock               Int
+  batchTracking          Boolean                 @default(false)
+  brandName              String?
+  composition            String?
+  expiryTracking         Boolean                 @default(false)
+  genericName            String?
+  manufacturer           String?
+  packingType            String?
+  packsInBox             String?
+  purchasePrice          Float?
+  reorderLevel           Int?
+  scheme                 String?
+  sellingPrice           Float?
+  status                 String                  @default("Active")
+  totalUnits             String?
+  type                   String?
+  unitsPerPack           String?
+  batches                Batch[]
+  creditNoteItems        CreditNoteItem[]
+  invoiceItems           InvoiceItem[]
   inwardStockItems       InwardStockItem[]
   outwardStockItems      OutwardStockItem[]
-  warehouseTransferItems WarehouseTransferItem[]
   pricingMasters         PricingMaster[]
+  category               ProductCategory         @relation(fields: [categoryId], references: [id])
+  company                Company                 @relation(fields: [companyId], references: [id])
+  retailerOrderItems     RetailerOrderItem[]
   schemeMasters          SchemeMaster[]
-  creditNoteItems        CreditNoteItem[]
+  warehouseTransferItems WarehouseTransferItem[]
 }
 
 model Batch {
-  id Int @id @default(autoincrement())
-
-  batchNumber String
-
-  productId Int
-  product   Product @relation(fields: [productId], references: [id])
-
-  manufacturingDate DateTime
-  expiryDate        DateTime
-
-  quantity Int
-
-  inventories            Inventory[]
-  warehouseTransferItems WarehouseTransferItem[]
+  id                     Int                     @id @default(autoincrement())
+  batchNumber            String
+  productId              Int
+  manufacturingDate      DateTime
+  expiryDate             DateTime
+  quantity               Int
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  product                Product                 @relation(fields: [productId], references: [id])
+  creditNoteItems        CreditNoteItem[]
   dispatches             Dispatch[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  outwardStockItems OutwardStockItem[]
-  pricingMasters    PricingMaster[]
-  schemeMasters     SchemeMaster[]
-  creditNoteItems   CreditNoteItem[]
+  inventories            Inventory[]
+  outwardStockItems      OutwardStockItem[]
+  pricingMasters         PricingMaster[]
+  schemeMasters          SchemeMaster[]
+  warehouseTransferItems WarehouseTransferItem[]
 }
 
 model Inventory {
-  id Int @id @default(autoincrement())
-
-  batchId     Int
-  warehouseId Int
-  quantity    Int
-
-  batch Batch @relation(fields: [batchId], references: [id])
-
-  warehouse Warehouse @relation(fields: [warehouseId], references: [id])
-
+  id             Int             @id @default(autoincrement())
+  batchId        Int
+  quantity       Int
+  warehouseId    Int
+  batch          Batch           @relation(fields: [batchId], references: [id])
+  warehouse      Warehouse       @relation(fields: [warehouseId], references: [id])
   stockMovements StockMovement[]
 }
 
 model Warehouse {
-  id Int @id @default(autoincrement())
-
-  name    String
-  code    String  @unique
-  address String?
-
-  type          String  @default("Main Warehouse")
-  branch        String  @default("Default Branch")
-  contactPerson String?
-  phone         String?
-  email         String?
+  id            Int            @id @default(autoincrement())
+  name          String
+  code          String         @unique
+  address       String?
+  companyId     Int
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  branch        String         @default("Default Branch")
   city          String?
-  state         String?
+  contactPerson String?
   country       String?
-  pinCode       String?
+  createdBy     String         @default("System")
+  email         String?
   gstNumber     String?
   licenseNumber String?
+  phone         String?
+  pinCode       String?
   remarks       String?
-  status        String  @default("Active")
-  createdBy     String  @default("System")
-
-  companyId Int
-  company   Company @relation(fields: [companyId], references: [id])
-
-  inventories Inventory[]
-
-  dispatches Dispatch[]
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
+  state         String?
+  status        String         @default("Active")
+  type          String         @default("Main Warehouse")
+  dispatches    Dispatch[]
+  inventories   Inventory[]
   inwardStocks  InwardStock[]
   outwardStocks OutwardStock[]
+  company       Company        @relation(fields: [companyId], references: [id])
 }
 
 model StockMovement {
-  id Int @id @default(autoincrement())
-
-  inventoryId Int
-
-  inventory Inventory @relation(fields: [inventoryId], references: [id])
-
+  id           Int       @id @default(autoincrement())
+  quantity     Int
+  createdAt    DateTime  @default(now())
+  inventoryId  Int
   movementType String
-
-  quantity Int
-
-  remarks String?
-
-  createdAt DateTime @default(now())
+  remarks      String?
+  inventory    Inventory @relation(fields: [inventoryId], references: [id])
 }
 
 model WarehouseTransfer {
   id              Int                     @id @default(autoincrement())
-  transferNo      String                  @unique
-  date            DateTime                @default(now())
   fromWarehouseId Int
   toWarehouseId   Int
-  status          String                  @default("Completed")
-  itemsCount      Int                     @default(0)
-  totalQuantity   Int                     @default(0)
-  remarks         String?
-  items           WarehouseTransferItem[]
   createdAt       DateTime                @default(now())
+  remarks         String?
+  date            DateTime                @default(now())
+  itemsCount      Int                     @default(0)
+  status          String                  @default("Completed")
+  totalQuantity   Int                     @default(0)
+  transferNo      String                  @unique
+  items           WarehouseTransferItem[]
 }
 
 model WarehouseTransferItem {
   id                  Int               @id @default(autoincrement())
   warehouseTransferId Int
-  warehouseTransfer   WarehouseTransfer @relation(fields: [warehouseTransferId], references: [id], onDelete: Cascade)
   productId           Int
-  product             Product           @relation(fields: [productId], references: [id])
   batchId             Int
-  batch               Batch             @relation(fields: [batchId], references: [id])
   quantity            Int
   createdAt           DateTime          @default(now())
+  batch               Batch             @relation(fields: [batchId], references: [id])
+  product             Product           @relation(fields: [productId], references: [id])
+  warehouseTransfer   WarehouseTransfer @relation(fields: [warehouseTransferId], references: [id], onDelete: Cascade)
 }
 
 model Dispatch {
-  id Int @id @default(autoincrement())
-
-  batchId Int?
-  batch   Batch? @relation(fields: [batchId], references: [id])
-
-  warehouseId Int?
-  warehouse   Warehouse? @relation(fields: [warehouseId], references: [id])
-
-  customerName String?
-
-  quantity Int?
-
-  dispatchDate DateTime @default(now())
-
-  status String @default("PENDING")
-
-  remarks String?
-
-  dispatchNo      String?
-  dispatchType    String?
-  orderId         String?
-  sourceWarehouse String?
-  totalItems      Int?
-  totalQuantity   Int?
-  transporter     String?
-  lrNumber        String?
-  vehicleNumber   String?
-  driverName      String?
-  driverMobile    String?
-  createdBy       String?
-  createdDate     String?
-  products        Json?
-
+  id                Int                @id @default(autoincrement())
+  batchId           Int?
+  warehouseId       Int?
+  customerName      String?
+  quantity          Int?
+  dispatchDate      DateTime           @default(now())
+  status            String             @default("PENDING")
+  remarks           String?
+  createdAt         DateTime           @default(now())
+  createdBy         String?
+  createdDate       String?
+  dispatchNo        String?
+  dispatchType      String?
+  driverMobile      String?
+  driverName        String?
+  lrNumber          String?
+  orderId           String?
+  products          Json?
+  sourceWarehouse   String?
+  totalItems        Int?
+  totalQuantity     Int?
+  transporter       String?
+  vehicleNumber     String?
+  batch             Batch?             @relation(fields: [batchId], references: [id])
+  warehouse         Warehouse?         @relation(fields: [warehouseId], references: [id])
   transportChallans TransportChallan[]
-
-  createdAt DateTime @default(now())
 }
 
 model TransportChallan {
-  id Int @id @default(autoincrement())
-
-  dispatchId Int?
-
-  dispatch Dispatch? @relation(fields: [dispatchId], references: [id])
-
-  transporterName String?
-
-  vehicleNumber String?
-
-  driverName String?
-
-  driverMobile String?
-
-  challanNumber String? @unique
-
-  dispatchNo         String?
-  challanNo          String?
+  id                 Int          @id @default(autoincrement())
+  dispatchId         Int?
+  transporterName    String?
+  vehicleNumber      String?
+  driverName         String?
+  driverMobile       String?
+  challanNumber      String?      @unique
+  createdAt          DateTime     @default(now())
+  actualDeliveryDate String?
   challanDate        String?
-  dispatchDate       String?
-  orderNo            String?
-  customer           String?
-  sourceWarehouse    String?
-  totalItems         Int?
-  totalQty           Int?
-  status             String?
-  products           Json?
+  challanNo          String?
   createdBy          String?
   createdDate        String?
+  customer           String?
+  dispatchDate       String?
+  dispatchNo         String?
+  orderNo            String?
+  podDesignation     String?
+  podFileName        String?
+  podFileType        String?
+  podFileUrl         String?
+  podReceivedBy      String?
+  podRemarks         String?
   podStatus          String?
   podUploadedBy      String?
   podUploadedDate    String?
-  podReceivedBy      String?
-  podDesignation     String?
-  podFileUrl         String?
-  podFileName        String?
-  podFileType        String?
-  podRemarks         String?
-  actualDeliveryDate String?
-
-  lrTrackings LRTracking[]
-
-  createdAt DateTime @default(now())
+  products           Json?
+  sourceWarehouse    String?
+  status             String?
+  totalItems         Int?
+  totalQty           Int?
+  lrTrackings        LRTracking[]
+  dispatch           Dispatch?    @relation(fields: [dispatchId], references: [id])
 }
 
 model LRTracking {
-  id Int @id @default(autoincrement())
-
+  id                 Int                @id @default(autoincrement())
   transportChallanId Int
-
-  transportChallan TransportChallan @relation(fields: [transportChallanId], references: [id])
-
-  lrNumber String @unique
-
-  source String
-
-  destination String
-
-  status String @default("IN_TRANSIT")
-
-  deliveryTrackings DeliveryTracking[]
-
-  createdAt DateTime @default(now())
+  lrNumber           String             @unique
+  source             String
+  destination        String
+  status             String             @default("IN_TRANSIT")
+  createdAt          DateTime           @default(now())
+  deliveryTrackings  DeliveryTracking[]
+  transportChallan   TransportChallan   @relation(fields: [transportChallanId], references: [id])
 }
 
 model DeliveryTracking {
-  id Int @id @default(autoincrement())
-
-  lrTrackingId Int
-
-  lrTracking LRTracking @relation(fields: [lrTrackingId], references: [id])
-
-  receiverName String
-
+  id             Int        @id @default(autoincrement())
+  lrTrackingId   Int
+  receiverName   String
   receiverMobile String?
-
-  deliveryDate DateTime @default(now())
-
-  status String @default("DELIVERED")
-
-  remarks String?
-
-  createdAt DateTime @default(now())
+  deliveryDate   DateTime   @default(now())
+  status         String     @default("DELIVERED")
+  remarks        String?
+  createdAt      DateTime   @default(now())
+  lrTracking     LRTracking @relation(fields: [lrTrackingId], references: [id])
 }
 
 model Stockist {
-  id Int @id @default(autoincrement())
-
-  name String
-
-  code String? @unique
-
-  mobile String
-
-  email String?
-
-  address String?
-
-  gstNumber String?
-
+  id                Int               @id @default(autoincrement())
+  name              String
+  code              String?           @unique
+  mobile            String
+  email             String?
+  address           String?
+  gstNumber         String?
   drugLicenseNumber String?
-
-  isActive Boolean @default(true)
-
-  retailers Retailer[]
-
-  meetingStockists MeetingStockist[]
-
-  createdAt      DateTime        @default(now())
-  retailerOrders RetailerOrder[]
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  meetingStockists  MeetingStockist[]
+  retailers         Retailer[]
+  retailerOrders    RetailerOrder[]
 }
 
 model Retailer {
-  id Int @id @default(autoincrement())
-
-  stockistId Int
-
-  stockist Stockist @relation(fields: [stockistId], references: [id])
-
-  name String
-
-  code String @unique
-
-  mobile String
-
-  email String?
-
-  address String?
-
-  gstNumber String?
-
+  id                Int             @id @default(autoincrement())
+  stockistId        Int
+  name              String
+  code              String          @unique
+  mobile            String
+  email             String?
+  address           String?
+  gstNumber         String?
   drugLicenseNumber String?
-
-  invoices Invoice[]
-
-  orders RetailerOrder[]
-
-  ledgers Ledger[]
-
-  isActive Boolean @default(true)
-
-  createdAt DateTime @default(now())
-  creditNotes CreditNote[]
+  isActive          Boolean         @default(true)
+  createdAt         DateTime        @default(now())
+  creditNotes       CreditNote[]
+  invoices          Invoice[]
+  ledgers           Ledger[]
+  stockist          Stockist        @relation(fields: [stockistId], references: [id])
+  orders            RetailerOrder[]
 }
 
 model Invoice {
-  id Int @id @default(autoincrement())
-
-  retailerId Int
-
-  retailer Retailer @relation(fields: [retailerId], references: [id])
-
-  invoiceNumber String @unique
-
-  invoiceDate DateTime @default(now())
-
-  subTotal Float
-
-  gstAmount Float
-
-  totalAmount Float
-
-  status String @default("PENDING")
-
-  irnStatus          String    @default("PENDING")
-  irnNumber          String?
-  irnGeneratedOn     DateTime?
-  ackNo              String?
+  id                 Int                 @id @default(autoincrement())
+  retailerId         Int
+  invoiceNumber      String              @unique
+  invoiceDate        DateTime            @default(now())
+  subTotal           Float
+  gstAmount          Float
+  totalAmount        Float
+  status             String              @default("PENDING")
+  createdAt          DateTime            @default(now())
   ackDate            DateTime?
-
-  signedQrCode       String?
-  jsonPayload        Json?
-
-  nicStatus          String?   @default("PENDING")
-  nicErrorCode       String?
-  nicErrorDesc       String?
-
+  ackNo              String?
   cancellationReason String?
   cancelledAt        DateTime?
-
-  invoiceItems InvoiceItem[]
-
+  irnGeneratedOn     DateTime?
+  irnNumber          String?
+  irnStatus          String              @default("PENDING")
+  jsonPayload        Json?
+  nicErrorCode       String?
+  nicErrorDesc       String?
+  nicStatus          String?             @default("PENDING")
+  signedQrCode       String?
+  creditNotes        CreditNote[]
+  retailer           Retailer            @relation(fields: [retailerId], references: [id])
+  invoiceItems       InvoiceItem[]
   paymentCollections PaymentCollection[]
-
-  createdAt DateTime @default(now())
-  creditNotes CreditNote[]
 }
 
 model InvoiceItem {
-  id Int @id @default(autoincrement())
-
+  id        Int     @id @default(autoincrement())
   invoiceId Int
-
-  invoice Invoice @relation(fields: [invoiceId], references: [id])
-
   productId Int
-
-  product Product @relation(fields: [productId], references: [id])
-
-  quantity Int
-
-  rate Float
-
-  gst Float
-
-  amount Float
+  quantity  Int
+  rate      Float
+  gst       Float
+  amount    Float
+  invoice   Invoice @relation(fields: [invoiceId], references: [id])
+  product   Product @relation(fields: [productId], references: [id])
 }
 
 model RetailerOrder {
-  id         Int  @id @default(autoincrement())
-  retailerId Int?
-  chemistId  Int?
-  stockistId Int?
-  hospitalId Int?
-  mrId       Int?
-
-  retailer Retailer? @relation(fields: [retailerId], references: [id])
-  chemist  Chemist?  @relation(fields: [chemistId], references: [id])
-  stockist Stockist? @relation(fields: [stockistId], references: [id])
-  hospital Hospital? @relation(fields: [hospitalId], references: [id])
-  mr       MR?       @relation(fields: [mrId], references: [id])
-
-  orderNumber String   @unique
-  orderDate   DateTime @default(now())
-
+  id          Int                 @id @default(autoincrement())
+  retailerId  Int?
+  orderNumber String              @unique
+  orderDate   DateTime            @default(now())
   totalAmount Float
-
-  status String @default("PENDING")
-
-  orderItems RetailerOrderItem[]
-
-  createdAt DateTime @default(now())
+  status      String              @default("PENDING")
+  createdAt   DateTime            @default(now())
+  mrId        Int?
+  chemistId   Int?
+  hospitalId  Int?
+  stockistId  Int?
+  chemist     Chemist?            @relation(fields: [chemistId], references: [id])
+  hospital    Hospital?           @relation(fields: [hospitalId], references: [id])
+  mr          MR?                 @relation(fields: [mrId], references: [id])
+  retailer    Retailer?           @relation(fields: [retailerId], references: [id])
+  stockist    Stockist?           @relation(fields: [stockistId], references: [id])
+  orderItems  RetailerOrderItem[]
 }
 
 model RetailerOrderItem {
-  id Int @id @default(autoincrement())
-
+  id              Int           @id @default(autoincrement())
   retailerOrderId Int
-
-  retailerOrder RetailerOrder @relation(fields: [retailerOrderId], references: [id])
-
-  productId Int
-
-  product Product @relation(fields: [productId], references: [id])
-
-  quantity Int
-
-  rate Float
-
-  amount Float
+  productId       Int
+  quantity        Int
+  rate            Float
+  amount          Float
+  product         Product       @relation(fields: [productId], references: [id])
+  retailerOrder   RetailerOrder @relation(fields: [retailerOrderId], references: [id])
 }
 
 model PaymentCollection {
-  id Int @id @default(autoincrement())
-
-  invoiceId Int
-
-  invoice Invoice @relation(fields: [invoiceId], references: [id])
-
-  amount Float
-
-  paymentMode String
-
+  id             Int      @id @default(autoincrement())
+  invoiceId      Int
+  amount         Float
+  paymentMode    String
   transactionRef String?
-
-  paymentDate DateTime @default(now())
-
-  remarks String?
-
-  createdAt DateTime @default(now())
+  paymentDate    DateTime @default(now())
+  remarks        String?
+  createdAt      DateTime @default(now())
+  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
 }
 
 model Ledger {
-  id Int @id @default(autoincrement())
-
-  retailerId Int
-
-  retailer Retailer @relation(fields: [retailerId], references: [id])
-
+  id              Int      @id @default(autoincrement())
+  retailerId      Int
   transactionType String
-
   referenceNumber String
-
-  debit Float @default(0)
-
-  credit Float @default(0)
-
-  balance Float
-
-  remarks String?
-
-  createdAt DateTime @default(now())
+  debit           Float    @default(0)
+  credit          Float    @default(0)
+  balance         Float
+  remarks         String?
+  createdAt       DateTime @default(now())
+  retailer        Retailer @relation(fields: [retailerId], references: [id])
 }
 
 model Expense {
@@ -690,514 +488,320 @@ model Income {
 }
 
 model MR {
-  id Int @id @default(autoincrement())
-
-  userId Int?  @unique
-  user   User? @relation(fields: [userId], references: [id])
-
-  mrCode String @unique
-
-  name String
-
-  mobile String
-
-  email String?
-
-  territory String?
-
-  joiningDate DateTime @default(now())
-
-  status String @default("ACTIVE")
-
-  attendances Attendance[]
-
-  doctorVisits DoctorVisit[]
-
-  chemistVisits ChemistVisit[]
-
-  targets        Target[]
-  tourPlans      TourPlan[]
-  dailyReports   DailyReport[]
-  meetings       Meeting[]
-  followUps      FollowUp[]
+  id             Int             @id @default(autoincrement())
+  mrCode         String          @unique
+  name           String
+  mobile         String
+  email          String?
+  territory      String?
+  joiningDate    DateTime        @default(now())
+  status         String          @default("ACTIVE")
+  createdAt      DateTime        @default(now())
+  userId         Int?            @unique
   activities     Activity[]
+  attendances    Attendance[]
+  chemistVisits  ChemistVisit[]
+  creditNotes    CreditNote[]
+  dailyReports   DailyReport[]
+  doctorVisits   DoctorVisit[]
+  expenseClaims  ExpenseClaim[]
+  followUps      FollowUp[]
   assignedLeads  Lead[]
   leaveRequests  LeaveRequest[]
-  expenseClaims  ExpenseClaim[]
+  user           User?           @relation(fields: [userId], references: [id])
+  meetings       Meeting[]
   notifications  Notification[]
   retailerOrders RetailerOrder[]
-
-  createdAt DateTime @default(now())
-  creditNotes CreditNote[]
+  targets        Target[]
+  tourPlans      TourPlan[]
 }
 
 model Doctor {
-  id Int @id @default(autoincrement())
-
-  doctorCode String @unique
-
-  name String
-
-  specialization String?
-
-  hospital String?
-
-  mobile String?
-
-  email String?
-
-  address String?
-
-  territory String?
-
-  isActive Boolean @default(true)
-
-  doctorVisits DoctorVisit[]
-
-  meetingDoctors MeetingDoctor[]
-  followUps      FollowUp[]
-
-  createdAt DateTime @default(now())
-
-  tourPlanDoctors TourPlanDoctor[]
+  id              Int              @id @default(autoincrement())
+  doctorCode      String           @unique
+  name            String
+  specialization  String?
+  hospital        String?
+  mobile          String?
+  email           String?
+  address         String?
+  territory       String?
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  doctorVisits    DoctorVisit[]
+  followUps       FollowUp[]
   meetings        Meeting[]        @relation("DoctorDirectMeetings")
+  meetingDoctors  MeetingDoctor[]
+  tourPlanDoctors TourPlanDoctor[]
 }
 
 model Chemist {
-  id Int @id @default(autoincrement())
-
-  chemistCode String @unique
-
-  name String
-
-  mobile String?
-
-  email String?
-
-  address String?
-
-  territory String?
-
-  gstNumber String?
-
+  id                Int               @id @default(autoincrement())
+  chemistCode       String            @unique
+  name              String
+  mobile            String?
+  email             String?
+  address           String?
+  territory         String?
+  gstNumber         String?
   drugLicenseNumber String?
-
-  isActive Boolean @default(true)
-
-  chemistVisits ChemistVisit[]
-
-  meetingChemists MeetingChemist[]
-  followUps       FollowUp[]
-
-  createdAt        DateTime          @default(now())
-  tourPlanChemists TourPlanChemist[]
-  meetings         Meeting[]         @relation("ChemistDirectMeetings")
-  retailerOrders   RetailerOrder[]
+  isActive          Boolean           @default(true)
+  createdAt         DateTime          @default(now())
+  chemistVisits     ChemistVisit[]
+  followUps         FollowUp[]
+  meetings          Meeting[]         @relation("ChemistDirectMeetings")
+  meetingChemists   MeetingChemist[]
+  retailerOrders    RetailerOrder[]
+  tourPlanChemists  TourPlanChemist[]
 }
 
 model Attendance {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
-  mr MR @relation(fields: [mrId], references: [id])
-
-  attendanceDate DateTime @default(now())
-
-  checkInTime DateTime?
-
-  checkOutTime DateTime?
-
-  checkInLatitude Float?
-
-  checkInLongitude Float?
-
-  checkOutLatitude Float?
-
+  id                Int       @id @default(autoincrement())
+  mrId              Int
+  attendanceDate    DateTime  @default(now())
+  checkInTime       DateTime?
+  checkOutTime      DateTime?
+  checkInLatitude   Float?
+  checkInLongitude  Float?
+  checkOutLatitude  Float?
   checkOutLongitude Float?
-
-  status String @default("PRESENT")
-
-  createdAt DateTime @default(now())
+  status            String    @default("PRESENT")
+  createdAt         DateTime  @default(now())
+  mr                MR        @relation(fields: [mrId], references: [id])
 }
 
 model DoctorVisit {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
-  doctorId Int
-
-  visitDate DateTime @default(now())
-
-  remarks String?
-
+  id                Int      @id @default(autoincrement())
+  mrId              Int
+  doctorId          Int
+  visitDate         DateTime @default(now())
+  remarks           String?
   productsDiscussed String?
-
-  samplesGiven Int?
-
-  latitude Float?
-
-  longitude Float?
-
-  mr MR @relation(fields: [mrId], references: [id])
-
-  doctor Doctor @relation(fields: [doctorId], references: [id])
-
-  createdAt DateTime @default(now())
+  samplesGiven      Int?
+  latitude          Float?
+  longitude         Float?
+  createdAt         DateTime @default(now())
+  doctor            Doctor   @relation(fields: [doctorId], references: [id])
+  mr                MR       @relation(fields: [mrId], references: [id])
 }
 
 model ChemistVisit {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
-  chemistId Int
-
-  visitDate DateTime @default(now())
-
-  remarks String?
-
+  id                Int      @id @default(autoincrement())
+  mrId              Int
+  chemistId         Int
+  visitDate         DateTime @default(now())
+  remarks           String?
   productsDiscussed String?
-
-  orderValue Float?
-
-  latitude Float?
-
-  longitude Float?
-
-  mr MR @relation(fields: [mrId], references: [id])
-
-  chemist Chemist @relation(fields: [chemistId], references: [id])
-
-  createdAt DateTime @default(now())
+  orderValue        Float?
+  latitude          Float?
+  longitude         Float?
+  createdAt         DateTime @default(now())
+  chemist           Chemist  @relation(fields: [chemistId], references: [id])
+  mr                MR       @relation(fields: [mrId], references: [id])
 }
 
 model TourPlan {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
-  tourDate DateTime
-
-  territory String
-
-  objective String?
-
-  status String @default("PLANNED")
-
-  createdAt DateTime @default(now())
-
-  mr MR @relation(fields: [mrId], references: [id])
-
-  tourPlanDoctors  TourPlanDoctor[]
+  id               Int               @id @default(autoincrement())
+  mrId             Int
+  tourDate         DateTime
+  territory        String
+  objective        String?
+  status           String            @default("PLANNED")
+  createdAt        DateTime          @default(now())
+  mr               MR                @relation(fields: [mrId], references: [id])
   tourPlanChemists TourPlanChemist[]
+  tourPlanDoctors  TourPlanDoctor[]
 }
 
 model TourPlanDoctor {
-  id Int @id @default(autoincrement())
-
+  id         Int      @id @default(autoincrement())
   tourPlanId Int
-
-  doctorId Int
-
-  tourPlan TourPlan @relation(fields: [tourPlanId], references: [id])
-
-  doctor Doctor @relation(fields: [doctorId], references: [id])
+  doctorId   Int
+  doctor     Doctor   @relation(fields: [doctorId], references: [id])
+  tourPlan   TourPlan @relation(fields: [tourPlanId], references: [id])
 }
 
 model TourPlanChemist {
-  id Int @id @default(autoincrement())
-
+  id         Int      @id @default(autoincrement())
   tourPlanId Int
-
-  chemistId Int
-
-  tourPlan TourPlan @relation(fields: [tourPlanId], references: [id])
-
-  chemist Chemist @relation(fields: [chemistId], references: [id])
+  chemistId  Int
+  chemist    Chemist  @relation(fields: [chemistId], references: [id])
+  tourPlan   TourPlan @relation(fields: [tourPlanId], references: [id])
 }
 
 model DailyReport {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
-  reportDate DateTime
-
-  doctorVisits Int @default(0)
-
-  chemistVisits Int @default(0)
-
-  samplesDistributed Int @default(0)
-
-  ordersCollected Decimal @default(0)
-
-  remarks String?
-
-  status String @default("SUBMITTED")
-
-  createdAt DateTime @default(now())
-
-  mr MR @relation(fields: [mrId], references: [id])
+  id                 Int      @id @default(autoincrement())
+  mrId               Int
+  reportDate         DateTime
+  doctorVisits       Int      @default(0)
+  chemistVisits      Int      @default(0)
+  samplesDistributed Int      @default(0)
+  ordersCollected    Decimal  @default(0)
+  remarks            String?
+  status             String   @default("SUBMITTED")
+  createdAt          DateTime @default(now())
+  mr                 MR       @relation(fields: [mrId], references: [id])
 }
 
 model Target {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
-  month Int
-
-  year Int
-
-  doctorVisitTarget Int
-
-  chemistVisitTarget Int
-
-  orderTarget Decimal @default(0)
-
-  achievedDoctorVisits Int @default(0)
-
-  achievedChemistVisits Int @default(0)
-
-  achievedOrderValue Decimal @default(0)
-
-  status String @default("ACTIVE")
-
-  createdAt DateTime @default(now())
-
-  mr MR @relation(fields: [mrId], references: [id])
+  id                    Int      @id @default(autoincrement())
+  mrId                  Int
+  month                 Int
+  year                  Int
+  doctorVisitTarget     Int
+  chemistVisitTarget    Int
+  orderTarget           Decimal  @default(0)
+  achievedDoctorVisits  Int      @default(0)
+  achievedChemistVisits Int      @default(0)
+  achievedOrderValue    Decimal  @default(0)
+  status                String   @default("ACTIVE")
+  createdAt             DateTime @default(now())
+  mr                    MR       @relation(fields: [mrId], references: [id])
 }
 
 model Meeting {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
-  doctorId Int?
-
-  chemistId Int?
-
-  title String
-
-  description String?
-
-  meetingDate DateTime
-
-  location String?
-
-  status String @default("SCHEDULED")
-
-  createdAt DateTime @default(now())
-
-  mr MR @relation(fields: [mrId], references: [id])
-
-  doctor Doctor? @relation("DoctorDirectMeetings", fields: [doctorId], references: [id])
-
+  id               Int               @id @default(autoincrement())
+  mrId             Int
+  doctorId         Int?
+  chemistId        Int?
+  title            String
+  description      String?
+  meetingDate      DateTime
+  location         String?
+  status           String            @default("SCHEDULED")
+  createdAt        DateTime          @default(now())
+  followUps        FollowUp[]
   chemist          Chemist?          @relation("ChemistDirectMeetings", fields: [chemistId], references: [id])
-  meetingDoctors   MeetingDoctor[]
+  doctor           Doctor?           @relation("DoctorDirectMeetings", fields: [doctorId], references: [id])
+  mr               MR                @relation(fields: [mrId], references: [id])
   meetingChemists  MeetingChemist[]
+  meetingDoctors   MeetingDoctor[]
   meetingHospitals MeetingHospital[]
   meetingStockists MeetingStockist[]
-  followUps        FollowUp[]
 }
 
 model MeetingDoctor {
-  id Int @id @default(autoincrement())
-
+  id        Int     @id @default(autoincrement())
   meetingId Int
-
-  doctorId Int
-
-  meeting Meeting @relation(fields: [meetingId], references: [id])
-
-  doctor Doctor @relation(fields: [doctorId], references: [id])
+  doctorId  Int
+  doctor    Doctor  @relation(fields: [doctorId], references: [id])
+  meeting   Meeting @relation(fields: [meetingId], references: [id])
 }
 
 model MeetingChemist {
-  id Int @id @default(autoincrement())
-
+  id        Int     @id @default(autoincrement())
   meetingId Int
-
   chemistId Int
-
-  meeting Meeting @relation(fields: [meetingId], references: [id])
-
-  chemist Chemist @relation(fields: [chemistId], references: [id])
+  chemist   Chemist @relation(fields: [chemistId], references: [id])
+  meeting   Meeting @relation(fields: [meetingId], references: [id])
 }
 
 model MeetingHospital {
-  id Int @id @default(autoincrement())
-
-  meetingId Int
-
+  id         Int      @id @default(autoincrement())
+  meetingId  Int
   hospitalId Int
-
-  meeting Meeting @relation(fields: [meetingId], references: [id])
-
-  hospital Hospital @relation(fields: [hospitalId], references: [id])
+  hospital   Hospital @relation(fields: [hospitalId], references: [id])
+  meeting    Meeting  @relation(fields: [meetingId], references: [id])
 }
 
 model MeetingStockist {
-  id Int @id @default(autoincrement())
-
-  meetingId Int
-
+  id         Int      @id @default(autoincrement())
+  meetingId  Int
   stockistId Int
-
-  meeting Meeting @relation(fields: [meetingId], references: [id])
-
-  stockist Stockist @relation(fields: [stockistId], references: [id])
+  meeting    Meeting  @relation(fields: [meetingId], references: [id])
+  stockist   Stockist @relation(fields: [stockistId], references: [id])
 }
 
 model FollowUp {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
-  doctorId Int?
-
-  chemistId Int?
-
-  meetingId Int?
-
-  title String
-
-  remarks String?
-
+  id           Int      @id @default(autoincrement())
+  mrId         Int
+  doctorId     Int?
+  chemistId    Int?
+  meetingId    Int?
+  title        String
+  remarks      String?
   followUpDate DateTime
-
-  status String @default("PENDING")
-
-  createdAt DateTime @default(now())
-
-  mr MR @relation(fields: [mrId], references: [id])
-
-  doctor Doctor? @relation(fields: [doctorId], references: [id])
-
-  chemist Chemist? @relation(fields: [chemistId], references: [id])
-
-  meeting Meeting? @relation(fields: [meetingId], references: [id])
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  chemist      Chemist? @relation(fields: [chemistId], references: [id])
+  doctor       Doctor?  @relation(fields: [doctorId], references: [id])
+  meeting      Meeting? @relation(fields: [meetingId], references: [id])
+  mr           MR       @relation(fields: [mrId], references: [id])
 }
 
 model Activity {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
+  id           Int      @id @default(autoincrement())
+  mrId         Int
   activityType String
-
-  title String
-
-  description String?
-
+  title        String
+  description  String?
   activityDate DateTime
-
-  status String @default("PENDING")
-
-  createdAt DateTime @default(now())
-
-  mr MR @relation(fields: [mrId], references: [id])
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+  mr           MR       @relation(fields: [mrId], references: [id])
 }
 
 model Lead {
-  id Int @id @default(autoincrement())
-
-  leadCode String @unique
-
-  name String
-
-  type String
-
-  mobile String?
-
-  email String?
-
-  address String?
-
-  territory String?
-
-  source String?
-
-  status String @default("NEW")
-
+  id           Int      @id @default(autoincrement())
+  leadCode     String   @unique
+  name         String
+  type         String
+  mobile       String?
+  email        String?
+  address      String?
+  territory    String?
+  source       String?
+  status       String   @default("NEW")
   assignedMrId Int?
-
-  createdAt DateTime @default(now())
-
-  assignedMr MR? @relation(fields: [assignedMrId], references: [id])
+  createdAt    DateTime @default(now())
+  assignedMr   MR?      @relation(fields: [assignedMrId], references: [id])
 }
 
 model LeaveRequest {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
+  id        Int      @id @default(autoincrement())
+  mrId      Int
   leaveType String
-
-  fromDate DateTime
-
-  toDate DateTime
-
-  reason String?
-
-  status String @default("PENDING")
-
+  fromDate  DateTime
+  toDate    DateTime
+  reason    String?
+  status    String   @default("PENDING")
   appliedAt DateTime @default(now())
-
-  mr MR @relation(fields: [mrId], references: [id])
+  mr        MR       @relation(fields: [mrId], references: [id])
 }
 
 model ExpenseClaim {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
+  id          Int      @id @default(autoincrement())
+  mrId        Int
   expenseType String
-
-  amount Decimal
-
+  amount      Decimal
   expenseDate DateTime
-
   description String?
-
-  receiptUrl String?
-
-  status String @default("PENDING")
-
+  receiptUrl  String?
+  status      String   @default("PENDING")
   submittedAt DateTime @default(now())
-
-  mr MR @relation(fields: [mrId], references: [id])
+  mr          MR       @relation(fields: [mrId], references: [id])
 }
 
 model Notification {
-  id Int @id @default(autoincrement())
-
-  mrId Int
-
-  title String
-
-  message String
-
-  type String
-
-  isRead Boolean @default(false)
-
+  id        Int      @id @default(autoincrement())
+  mrId      Int
+  title     String
+  message   String
+  type      String
+  isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
-
-  mr MR @relation(fields: [mrId], references: [id])
+  mr        MR       @relation(fields: [mrId], references: [id])
 }
 
 model Distributor {
   id            Int          @id @default(autoincrement())
-  code          String?      @unique
   name          String
-  contactPerson String?
   mobile        String?
+  code          String?      @unique
+  contactPerson String?
+  createdAt     DateTime     @default(now())
   email         String?
   status        String       @default("Active")
-  createdAt     DateTime     @default(now())
   creditNotes   CreditNote[]
 }
 
@@ -1225,8 +829,8 @@ model Supplier {
   contact      String?
   email        String?
   address      String?
-  inwardStocks InwardStock[]
   createdAt    DateTime      @default(now())
+  inwardStocks InwardStock[]
 }
 
 model InwardStock {
@@ -1234,9 +838,7 @@ model InwardStock {
   grnNo         String            @unique
   date          DateTime          @default(now())
   supplierId    Int
-  supplier      Supplier          @relation(fields: [supplierId], references: [id])
   warehouseId   Int
-  warehouse     Warehouse         @relation(fields: [warehouseId], references: [id])
   invoiceNumber String?
   invoiceDate   DateTime?
   itemsCount    Int               @default(0)
@@ -1244,16 +846,16 @@ model InwardStock {
   totalValue    Float             @default(0.0)
   status        String            @default("Completed")
   remarks       String?
-  items         InwardStockItem[]
   createdAt     DateTime          @default(now())
+  supplier      Supplier          @relation(fields: [supplierId], references: [id])
+  warehouse     Warehouse         @relation(fields: [warehouseId], references: [id])
+  items         InwardStockItem[]
 }
 
 model InwardStockItem {
   id            Int         @id @default(autoincrement())
   inwardStockId Int
-  inwardStock   InwardStock @relation(fields: [inwardStockId], references: [id], onDelete: Cascade)
   productId     Int
-  product       Product     @relation(fields: [productId], references: [id])
   batchNo       String
   mfgDate       DateTime?
   expiryDate    DateTime?
@@ -1261,6 +863,8 @@ model InwardStockItem {
   ptr           Float       @default(0.0)
   mrp           Float       @default(0.0)
   createdAt     DateTime    @default(now())
+  inwardStock   InwardStock @relation(fields: [inwardStockId], references: [id], onDelete: Cascade)
+  product       Product     @relation(fields: [productId], references: [id])
 }
 
 model OutwardStock {
@@ -1269,27 +873,27 @@ model OutwardStock {
   date            DateTime           @default(now())
   client          String
   warehouseId     Int
-  warehouse       Warehouse          @relation(fields: [warehouseId], references: [id])
   referenceNumber String?
   itemsCount      Int                @default(0)
   totalQuantity   Int                @default(0)
   totalValue      Float              @default(0.0)
   status          String             @default("Dispatched")
   remarks         String?
-  items           OutwardStockItem[]
   createdAt       DateTime           @default(now())
+  warehouse       Warehouse          @relation(fields: [warehouseId], references: [id])
+  items           OutwardStockItem[]
 }
 
 model OutwardStockItem {
   id             Int          @id @default(autoincrement())
   outwardStockId Int
-  outwardStock   OutwardStock @relation(fields: [outwardStockId], references: [id], onDelete: Cascade)
   productId      Int
-  product        Product      @relation(fields: [productId], references: [id])
   batchId        Int
-  batch          Batch        @relation(fields: [batchId], references: [id])
   quantity       Int
   rate           Float        @default(0.0)
+  batch          Batch        @relation(fields: [batchId], references: [id])
+  outwardStock   OutwardStock @relation(fields: [outwardStockId], references: [id], onDelete: Cascade)
+  product        Product      @relation(fields: [productId], references: [id])
 }
 
 model HSNCode {
@@ -1310,113 +914,110 @@ model GSTRecord {
   effectiveDate DateTime?
   createdBy     String?
   lastUpdatedBy String?
-  status        String    @default("Active")
-  remarks       String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  remarks       String?
+  status        String    @default("Active")
 }
 
 model PackingType {
   id          Int      @id @default(autoincrement())
-  name        String   @default("")
   code        String   @unique
-  uom         String   @default("")
   description String
   status      String   @default("Active")
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
+  name        String   @default("")
+  uom         String   @default("")
 }
 
 model PricingMaster {
   id            Int       @id @default(autoincrement())
   productId     Int
-  product       Product   @relation(fields: [productId], references: [id])
   mrp           Float
   ptr           Float
   pts           Float
   margin        Float
   effectiveDate DateTime?
-  status        String    @default("Active")
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  batch         Batch?    @relation(fields: [batchId], references: [id])
   batchId       Int?
+  status        String    @default("Active")
+  batch         Batch?    @relation(fields: [batchId], references: [id])
+  product       Product   @relation(fields: [productId], references: [id])
 }
 
 model SchemeMaster {
   id                  Int       @id @default(autoincrement())
   code                String    @unique
   name                String
-  type                String    @default("Quantity Discount")
-  applicableTo        String    @default("All Products")
-  applicableSelection String    @default("")
   productId           Int?
-  product             Product?  @relation(fields: [productId], references: [id])
-  benefitType         String    @default("Free Quantity")
-  benefitValue        String?
   buyQty              Int
   freeQty             Int
   startDate           DateTime?
   endDate             DateTime?
-  remarks             String?
   status              String    @default("Active")
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
-  batch               Batch?    @relation(fields: [batchId], references: [id])
   batchId             Int?
+  applicableSelection String    @default("")
+  applicableTo        String    @default("All Products")
+  benefitType         String    @default("Free Quantity")
+  benefitValue        String?
+  remarks             String?
+  type                String    @default("Quantity Discount")
+  batch               Batch?    @relation(fields: [batchId], references: [id])
+  product             Product?  @relation(fields: [productId], references: [id])
 }
 
 model CreditNote {
   id               Int              @id @default(autoincrement())
-  cnNo             String           @unique // CN/YY/XXXX format
+  cnNo             String           @unique
   cnDate           DateTime         @default(now())
-  status           String           @default("PENDING") // PENDING, PARTIALLY_PAID, PAID
-  cnType           String           // e.g. SALES_RETURN, RATE_DIFFERENCE, DISCOUNT, BREAKAGE
+  status           String           @default("PENDING")
+  cnType           String
   reason           String
   remarks          String?
-  
-  // Dynamic Section Association
   retailerId       Int?
-  retailer         Retailer?        @relation(fields: [retailerId], references: [id])
-  
   distributorId    Int?
-  distributor      Distributor?     @relation(fields: [distributorId], references: [id])
-  
   mrId             Int?
-  mr               MR?              @relation(fields: [mrId], references: [id])
-
   againstInvoiceId Int?
-  againstInvoice   Invoice?         @relation(fields: [againstInvoiceId], references: [id])
-  
-  items            CreditNoteItem[]
-  
-  // Financial Adjustments
   taxableAmount    Float            @default(0.0)
   gstAmount        Float            @default(0.0)
   totalAmount      Float            @default(0.0)
-  amountSettled    Float            @default(0.0) // Tracks how much has been paid/adjusted
-  
+  amountSettled    Float            @default(0.0)
   approvedByUserId Int?
-  approvedByUser   User?            @relation("ApprovedCreditNotes", fields: [approvedByUserId], references: [id])
   approvedAt       DateTime?
-  
   createdAt        DateTime         @default(now())
+  againstInvoice   Invoice?         @relation(fields: [againstInvoiceId], references: [id])
+  approvedByUser   User?            @relation("ApprovedCreditNotes", fields: [approvedByUserId], references: [id])
+  distributor      Distributor?     @relation(fields: [distributorId], references: [id])
+  mr               MR?              @relation(fields: [mrId], references: [id])
+  retailer         Retailer?        @relation(fields: [retailerId], references: [id])
+  items            CreditNoteItem[]
 }
 
 model CreditNoteItem {
   id           Int        @id @default(autoincrement())
   creditNoteId Int
-  creditNote   CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
-  
   productId    Int
-  product      Product    @relation(fields: [productId], references: [id])
-  
   batchId      Int
-  batch        Batch      @relation(fields: [batchId], references: [id])
-  
   quantity     Int
-  rate         Float      // Sourced from original sales rate
+  rate         Float
   gstPercent   Float
   totalAmount  Float
-  disposition  String     @default("SALABLE") // SALABLE, EXPIRED_DUMP, DESTRUCTION
+  disposition  String     @default("SALABLE")
+  batch        Batch      @relation(fields: [batchId], references: [id])
+  creditNote   CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
+  product      Product    @relation(fields: [productId], references: [id])
+}
+
+enum Role {
+  ADMIN
+  WAREHOUSE_MANAGER
+  ACCOUNTANT
+  DISTRIBUTOR
+  RETAILER
+  MEDICAL_REPRESENTATIVE
+  SUPER_ADMIN
 }
