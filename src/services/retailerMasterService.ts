@@ -70,7 +70,7 @@ export const retailerMasterService = {
     return `RET${String(maxNumber + 1).padStart(6, '0')}`;
   },
 
-  create: (record: Omit<RetailerMasterRecord, 'id' | 'code' | 'createdDate'>, password?: string): RetailerMasterRecord => {
+  create: async (record: Omit<RetailerMasterRecord, 'id' | 'code' | 'createdDate'>, password?: string): Promise<RetailerMasterRecord> => {
     const records = retailerMasterService.getAll();
     
     const newRecord: RetailerMasterRecord = {
@@ -79,6 +79,24 @@ export const retailerMasterService = {
       code: retailerMasterService.generateCode(),
       createdDate: new Date().toISOString().split('T')[0]
     };
+
+    try {
+      await apiRequest('/retailers', {
+        method: 'POST',
+        bodyData: {
+          code: newRecord.code,
+          name: newRecord.name,
+          contactPerson: newRecord.contactPerson,
+          mobile: newRecord.mobileNumber,
+          email: newRecord.emailAddress,
+          assignedDistributors: newRecord.assignedDistributors,
+          status: newRecord.status,
+          password: password || '123456'
+        }
+      });
+    } catch (e) {
+      console.warn("Backend API retailer save warning:", e);
+    }
     
     records.unshift(newRecord);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
@@ -102,7 +120,23 @@ export const retailerMasterService = {
     return newRecord;
   },
 
-  update: (id: string, updates: Partial<RetailerMasterRecord>): void => {
+  update: async (id: string, updates: Partial<RetailerMasterRecord>): Promise<void> => {
+    try {
+      await apiRequest(`/retailers/${id}`, {
+        method: 'PUT',
+        bodyData: {
+          name: updates.name,
+          contactPerson: updates.contactPerson,
+          mobile: updates.mobileNumber,
+          email: updates.emailAddress,
+          assignedDistributors: updates.assignedDistributors,
+          status: updates.status
+        }
+      });
+    } catch (e) {
+      console.warn("Backend API retailer update warning:", e);
+    }
+
     const records = retailerMasterService.getAll();
     const index = records.findIndex(r => r.id === id);
     if (index !== -1) {
@@ -111,7 +145,7 @@ export const retailerMasterService = {
       
       // Update auth user
       const authUsers = JSON.parse(localStorage.getItem('pharma_erp_users') || '[]');
-      const authIndex = authUsers.findIndex((u: any) => u.id === id);
+      const authIndex = authUsers.findIndex((u: any) => String(u.id) === String(id));
       if (authIndex !== -1) {
         if (updates.name) authUsers[authIndex].fullName = updates.name;
         if (updates.status) authUsers[authIndex].status = updates.status;
@@ -120,7 +154,7 @@ export const retailerMasterService = {
     }
   },
 
-  updateStatus: (id: string, status: 'Active' | 'Inactive'): void => {
-    retailerMasterService.update(id, { status });
+  updateStatus: async (id: string, status: 'Active' | 'Inactive'): Promise<void> => {
+    await retailerMasterService.update(id, { status });
   }
 };

@@ -110,7 +110,7 @@ export default function RetailerMaster() {
     XLSX.writeFile(workbook, fileName);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name.trim()) {
       alert('Retailer Name is required');
       return;
@@ -152,7 +152,7 @@ export default function RetailerMaster() {
     }
 
     if (isEditingModal && selectedRetailer) {
-      retailerMasterService.update(selectedRetailer.id, {
+      await retailerMasterService.update(selectedRetailer.id, {
         name: formData.name,
         contactPerson: formData.contactPerson,
         mobileNumber: formData.mobileNumber,
@@ -167,7 +167,7 @@ export default function RetailerMaster() {
         module: "Retailer Master",
       });
     } else {
-      retailerMasterService.create({
+      await retailerMasterService.create({
         name: formData.name,
         contactPerson: formData.contactPerson,
         mobileNumber: formData.mobileNumber,
@@ -183,7 +183,7 @@ export default function RetailerMaster() {
       });
     }
 
-    loadRetailers();
+    await loadRetailers();
     setShowFormModal(false);
   };
 
@@ -211,10 +211,10 @@ export default function RetailerMaster() {
     setShowFormModal(true);
   };
 
-  const toggleStatus = (id: string, currentStatus: string) => {
+  const toggleStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
-    retailerMasterService.updateStatus(id, newStatus as any);
-    loadRetailers();
+    await retailerMasterService.updateStatus(id, newStatus as any);
+    await loadRetailers();
   };
 
   const formatDate = (dateStr: string) => {
