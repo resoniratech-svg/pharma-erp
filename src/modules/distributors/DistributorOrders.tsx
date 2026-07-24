@@ -407,7 +407,7 @@ export default function DistributorOrders() {
             </div>
 
             {/* Approval Section */}
-            {viewOrder.status === 'Pending' && (
+            {['Pending', 'On Hold'].includes(viewOrder.status) && (
               <div>
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Approval Section</h3>
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
