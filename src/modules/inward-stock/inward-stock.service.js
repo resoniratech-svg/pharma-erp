@@ -12,6 +12,10 @@ class InwardStockService {
   async getInwardStockById(id) {
     return inwardStockRepository.findById(id);
   }
+
+  async updateInwardStock(id, data) {
+    return inwardStockRepository.update(id, data);
+  }
 }
 
 module.exports = new InwardStockService();

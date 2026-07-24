@@ -44,6 +44,21 @@ class InwardStockController {
       res.status(500).json({ success: false, error: error.message });
     }
   }
+
+  async updateInwardStock(req, res) {
+    try {
+      const { id } = req.params;
+      const data = req.body;
+      const inwardStock = await inwardStockService.updateInwardStock(id, data);
+      res.status(200).json({
+        success: true,
+        data: inwardStock
+      });
+    } catch (error) {
+      console.error('Error updating InwardStock:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
 }
 
 module.exports = new InwardStockController();

@@ -53,6 +53,14 @@ class InwardStockRepository {
       }
     });
   }
+
+  async update(id, data) {
+    const { items, ...updateData } = data;
+    return prisma.inwardStock.update({
+      where: { id: parseInt(id, 10) },
+      data: updateData
+    });
+  }
 }
 
 module.exports = new InwardStockRepository();

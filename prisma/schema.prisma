@@ -849,6 +849,9 @@ model InwardStock {
   totalValue    Float             @default(0.0)
   status        String            @default("Completed")
   remarks       String?
+  createdBy     String?
+  updatedBy     String?
+  updatedAt     DateTime          @updatedAt
   createdAt     DateTime          @default(now())
   supplier      Supplier          @relation(fields: [supplierId], references: [id])
   warehouse     Warehouse         @relation(fields: [warehouseId], references: [id])
