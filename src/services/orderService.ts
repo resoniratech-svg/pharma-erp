@@ -49,16 +49,25 @@ export const orderService = {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/retailer-orders');
       if (response && response.success && Array.isArray(response.data)) {
-        apiOrders = response.data.map((o: any) => ({
-          id: String(o.id),
-          orderNo: o.orderNumber || o.orderNo || `ORD-${o.id}`,
-          distributor: o.retailer ? o.retailer.name : (o.distributorName || 'Distributor'),
-          distributorName: o.retailer ? o.retailer.name : (o.distributorName || 'Distributor'),
-          distributorCode: o.retailer ? o.retailer.code : (o.distributorCode || ''),
+        const existingData = localStorage.getItem(STORAGE_KEY);
+        const existingOrders = existingData ? JSON.parse(existingData) : [];
+        
+        apiOrders = response.data.map((o: any) => {
+          const stringId = String(o.id);
+          const localExisting = existingOrders.find((ex: any) => ex.id === stringId || ex.id === o.orderNumber);
+          
+          return {
+            id: stringId,
+            orderNo: o.orderNumber || o.orderNo || `ORD-${o.id}`,
+          distributor: o.retailer ? o.retailer.name : (localExisting?.distributorName || o.distributorName || 'Distributor'),
+          distributorName: o.retailer ? o.retailer.name : (localExisting?.distributorName || o.distributorName || 'Distributor'),
+          distributorCode: o.retailer ? o.retailer.code : (localExisting?.distributorCode || o.distributorCode || ''),
+          paymentType: localExisting?.paymentType,
+          amountPaid: localExisting?.amountPaid,
           date: o.createdAt ? new Date(o.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           expectedDeliveryDate: o.expectedDeliveryDate || new Date().toISOString().split('T')[0],
           totalAmount: Number(o.totalAmount || 0),
-          status: o.status === 'PENDING' ? 'Pending' : o.status === 'APPROVED' ? 'Approved' : o.status === 'REJECTED' ? 'Rejected' : o.status === 'ON_HOLD' ? 'On Hold' : (o.status || 'Pending'),
+          status: o.status === 'PENDING' ? 'Pending' : o.status === 'APPROVED' ? 'Approved' : o.status === 'REJECTED' ? 'Rejected' : o.status === 'ON_HOLD' ? 'On Hold' : o.status === 'PARTIALLY_PAID' ? 'Partially Paid' : (o.status || 'Pending'),
           items: (o.orderItems || o.items || []).map((i: any) => ({
             productId: i.productId,
             productCode: i.product?.code || i.productCode || `PRD-${i.productId}`,
@@ -69,7 +78,8 @@ export const orderService = {
             amount: Number(i.amount || 0),
             scheme: i.scheme || 'No Scheme'
           }))
-        }));
+        };
+        });
       }
     } catch (e) {
       console.error('Failed to load orders from backend:', e);
