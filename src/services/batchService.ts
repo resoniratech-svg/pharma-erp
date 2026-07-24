@@ -25,10 +25,14 @@ export interface BatchRecord {
   // Pricing
   ptr: number;
   mrp: number;
+  pts?: number;
 
   // Stock
   availableQty: number;
   receivedQty?: number;
+
+  // Additional Information
+  remarks?: string;
 
   // Batch Status
   status: string;
@@ -65,8 +69,10 @@ function mapToUi(b: any): BatchRecord {
     expDate: b.expiryDate || b.expDate || new Date().toISOString(),
     ptr: b.product ? Number(b.product.ptr || 0) : Number(b.ptr || 0),
     mrp: b.product ? Number(b.product.mrp || 0) : Number(b.mrp || 0),
+    pts: matchedProduct ? Number(matchedProduct.pts || 0) : Number(b.product?.pts || 0),
     availableQty: Number(b.quantity || b.availableQty || 0),
     receivedQty: Number(b.receivedQty || b.quantity || 0),
+    remarks: b.remarks || "",
     status: b.status || "Active",
     createdBy: b.createdBy || "System",
     createdDate: b.createdAt || b.createdDate || new Date().toISOString(),
@@ -117,6 +123,7 @@ export const batchService = {
         manufacturingDate: record.mfgDate,
         expiryDate: record.expDate,
         quantity: Number(record.availableQty),
+        remarks: record.remarks,
       },
     });
     if (!response.success || !response.data) {
@@ -136,6 +143,7 @@ export const batchService = {
         manufacturingDate: record.mfgDate,
         expiryDate: record.expDate,
         quantity: record.availableQty !== undefined ? Number(record.availableQty) : undefined,
+        remarks: record.remarks,
       },
     });
     if (!response.success || !response.data) {
