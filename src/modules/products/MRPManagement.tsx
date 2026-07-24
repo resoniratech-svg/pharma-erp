@@ -100,7 +100,7 @@ export default function MRPManagement() {
   const columns: Column<MRPRecord>[] = [
     { key: 'productCode', label: 'Product Code' },
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.productName}</span> },
-    { key: 'previousMrp', label: 'Previous MRP', render: (row) => row.previousMrp ? `₹${row.previousMrp.toFixed(2)}` : 'N/A' },
+    { key: 'previousMrp', label: 'Previous MRP', render: (row) => typeof row.previousMrp === 'number' ? `₹${row.previousMrp.toFixed(2)}` : '₹0.00' },
     { key: 'currentMrp', label: 'Current MRP', render: (row) => `₹${row.currentMrp.toFixed(2)}` },
     { key: 'effectiveFrom', label: 'Effective From', render: (row) => formatDate(row.effectiveFrom) },
     { key: 'status', label: 'Status', render: (row) => (
@@ -467,7 +467,7 @@ export default function MRPManagement() {
             <div>
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Pricing Information</h3>
               <div className="space-y-2">
-                <DrawerField label="Previous MRP" value={selectedItem.previousMrp ? `₹${selectedItem.previousMrp.toFixed(2)}` : 'N/A'} />
+                <DrawerField label="Previous MRP" value={typeof selectedItem.previousMrp === 'number' ? `₹${selectedItem.previousMrp.toFixed(2)}` : '₹0.00'} />
                 <DrawerField label="Current MRP" value={`₹${selectedItem.currentMrp.toFixed(2)}`} />
                 <DrawerField label="Effective From" value={formatDate(selectedItem.effectiveFrom)} />
               </div>
