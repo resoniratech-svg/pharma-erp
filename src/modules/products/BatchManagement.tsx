@@ -307,6 +307,7 @@ export default function BatchManagement() {
         expDate: updatedBatch.expDate,
         availableQty: updatedBatch.availableQty,
         status: updatedBatch.status,
+        remarks: trimmedRemarks,
       }).then(() => {
         batchService.loadBatches().then((data) => {
           setBatches(data as unknown as Batch[]);
@@ -337,6 +338,7 @@ export default function BatchManagement() {
         mrp: Number(newBatch.mrp),
         availableQty: received,
         status: resolvedStatus,
+        remarks: trimmedRemarks,
       }).then(() => {
         batchService.loadBatches().then((data) => {
           setBatches(data as unknown as Batch[]);
