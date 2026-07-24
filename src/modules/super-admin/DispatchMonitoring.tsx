@@ -64,7 +64,11 @@ export default function DispatchMonitoring() {
     
     return challans.map(c => {
       // We estimate Expected Delivery based on dispatchDate + 3 days if not explicitly available in Challan
-      const dDate = new Date(c.dispatchDate);
+      let dDate = new Date(c.dispatchDate || today);
+      if (isNaN(dDate.getTime())) {
+        dDate = new Date(); // fallback if still invalid
+      }
+      
       const expectedDel = new Date(dDate);
       expectedDel.setDate(expectedDel.getDate() + 3);
 
@@ -81,7 +85,7 @@ export default function DispatchMonitoring() {
         sourceWarehouse: c.sourceWarehouse,
         destination: 'Destination Hub', // Not explicitly stored in Challan
         transporter: c.transporter,
-        dispatchDate: c.dispatchDate,
+        dispatchDate: dDate.toISOString().split('T')[0],
         expectedDelivery: expectedDel.toISOString().split('T')[0],
         status: dStatus
       } as Dispatch;
