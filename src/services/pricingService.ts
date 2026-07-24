@@ -27,9 +27,10 @@ export const pricingService = {
   },
 
   create: async (data: Partial<PricingMaster>): Promise<PricingMaster> => {
+    const { effectiveTo, remarks, ...apiPayload } = data;
     const res = await apiRequest<any>('/pricing', {
       method: 'POST',
-      bodyData: data,
+      bodyData: apiPayload,
     });
     if (res?.data?.id) {
       const meta = JSON.parse(localStorage.getItem('pricing_meta') || '{}');
@@ -40,9 +41,10 @@ export const pricingService = {
   },
 
   update: async (id: number | string, data: Partial<PricingMaster>): Promise<PricingMaster> => {
+    const { effectiveTo, remarks, ...apiPayload } = data;
     const res = await apiRequest<any>(`/pricing/${id}`, {
       method: 'PUT',
-      bodyData: data,
+      bodyData: apiPayload,
     });
     const updated = res?.data || { id };
     const meta = JSON.parse(localStorage.getItem('pricing_meta') || '{}');
