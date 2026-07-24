@@ -98,7 +98,10 @@ export default function PricingManagement() {
           packingType: product?.packingType || item.packingType || 'N/A',
           scheme: product?.scheme || item.scheme || 'N/A',
           stockistMargin: item.stockistMargin || `${stockistMargin}%`,
-          retailMargin: item.retailMargin || `${retailMargin}%`
+          retailMargin: item.retailMargin || `${retailMargin}%`,
+          effectiveFrom: item.effectiveFrom || item.effectiveDate || '',
+          effectiveTo: item.effectiveTo || '',
+          remarks: item.remarks || ''
         };
       });
       
