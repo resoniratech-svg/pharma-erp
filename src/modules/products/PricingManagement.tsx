@@ -91,6 +91,12 @@ export default function PricingManagement() {
           ...item,
           productCode: product ? product.code : item.productCode,
           productName: product ? product.name : item.productName,
+          category: product?.category || item.category || 'N/A',
+          hsnCode: product?.hsnCode || item.hsnCode || 'N/A',
+          gst: product?.gst || item.gst || 'N/A',
+          composition: product?.composition || item.composition || 'N/A',
+          packingType: product?.packingType || item.packingType || 'N/A',
+          scheme: product?.scheme || item.scheme || 'N/A',
           stockistMargin: item.stockistMargin || `${stockistMargin}%`,
           retailMargin: item.retailMargin || `${retailMargin}%`
         };
@@ -502,7 +508,7 @@ export default function PricingManagement() {
         const updatedRecord = await pricingService.update(newPricing.id, payload);
         
         const mappedRecord: Pricing = {
-          id: updatedRecord.id as string,
+          id: (updatedRecord && updatedRecord.id) ? String(updatedRecord.id) : newPricing.id,
           productCode: newPricing.productCode || "N/A",
           productName: newPricing.productName,
           category: newPricing.category,
