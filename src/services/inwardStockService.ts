@@ -41,7 +41,11 @@ export const inwardStockService = {
              quantity: i.quantity,
              mrp: i.mrp,
              ptr: i.ptr
-          })) : []
+          })) : [],
+          createdBy: item.createdBy || "System",
+          createdDate: item.createdAt || "",
+          lastUpdatedBy: item.updatedBy || "System",
+          lastUpdatedDate: item.updatedAt || "",
         }));
       }
       return [];
@@ -60,6 +64,19 @@ export const inwardStockService = {
       return response.success;
     } catch (e) {
       console.error("Failed to save inward stock:", e);
+      return false;
+    }
+  },
+
+  async update(id: string, record: Partial<InwardStockRecord>): Promise<boolean> {
+    try {
+      const response = await apiRequest<{ success: boolean }>('/inward-stock/' + id, {
+        method: 'PUT',
+        bodyData: record,
+      });
+      return response.success;
+    } catch (e) {
+      console.error("Failed to update inward stock:", e);
       return false;
     }
   }

@@ -183,6 +183,8 @@ export default function InwardStock() {
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<Inward | null>(null);
+  const [isEditingDrawer, setIsEditingDrawer] = useState(false);
+  const [drawerEditData, setDrawerEditData] = useState<Partial<Inward>>({});
   const [products] = useState(productService.getProducts());
   const [batches, setBatches] = useState<BatchRecord[]>([]);
 
@@ -210,6 +212,8 @@ export default function InwardStock() {
     location: '',
     status: 'Completed' as Inward['status'],
     remarks: '',
+    invoiceNumber: '',
+    invoiceDate: '',
   });
 
   const [formProducts, setFormProducts] = useState<ProductLineItem[]>([]);
@@ -562,6 +566,10 @@ export default function InwardStock() {
       totalValue: autoCalculatedMetrics.totalValue,
       status: formData.status,
       remarks: remarks,
+      invoiceNumber: formData.invoiceNumber || undefined,
+      invoiceDate: formData.invoiceDate ? new Date(formData.invoiceDate).toISOString() : undefined,
+      createdBy: currentUser?.fullName,
+      updatedBy: currentUser?.fullName,
       items: formProducts.map(p => ({
         productId: Number(products.find(prod => prod.name === p.product)?.id || 0),
         batchNo: p.batchNo,
@@ -693,6 +701,8 @@ export default function InwardStock() {
       location: "",
       status: "Completed",
       remarks: "",
+      invoiceNumber: "",
+      invoiceDate: "",
     });
 
     setFormProducts([]);
@@ -875,7 +885,33 @@ export default function InwardStock() {
                       ))}
                     </select>
                   </div>
-
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Invoice Number (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      value={formData.invoiceNumber}
+                      onChange={(e) =>
+                        setFormData({ ...formData, invoiceNumber: e.target.value })
+                      }
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                      placeholder="e.g. INV-2026-001"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                      Invoice Date (Optional)
+                    </label>
+                    <input
+                      type="date"
+                      value={formData.invoiceDate}
+                      onChange={(e) =>
+                        setFormData({ ...formData, invoiceDate: e.target.value })
+                      }
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2"
+                    />
+                  </div>
                 </div>
               </section>
 
@@ -1121,7 +1157,10 @@ export default function InwardStock() {
       {/* GRN View Drawer */}
       <Drawer
         open={!!selectedRecord}
-        onClose={() => setSelectedRecord(null)}
+        onClose={() => {
+          setSelectedRecord(null);
+          setIsEditingDrawer(false);
+        }}
         title="GRN Details"
       >
         {selectedRecord && (
@@ -1149,36 +1188,91 @@ export default function InwardStock() {
                   label="Location"
                   value={`${selectedRecord.warehouseCode} - ${selectedRecord.warehouseName}`}
                 />
-                <DrawerField
-                  label="Invoice Number"
-                  value={selectedRecord.invoiceNumber || "N/A"}
-                />
-                <DrawerField
-                  label="Invoice Date"
-                  value={formatDate(selectedRecord.invoiceDate) || "N/A"}
-                />
-                <DrawerField
-                  label="Remarks"
-                  value={selectedRecord.remarks || "N/A"}
-                />
-                <DrawerField
-                  label="Status"
-                  value={
-                    <Badge
-                      variant={
-                        selectedRecord.status === "Completed"
-                          ? "success"
-                          : selectedRecord.status === "Pending QC"
-                            ? "warning"
-                            : selectedRecord.status === "Rejected"
-                              ? "danger"
-                              : "neutral"
-                      }
+                {isEditingDrawer ? (
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1 uppercase">Invoice Number</label>
+                    <input 
+                      type="text" 
+                      className="w-full border border-slate-200 rounded px-2 py-1 text-sm"
+                      value={drawerEditData.invoiceNumber || ''} 
+                      onChange={(e) => setDrawerEditData({...drawerEditData, invoiceNumber: e.target.value})}
+                    />
+                  </div>
+                ) : (
+                  <DrawerField
+                    label="Invoice Number"
+                    value={selectedRecord.invoiceNumber || "N/A"}
+                  />
+                )}
+                
+                {isEditingDrawer ? (
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1 uppercase">Invoice Date</label>
+                    <input 
+                      type="date" 
+                      className="w-full border border-slate-200 rounded px-2 py-1 text-sm"
+                      value={drawerEditData.invoiceDate ? drawerEditData.invoiceDate.split('T')[0] : ''} 
+                      onChange={(e) => setDrawerEditData({...drawerEditData, invoiceDate: e.target.value})}
+                    />
+                  </div>
+                ) : (
+                  <DrawerField
+                    label="Invoice Date"
+                    value={formatDate(selectedRecord.invoiceDate) || "N/A"}
+                  />
+                )}
+
+                {isEditingDrawer ? (
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1 uppercase">Remarks</label>
+                    <input 
+                      type="text" 
+                      className="w-full border border-slate-200 rounded px-2 py-1 text-sm"
+                      value={drawerEditData.remarks || ''} 
+                      onChange={(e) => setDrawerEditData({...drawerEditData, remarks: e.target.value})}
+                    />
+                  </div>
+                ) : (
+                  <DrawerField
+                    label="Remarks"
+                    value={selectedRecord.remarks || "N/A"}
+                  />
+                )}
+
+                {isEditingDrawer ? (
+                  <div>
+                    <label className="block text-xs text-slate-500 mb-1 uppercase">Status</label>
+                    <select
+                      className="w-full border border-slate-200 rounded px-2 py-1 text-sm"
+                      value={drawerEditData.status || ''} 
+                      onChange={(e) => setDrawerEditData({...drawerEditData, status: e.target.value as any})}
                     >
-                      {selectedRecord.status}
-                    </Badge>
-                  }
-                />
+                      <option value="Draft">Draft</option>
+                      <option value="Pending QC">Pending QC</option>
+                      <option value="Completed">Completed</option>
+                      <option value="Rejected">Rejected</option>
+                    </select>
+                  </div>
+                ) : (
+                  <DrawerField
+                    label="Status"
+                    value={
+                      <Badge
+                        variant={
+                          selectedRecord.status === "Completed"
+                            ? "success"
+                            : selectedRecord.status === "Pending QC"
+                              ? "warning"
+                              : selectedRecord.status === "Rejected"
+                                ? "danger"
+                                : "neutral"
+                        }
+                      >
+                        {selectedRecord.status}
+                      </Badge>
+                    }
+                  />
+                )}
               </div>
             </div>
 
@@ -1286,12 +1380,59 @@ export default function InwardStock() {
             </div>
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
-              <ActionButton
-                variant="secondary"
-                onClick={() => setSelectedRecord(null)}
-              >
-                Close
-              </ActionButton>
+              {isEditingDrawer ? (
+                <>
+                  <ActionButton
+                    variant="secondary"
+                    onClick={() => setIsEditingDrawer(false)}
+                  >
+                    Cancel
+                  </ActionButton>
+                  <ActionButton
+                    onClick={async () => {
+                      const success = await inwardStockService.update(selectedRecord.id, {
+                        invoiceNumber: drawerEditData.invoiceNumber,
+                        invoiceDate: drawerEditData.invoiceDate ? new Date(drawerEditData.invoiceDate).toISOString() : undefined,
+                        remarks: drawerEditData.remarks,
+                        status: drawerEditData.status,
+                        updatedBy: currentUser?.fullName,
+                      });
+                      if (success) {
+                        const updatedRecords = await inwardStockService.getAll();
+                        setInwardRecords(updatedRecords as unknown as Inward[]);
+                        const updated = updatedRecords.find(r => r.id === selectedRecord.id);
+                        if (updated) setSelectedRecord(updated as unknown as Inward);
+                        setIsEditingDrawer(false);
+                      } else {
+                        alert("Failed to update GRN");
+                      }
+                    }}
+                  >
+                    Save Changes
+                  </ActionButton>
+                </>
+              ) : (
+                <>
+                  <ActionButton
+                    variant="secondary"
+                    onClick={() => {
+                      setDrawerEditData(selectedRecord);
+                      setIsEditingDrawer(true);
+                    }}
+                  >
+                    Edit
+                  </ActionButton>
+                  <ActionButton
+                    variant="secondary"
+                    onClick={() => {
+                      setSelectedRecord(null);
+                      setIsEditingDrawer(false);
+                    }}
+                  >
+                    Close
+                  </ActionButton>
+                </>
+              )}
             </div>
           </div>
         )}
