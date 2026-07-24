@@ -87,7 +87,7 @@ export default function AllIndiaSales() {
   }, []);
 
   const columns: Column<StateSales>[] = [
-    { key: 'state', label: 'State / Region', render: (row) => <span className="font-semibold text-slate-900">{row.state}</span> },
+    { key: 'state', label: 'Distributor Name', render: (row) => <span className="font-semibold text-slate-900">{row.state}</span> },
     { key: 'revenue', label: 'Total Revenue', render: (row) => <span className="font-bold text-slate-700">{row.revenue}</span> },
     { key: 'orders', label: 'Total Orders' },
     { key: 'activeCustomers', label: 'Active Customers' },
@@ -244,7 +244,7 @@ export default function AllIndiaSales() {
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search state..." />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search distributor..." />
           <SelectFilter
             value={finYear} onChange={setFinYear}
             options={[
@@ -313,8 +313,8 @@ export default function AllIndiaSales() {
         <SummaryCard title="Total Orders" value={metrics?.totalOrders ? metrics.totalOrders.toLocaleString() : "46,000"} subtitle="Source: Orders Module" icon={<ShoppingCart className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
         <SummaryCard title="Sales Growth %" value={metrics?.salesGrowthStr || "+8.5%"} subtitle="Current vs Previous Period" icon={<TrendingUp className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
         <SummaryCard title="Active Customers" value={metrics?.activeCustomers ? metrics.activeCustomers.toLocaleString() : "4,175"} subtitle="Purchased in selected period" icon={<Users className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
-        <SummaryCard title="Outstanding Receivables" value={metrics?.outstandingReceivablesStr || "₹ 15.9 Cr"} subtitle="Source: Outstanding Tracking" icon={<AlertCircle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
-        <SummaryCard title="Top Performing State" value={metrics?.topState || "Maharashtra"} subtitle="Highest revenue generating state" icon={<MapPin className="w-6 h-6" />} colorClass="text-indigo-600" bgClass="bg-indigo-100" />
+        <SummaryCard title="Outstanding Receivables" value={metrics?.outstandingReceivablesStr || "₹ 0.0 Cr"} subtitle="Source: Outstanding Tracking" icon={<AlertCircle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
+        <SummaryCard title="Top Performing Distributor" value={metrics?.topState || "No Data"} subtitle="Highest revenue generating distributor" icon={<MapPin className="w-6 h-6" />} colorClass="text-indigo-600" bgClass="bg-indigo-100" />
       </div>
 
       {/* Sales Trend Chart */}
@@ -349,7 +349,7 @@ export default function AllIndiaSales() {
 
       {/* Main Table */}
       <div className="mb-6">
-        <h3 className="font-bold text-slate-800 mb-4 px-1">State Performance</h3>
+        <h3 className="font-bold text-slate-800 mb-4 px-1">Distributor Performance</h3>
         <TableCard>
           <DataTable columns={columns} data={filteredData} />
         </TableCard>
@@ -361,7 +361,7 @@ export default function AllIndiaSales() {
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-6">
           <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
             <TrendingUp className="w-5 h-5 text-emerald-600" />
-            Top 5 States by Revenue
+            Top 5 Distributors by Revenue
           </h3>
           <div className="space-y-4">
             {topStates.map((state, i) => (

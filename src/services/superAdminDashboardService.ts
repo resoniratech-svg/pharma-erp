@@ -109,46 +109,76 @@ export const superAdminDashboardService = {
     const deliveredCount = dispatches.filter(d => d.status === 'Delivered').length || 1117;
     const delayedCount = dispatches.filter(d => d.status === 'Delayed' || d.status === 'Cancelled').length || 24;
 
-    return {
-      totalRevenue: totalRevenueNum,
-      totalRevenueStr: `₹ ${(totalRevenueNum / 10000000).toFixed(1)} Cr`,
-      totalOrders: totalOrdersNum,
-      salesGrowthStr: '+8.5%',
-      activeCustomers: activeCustNum,
-      outstandingReceivables: outstandingNum,
-      outstandingReceivablesStr: `₹ ${(outstandingNum / 10000000).toFixed(1)} Cr`,
-      topState: 'Maharashtra',
-      
-      totalInventoryValue: totalStockValNum,
-      totalInventoryValueStr: `₹ ${(totalStockValNum / 10000000).toFixed(1)} Cr`,
-      lowStockCount,
-      nearExpiryCount,
-      deadStockValueStr: '₹ 1.2 Cr',
+      // 4. Calculate distributor-wise sales from invoices
+      const distributorSalesMap = new Map<string, any>();
+      invoices.forEach(inv => {
+        const dName = inv.customerName || 'Unknown Distributor';
+        if (!distributorSalesMap.has(dName)) {
+          distributorSalesMap.set(dName, {
+            id: dName,
+            state: dName, // Reusing 'state' key for distributor name
+            revenueVal: 0,
+            orders: 0,
+            activeCustomers: 1, // Treat each unique distributor as 1 customer for the group
+            outstandingVal: 0
+          });
+        }
+        const record = distributorSalesMap.get(dName);
+        record.revenueVal += (Number(inv.grandTotal) || 0);
+        record.orders += 1;
+        if (['UNPAID', 'PENDING', 'Unpaid'].includes(inv.status)) {
+          record.outstandingVal += (Number(inv.grandTotal) || 0);
+        }
+      });
 
-      overdueAmountStr: '₹ 1.8 Cr',
-      criticalCasesCount: 24,
-      collectionEfficiencyStr: '82.4%',
+      const sortedSales = Array.from(distributorSalesMap.values()).sort((a, b) => b.revenueVal - a.revenueVal);
+      const formatCurrency = (val: number) => `₹ ${(val / 10000000).toFixed(2)} Cr`;
 
-      totalDispatchesMTD,
-      inTransitCount,
-      deliveredCount,
-      delayedCount,
+      const finalStateSales = sortedSales.map((s, idx) => ({
+        id: String(idx + 1),
+        state: s.state,
+        revenue: formatCurrency(s.revenueVal),
+        revenueVal: s.revenueVal,
+        orders: s.orders,
+        activeCustomers: s.activeCustomers,
+        outstanding: formatCurrency(s.outstandingVal),
+        growth: '+5.0%', // Historical data not available yet
+        status: idx === 0 ? 'High' : idx < 3 ? 'Medium' : 'Low'
+      }));
 
-      totalExportOrders: 142,
-      activeExportShipments: 28,
-      exportRevenueStr: '$ 1.2M',
-      pendingCustomsCount: 12,
+      return {
+        totalRevenue: totalRevenueNum,
+        totalRevenueStr: `₹ ${(totalRevenueNum / 10000000).toFixed(1)} Cr`,
+        totalOrders: totalOrdersNum,
+        salesGrowthStr: '+8.5%',
+        activeCustomers: activeCustNum,
+        outstandingReceivables: outstandingNum,
+        outstandingReceivablesStr: `₹ ${(outstandingNum / 10000000).toFixed(1)} Cr`,
+        topState: finalStateSales.length > 0 ? finalStateSales[0].state : 'No Data',
+        
+        totalInventoryValue: totalStockValNum,
+        totalInventoryValueStr: `₹ ${(totalStockValNum / 10000000).toFixed(1)} Cr`,
+        lowStockCount,
+        nearExpiryCount,
+        deadStockValueStr: '₹ 1.2 Cr',
 
-      stateSales: [
-        { id: '1', state: 'Maharashtra', revenue: '₹ 45.2 Cr', revenueVal: 45.2, orders: 12500, activeCustomers: 1205, outstanding: '₹ 4.1 Cr', growth: '+12.5%', status: 'High' },
-        { id: '2', state: 'Gujarat', revenue: '₹ 32.1 Cr', revenueVal: 32.1, orders: 9800, activeCustomers: 850, outstanding: '₹ 3.2 Cr', growth: '+8.2%', status: 'High' },
-        { id: '3', state: 'Karnataka', revenue: '₹ 28.4 Cr', revenueVal: 28.4, orders: 8500, activeCustomers: 720, outstanding: '₹ 2.8 Cr', growth: '+5.4%', status: 'Medium' },
-        { id: '4', state: 'Tamil Nadu', revenue: '₹ 24.5 Cr', revenueVal: 24.5, orders: 7200, activeCustomers: 640, outstanding: '₹ 2.1 Cr', growth: '+4.1%', status: 'Medium' },
-        { id: '5', state: 'Delhi NCR', revenue: '₹ 15.2 Cr', revenueVal: 15.2, orders: 4200, activeCustomers: 410, outstanding: '₹ 1.5 Cr', growth: '-2.1%', status: 'Low' },
-        { id: '6', state: 'Uttar Pradesh', revenue: '₹ 12.8 Cr', revenueVal: 12.8, orders: 3800, activeCustomers: 350, outstanding: '₹ 2.2 Cr', growth: '-4.5%', status: 'Low' },
-      ],
-      productProfitability: [],
-      liveStockItems: [],
+        overdueAmountStr: '₹ 1.8 Cr',
+        criticalCasesCount: 24,
+        collectionEfficiencyStr: '82.4%',
+
+        totalDispatchesMTD,
+        inTransitCount,
+        deliveredCount,
+        delayedCount,
+
+        totalExportOrders: 142,
+        activeExportShipments: 28,
+        exportRevenueStr: '$ 1.2M',
+        pendingCustomsCount: 12,
+
+        stateSales: finalStateSales,
+        productProfitability: [],
+        liveStockItems: [],
       pendingPayments: [],
       dispatchItems: dispatches,
       exportOrders: []
