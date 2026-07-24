@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { IndianRupee, AlertCircle, Clock, Percent, Eye, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -8,10 +8,11 @@ import {
   TableCard,
   DataTable,
   Badge,
-  SummaryCard,
-  ActionButton
+  SummaryCard
 } from './components/shared';
 import { type Column } from './components/shared';
+import { billingService } from '../../services/billingService';
+import type { GSTInvoice } from '../../services/billingService';
 
 interface PendingPayment {
   id: string;
@@ -22,18 +23,11 @@ interface PendingPayment {
   invoiceDate: string;
   dueDate: string;
   outstandingAmount: string;
+  outstandingAmountNumber: number;
   daysOverdue: number;
   branch: string;
   status: 'Due Soon' | 'Overdue' | 'Critical' | 'Paid';
 }
-
-const mockData: PendingPayment[] = [
-  { id: '1', customerCode: 'CUS-1001', customerName: 'Global Health Agencies', partyType: 'Distributor', invoiceNo: 'INV/25/105', invoiceDate: '2025-10-01', dueDate: '2025-11-01', outstandingAmount: '₹ 4,50,000', daysOverdue: 45, branch: 'Mumbai Central', status: 'Critical' },
-  { id: '2', customerCode: 'CUS-1022', customerName: 'Apollo Pharmacy', partyType: 'Retailer', invoiceNo: 'INV/25/112', invoiceDate: '2025-11-15', dueDate: '2025-12-15', outstandingAmount: '₹ 1,25,000', daysOverdue: 15, branch: 'Pune East', status: 'Overdue' },
-  { id: '3', customerCode: 'CUS-1045', customerName: 'Metro Distributors', partyType: 'Distributor', invoiceNo: 'INV/25/120', invoiceDate: '2025-12-25', dueDate: '2026-01-25', outstandingAmount: '₹ 8,20,000', daysOverdue: 2, branch: 'Delhi North', status: 'Due Soon' },
-  { id: '4', customerCode: 'CUS-1088', customerName: 'LifeCare Hospitals', partyType: 'Hospital', invoiceNo: 'INV/25/133', invoiceDate: '2025-09-10', dueDate: '2025-10-10', outstandingAmount: '₹ 12,50,000', daysOverdue: 65, branch: 'Chennai South', status: 'Critical' },
-  { id: '5', customerCode: 'CUS-1102', customerName: 'City Medicos', partyType: 'Retailer', invoiceNo: 'INV/25/145', invoiceDate: '2025-12-01', dueDate: '2025-12-31', outstandingAmount: '₹ 0', daysOverdue: 0, branch: 'Mumbai Central', status: 'Paid' },
-];
 
 export default function PendingPaymentTracking() {
   const [search, setSearch] = useState('');
@@ -42,11 +36,11 @@ export default function PendingPaymentTracking() {
   const [partyType, setPartyType] = useState('');
   const [status, setStatus] = useState('');
   const [branch, setBranch] = useState('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [invoices, setInvoices] = useState<GSTInvoice[]>([]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -58,6 +52,64 @@ export default function PendingPaymentTracking() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  useEffect(() => {
+    const loadData = async () => {
+      const invs = await billingService.loadInvoices();
+      setInvoices(invs);
+    };
+    loadData();
+  }, []);
+
+  const realData = useMemo(() => {
+    const today = new Date();
+    
+    return invoices
+      .filter(inv => inv.status !== 'Cancelled') // Only consider active/pending/paid invoices
+      .map(inv => {
+        const dueDate = new Date(inv.dueDate);
+        const isPaid = inv.status === 'Paid';
+        // In this system, if an order is Partially Paid, we assume the invoice status won't strictly be 'Paid'
+        // For simplicity, we just use grandTotal if not fully Paid. 
+        // Real logic should use (grandTotal - amountPaid) if partial payments exist on GSTInvoice.
+        const outstandingAmountNum = isPaid ? 0 : inv.grandTotal;
+
+        let daysOverdue = 0;
+        let pStatus: PendingPayment['status'] = 'Due Soon';
+
+        if (isPaid) {
+          pStatus = 'Paid';
+        } else {
+          daysOverdue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 3600 * 24));
+          if (daysOverdue > 30) {
+            pStatus = 'Critical';
+          } else if (daysOverdue > 0) {
+            pStatus = 'Overdue';
+          } else {
+            pStatus = 'Due Soon';
+            daysOverdue = 0; // if it's not overdue yet
+          }
+        }
+
+        // Mock party type, customer code and branch if missing, as they are not in GSTInvoice
+        return {
+          id: inv.id,
+          customerCode: `CUS-${inv.customerId || '0000'}`,
+          customerName: inv.customerName,
+          partyType: 'Distributor', // Defaulting for now
+          invoiceNo: inv.invoiceNo,
+          invoiceDate: inv.date,
+          dueDate: inv.dueDate,
+          outstandingAmountNumber: outstandingAmountNum,
+          outstandingAmount: `₹ ${outstandingAmountNum.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`,
+          daysOverdue,
+          branch: 'Main Warehouse', // Defaulting since branch is not in Invoice
+          status: pStatus
+        } as PendingPayment;
+      })
+      // Optionally sort by most overdue first
+      .sort((a, b) => b.daysOverdue - a.daysOverdue);
+  }, [invoices]);
+
   const columns: Column<PendingPayment>[] = [
     { key: 'customerCode', label: 'Customer Code', render: (row) => <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">{row.customerCode}</span> },
     { key: 'customerName', label: 'Customer Name', render: (row) => <span className="font-semibold text-slate-900">{row.customerName}</span> },
@@ -65,7 +117,7 @@ export default function PendingPaymentTracking() {
     { key: 'invoiceNo', label: 'Invoice No' },
     { key: 'invoiceDate', label: 'Invoice Date', render: (row) => <span className="text-slate-600">{new Date(row.invoiceDate).toLocaleDateString()}</span> },
     { key: 'dueDate', label: 'Due Date', render: (row) => <span className="text-slate-600 font-medium">{new Date(row.dueDate).toLocaleDateString()}</span> },
-    { key: 'outstandingAmount', label: 'Outstanding Amount', render: (row) => <span className="font-bold text-rose-600">{row.outstandingAmount}</span> },
+    { key: 'outstandingAmount', label: 'Outstanding Amount', render: (row) => <span className={row.outstandingAmountNumber > 0 ? "font-bold text-rose-600" : "font-bold text-emerald-600"}>{row.outstandingAmount}</span> },
     { key: 'daysOverdue', label: 'Days Overdue', render: (row) => <span className="text-slate-700">{row.daysOverdue > 0 ? `${row.daysOverdue} days` : '-'}</span> },
     {
       key: 'status',
@@ -78,31 +130,32 @@ export default function PendingPaymentTracking() {
         if (row.status === 'Critical') variant = 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
       },
-    },
-    {
-      key: 'action',
-      label: 'Action',
-      render: () => (
-        <ActionButton variant="ghost">
-          <Eye className="w-4 h-4 text-slate-500" />
-          <span className="text-slate-600">View</span>
-        </ActionButton>
-      )
     }
   ];
 
-  const filteredData = mockData.filter((item) => {
+  const filteredData = realData.filter((item) => {
     let match = true;
     if (search) match = match && item.customerName.toLowerCase().includes(search.toLowerCase());
     if (partyType) match = match && item.partyType === partyType;
     if (status) match = match && item.status === status;
     if (branch) match = match && item.branch === branch;
-    
-    if (fromDate) match = match && new Date(item.dueDate) >= new Date(fromDate);
-    if (toDate) match = match && new Date(item.dueDate) <= new Date(toDate);
-
     return match;
   });
+
+  // Analytics
+  const totalOutstanding = filteredData.reduce((sum, item) => sum + item.outstandingAmountNumber, 0);
+  const overdueCount = filteredData.filter(item => item.status === 'Overdue' || item.status === 'Critical').length;
+  const criticalCount = filteredData.filter(item => item.status === 'Critical').length;
+  const criticalAmount = filteredData
+    .filter(item => item.status === 'Critical')
+    .reduce((sum, item) => sum + item.outstandingAmountNumber, 0);
+  const collectionEfficiency = totalOutstanding > 0 ? Math.round(100 - ((criticalAmount / totalOutstanding) * 100)) : 100;
+
+  const formatCurrency = (val: number) => {
+    if (val >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
+    if (val >= 100000) return `₹ ${(val / 100000).toFixed(2)} L`;
+    return `₹ ${val.toLocaleString('en-IN')}`;
+  };
 
   const getExportData = () => {
     const timestamp = new Date().toLocaleString();
@@ -110,93 +163,63 @@ export default function PendingPaymentTracking() {
       search && `Search: ${search}`,
       partyType && `Party Type: ${partyType}`,
       status && `Status: ${status}`,
-      branch && `Branch: ${branch}`,
-      fromDate && `From: ${fromDate}`,
-      toDate && `To: ${toDate}`
-    ].filter(Boolean).join(' | ') || 'None';
+      branch && `Branch: ${branch}`
+    ].filter(Boolean).join(' | ');
 
-    const headerRows = [
+    return [
       ['Pending Payment Tracking Report'],
-      [`Generated On: ${timestamp}`],
-      [`Active Filters: ${activeFilters}`],
-      []
+      ['Generated On:', timestamp],
+      ['Filters Applied:', activeFilters || 'None'],
+      [''],
+      ['Customer Code', 'Customer Name', 'Party Type', 'Invoice No', 'Invoice Date', 'Due Date', 'Outstanding Amount', 'Days Overdue', 'Status'],
+      ...filteredData.map(item => [
+        item.customerCode,
+        item.customerName,
+        item.partyType,
+        item.invoiceNo,
+        new Date(item.invoiceDate).toLocaleDateString(),
+        new Date(item.dueDate).toLocaleDateString(),
+        item.outstandingAmountNumber,
+        item.daysOverdue,
+        item.status
+      ])
     ];
-
-    const tableHeaders = ['Customer Code', 'Customer Name', 'Party Type', 'Invoice No', 'Invoice Date', 'Due Date', 'Outstanding Amount', 'Days Overdue', 'Status'];
-    const tableRows = filteredData.map(row => [
-      row.customerCode,
-      row.customerName,
-      row.partyType,
-      row.invoiceNo,
-      row.invoiceDate,
-      row.dueDate,
-      row.outstandingAmount,
-      row.daysOverdue.toString(),
-      row.status
-    ]);
-
-    return { headerRows, tableHeaders, tableRows };
   };
 
   const handleExportCSV = () => {
-    if (filteredData.length === 0) {
-      alert("No data available for export.");
-      return;
-    }
-    
-    const { headerRows, tableHeaders, tableRows } = getExportData();
-    const csvContent = [
-      ...headerRows.map(row => `"${row.join('","')}"`),
-      `"${tableHeaders.join('","')}"`,
-      ...tableRows.map(row => `"${row.join('","')}"`)
-    ].join('\n');
-
+    const data = getExportData();
+    const csvContent = data.map(row => row.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     link.href = URL.createObjectURL(blob);
-    link.download = `Pending_Payment_Report_${dateStr}.csv`;
+    link.download = `Pending_Payments_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     setIsExportOpen(false);
   };
 
   const handleExportExcel = () => {
-    if (filteredData.length === 0) {
-      alert("No data available for export.");
-      return;
-    }
-
-    const { headerRows, tableHeaders, tableRows } = getExportData();
-    const wsData = [
-      ...headerRows,
-      tableHeaders,
-      ...tableRows
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const data = getExportData();
+    const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Pending Payments");
-    
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    XLSX.writeFile(wb, `Pending_Payment_Report_${dateStr}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Pending Payments');
+    XLSX.writeFile(wb, `Pending_Payments_${new Date().toISOString().split('T')[0]}.xlsx`);
     setIsExportOpen(false);
   };
 
   return (
-    <div className="animate-in fade-in duration-500">
-      <PageHeader
-        title="Pending Payment Tracking"
-        subtitle="Monitor outstanding receivables and collection efficiency."
-        breadcrumb={[{ label: 'Super Admin' }, { label: 'Pending Payments' }]}
-        actions={
+    <div className="p-6">
+      <PageHeader 
+        title="Pending Payment Tracking" 
+        subtitle="Monitor outstanding invoices, overdue payments, and collection efficiency"
+        action={
           <div className="relative" ref={dropdownRef}>
-            <button
+            <button 
               onClick={() => setIsExportOpen(!isExportOpen)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              className="flex items-center gap-2 bg-[#163c78] text-white px-4 py-2 rounded-xl hover:bg-[#0c1f3d] transition-all shadow-sm hover:shadow active:scale-95"
             >
               <Download className="w-4 h-4" />
-              Export
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+              <span className="font-medium">Export</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${isExportOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {isExportOpen && (
@@ -223,74 +246,86 @@ export default function PendingPaymentTracking() {
         }
       />
 
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search customer name..." />
-          <SelectFilter
-            value={partyType} onChange={setPartyType}
-            options={[
-              { label: 'Distributor', value: 'Distributor' },
-              { label: 'Retailer', value: 'Retailer' },
-              { label: 'Hospital', value: 'Hospital' },
-              { label: 'Institution', value: 'Institution' },
-            ]}
-            placeholder="Party Type"
-          />
-          <SelectFilter
-            value={status} onChange={setStatus}
-            options={[
-              { label: 'Due Soon', value: 'Due Soon' },
-              { label: 'Overdue', value: 'Overdue' },
-              { label: 'Critical', value: 'Critical' },
-              { label: 'Paid', value: 'Paid' },
-            ]}
-            placeholder="Status"
-          />
-          <SelectFilter
-            value={branch} onChange={setBranch}
-            options={[
-              { label: 'Mumbai Central', value: 'Mumbai Central' },
-              { label: 'Delhi North', value: 'Delhi North' },
-              { label: 'Pune East', value: 'Pune East' },
-              { label: 'Chennai South', value: 'Chennai South' },
-            ]}
-            placeholder="Branch"
-          />
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">From</span>
-            <input 
-              type="date" 
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">To</span>
-            <input 
-              type="date" 
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-            />
-          </div>
-        </div>
+      {/* KPI Cards Grid */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <SummaryCard 
+          title="Total Outstanding" 
+          value={formatCurrency(totalOutstanding)} 
+          icon={<IndianRupee className="w-6 h-6 text-blue-600" />} 
+          colorClass="text-blue-600" 
+          bgClass="bg-blue-100/50 border border-blue-200" 
+        />
+        <SummaryCard 
+          title="Overdue Invoices" 
+          value={overdueCount.toString()} 
+          icon={<Clock className="w-6 h-6 text-amber-600" />} 
+          colorClass="text-amber-600" 
+          bgClass="bg-amber-100/50 border border-amber-200" 
+        />
+        <SummaryCard 
+          title="Critical (>30 Days)" 
+          value={criticalCount.toString()} 
+          icon={<AlertCircle className="w-6 h-6 text-rose-600" />} 
+          colorClass="text-rose-600" 
+          bgClass="bg-rose-100/50 border border-rose-200 shadow-[0_0_15px_rgba(225,29,72,0.15)]" 
+        />
+        <SummaryCard 
+          title="Collection Efficiency" 
+          value={`${collectionEfficiency}%`} 
+          icon={<Percent className="w-6 h-6 text-emerald-600" />} 
+          colorClass="text-emerald-600" 
+          bgClass="bg-emerald-100/50 border border-emerald-200" 
+        />
       </div>
 
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-wrap items-center gap-4">
+        <SearchInput value={search} onChange={setSearch} placeholder="Search customer name..." />
+        <SelectFilter
+          value={partyType} onChange={setPartyType}
+          options={[
+            { label: 'Distributor', value: 'Distributor' },
+            { label: 'Retailer', value: 'Retailer' },
+            { label: 'Hospital', value: 'Hospital' },
+          ]}
+          placeholder="Party Type"
+        />
+        <SelectFilter
+          value={status} onChange={setStatus}
+          options={[
+            { label: 'Due Soon', value: 'Due Soon' },
+            { label: 'Overdue', value: 'Overdue' },
+            { label: 'Critical', value: 'Critical' },
+            { label: 'Paid', value: 'Paid' },
+          ]}
+          placeholder="Status"
+        />
+        <SelectFilter
+          value={branch} onChange={setBranch}
+          options={[
+            { label: 'Main Warehouse', value: 'Main Warehouse' }
+          ]}
+          placeholder="Branch"
+        />
+      </div>
+
+      {/* Main Table with hidden scrollbar */}
       <div className="mb-6">
+        <h3 className="font-bold text-slate-800 mb-4 px-1">Pending Invoice Details</h3>
         <TableCard>
           <div className="pending-payment-table-container">
             <DataTable columns={columns} data={filteredData} />
           </div>
         </TableCard>
       </div>
+      
       <style>{`
         .pending-payment-table-container .overflow-x-auto {
-          scrollbar-width: none;
-          -ms-overflow-style: none;
+          scrollbar-width: none; /* Firefox */
+          -ms-overflow-style: none; /* IE and Edge */
         }
         .pending-payment-table-container .overflow-x-auto::-webkit-scrollbar {
-          display: none;
+          display: none; /* Chrome, Safari, Opera */
         }
       `}</style>
     </div>
