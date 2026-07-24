@@ -79,16 +79,6 @@ export default function ProductProfitability() {
         const variant = row.trend === 'Up' ? 'success' : row.trend === 'Down' ? 'danger' : 'warning';
         return <Badge variant={variant}>{row.trend}</Badge>;
       },
-    },
-    {
-      key: 'action',
-      label: 'Action',
-      render: () => (
-        <ActionButton variant="ghost">
-          <Eye className="w-4 h-4 text-slate-500" />
-          <span className="text-slate-600">View</span>
-        </ActionButton>
-      )
     }
   ];
 
