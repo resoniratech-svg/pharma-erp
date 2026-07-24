@@ -37,8 +37,8 @@ export interface ApprovalValidationResult {
 }
 
 export const distributorOrderApprovalService = {
-  getDistributorInfo(distCode: string) {
-    const saved = localStorage.getItem('pharma_erp_distributors');
+  getDistributorInfo(distCode: string, distName?: string) {
+    const saved = localStorage.getItem('pharma_erp_distributor_master') || localStorage.getItem('pharma_erp_distributors');
     let dist = null;
     if (saved) {
       const distributors = JSON.parse(saved);
@@ -48,7 +48,7 @@ export const distributorOrderApprovalService = {
     if (!dist) {
       return {
         id: distCode,
-        name: 'Unknown Distributor',
+        name: distName || 'Unknown Distributor',
         code: distCode,
         creditLimit: 500000,
         status: 'Active',
@@ -140,7 +140,8 @@ export const distributorOrderApprovalService = {
   },
 
   updateOutstanding(order: OrderData) {
-    const savedDistributorsRaw = localStorage.getItem('pharma_erp_distributors');
+    const savedDistributorsRaw = localStorage.getItem('pharma_erp_distributor_master') || localStorage.getItem('pharma_erp_distributors');
+
     if (!savedDistributorsRaw) return;
 
     const savedOrdersRaw = localStorage.getItem('pharma_erp_orders');

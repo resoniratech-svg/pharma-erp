@@ -20,7 +20,7 @@ import { orderService } from '../../services/orderService';
 import { apiRequest } from '../../services/apiClient';
 
 // --- Types ---
-type OrderStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected' | 'Processing' | 'Partially Fulfilled' | 'Fulfilled' | 'Cancelled' | 'On Hold';
+type OrderStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected' | 'Processing' | 'Partially Fulfilled' | 'Fulfilled' | 'Cancelled' | 'On Hold' | 'Partially Paid';
 
 interface OrderItem {
   id?: string;
@@ -173,13 +173,13 @@ export default function DistributorOrders() {
     
     return {
       pendingCount: pendingOrders.length,
-      approvedToday: orders.filter(o => ['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled'].includes(o.status) && o.date === today).length,
+      approvedToday: orders.filter(o => ['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled', 'Partially Paid'].includes(o.status) && o.date === today).length,
       rejectedToday: orders.filter(o => ['Rejected', 'Cancelled'].includes(o.status) && o.date === today).length,
       pendingValue: pendingOrders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.amount, 0), 0)
     };
   }, [orders]);
 
-  const currentDistributor = viewOrder ? distributorOrderApprovalService.getDistributorInfo(viewOrder.distributorCode) : null;
+  const currentDistributor = viewOrder ? distributorOrderApprovalService.getDistributorInfo(viewOrder.distributorCode || '', viewOrder.distributorName) : null;
   const currentOutstandingAmount = viewOrder ? distributorOrderApprovalService.getDistributorOutstanding(viewOrder.distributorCode) : 0;
   const currentValidation = viewOrder ? distributorOrderApprovalService.validateOrderForApproval(viewOrder) : null;
 
@@ -230,7 +230,17 @@ export default function DistributorOrders() {
     const numericId = String(viewOrder.id).replace(/\D/g, '');
     if (numericId) {
       let backendStatus = 'PENDING';
-      if (newStatus === 'Approved') backendStatus = 'APPROVED';
+      let finalStatus = newStatus;
+      
+      if (newStatus === 'Approved') {
+        const grandTotal = currentFinancials ? currentFinancials.grandTotal : 0;
+        if (Number(amountPaid) > 0 && Number(amountPaid) < grandTotal) {
+          finalStatus = 'Partially Paid';
+          backendStatus = 'PARTIALLY_PAID';
+        } else {
+          backendStatus = 'APPROVED';
+        }
+      }
       else if (newStatus === 'Rejected') backendStatus = 'REJECTED';
       else if (newStatus === 'On Hold') backendStatus = 'ON_HOLD';
 
@@ -245,16 +255,16 @@ export default function DistributorOrders() {
       let allOrders = JSON.parse(savedOrders) as OrderData[];
       allOrders = allOrders.map(o => o.id === viewOrder.id ? { 
         ...o, 
-        status: newStatus, 
+        status: finalStatus, 
         remarks: approvalRemarks,
-        paymentType: newStatus === 'Approved' ? paymentType : undefined,
-        amountPaid: newStatus === 'Approved' ? (amountPaid || 0) : undefined
+        paymentType: (finalStatus === 'Approved' || finalStatus === 'Partially Paid') ? paymentType : undefined,
+        amountPaid: (finalStatus === 'Approved' || finalStatus === 'Partially Paid') ? (amountPaid || 0) : undefined
       } : o);
       
       localStorage.setItem("pharma_erp_orders", JSON.stringify(allOrders));
       setOrders(allOrders.filter(o => o.status !== 'Draft'));
       
-      if (newStatus === 'Approved') {
+      if (finalStatus === 'Approved' || finalStatus === 'Partially Paid') {
         distributorOrderApprovalService.updateOutstanding(viewOrder);
         const updatedOut = localStorage.getItem("pharma_erp_outstanding_records");
         if (updatedOut) {
