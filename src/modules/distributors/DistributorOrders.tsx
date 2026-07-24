@@ -235,10 +235,15 @@ export default function DistributorOrders() {
       
       if (newStatus === 'Approved') {
         const grandTotal = currentFinancials ? currentFinancials.grandTotal : 0;
-        if (Number(amountPaid) > 0 && Number(amountPaid) < grandTotal) {
+        const totalPaidSoFar = viewOrder.amountPaid || 0;
+        const newlyPaid = Number(amountPaid) || 0;
+        const cumulativePaid = totalPaidSoFar + newlyPaid;
+
+        if (cumulativePaid > 0 && cumulativePaid < grandTotal) {
           finalStatus = 'Partially Paid';
           backendStatus = 'PARTIALLY_PAID';
         } else {
+          finalStatus = 'Approved';
           backendStatus = 'APPROVED';
         }
       }
@@ -259,7 +264,7 @@ export default function DistributorOrders() {
         status: finalStatus, 
         remarks: approvalRemarks,
         paymentType: (finalStatus === 'Approved' || finalStatus === 'Partially Paid') ? paymentType : undefined,
-        amountPaid: (finalStatus === 'Approved' || finalStatus === 'Partially Paid') ? (amountPaid || 0) : undefined
+        amountPaid: (finalStatus === 'Approved' || finalStatus === 'Partially Paid') ? ((o.amountPaid || 0) + (Number(amountPaid) || 0)) : undefined
       } : o);
       
       localStorage.setItem("pharma_erp_orders", JSON.stringify(allOrders));
@@ -428,7 +433,7 @@ export default function DistributorOrders() {
             </div>
 
             {/* Approval Section */}
-            {['Pending', 'On Hold'].includes(viewOrder.status) && (
+            {['Pending', 'On Hold', 'Partially Paid'].includes(viewOrder.status) && (
               <div>
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Approval Section</h3>
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-4">
@@ -462,7 +467,7 @@ export default function DistributorOrders() {
                   <div className="flex justify-between p-3 bg-white border border-slate-200 rounded-lg">
                     <span className="text-sm font-medium text-slate-600">Remaining Outstanding</span>
                     <span className="text-sm font-bold text-rose-600">
-                      {formatCurrency(currentFinancials.grandTotal - (Number(amountPaid) || 0))}
+                      {formatCurrency(currentFinancials.grandTotal - (viewOrder.amountPaid || 0) - (Number(amountPaid) || 0))}
                     </span>
                   </div>
 
