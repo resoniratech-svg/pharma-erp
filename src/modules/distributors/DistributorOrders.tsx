@@ -17,6 +17,7 @@ import {
 import { inventoryService } from '../../services/inventoryService';
 import { distributorOrderApprovalService } from '../../services/distributorOrderApprovalService';
 import { orderService } from '../../services/orderService';
+import { apiRequest } from '../../services/api';
 
 // --- Types ---
 type OrderStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected' | 'Processing' | 'Partially Fulfilled' | 'Fulfilled' | 'Cancelled' | 'On Hold';
@@ -229,11 +230,12 @@ export default function DistributorOrders() {
       return;
     }
 
-    if (newStatus === 'Approved') {
-      if (!currentValidation?.valid) {
-        setRemarksError(currentValidation?.reason || 'Approval failed due to business validation rules.');
-        return;
-      }
+    const numericId = String(viewOrder.id).replace(/\D/g, '');
+    if (numericId) {
+      apiRequest(`/retailer-orders/${numericId}`, {
+        method: 'PUT',
+        bodyData: { status: newStatus === 'Pending' ? 'PENDING' : newStatus === 'Approved' ? 'APPROVED' : newStatus === 'Rejected' ? 'REJECTED' : 'PENDING' }
+      }).catch(console.warn);
     }
 
     const savedOrders = localStorage.getItem("pharma_erp_orders");
@@ -409,47 +411,7 @@ export default function DistributorOrders() {
               <div>
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Approval Section</h3>
                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
-                  <div className="mb-6">
-                    <h4 className="font-medium text-slate-800 mb-3">Validation Results</h4>
-                    <ul className="space-y-2 text-sm mb-4">
-                      <li className="flex items-center gap-2">
-                        {currentValidation?.validations.outstanding ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <XCircle className="w-5 h-5 text-rose-500" />}
-                        <span className={currentValidation?.validations.outstanding ? "text-slate-700" : "text-rose-600 font-medium"}>Outstanding Validation</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        {currentValidation?.validations.creditLimit ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <XCircle className="w-5 h-5 text-rose-500" />}
-                        <span className={currentValidation?.validations.creditLimit ? "text-slate-700" : "text-rose-600 font-medium"}>Credit Limit Validation</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        {currentValidation?.validations.inventory ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <XCircle className="w-5 h-5 text-rose-500" />}
-                        <span className={currentValidation?.validations.inventory ? "text-slate-700" : "text-rose-600 font-medium"}>Inventory Validation</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        {currentValidation?.validations.status ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <XCircle className="w-5 h-5 text-rose-500" />}
-                        <span className={currentValidation?.validations.status ? "text-slate-700" : "text-rose-600 font-medium"}>Distributor Status Validation</span>
-                      </li>
-                      <li className="flex items-center gap-2">
-                        {currentValidation?.validations.drugLicense ? <CheckCircle2 className="w-5 h-5 text-emerald-500" /> : <XCircle className="w-5 h-5 text-rose-500" />}
-                        <span className={currentValidation?.validations.drugLicense ? "text-slate-700" : "text-rose-600 font-medium"}>Drug License Validation</span>
-                      </li>
-                    </ul>
-                  </div>
 
-                  <div className="mb-4">
-                    <label className="block text-sm font-medium text-slate-700 mb-1">Remarks</label>
-                    <textarea 
-                      className={`w-full border ${remarksError ? 'border-red-400 focus:border-red-500' : 'border-slate-200 focus:border-violet-500'} rounded-lg p-2 text-sm focus:ring-2`}
-                      rows={3}
-                      value={approvalRemarks}
-                      onChange={e => { setApprovalRemarks(e.target.value); if (remarksError) setRemarksError(''); }}
-                      placeholder="Enter remarks for approval/rejection..."
-                    />
-                    {remarksError && (
-                      <div className="mt-2 bg-red-50 border border-red-200 rounded-md p-2">
-                        <p className="text-red-600 text-sm font-medium">{remarksError}</p>
-                      </div>
-                    )}
-                  </div>
                   <div className="flex flex-col sm:flex-row gap-3">
                     <ActionButton variant="primary" onClick={() => handleUpdateStatus('Approved')} icon={<CheckCircle className="w-4 h-4" />}>
                       Approve

@@ -51,14 +51,14 @@ export const orderService = {
       if (response && response.success && Array.isArray(response.data)) {
         apiOrders = response.data.map((o: any) => ({
           id: String(o.id),
-          orderNo: o.orderNo || `ORD-${o.id}`,
+          orderNo: o.orderNumber || o.orderNo || `ORD-${o.id}`,
           distributor: o.retailer ? o.retailer.name : (o.distributorName || 'Distributor'),
           distributorName: o.retailer ? o.retailer.name : (o.distributorName || 'Distributor'),
           distributorCode: o.retailer ? o.retailer.code : (o.distributorCode || ''),
           date: o.createdAt ? new Date(o.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           expectedDeliveryDate: o.expectedDeliveryDate || new Date().toISOString().split('T')[0],
           totalAmount: Number(o.totalAmount || 0),
-          status: o.status === 'PENDING' ? 'Submitted' : o.status === 'APPROVED' ? 'Approved' : (o.status || 'Submitted'),
+          status: o.status === 'PENDING' ? 'Pending' : o.status === 'APPROVED' ? 'Approved' : (o.status || 'Pending'),
           items: (o.orderItems || o.items || []).map((i: any) => ({
             productId: i.productId,
             productCode: i.product?.code || i.productCode || `PRD-${i.productId}`,
