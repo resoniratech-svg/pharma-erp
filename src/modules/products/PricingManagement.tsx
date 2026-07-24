@@ -506,6 +506,8 @@ export default function PricingManagement() {
           pts: ptsVal,
           margin: newPricing.stockistMargin ? parseFloat(newPricing.stockistMargin.toString().replace('%', '')) : 0,
           effectiveDate: newPricing.effectiveFrom ? new Date(newPricing.effectiveFrom).toISOString() : undefined,
+          effectiveTo: newPricing.effectiveTo,
+          remarks: trimmedRemarks,
         };
         
         const updatedRecord = await pricingService.update(newPricing.id, payload);
@@ -578,6 +580,8 @@ export default function PricingManagement() {
           pts: ptsVal,
           margin: newPricing.stockistMargin ? parseFloat(newPricing.stockistMargin.toString().replace('%', '')) : 0,
           effectiveDate: newPricing.effectiveFrom ? new Date(newPricing.effectiveFrom).toISOString() : undefined,
+          effectiveTo: newPricing.effectiveTo,
+          remarks: trimmedRemarks,
         };
         
         const newRecord = await pricingService.create(payload);
