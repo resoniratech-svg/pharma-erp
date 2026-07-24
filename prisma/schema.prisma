@@ -940,11 +940,15 @@ model PricingMaster {
   ptr           Float
   pts           Float
   margin        Float
-  effectiveDate DateTime?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  batchId       Int?
-  status        String    @default("Active")
+  effectiveDate  DateTime?
+  effectiveTo    String?
+  remarks        String?
+  revisionReason String?
+  previousMrp    Float?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  batchId        Int?
+  status         String    @default("Active")
   batch         Batch?    @relation(fields: [batchId], references: [id])
   product       Product   @relation(fields: [productId], references: [id])
 }
