@@ -62,7 +62,6 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Pending Payment Tracking', path: '/workspace/super-admin/pending-payment-tracking' },
       { label: 'Dispatch Monitoring', path: '/workspace/super-admin/dispatch-monitoring' },
       // { label: 'Franchise Monitoring', path: '/workspace/super-admin/franchise-monitoring' },
-      { label: 'Export Order Monitoring', path: '/workspace/super-admin/export-order-monitoring' },
       // { label: 'Notification Center', path: '/workspace/super-admin/notification-center' },
       { label: 'User Activity Logs', path: '/workspace/super-admin/user-activity-logs' },
     ],
