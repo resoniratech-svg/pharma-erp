@@ -17,6 +17,7 @@ import { inventoryService, type InventoryRecord } from '../../services/inventory
 import { productService } from '../../services/productService';
 import { batchService } from '../../services/batchService';
 import authService from '../../services/authService';
+import { orderService } from '../../services/orderService';
 
 interface StockRow {
   id: string;
@@ -61,9 +62,38 @@ export default function CurrentStock() {
   }, []);
 
   useEffect(() => {
-    inventoryService.loadInventory().then(allInventory => {
-      setRawInventory([...allInventory].sort((a, b) => Number(b.id) - Number(a.id)));
-    });
+    if (loggedInDistributorCode) {
+      orderService.loadOrders().then(allOrders => {
+        const approvedOrders = allOrders.filter(
+          o => (o.distributorCode === loggedInDistributorCode || (o.distributorName && o.distributorName.includes(loggedInDistributorCode))) 
+            && ['Approved', 'Partially Paid', 'Processing', 'Partially Fulfilled', 'Fulfilled'].includes(o.status)
+        );
+
+        const stockMap = new Map<string, any>();
+        
+        approvedOrders.forEach(order => {
+          (order.items || []).forEach(item => {
+            const pCode = item.productCode || `PRD-${item.productId}`;
+            if (!stockMap.has(pCode)) {
+              stockMap.set(pCode, {
+                id: pCode,
+                productCode: pCode,
+                productName: item.productName || 'Unknown Product',
+                batchNo: 'N/A',
+                availableQty: 0,
+                warehouseId: loggedInDistributorCode,
+                warehouseCode: loggedInDistributorCode,
+                isAvailableForOrdering: true
+              });
+            }
+            const record = stockMap.get(pCode);
+            record.availableQty += (item.quantity || 0);
+          });
+        });
+        
+        setRawInventory(Array.from(stockMap.values()));
+      });
+    }
   }, [loggedInDistributorCode]);
 
   const handleToggleRetailAvailability = (id: string) => {
@@ -82,7 +112,13 @@ export default function CurrentStock() {
     });
     inventoryService.saveAll(updatedInventory);
 
-    setRawInventory([...updatedInventory].sort((a, b) => Number(b.id) - Number(a.id)));
+    // Update local React state with the filtered list for this warehouse
+    if (loggedInDistributorCode) {
+      const myInventory = updatedInventory.filter(
+        record => record.warehouseId === loggedInDistributorCode || record.warehouseCode === loggedInDistributorCode
+      );
+      setRawInventory([...myInventory].sort((a, b) => Number(b.id) - Number(a.id)));
+    }
   };
 
   const stockData = useMemo<StockRow[]>(() => {
