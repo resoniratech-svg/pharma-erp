@@ -13,8 +13,10 @@ import {
 } from './components/shared';
 import { type Column } from './components/shared';
 import { INDIAN_STATE_OPTIONS } from '../../constants/indianStates';
-import { distributorMasterService, DistributorMasterRecord } from '../../services/distributorMasterService';
-import { billingService, GSTInvoice } from '../../services/billingService';
+import { distributorMasterService } from '../../services/distributorMasterService';
+import type { DistributorMasterRecord } from '../../services/distributorMasterService';
+import { billingService } from '../../services/billingService';
+import type { GSTInvoice } from '../../services/billingService';
 
 interface StatePerformanceData {
   id: string;
