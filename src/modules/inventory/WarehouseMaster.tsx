@@ -838,7 +838,6 @@ export default function WarehouseMaster() {
                   label="Warehouse Type"
                   value={selectedWarehouse.type}
                 />
-                <DrawerField label="Branch" value={selectedWarehouse.branch} />
               </div>
             </section>
 
