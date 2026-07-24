@@ -34,20 +34,19 @@ export const barcodeService = {
         const inactiveHistory = existingBarcodes.filter(b => b.status === 'Inactive');
 
         const mappedBarcodes: BarcodeRecord[] = response.data
-          .filter((p: any) => p.code || p.name)
+          .filter((p: any) => (p.code || p.name) && !!p.barcode)
           .map((p: any) => {
-            const isAssigned = !!p.barcode;
             // Try to match with an existing active barcode to preserve its ID and type if it hasn't changed
             const existingActive = existingBarcodes.find(b => b.productCode === (p.code || `PRD-${p.id}`) && b.status === 'Active' && b.barcode === p.barcode);
             
             return {
               id: existingActive ? existingActive.id : String(p.id),
-              barcode: p.barcode || '',
+              barcode: p.barcode,
               productCode: p.code || `PRD-${p.id}`,
               productName: p.name || `Product ${p.id}`,
               type: existingActive ? existingActive.type : 'Primary GS1-128',
               assignedDate: p.createdAt ? new Date(p.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-              status: isAssigned ? 'Active' as const : 'Unassigned' as const
+              status: 'Active' as const
             };
           });
 
