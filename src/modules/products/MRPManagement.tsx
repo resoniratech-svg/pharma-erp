@@ -47,8 +47,17 @@ export default function MRPManagement() {
 
       let records = await mrpService.loadMRPs();
       records = mrpService.activateScheduledMRPs(records);
-      mrpService.saveAll(records);
       
+      records = records.map(record => {
+        const product = refreshedProducts.find(p => p.code === record.productCode);
+        return {
+          ...record,
+          productType: product?.type || record.productType || 'N/A',
+          manufacturer: product?.manufacturer || record.manufacturer || 'N/A'
+        };
+      });
+      
+      mrpService.saveAll(records);
       setData(records);
     });
   }, []);
