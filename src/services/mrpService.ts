@@ -66,9 +66,12 @@ export const mrpService = {
             }
             // If still 0, try to restore from localStorage
             if (productRecords[i].previousMrp === 0) {
-              const localRecord = existingLocal.find(l => l.id === productRecords[i].id);
-              if (localRecord && localRecord.previousMrp) {
-                productRecords[i].previousMrp = localRecord.previousMrp;
+              const localRecords = existingLocal.filter(l => l.productCode === productRecords[i].productCode);
+              if (localRecords.length > 0) {
+                localRecords.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                if (localRecords[0].previousMrp) {
+                  productRecords[i].previousMrp = localRecords[0].previousMrp;
+                }
               }
             }
           }
