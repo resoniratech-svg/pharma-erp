@@ -43,7 +43,9 @@ export const mrpService = {
           createdAt: p.createdAt || new Date().toISOString(),
           updatedAt: p.updatedAt || new Date().toISOString(),
           createdBy: p.createdBy || 'System',
-          updatedBy: p.updatedBy || 'System'
+          updatedBy: p.updatedBy || 'System',
+          remarks: p.remarks || undefined,
+          revisionReason: p.revisionReason || undefined
         }));
 
         // Try to read existing local storage to preserve previousMrp for records that only have one backend entry
@@ -64,18 +66,14 @@ export const mrpService = {
             if (i > 0 && productRecords[i].previousMrp === 0) {
               productRecords[i].previousMrp = productRecords[i - 1].currentMrp;
             }
-            // Try to restore missing fields from localStorage
-            const localRecords = existingLocal.filter(l => l.productCode === productRecords[i].productCode);
-            if (localRecords.length > 0) {
-              localRecords.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-              if (productRecords[i].previousMrp === 0 && localRecords[0].previousMrp) {
-                productRecords[i].previousMrp = localRecords[0].previousMrp;
-              }
-              if (!productRecords[i].remarks && localRecords[0].remarks) {
-                productRecords[i].remarks = localRecords[0].remarks;
-              }
-              if (!productRecords[i].revisionReason && localRecords[0].revisionReason) {
-                productRecords[i].revisionReason = localRecords[0].revisionReason;
+            // If still 0, try to restore from localStorage
+            if (productRecords[i].previousMrp === 0) {
+              const localRecords = existingLocal.filter(l => l.productCode === productRecords[i].productCode);
+              if (localRecords.length > 0) {
+                localRecords.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+                if (localRecords[0].previousMrp) {
+                  productRecords[i].previousMrp = localRecords[0].previousMrp;
+                }
               }
             }
           }
@@ -201,7 +199,10 @@ export const mrpService = {
         pts: 0,
         margin: 0,
         effectiveDate: new Date(mrp.effectiveFrom).toISOString(),
-        status: mrp.status
+        status: mrp.status,
+        remarks: mrp.remarks,
+        revisionReason: mrp.revisionReason,
+        previousMrp: mrp.previousMrp
       };
       
       await apiRequest('/pricing', { method: 'POST', bodyData: payload });
