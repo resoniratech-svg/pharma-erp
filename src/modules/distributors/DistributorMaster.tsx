@@ -137,6 +137,7 @@ export default function DistributorMaster() {
         contactPerson: formData.contactPerson,
         mobileNumber: formData.mobileNumber,
         emailAddress: formData.emailAddress,
+        state: formData.state,
         status: formData.status
       });
       activityLogService.addLog({
@@ -151,6 +152,7 @@ export default function DistributorMaster() {
         contactPerson: formData.contactPerson,
         mobileNumber: formData.mobileNumber,
         emailAddress: formData.emailAddress,
+        state: formData.state,
         status: formData.status
       }, formData.password);
       activityLogService.addLog({
@@ -179,6 +181,7 @@ export default function DistributorMaster() {
       contactPerson: distributor.contactPerson,
       mobileNumber: distributor.mobileNumber,
       emailAddress: distributor.emailAddress || '',
+      state: distributor.state || '',
       status: distributor.status,
       password: '',
       confirmPassword: ''

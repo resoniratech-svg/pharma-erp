@@ -9,6 +9,7 @@ export interface DistributorMasterRecord {
   emailAddress?: string;
   status: 'Active' | 'Inactive';
   createdDate: string;
+  state?: string;
   password?: string;
 }
 
@@ -31,6 +32,7 @@ export const distributorMasterService = {
           contactPerson: d.contactPerson || d.name,
           mobileNumber: d.mobile || d.mobileNumber || '-',
           emailAddress: d.email || '',
+          state: d.state || '',
           status: d.status === 'Inactive' ? 'Inactive' : 'Active',
           createdDate: d.createdAt ? new Date(d.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
         }));
@@ -88,6 +90,7 @@ export const distributorMasterService = {
         contactPerson: record.contactPerson,
         mobileNumber: record.mobileNumber,
         emailAddress: record.emailAddress,
+        state: record.state,
         status: record.status
       }
     }).catch(err => {

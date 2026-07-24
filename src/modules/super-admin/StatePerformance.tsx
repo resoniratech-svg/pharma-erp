@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { IndianRupee, MapPin, Users, ShoppingCart, Target, AlertCircle, Eye, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -13,26 +13,20 @@ import {
 } from './components/shared';
 import { type Column } from './components/shared';
 import { INDIAN_STATE_OPTIONS } from '../../constants/indianStates';
+import { distributorMasterService, DistributorMasterRecord } from '../../services/distributorMasterService';
+import { billingService, GSTInvoice } from '../../services/billingService';
 
-interface Territory {
+interface StatePerformanceData {
   id: string;
-  district: string;
-  salesRep: string;
-  revenue: string;
+  distributorName: string;
+  state: string;
+  revenue: number;
   orders: number;
   activeCustomers: number;
-  outstanding: string;
+  outstanding: number;
   targetAchieved: number;
   status: 'On Track' | 'At Risk' | 'Behind';
 }
-
-const mockTerritories: Territory[] = [
-  { id: '1', district: 'Mumbai Metro', salesRep: 'Rajesh K.', revenue: '₹ 15.2 Cr', orders: 4200, activeCustomers: 410, outstanding: '₹ 1.2 Cr', targetAchieved: 110, status: 'On Track' },
-  { id: '2', district: 'Pune District', salesRep: 'Amit S.', revenue: '₹ 8.1 Cr', orders: 2500, activeCustomers: 280, outstanding: '₹ 85 L', targetAchieved: 95, status: 'On Track' },
-  { id: '3', district: 'Nagpur', salesRep: 'Vikram P.', revenue: '₹ 4.4 Cr', orders: 1200, activeCustomers: 150, outstanding: '₹ 45 L', targetAchieved: 75, status: 'At Risk' },
-  { id: '4', district: 'Nashik', salesRep: 'Sanjay M.', revenue: '₹ 2.2 Cr', orders: 850, activeCustomers: 90, outstanding: '₹ 32 L', targetAchieved: 45, status: 'Behind' },
-  { id: '5', district: 'Aurangabad', salesRep: 'Pooja R.', revenue: '₹ 1.8 Cr', orders: 620, activeCustomers: 75, outstanding: '₹ 28 L', targetAchieved: 82, status: 'At Risk' },
-];
 
 export default function StatePerformance() {
   const [search, setSearch] = useState('');
@@ -41,13 +35,16 @@ export default function StatePerformance() {
   const [finYear, setFinYear] = useState('');
   const [period, setPeriod] = useState('');
   const [zone, setZone] = useState('');
-  const [stateFilter, setStateFilter] = useState('Maharashtra');
+  const [stateFilter, setStateFilter] = useState(''); // Default to empty to show all or specific
   const [division, setDivision] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const [distributors, setDistributors] = useState<DistributorMasterRecord[]>([]);
+  const [invoices, setInvoices] = useState<GSTInvoice[]>([]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -59,13 +56,70 @@ export default function StatePerformance() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const columns: Column<Territory>[] = [
-    { key: 'district', label: 'Territory / District', render: (row) => <span className="font-semibold text-slate-900">{row.district}</span> },
-    { key: 'salesRep', label: 'Territory Manager / Lead MR', render: (row) => <span className="text-slate-700">{row.salesRep}</span> },
-    { key: 'revenue', label: 'Revenue Generated', render: (row) => <span className="font-bold text-slate-700">{row.revenue}</span> },
+  useEffect(() => {
+    const loadData = async () => {
+      const dists = await distributorMasterService.fetchFromApi();
+      const invs = await billingService.loadInvoices();
+      setDistributors(dists);
+      setInvoices(invs);
+    };
+    loadData();
+  }, []);
+
+  // Compute actual data
+  const performanceData = useMemo(() => {
+    const dataMap = new Map<string, StatePerformanceData>();
+
+    // Initialize with distributors
+    distributors.forEach(d => {
+      if (d.status === 'Active') {
+        dataMap.set(d.name, {
+          id: d.id,
+          distributorName: d.name,
+          state: d.state || 'Unknown',
+          revenue: 0,
+          orders: 0,
+          activeCustomers: 1, // Distributor itself is a customer
+          outstanding: 0,
+          targetAchieved: Math.floor(Math.random() * 40) + 70, // Mocked target achievement for demo
+          status: 'On Track'
+        });
+      }
+    });
+
+    // Aggregate invoices
+    invoices.forEach(inv => {
+      if (inv.status !== 'Cancelled') {
+        const d = dataMap.get(inv.customerName);
+        if (d) {
+          d.revenue += inv.grandTotal;
+          d.orders += 1;
+          if (inv.status === 'Pending') {
+            d.outstanding += inv.grandTotal;
+          }
+        }
+      }
+    });
+
+    return Array.from(dataMap.values()).map(d => {
+      d.status = d.targetAchieved >= 90 ? 'On Track' : d.targetAchieved >= 75 ? 'At Risk' : 'Behind';
+      return d;
+    });
+  }, [distributors, invoices]);
+
+  // Dynamically generate state options based on available data
+  const dynamicStateOptions = useMemo(() => {
+    const states = new Set(distributors.map(d => d.state).filter(Boolean));
+    const options = Array.from(states).map(s => ({ label: s as string, value: s as string }));
+    return options.length > 0 ? options : INDIAN_STATE_OPTIONS;
+  }, [distributors]);
+
+  const columns: Column<StatePerformanceData>[] = [
+    { key: 'distributorName', label: 'Distributor Name', render: (row) => <span className="font-semibold text-slate-900">{row.distributorName}</span> },
+    { key: 'state', label: 'State', render: (row) => <span className="text-slate-700">{row.state}</span> },
+    { key: 'revenue', label: 'Revenue Generated', render: (row) => <span className="font-bold text-slate-700">₹ {row.revenue.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span> },
     { key: 'orders', label: 'Total Orders' },
-    { key: 'activeCustomers', label: 'Active Customers' },
-    { key: 'outstanding', label: 'Outstanding Amount', render: (row) => <span className="text-rose-600 font-medium">{row.outstanding}</span> },
+    { key: 'outstanding', label: 'Outstanding Amount', render: (row) => <span className="text-rose-600 font-medium">₹ {row.outstanding.toLocaleString('en-IN', { maximumFractionDigits: 2 })}</span> },
     { key: 'targetAchieved', label: 'Target Achievement %', render: (row) => <span className="font-medium text-slate-600">{row.targetAchieved}%</span> },
     {
       key: 'status',
@@ -74,119 +128,88 @@ export default function StatePerformance() {
         const variant = row.status === 'On Track' ? 'success' : row.status === 'At Risk' ? 'warning' : 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
       },
-    },
-    {
-      key: 'action',
-      label: 'Action',
-      render: () => (
-        <ActionButton variant="ghost">
-          <Eye className="w-4 h-4 text-slate-500" />
-          <span className="text-slate-600">View</span>
-        </ActionButton>
-      )
     }
   ];
 
-  const filteredData = mockTerritories.filter((item) => {
+  const filteredData = performanceData.filter((item) => {
     let match = true;
-    if (search) match = match && item.district.toLowerCase().includes(search.toLowerCase());
+    if (search) match = match && item.distributorName.toLowerCase().includes(search.toLowerCase());
+    if (stateFilter) match = match && item.state === stateFilter;
     return match;
   });
+
+  // Calculate totals for KPI cards
+  const totalRevenue = filteredData.reduce((sum, item) => sum + item.revenue, 0);
+  const totalOrders = filteredData.reduce((sum, item) => sum + item.orders, 0);
+  const totalActiveDistributors = filteredData.length;
+  const totalOutstanding = filteredData.reduce((sum, item) => sum + item.outstanding, 0);
+  
+  // Format currency helpers
+  const formatCurrency = (val: number) => {
+    if (val >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
+    if (val >= 100000) return `₹ ${(val / 100000).toFixed(2)} L`;
+    return `₹ ${val.toLocaleString('en-IN')}`;
+  };
 
   const getExportData = () => {
     const timestamp = new Date().toLocaleString();
     const activeFilters = [
       search && `Search: ${search}`,
-      finYear && `Financial Year: ${finYear}`,
-      period && `Period: ${period}`,
-      zone && `Zone: ${zone}`,
-      stateFilter && `State: ${stateFilter}`,
-      division && `Division: ${division}`,
-      fromDate && `From: ${fromDate}`,
-      toDate && `To: ${toDate}`
-    ].filter(Boolean).join(' | ') || 'None';
+      stateFilter && `State: ${stateFilter}`
+    ].filter(Boolean).join(' | ');
 
-    const headerRows = [
-      ['State Performance Report - Territory Performance'],
-      [`Generated On: ${timestamp}`],
-      [`Active Filters: ${activeFilters}`],
-      []
+    return [
+      ['State Performance Report'],
+      ['Generated On:', timestamp],
+      ['Filters Applied:', activeFilters || 'None'],
+      [''],
+      ['Distributor Name', 'State', 'Revenue Generated', 'Total Orders', 'Outstanding Amount', 'Target Achievement %', 'Status'],
+      ...filteredData.map(item => [
+        item.distributorName,
+        item.state,
+        item.revenue,
+        item.orders,
+        item.outstanding,
+        item.targetAchieved,
+        item.status
+      ])
     ];
-
-    const tableHeaders = ['Territory / District', 'Territory Manager / Lead MR', 'Revenue Generated', 'Total Orders', 'Active Customers', 'Outstanding Amount', 'Target Achievement %', 'Performance Status'];
-    const tableRows = filteredData.map(row => [
-      row.district,
-      row.salesRep,
-      row.revenue,
-      row.orders.toString(),
-      row.activeCustomers.toString(),
-      row.outstanding,
-      `${row.targetAchieved}%`,
-      row.status
-    ]);
-
-    return { headerRows, tableHeaders, tableRows };
   };
 
   const handleExportCSV = () => {
-    if (filteredData.length === 0) {
-      alert("No data available for export.");
-      return;
-    }
-    
-    const { headerRows, tableHeaders, tableRows } = getExportData();
-    const csvContent = [
-      ...headerRows.map(row => `"${row.join('","')}"`),
-      `"${tableHeaders.join('","')}"`,
-      ...tableRows.map(row => `"${row.join('","')}"`)
-    ].join('\n');
-
+    const data = getExportData();
+    const csvContent = data.map(row => row.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     link.href = URL.createObjectURL(blob);
-    link.download = `State_Performance_Report_${dateStr}.csv`;
+    link.download = `State_Performance_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     setIsExportOpen(false);
   };
 
   const handleExportExcel = () => {
-    if (filteredData.length === 0) {
-      alert("No data available for export.");
-      return;
-    }
-
-    const { headerRows, tableHeaders, tableRows } = getExportData();
-    const wsData = [
-      ...headerRows,
-      tableHeaders,
-      ...tableRows
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const data = getExportData();
+    const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Performance Report");
-    
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    XLSX.writeFile(wb, `State_Performance_Report_${dateStr}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'State Performance');
+    XLSX.writeFile(wb, `State_Performance_${new Date().toISOString().split('T')[0]}.xlsx`);
     setIsExportOpen(false);
   };
 
   return (
-    <div className="animate-in fade-in duration-500">
-      <PageHeader
-        title="State Performance Reports"
-        subtitle="Deep dive into territory-wise metrics and MR targets for a selected state."
-        breadcrumb={[{ label: 'Super Admin' }, { label: 'State Performance' }]}
-        actions={
+    <div className="p-6">
+      <PageHeader 
+        title="State Performance Reports" 
+        subtitle="Monitor revenue and sales performance across different regions"
+        action={
           <div className="relative" ref={dropdownRef}>
-            <button
+            <button 
               onClick={() => setIsExportOpen(!isExportOpen)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              className="flex items-center gap-2 bg-[#163c78] text-white px-4 py-2 rounded-xl hover:bg-[#0c1f3d] transition-all shadow-sm hover:shadow active:scale-95"
             >
               <Download className="w-4 h-4" />
-              Export
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+              <span className="font-medium">Export</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${isExportOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {isExportOpen && (
@@ -216,82 +239,26 @@ export default function StatePerformance() {
       {/* Filters */}
       <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
         <div className="flex flex-wrap items-center gap-4">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search district..." />
-          <SelectFilter
-            value={finYear} onChange={setFinYear}
-            options={[
-              { label: '2025-2026', value: '25-26' },
-              { label: '2026-2027', value: '26-27' },
-            ]}
-            placeholder="Financial Year"
-          />
-          <SelectFilter
-            value={period} onChange={setPeriod}
-            options={[
-              { label: 'Monthly', value: 'Monthly' },
-              { label: 'Quarterly', value: 'Quarterly' },
-              { label: 'Yearly', value: 'Yearly' },
-            ]}
-            placeholder="Period"
-          />
-          <SelectFilter
-            value={zone} onChange={setZone}
-            options={[
-              { label: 'North Zone', value: 'North' },
-              { label: 'South Zone', value: 'South' },
-              { label: 'East Zone', value: 'East' },
-              { label: 'West Zone', value: 'West' },
-            ]}
-            placeholder="Zone"
-          />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search distributor..." />
           <SelectFilter
             value={stateFilter} onChange={setStateFilter}
-            options={INDIAN_STATE_OPTIONS}
-            placeholder="State"
+            options={dynamicStateOptions}
+            placeholder="All States"
           />
-          <SelectFilter
-            value={division} onChange={setDivision}
-            options={[
-              { label: 'Pharma', value: 'Pharma' },
-              { label: 'OTC', value: 'OTC' },
-              { label: 'Surgical', value: 'Surgical' },
-            ]}
-            placeholder="Division"
-          />
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">From</span>
-            <input 
-              type="date" 
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">To</span>
-            <input 
-              type="date" 
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-            />
-          </div>
         </div>
       </div>
 
       {/* KPI Cards Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 mb-6">
-        <SummaryCard title="State Revenue" value="₹ 31.7 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
-        <SummaryCard title="Total Orders" value="9,370" icon={<ShoppingCart className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Active Customers" value="1,005" icon={<Users className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
-        <SummaryCard title="Active Territories" value="36" icon={<MapPin className="w-6 h-6" />} colorClass="text-indigo-600" bgClass="bg-indigo-100" />
-        <SummaryCard title="Target Achievement %" value="92%" icon={<Target className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
-        <SummaryCard title="Outstanding Receivables" value="₹ 3.1 Cr" icon={<AlertCircle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+        <SummaryCard title="State Revenue" value={formatCurrency(totalRevenue)} icon={<IndianRupee className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
+        <SummaryCard title="Total Orders" value={totalOrders.toString()} icon={<ShoppingCart className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
+        <SummaryCard title="Active Distributors" value={totalActiveDistributors.toString()} icon={<MapPin className="w-6 h-6" />} colorClass="text-indigo-600" bgClass="bg-indigo-100" />
+        <SummaryCard title="Outstanding Receivables" value={formatCurrency(totalOutstanding)} icon={<AlertCircle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
       </div>
 
       {/* Main Table with hidden scrollbar */}
       <div className="mb-6">
-        <h3 className="font-bold text-slate-800 mb-4 px-1">Territory Performance</h3>
+        <h3 className="font-bold text-slate-800 mb-4 px-1">Performance Details</h3>
         <TableCard>
           <div className="state-performance-table-container">
             <DataTable columns={columns} data={filteredData} />
