@@ -101,16 +101,6 @@ export default function AllIndiaSales() {
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
-    {
-      key: 'action',
-      label: 'Action',
-      render: () => (
-        <ActionButton variant="ghost">
-          <Eye className="w-4 h-4 text-slate-500" />
-          <span className="text-slate-600">View</span>
-        </ActionButton>
-      )
-    }
   ];
 
   const filteredData = mockStateSales.filter((item) => {
