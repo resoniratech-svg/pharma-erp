@@ -165,6 +165,7 @@ model Batch {
   manufacturingDate      DateTime
   expiryDate             DateTime
   quantity               Int
+  remarks                String?
   createdAt              DateTime                @default(now())
   updatedAt              DateTime                @updatedAt
   product                Product                 @relation(fields: [productId], references: [id])

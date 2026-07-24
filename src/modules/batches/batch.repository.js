@@ -16,6 +16,7 @@ const createBatchRepo = async (
         quantity: existingBatch.quantity + (data.quantity || 0),
         manufacturingDate: data.manufacturingDate || existingBatch.manufacturingDate,
         expiryDate: data.expiryDate || existingBatch.expiryDate,
+        remarks: data.remarks || existingBatch.remarks,
       },
     });
   }
