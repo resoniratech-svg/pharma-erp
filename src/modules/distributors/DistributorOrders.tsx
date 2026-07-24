@@ -96,6 +96,8 @@ export default function DistributorOrders() {
   const [viewOrder, setViewOrder] = useState<OrderData | null>(null);
   const [approvalRemarks, setApprovalRemarks] = useState('');
   const [remarksError, setRemarksError] = useState('');
+  const [paymentType, setPaymentType] = useState('UPI');
+  const [amountPaid, setAmountPaid] = useState<number | ''>('');
 
   const distributorOptions = useMemo(() => {
     const unique = Array.from(new Set(orders.map(o => o.distributorName)));
@@ -241,7 +243,13 @@ export default function DistributorOrders() {
     const savedOrders = localStorage.getItem("pharma_erp_orders");
     if (savedOrders) {
       let allOrders = JSON.parse(savedOrders) as OrderData[];
-      allOrders = allOrders.map(o => o.id === viewOrder.id ? { ...o, status: newStatus, remarks: approvalRemarks } : o);
+      allOrders = allOrders.map(o => o.id === viewOrder.id ? { 
+        ...o, 
+        status: newStatus, 
+        remarks: approvalRemarks,
+        paymentType: newStatus === 'Approved' ? paymentType : undefined,
+        amountPaid: newStatus === 'Approved' ? (amountPaid || 0) : undefined
+      } : o);
       
       localStorage.setItem("pharma_erp_orders", JSON.stringify(allOrders));
       setOrders(allOrders.filter(o => o.status !== 'Draft'));
@@ -258,6 +266,8 @@ export default function DistributorOrders() {
     setViewOrder(null);
     setApprovalRemarks('');
     setRemarksError('');
+    setPaymentType('UPI');
+    setAmountPaid('');
   };
 
   const currentFinancials = viewOrder ? getFinancialSummary(viewOrder.items) : null;
@@ -410,9 +420,42 @@ export default function DistributorOrders() {
             {['Pending', 'On Hold'].includes(viewOrder.status) && (
               <div>
                 <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wider mb-3">Approval Section</h3>
-                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100">
+                <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 space-y-4">
+                  
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Payment Type</label>
+                      <select
+                        value={paymentType}
+                        onChange={(e) => setPaymentType(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#163c78]/20 focus:border-[#163c78]"
+                      >
+                        <option value="UPI">UPI</option>
+                        <option value="Hand Cash">Hand Cash</option>
+                        <option value="Bank Transfer">Bank Transfer</option>
+                        <option value="Cheque">Cheque</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Amount Paid (₹)</label>
+                      <input
+                        type="number"
+                        value={amountPaid}
+                        onChange={(e) => setAmountPaid(e.target.value ? Number(e.target.value) : '')}
+                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-[#163c78]/20 focus:border-[#163c78]"
+                        placeholder="Enter amount paid"
+                      />
+                    </div>
+                  </div>
 
-                  <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="flex justify-between p-3 bg-white border border-slate-200 rounded-lg">
+                    <span className="text-sm font-medium text-slate-600">Remaining Outstanding</span>
+                    <span className="text-sm font-bold text-rose-600">
+                      {formatCurrency(currentFinancials.grandTotal - (Number(amountPaid) || 0))}
+                    </span>
+                  </div>
+
+                  <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <ActionButton variant="primary" onClick={() => handleUpdateStatus('Approved')} icon={<CheckCircle className="w-4 h-4" />}>
                       Approve
                     </ActionButton>

@@ -162,10 +162,11 @@ export const distributorOrderApprovalService = {
           const afterDiscount = grossAmount - schemeDiscount;
           const netTotal = Math.round(afterDiscount + (afterDiscount * 0.12));
 
+          const amountPaid = ord.amountPaid || 0;
           return {
             invoiceNo: ord.orderNo.replace('ORD-', 'INV-'),
             date: ord.date,
-            amount: netTotal,
+            amount: netTotal - amountPaid,
             dueDate: ord.expectedDeliveryDate && ord.expectedDeliveryDate !== 'Pending' ? ord.expectedDeliveryDate : ord.date,
             agingDays: Math.floor(Math.random() * 12) + 1,
             status: (ord.status === 'Fulfilled' ? 'Paid' : 'Unpaid') as 'Paid' | 'Unpaid'
