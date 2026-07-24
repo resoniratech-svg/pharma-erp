@@ -228,9 +228,10 @@ export default function DistributorOrders() {
     if (!viewOrder) return;
     
     const numericId = String(viewOrder.id).replace(/\D/g, '');
+    let finalStatus = newStatus;
+
     if (numericId) {
       let backendStatus = 'PENDING';
-      let finalStatus = newStatus;
       
       if (newStatus === 'Approved') {
         const grandTotal = currentFinancials ? currentFinancials.grandTotal : 0;
