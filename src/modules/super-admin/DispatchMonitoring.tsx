@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Truck, CheckCircle2, Clock, AlertTriangle, Eye, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -8,10 +8,11 @@ import {
   TableCard,
   DataTable,
   Badge,
-  SummaryCard,
-  ActionButton
+  SummaryCard
 } from './components/shared';
 import { type Column } from './components/shared';
+import { transportChallanService } from '../../services/transportChallanService';
+import type { Challan } from '../../services/transportChallanService';
 
 interface Dispatch {
   id: string;
@@ -23,16 +24,8 @@ interface Dispatch {
   transporter: string;
   dispatchDate: string;
   expectedDelivery: string;
-  status: 'Dispatched' | 'In Transit' | 'Delivered' | 'Delayed';
+  status: 'Dispatched' | 'In Transit' | 'Delivered' | 'Delayed' | 'Generated' | 'Cancelled';
 }
-
-const mockData: Dispatch[] = [
-  { id: '1', challanNo: 'CHL-9982', orderNo: 'ORD-5501', customerName: 'Apollo Pharmacy', sourceWarehouse: 'Mumbai Central', destination: 'Pune', transporter: 'VRL Logistics', dispatchDate: '2026-11-02', expectedDelivery: '2026-11-04', status: 'In Transit' },
-  { id: '2', challanNo: 'CHL-9981', orderNo: 'ORD-5498', customerName: 'Global Health', sourceWarehouse: 'Delhi North', destination: 'Noida', transporter: 'SafeExpress', dispatchDate: '2026-11-01', expectedDelivery: '2026-11-02', status: 'Delivered' },
-  { id: '3', challanNo: 'CHL-9980', orderNo: 'ORD-5490', customerName: 'Metro Distributors', sourceWarehouse: 'Pune Depot', destination: 'Bangalore', transporter: 'Gati', dispatchDate: '2026-10-30', expectedDelivery: '2026-11-01', status: 'Delayed' },
-  { id: '4', challanNo: 'CHL-9985', orderNo: 'ORD-5510', customerName: 'LifeCare Hospitals', sourceWarehouse: 'Chennai South', destination: 'Hyderabad', transporter: 'Blue Dart', dispatchDate: '2026-11-03', expectedDelivery: '2026-11-05', status: 'Dispatched' },
-  { id: '5', challanNo: 'CHL-9986', orderNo: 'ORD-5515', customerName: 'City Medicos', sourceWarehouse: 'Mumbai Central', destination: 'Nashik', transporter: 'VRL Logistics', dispatchDate: '2026-11-03', expectedDelivery: '2026-11-04', status: 'Dispatched' },
-];
 
 export default function DispatchMonitoring() {
   const [search, setSearch] = useState('');
@@ -41,11 +34,11 @@ export default function DispatchMonitoring() {
   const [status, setStatus] = useState('');
   const [warehouse, setWarehouse] = useState('');
   const [transporter, setTransporter] = useState('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [challans, setChallans] = useState<Challan[]>([]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -56,6 +49,44 @@ export default function DispatchMonitoring() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const loadData = async () => {
+      // In a real scenario you might await transportChallanService.loadChallans()
+      const data = transportChallanService.getAllChallans();
+      setChallans(data);
+    };
+    loadData();
+  }, []);
+
+  const realData = useMemo(() => {
+    const today = new Date();
+    
+    return challans.map(c => {
+      // We estimate Expected Delivery based on dispatchDate + 3 days if not explicitly available in Challan
+      const dDate = new Date(c.dispatchDate);
+      const expectedDel = new Date(dDate);
+      expectedDel.setDate(expectedDel.getDate() + 3);
+
+      let dStatus: Dispatch['status'] = c.status as any;
+      if (dStatus === 'In Transit' && today.getTime() > expectedDel.getTime()) {
+        dStatus = 'Delayed';
+      }
+
+      return {
+        id: c.id,
+        challanNo: c.challanNo,
+        orderNo: c.orderNo || c.dispatchNo || '-',
+        customerName: c.customer,
+        sourceWarehouse: c.sourceWarehouse,
+        destination: 'Destination Hub', // Not explicitly stored in Challan
+        transporter: c.transporter,
+        dispatchDate: c.dispatchDate,
+        expectedDelivery: expectedDel.toISOString().split('T')[0],
+        status: dStatus
+      } as Dispatch;
+    });
+  }, [challans]);
 
   const columns: Column<Dispatch>[] = [
     { key: 'challanNo', label: 'Challan No', render: (row) => <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">{row.challanNo}</span> },
@@ -73,24 +104,14 @@ export default function DispatchMonitoring() {
         let variant: 'success' | 'warning' | 'danger' | 'info' | 'neutral' = 'neutral';
         if (row.status === 'Delivered') variant = 'success';
         if (row.status === 'In Transit') variant = 'info';
-        if (row.status === 'Dispatched') variant = 'neutral';
-        if (row.status === 'Delayed') variant = 'danger';
+        if (row.status === 'Dispatched' || row.status === 'Generated') variant = 'neutral';
+        if (row.status === 'Delayed' || row.status === 'Cancelled') variant = 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
       },
-    },
-    {
-      key: 'action',
-      label: 'Action',
-      render: () => (
-        <ActionButton variant="ghost">
-          <Eye className="w-4 h-4 text-slate-500" />
-          <span className="text-slate-600">View</span>
-        </ActionButton>
-      )
     }
   ];
 
-  const filteredData = mockData.filter((item) => {
+  const filteredData = realData.filter((item) => {
     let match = true;
     if (search) {
       match = match && (
@@ -102,12 +123,24 @@ export default function DispatchMonitoring() {
     if (status) match = match && item.status === status;
     if (warehouse) match = match && item.sourceWarehouse === warehouse;
     if (transporter) match = match && item.transporter === transporter;
-    
-    if (fromDate) match = match && new Date(item.dispatchDate) >= new Date(fromDate);
-    if (toDate) match = match && new Date(item.dispatchDate) <= new Date(toDate);
-
     return match;
   });
+
+  // Calculate KPIs
+  const totalDispatches = filteredData.length;
+  const inTransitCount = filteredData.filter(item => item.status === 'In Transit').length;
+  const deliveredCount = filteredData.filter(item => item.status === 'Delivered').length;
+  const delayedCount = filteredData.filter(item => item.status === 'Delayed').length;
+
+  const warehouseOptions = useMemo(() => {
+    const whs = new Set(realData.map(r => r.sourceWarehouse).filter(Boolean));
+    return Array.from(whs).map(w => ({ label: w, value: w }));
+  }, [realData]);
+
+  const transporterOptions = useMemo(() => {
+    const trans = new Set(realData.map(r => r.transporter).filter(Boolean));
+    return Array.from(trans).map(t => ({ label: t, value: t }));
+  }, [realData]);
 
   const getExportData = () => {
     const timestamp = new Date().toLocaleString();
@@ -115,93 +148,63 @@ export default function DispatchMonitoring() {
       search && `Search: ${search}`,
       status && `Status: ${status}`,
       warehouse && `Warehouse: ${warehouse}`,
-      transporter && `Transporter: ${transporter}`,
-      fromDate && `From: ${fromDate}`,
-      toDate && `To: ${toDate}`
-    ].filter(Boolean).join(' | ') || 'None';
+      transporter && `Transporter: ${transporter}`
+    ].filter(Boolean).join(' | ');
 
-    const headerRows = [
+    return [
       ['Dispatch Monitoring Report'],
-      [`Generated On: ${timestamp}`],
-      [`Active Filters: ${activeFilters}`],
-      []
+      ['Generated On:', timestamp],
+      ['Filters Applied:', activeFilters || 'None'],
+      [''],
+      ['Challan No', 'Order No', 'Customer Name', 'Source Warehouse', 'Destination', 'Transporter', 'Dispatch Date', 'Expected Delivery', 'Status'],
+      ...filteredData.map(item => [
+        item.challanNo,
+        item.orderNo,
+        item.customerName,
+        item.sourceWarehouse,
+        item.destination,
+        item.transporter,
+        new Date(item.dispatchDate).toLocaleDateString(),
+        new Date(item.expectedDelivery).toLocaleDateString(),
+        item.status
+      ])
     ];
-
-    const tableHeaders = ['Challan No', 'Order No', 'Customer / Distributor', 'Source Warehouse', 'Destination', 'Transporter', 'Dispatch Date', 'Expected Delivery', 'Status'];
-    const tableRows = filteredData.map(row => [
-      row.challanNo,
-      row.orderNo,
-      row.customerName,
-      row.sourceWarehouse,
-      row.destination,
-      row.transporter,
-      row.dispatchDate,
-      row.expectedDelivery,
-      row.status
-    ]);
-
-    return { headerRows, tableHeaders, tableRows };
   };
 
   const handleExportCSV = () => {
-    if (filteredData.length === 0) {
-      alert("No data available for export.");
-      return;
-    }
-    
-    const { headerRows, tableHeaders, tableRows } = getExportData();
-    const csvContent = [
-      ...headerRows.map(row => `"${row.join('","')}"`),
-      `"${tableHeaders.join('","')}"`,
-      ...tableRows.map(row => `"${row.join('","')}"`)
-    ].join('\n');
-
+    const data = getExportData();
+    const csvContent = data.map(row => row.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     link.href = URL.createObjectURL(blob);
-    link.download = `Dispatch_Report_${dateStr}.csv`;
+    link.download = `Dispatch_Monitoring_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     setIsExportOpen(false);
   };
 
   const handleExportExcel = () => {
-    if (filteredData.length === 0) {
-      alert("No data available for export.");
-      return;
-    }
-
-    const { headerRows, tableHeaders, tableRows } = getExportData();
-    const wsData = [
-      ...headerRows,
-      tableHeaders,
-      ...tableRows
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const data = getExportData();
+    const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Dispatch Monitoring");
-    
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    XLSX.writeFile(wb, `Dispatch_Report_${dateStr}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Dispatches');
+    XLSX.writeFile(wb, `Dispatch_Monitoring_${new Date().toISOString().split('T')[0]}.xlsx`);
     setIsExportOpen(false);
   };
 
   return (
-    <div className="animate-in fade-in duration-500">
-      <PageHeader
-        title="Dispatch Monitoring"
-        subtitle="Track outbound shipments and logistics performance."
-        breadcrumb={[{ label: 'Super Admin' }, { label: 'Dispatch Monitoring' }]}
-        actions={
+    <div className="p-6">
+      <PageHeader 
+        title="Dispatch Monitoring" 
+        subtitle="Track logistics, carrier performance, and delivery statuses"
+        action={
           <div className="relative" ref={dropdownRef}>
-            <button
+            <button 
               onClick={() => setIsExportOpen(!isExportOpen)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              className="flex items-center gap-2 bg-[#163c78] text-white px-4 py-2 rounded-xl hover:bg-[#0c1f3d] transition-all shadow-sm hover:shadow active:scale-95"
             >
               <Download className="w-4 h-4" />
-              Export
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+              <span className="font-medium">Export</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${isExportOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {isExportOpen && (
@@ -228,83 +231,85 @@ export default function DispatchMonitoring() {
         }
       />
 
-      {/* Filters */}
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search challan, order..." />
-          <SelectFilter
-            value={status} onChange={setStatus}
-            options={[
-              { label: 'Dispatched', value: 'Dispatched' },
-              { label: 'In Transit', value: 'In Transit' },
-              { label: 'Delivered', value: 'Delivered' },
-              { label: 'Delayed', value: 'Delayed' },
-            ]}
-            placeholder="Status"
-          />
-          <SelectFilter
-            value={warehouse} onChange={setWarehouse}
-            options={[
-              { label: 'Mumbai Central', value: 'Mumbai Central' },
-              { label: 'Delhi North', value: 'Delhi North' },
-              { label: 'Pune Depot', value: 'Pune Depot' },
-              { label: 'Chennai South', value: 'Chennai South' },
-            ]}
-            placeholder="Warehouse"
-          />
-          <SelectFilter
-            value={transporter} onChange={setTransporter}
-            options={[
-              { label: 'BlueDart Logistics', value: 'BlueDart Logistics' },
-              { label: 'DTDC Express', value: 'DTDC Express' },
-              { label: 'SafeExpress', value: 'SafeExpress' },
-              { label: 'VRL Logistics', value: 'VRL Logistics' },
-            ]}
-            placeholder="Transporter"
-          />
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">From</span>
-            <input 
-              type="date" 
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">To</span>
-            <input 
-              type="date" 
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-            />
-          </div>
-        </div>
-      </div>
-
-      {/* Summary Cards */}
+      {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <SummaryCard title="Total Dispatches (MTD)" value="1,245" icon={<Truck className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
-        <SummaryCard title="In Transit" value="128" icon={<Clock className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Delivered Successfully" value="1,117" icon={<CheckCircle2 className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
-        <SummaryCard title="Delayed Shipments" value="24" icon={<AlertTriangle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
+        <SummaryCard 
+          title="Total Dispatches" 
+          value={totalDispatches.toString()} 
+          icon={<Truck className="w-6 h-6 text-blue-600" />} 
+          colorClass="text-blue-600" 
+          bgClass="bg-blue-100/50 border border-blue-200" 
+        />
+        <SummaryCard 
+          title="In Transit" 
+          value={inTransitCount.toString()} 
+          icon={<Clock className="w-6 h-6 text-indigo-600" />} 
+          colorClass="text-indigo-600" 
+          bgClass="bg-indigo-100/50 border border-indigo-200" 
+        />
+        <SummaryCard 
+          title="Delivered Successfully" 
+          value={deliveredCount.toString()} 
+          icon={<CheckCircle2 className="w-6 h-6 text-emerald-600" />} 
+          colorClass="text-emerald-600" 
+          bgClass="bg-emerald-100/50 border border-emerald-200 shadow-[0_0_15px_rgba(16,185,129,0.15)]" 
+        />
+        <SummaryCard 
+          title="Delayed Shipments" 
+          value={delayedCount.toString()} 
+          icon={<AlertTriangle className="w-6 h-6 text-rose-600" />} 
+          colorClass="text-rose-600" 
+          bgClass="bg-rose-100/50 border border-rose-200 shadow-[0_0_15px_rgba(225,29,72,0.15)]" 
+        />
       </div>
 
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-wrap items-center gap-4">
+        <SearchInput value={search} onChange={setSearch} placeholder="Search challan, order or customer..." />
+        
+        <SelectFilter
+          value={status} onChange={setStatus}
+          options={[
+            { label: 'Generated', value: 'Generated' },
+            { label: 'Dispatched', value: 'Dispatched' },
+            { label: 'In Transit', value: 'In Transit' },
+            { label: 'Delivered', value: 'Delivered' },
+            { label: 'Delayed', value: 'Delayed' },
+            { label: 'Cancelled', value: 'Cancelled' },
+          ]}
+          placeholder="Status"
+        />
+        
+        <SelectFilter
+          value={warehouse} onChange={setWarehouse}
+          options={warehouseOptions}
+          placeholder="Source Warehouse"
+        />
+
+        <SelectFilter
+          value={transporter} onChange={setTransporter}
+          options={transporterOptions}
+          placeholder="Transporter"
+        />
+      </div>
+
+      {/* Main Table with hidden scrollbar */}
       <div className="mb-6">
+        <h3 className="font-bold text-slate-800 mb-4 px-1">Active Shipments</h3>
         <TableCard>
           <div className="dispatch-monitoring-table-container">
             <DataTable columns={columns} data={filteredData} />
           </div>
         </TableCard>
       </div>
+      
       <style>{`
         .dispatch-monitoring-table-container .overflow-x-auto {
-          scrollbar-width: none;
-          -ms-overflow-style: none;
+          scrollbar-width: none; /* Firefox */
+          -ms-overflow-style: none; /* IE and Edge */
         }
         .dispatch-monitoring-table-container .overflow-x-auto::-webkit-scrollbar {
-          display: none;
+          display: none; /* Chrome, Safari, Opera */
         }
       `}</style>
     </div>
