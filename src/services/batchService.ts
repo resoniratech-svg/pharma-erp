@@ -12,6 +12,10 @@ export interface BatchRecord {
   barcode?: string;
   unit?: string;
   manufacturer?: string;
+  gst?: string;
+  composition?: string;
+  packingType?: string;
+  scheme?: string;
 
   // Batch Information
   batchNo: string;
@@ -52,6 +56,10 @@ function mapToUi(b: any): BatchRecord {
     barcode: b.product ? b.product.barcode : (b.barcode || ""),
     unit: resolvedType,
     manufacturer: b.product ? b.product.manufacturer : (b.manufacturer || ""),
+    gst: matchedProduct ? matchedProduct.gst : (b.product ? b.product.gst : ""),
+    composition: matchedProduct ? matchedProduct.composition : (b.product ? b.product.composition : ""),
+    packingType: matchedProduct ? matchedProduct.packingType : (b.product ? b.product.packingType : ""),
+    scheme: matchedProduct ? matchedProduct.scheme : (b.product ? b.product.scheme : ""),
     batchNo: b.batchNumber || b.batchNo || "",
     mfgDate: b.manufacturingDate || b.mfgDate || new Date().toISOString(),
     expDate: b.expiryDate || b.expDate || new Date().toISOString(),
