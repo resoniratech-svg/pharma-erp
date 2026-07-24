@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { IndianRupee, AlertTriangle, PackageSearch, ArchiveX, Eye, Download, ChevronDown, FileSpreadsheet, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
@@ -13,6 +13,11 @@ import {
 } from './components/shared';
 import { type Column } from './components/shared';
 
+import { inventoryService } from '../../services/inventoryService';
+import type { InventoryRecord } from '../../services/inventoryService';
+import { batchService } from '../../services/batchService';
+import { productService } from '../../services/productService';
+
 interface StockItem {
   id: string;
   productCode: string;
@@ -25,16 +30,8 @@ interface StockItem {
   expiryDate: string;
   stockValue: string;
   status: 'In Stock' | 'Low Stock' | 'Near Expiry' | 'Out Of Stock' | 'Dead Stock';
+  stockValueNumber: number;
 }
-
-const mockData: StockItem[] = [
-  { id: '1', productCode: 'PRD-1001', productName: 'Paracetamol 500mg', category: 'Analgesics', batchNo: 'BTH-2025-01', warehouse: 'Mumbai Central', availableQty: 15400, reorderLevel: 5000, expiryDate: '2027-10-15', stockValue: '₹ 1,54,000', status: 'In Stock' },
-  { id: '2', productCode: 'PRD-2022', productName: 'Amoxicillin 250mg', category: 'Antibiotics', batchNo: 'BTH-2024-08', warehouse: 'Pune Depot', availableQty: 120, reorderLevel: 1000, expiryDate: '2026-05-20', stockValue: '₹ 2,640', status: 'Low Stock' },
-  { id: '3', productCode: 'PRD-3003', productName: 'Vitamin C Syrup', category: 'Supplements', batchNo: 'BTH-2023-11', warehouse: 'Delhi North', availableQty: 450, reorderLevel: 300, expiryDate: '2024-07-30', stockValue: '₹ 20,250', status: 'Near Expiry' },
-  { id: '4', productCode: 'PRD-4004', productName: 'Cough Syrup 100ml', category: 'Syrups', batchNo: 'BTH-2022-02', warehouse: 'Mumbai Central', availableQty: 50, reorderLevel: 200, expiryDate: '2023-12-01', stockValue: '₹ 2,250', status: 'Dead Stock' },
-  { id: '5', productCode: 'PRD-5005', productName: 'Surgical Masks (Box)', category: 'Consumables', batchNo: 'BTH-2026-03', warehouse: 'Chennai South', availableQty: 0, reorderLevel: 500, expiryDate: '2028-01-01', stockValue: '₹ 0', status: 'Out Of Stock' },
-  { id: '6', productCode: 'PRD-6006', productName: 'Ibuprofen 400mg', category: 'Analgesics', batchNo: 'BTH-2025-05', warehouse: 'Pune Depot', availableQty: 8500, reorderLevel: 2000, expiryDate: '2027-08-10', stockValue: '₹ 68,000', status: 'In Stock' },
-];
 
 export default function LiveStockMonitoring() {
   const [search, setSearch] = useState('');
@@ -43,11 +40,11 @@ export default function LiveStockMonitoring() {
   const [warehouse, setWarehouse] = useState('');
   const [stockStatus, setStockStatus] = useState('');
   const [category, setCategory] = useState('');
-  const [fromDate, setFromDate] = useState('');
-  const [toDate, setToDate] = useState('');
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  const [inventory, setInventory] = useState<InventoryRecord[]>([]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -58,6 +55,67 @@ export default function LiveStockMonitoring() {
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    const loadData = async () => {
+      // Make sure we load the dependencies
+      await productService.loadProducts();
+      await batchService.loadBatches();
+      const invs = await inventoryService.loadInventory();
+      setInventory(invs);
+    };
+    loadData();
+  }, []);
+
+  const realData = useMemo(() => {
+    const products = productService.getProducts();
+    const batches = batchService.getAll();
+    const today = new Date();
+
+    return inventory.map((inv) => {
+      const prod = products.find(p => p.code === inv.productCode);
+      const bch = batches.find(b => b.batchNo === inv.batchNo && b.productCode === inv.productCode);
+
+      const reorderLevel = prod ? Number(prod.reorderLevel || 0) : 0;
+      const category = prod ? prod.category : 'Unknown';
+      
+      let expDateStr = bch ? bch.expDate : new Date().toISOString();
+      const expDate = new Date(expDateStr);
+
+      const stockValueNum = inv.availableQty * (bch ? bch.ptr : inv.ptr || 0);
+
+      let status: StockItem['status'] = 'In Stock';
+      if (inv.availableQty === 0) {
+        status = 'Out Of Stock';
+      } else if (inv.availableQty <= reorderLevel) {
+        status = 'Low Stock';
+      }
+
+      // Check Expiry
+      const daysToExpiry = (expDate.getTime() - today.getTime()) / (1000 * 3600 * 24);
+      if (daysToExpiry <= 0) {
+        status = 'Dead Stock';
+      } else if (daysToExpiry <= 90) { // arbitrary 90 days for near expiry
+        status = 'Near Expiry';
+      }
+
+      return {
+        id: inv.id,
+        productCode: inv.productCode,
+        productName: inv.productName,
+        batchNo: inv.batchNo,
+        warehouse: inv.warehouseName || inv.warehouseCode || 'Main',
+        category,
+        availableQty: inv.availableQty,
+        reorderLevel,
+        expiryDate: expDateStr,
+        stockValueNumber: stockValueNum,
+        stockValue: `₹ ${stockValueNum.toLocaleString('en-IN')}`,
+        status
+      } as StockItem;
+    });
+  }, [inventory]);
+
 
   const columns: Column<StockItem>[] = [
     { key: 'productCode', label: 'Product Code', render: (row) => <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">{row.productCode}</span> },
@@ -80,32 +138,41 @@ export default function LiveStockMonitoring() {
         if (row.status === 'Dead Stock') variant = 'neutral';
         return <Badge variant={variant}>{row.status}</Badge>;
       },
-    },
-    {
-      key: 'action',
-      label: 'Action',
-      render: () => (
-        <ActionButton variant="ghost">
-          <Eye className="w-4 h-4 text-slate-500" />
-          <span className="text-slate-600">View</span>
-        </ActionButton>
-      )
     }
   ];
 
-  const filteredData = mockData.filter((item) => {
+  const filteredData = realData.filter((item) => {
     let match = true;
     if (search) match = match && item.productName.toLowerCase().includes(search.toLowerCase());
     if (warehouse) match = match && item.warehouse === warehouse;
     if (stockStatus) match = match && item.status === stockStatus;
     if (category) match = match && item.category === category;
-    
-    // date filtering based on expiryDate for context, or generally just mock it out
-    if (fromDate) match = match && new Date(item.expiryDate) >= new Date(fromDate);
-    if (toDate) match = match && new Date(item.expiryDate) <= new Date(toDate);
-
     return match;
   });
+
+  // Calculate KPIs
+  const totalInventoryValue = filteredData.reduce((sum, item) => sum + item.stockValueNumber, 0);
+  const lowStockCount = filteredData.filter(item => item.status === 'Low Stock').length;
+  const nearExpiryCount = filteredData.filter(item => item.status === 'Near Expiry').length;
+  const deadStockValue = filteredData.filter(item => item.status === 'Dead Stock').reduce((sum, item) => sum + item.stockValueNumber, 0);
+
+  const formatCurrency = (val: number) => {
+    if (val >= 10000000) return `₹ ${(val / 10000000).toFixed(2)} Cr`;
+    if (val >= 100000) return `₹ ${(val / 100000).toFixed(2)} L`;
+    return `₹ ${val.toLocaleString('en-IN')}`;
+  };
+
+  // Generate Dropdown Options
+  const warehouseOptions = useMemo(() => {
+    const whs = new Set(realData.map(r => r.warehouse).filter(Boolean));
+    return Array.from(whs).map(w => ({ label: w, value: w }));
+  }, [realData]);
+
+  const categoryOptions = useMemo(() => {
+    const cats = new Set(realData.map(r => r.category).filter(Boolean));
+    return Array.from(cats).map(c => ({ label: c, value: c }));
+  }, [realData]);
+
 
   const getExportData = () => {
     const timestamp = new Date().toLocaleString();
@@ -113,93 +180,63 @@ export default function LiveStockMonitoring() {
       search && `Search: ${search}`,
       warehouse && `Warehouse: ${warehouse}`,
       stockStatus && `Status: ${stockStatus}`,
-      category && `Category: ${category}`,
-      fromDate && `From: ${fromDate}`,
-      toDate && `To: ${toDate}`
-    ].filter(Boolean).join(' | ') || 'None';
+      category && `Category: ${category}`
+    ].filter(Boolean).join(' | ');
 
-    const headerRows = [
+    return [
       ['Live Stock Monitoring Report'],
-      [`Generated On: ${timestamp}`],
-      [`Active Filters: ${activeFilters}`],
-      []
+      ['Generated On:', timestamp],
+      ['Filters Applied:', activeFilters || 'None'],
+      [''],
+      ['Product Code', 'Product Name', 'Batch No', 'Warehouse', 'Available Qty', 'Reorder Level', 'Expiry Date', 'Stock Value', 'Status'],
+      ...filteredData.map(item => [
+        item.productCode,
+        item.productName,
+        item.batchNo,
+        item.warehouse,
+        item.availableQty,
+        item.reorderLevel,
+        new Date(item.expiryDate).toLocaleDateString(),
+        item.stockValueNumber,
+        item.status
+      ])
     ];
-
-    const tableHeaders = ['Product Code', 'Product Name', 'Batch No', 'Warehouse / Location', 'Available Qty', 'Reorder Level', 'Expiry Date', 'Stock Value', 'Status'];
-    const tableRows = filteredData.map(row => [
-      row.productCode,
-      row.productName,
-      row.batchNo,
-      row.warehouse,
-      row.availableQty.toString(),
-      row.reorderLevel.toString(),
-      row.expiryDate,
-      row.stockValue,
-      row.status
-    ]);
-
-    return { headerRows, tableHeaders, tableRows };
   };
 
   const handleExportCSV = () => {
-    if (filteredData.length === 0) {
-      alert("No data available for export.");
-      return;
-    }
-    
-    const { headerRows, tableHeaders, tableRows } = getExportData();
-    const csvContent = [
-      ...headerRows.map(row => `"${row.join('","')}"`),
-      `"${tableHeaders.join('","')}"`,
-      ...tableRows.map(row => `"${row.join('","')}"`)
-    ].join('\n');
-
+    const data = getExportData();
+    const csvContent = data.map(row => row.join(',')).join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     link.href = URL.createObjectURL(blob);
-    link.download = `Live_Stock_Report_${dateStr}.csv`;
+    link.download = `Live_Stock_${new Date().toISOString().split('T')[0]}.csv`;
     link.click();
     setIsExportOpen(false);
   };
 
   const handleExportExcel = () => {
-    if (filteredData.length === 0) {
-      alert("No data available for export.");
-      return;
-    }
-
-    const { headerRows, tableHeaders, tableRows } = getExportData();
-    const wsData = [
-      ...headerRows,
-      tableHeaders,
-      ...tableRows
-    ];
-
-    const ws = XLSX.utils.aoa_to_sheet(wsData);
+    const data = getExportData();
+    const ws = XLSX.utils.aoa_to_sheet(data);
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Live Stock");
-    
-    const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    XLSX.writeFile(wb, `Live_Stock_Report_${dateStr}.xlsx`);
+    XLSX.utils.book_append_sheet(wb, ws, 'Live Stock');
+    XLSX.writeFile(wb, `Live_Stock_${new Date().toISOString().split('T')[0]}.xlsx`);
     setIsExportOpen(false);
   };
 
   return (
-    <div className="animate-in fade-in duration-500">
-      <PageHeader
-        title="Live Stock Monitoring"
-        subtitle="Real-time inventory visibility across all warehouses and depots."
-        breadcrumb={[{ label: 'Super Admin' }, { label: 'Live Stock' }]}
-        actions={
+    <div className="p-6">
+      <PageHeader 
+        title="Live Stock Monitoring" 
+        subtitle="Track inventory levels, locations, and status across all warehouses"
+        action={
           <div className="relative" ref={dropdownRef}>
-            <button
+            <button 
               onClick={() => setIsExportOpen(!isExportOpen)}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 rounded-lg text-sm font-semibold transition-all duration-200 outline-none focus-visible:ring-2 focus-visible:ring-violet-500"
+              className="flex items-center gap-2 bg-[#163c78] text-white px-4 py-2 rounded-xl hover:bg-[#0c1f3d] transition-all shadow-sm hover:shadow active:scale-95"
             >
               <Download className="w-4 h-4" />
-              Export
-              <ChevronDown className="w-4 h-4 text-slate-400" />
+              <span className="font-medium">Export</span>
+              <ChevronDown className={`w-4 h-4 transition-transform ${isExportOpen ? 'rotate-180' : ''}`} />
             </button>
             
             {isExportOpen && (
@@ -226,82 +263,81 @@ export default function LiveStockMonitoring() {
         }
       />
 
-      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-col gap-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <SearchInput value={search} onChange={setSearch} placeholder="Search product name..." />
-          <SelectFilter
-            value={warehouse} onChange={setWarehouse}
-            options={[
-              { label: 'Mumbai Central', value: 'Mumbai Central' },
-              { label: 'Delhi North', value: 'Delhi North' },
-              { label: 'Pune Depot', value: 'Pune Depot' },
-              { label: 'Chennai South', value: 'Chennai South' },
-            ]}
-            placeholder="Warehouse"
-          />
-          <SelectFilter
-            value={stockStatus} onChange={setStockStatus}
-            options={[
-              { label: 'Optimal', value: 'Optimal' },
-              { label: 'Low Stock', value: 'Low Stock' },
-              { label: 'Near Expiry', value: 'Near Expiry' },
-              { label: 'Out of Stock', value: 'Out of Stock' },
-            ]}
-            placeholder="Stock Status"
-          />
-          <SelectFilter
-            value={category} onChange={setCategory}
-            options={[
-              { label: 'Analgesics', value: 'Analgesics' },
-              { label: 'Antibiotics', value: 'Antibiotics' },
-              { label: 'Syrups', value: 'Syrups' },
-              { label: 'Supplements', value: 'Supplements' },
-              { label: 'Consumables', value: 'Consumables' },
-            ]}
-            placeholder="Category"
-          />
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">From</span>
-            <input 
-              type="date" 
-              value={fromDate}
-              onChange={(e) => setFromDate(e.target.value)}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-slate-600">To</span>
-            <input 
-              type="date" 
-              value={toDate}
-              onChange={(e) => setToDate(e.target.value)}
-              className="px-3 py-2 text-sm bg-slate-50 border border-slate-200 rounded-lg text-slate-700 focus:outline-none focus:ring-2 focus:ring-violet-500/30 transition-all"
-            />
-          </div>
-        </div>
-      </div>
-
+      {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <SummaryCard title="Total Inventory Value" value="₹ 45.2 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Low Stock Products" value="124" icon={<PackageSearch className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-100" />
-        <SummaryCard title="Near Expiry Products" value="45" icon={<AlertTriangle className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
-        <SummaryCard title="Dead Stock Value" value="₹ 1.2 Cr" icon={<ArchiveX className="w-6 h-6" />} colorClass="text-slate-600" bgClass="bg-slate-100" />
+        <SummaryCard 
+          title="Total Inventory Value" 
+          value={formatCurrency(totalInventoryValue)} 
+          icon={<IndianRupee className="w-6 h-6 text-blue-600" />} 
+          colorClass="text-blue-600" 
+          bgClass="bg-blue-100/50 border border-blue-200" 
+        />
+        <SummaryCard 
+          title="Low Stock Products" 
+          value={lowStockCount.toString()} 
+          icon={<PackageSearch className="w-6 h-6 text-amber-600" />} 
+          colorClass="text-amber-600" 
+          bgClass="bg-amber-100/50 border border-amber-200" 
+        />
+        <SummaryCard 
+          title="Near Expiry Products" 
+          value={nearExpiryCount.toString()} 
+          icon={<AlertTriangle className="w-6 h-6 text-rose-600" />} 
+          colorClass="text-rose-600" 
+          bgClass="bg-rose-100/50 border border-rose-200 shadow-[0_0_15px_rgba(225,29,72,0.15)]" 
+        />
+        <SummaryCard 
+          title="Dead Stock Value" 
+          value={formatCurrency(deadStockValue)} 
+          icon={<ArchiveX className="w-6 h-6 text-slate-600" />} 
+          colorClass="text-slate-700" 
+          bgClass="bg-slate-100/50 border border-slate-200" 
+        />
       </div>
 
+      {/* Filters */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm mb-6 flex flex-wrap items-center gap-4">
+        <SearchInput value={search} onChange={setSearch} placeholder="Search product..." />
+        <SelectFilter
+          value={warehouse} onChange={setWarehouse}
+          options={warehouseOptions.length > 0 ? warehouseOptions : [{ label: 'Main Warehouse', value: 'Main' }]}
+          placeholder="All Warehouses"
+        />
+        <SelectFilter
+          value={category} onChange={setCategory}
+          options={categoryOptions.length > 0 ? categoryOptions : [{ label: 'Analgesics', value: 'Analgesics' }]}
+          placeholder="All Categories"
+        />
+        <SelectFilter
+          value={stockStatus} onChange={setStockStatus}
+          options={[
+            { label: 'In Stock', value: 'In Stock' },
+            { label: 'Low Stock', value: 'Low Stock' },
+            { label: 'Near Expiry', value: 'Near Expiry' },
+            { label: 'Out Of Stock', value: 'Out Of Stock' },
+            { label: 'Dead Stock', value: 'Dead Stock' },
+          ]}
+          placeholder="All Status"
+        />
+      </div>
+
+      {/* Main Table with hidden scrollbar */}
       <div className="mb-6">
+        <h3 className="font-bold text-slate-800 mb-4 px-1">Inventory Details</h3>
         <TableCard>
           <div className="live-stock-table-container">
             <DataTable columns={columns} data={filteredData} />
           </div>
         </TableCard>
       </div>
+      
       <style>{`
         .live-stock-table-container .overflow-x-auto {
-          scrollbar-width: none;
-          -ms-overflow-style: none;
+          scrollbar-width: none; /* Firefox */
+          -ms-overflow-style: none; /* IE and Edge */
         }
         .live-stock-table-container .overflow-x-auto::-webkit-scrollbar {
-          display: none;
+          display: none; /* Chrome, Safari, Opera */
         }
       `}</style>
     </div>
