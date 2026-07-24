@@ -173,8 +173,8 @@ export default function DistributorOrders() {
     
     return {
       pendingCount: pendingOrders.length,
-      approvedToday: orders.filter(o => ['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled', 'Partially Paid'].includes(o.status) && o.date === today).length,
-      rejectedToday: orders.filter(o => ['Rejected', 'Cancelled'].includes(o.status) && o.date === today).length,
+      approvedCount: orders.filter(o => ['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled', 'Partially Paid'].includes(o.status)).length,
+      rejectedCount: orders.filter(o => ['Rejected', 'Cancelled'].includes(o.status)).length,
       pendingValue: pendingOrders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.amount, 0), 0)
     };
   }, [orders]);
@@ -298,8 +298,8 @@ export default function DistributorOrders() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
         <SummaryCard title="Pending Orders" value={summary.pendingCount.toString()} icon={<Clock className="w-5 h-5 text-amber-600" />} colorClass="text-amber-600" bgClass="bg-amber-50" />
-        <SummaryCard title="Approved Today" value={summary.approvedToday.toString()} icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
-        <SummaryCard title="Rejected Today" value={summary.rejectedToday.toString()} icon={<XCircle className="w-5 h-5 text-rose-600" />} colorClass="text-rose-600" bgClass="bg-rose-50" />
+        <SummaryCard title="Approved" value={summary.approvedCount.toString()} icon={<CheckCircle2 className="w-5 h-5 text-emerald-600" />} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
+        <SummaryCard title="Rejected" value={summary.rejectedCount.toString()} icon={<XCircle className="w-5 h-5 text-rose-600" />} colorClass="text-rose-600" bgClass="bg-rose-50" />
         <SummaryCard title="Pending Order Value" value={formatCurrency(summary.pendingValue)} icon={<IndianRupee className="w-5 h-5 text-[#163c78]" />} colorClass="text-[#163c78]" bgClass="bg-[#163c78]/10" />
       </div>
 
