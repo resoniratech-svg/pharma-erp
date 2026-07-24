@@ -17,7 +17,7 @@ import {
 import { inventoryService } from '../../services/inventoryService';
 import { distributorOrderApprovalService } from '../../services/distributorOrderApprovalService';
 import { orderService } from '../../services/orderService';
-import { apiRequest } from '../../services/api';
+import { apiRequest } from '../../services/apiClient';
 
 // --- Types ---
 type OrderStatus = 'Draft' | 'Pending' | 'Approved' | 'Rejected' | 'Processing' | 'Partially Fulfilled' | 'Fulfilled' | 'Cancelled' | 'On Hold';
