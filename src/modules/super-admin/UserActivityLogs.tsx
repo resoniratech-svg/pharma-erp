@@ -82,7 +82,7 @@ export default function UserActivityLogs() {
   }, []);
 
   const columns: Column<AuditLog>[] = [
-    { key: 'dateTime', label: 'Date & Time', render: (row) => <span className="text-sm font-mono text-slate-500">{new Date(row.dateTime).toLocaleString()}</span> },
+    { key: 'dateTime', label: 'Date & Time', render: (row) => <span className="text-sm font-mono text-slate-500">{row.dateTime}</span> },
     { key: 'user', label: 'User Name', render: (row) => <span className="font-semibold text-slate-900">{row.user}</span> },
     { key: 'module', label: 'Module', render: (row) => <span className="text-slate-600">{row.module}</span> },
     { key: 'activity', label: 'Activity', render: (row) => <span className="text-slate-700">{row.activity}</span> },
