@@ -225,16 +225,16 @@ export default function DistributorOrders() {
   const handleUpdateStatus = (newStatus: OrderStatus) => {
     if (!viewOrder) return;
     
-    if ((newStatus === 'Rejected' || newStatus === 'On Hold') && !approvalRemarks.trim()) {
-      setRemarksError(`Remarks are required to ${newStatus === 'Rejected' ? 'reject' : 'hold'} this order.`);
-      return;
-    }
-
     const numericId = String(viewOrder.id).replace(/\D/g, '');
     if (numericId) {
+      let backendStatus = 'PENDING';
+      if (newStatus === 'Approved') backendStatus = 'APPROVED';
+      else if (newStatus === 'Rejected') backendStatus = 'REJECTED';
+      else if (newStatus === 'On Hold') backendStatus = 'ON_HOLD';
+
       apiRequest(`/retailer-orders/${numericId}`, {
         method: 'PUT',
-        bodyData: { status: newStatus === 'Pending' ? 'PENDING' : newStatus === 'Approved' ? 'APPROVED' : newStatus === 'Rejected' ? 'REJECTED' : 'PENDING' }
+        bodyData: { status: backendStatus }
       }).catch(console.warn);
     }
 

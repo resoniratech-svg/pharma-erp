@@ -58,7 +58,7 @@ export const orderService = {
           date: o.createdAt ? new Date(o.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
           expectedDeliveryDate: o.expectedDeliveryDate || new Date().toISOString().split('T')[0],
           totalAmount: Number(o.totalAmount || 0),
-          status: o.status === 'PENDING' ? 'Pending' : o.status === 'APPROVED' ? 'Approved' : (o.status || 'Pending'),
+          status: o.status === 'PENDING' ? 'Pending' : o.status === 'APPROVED' ? 'Approved' : o.status === 'REJECTED' ? 'Rejected' : o.status === 'ON_HOLD' ? 'On Hold' : (o.status || 'Pending'),
           items: (o.orderItems || o.items || []).map((i: any) => ({
             productId: i.productId,
             productCode: i.product?.code || i.productCode || `PRD-${i.productId}`,
