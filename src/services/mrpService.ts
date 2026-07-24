@@ -64,14 +64,18 @@ export const mrpService = {
             if (i > 0 && productRecords[i].previousMrp === 0) {
               productRecords[i].previousMrp = productRecords[i - 1].currentMrp;
             }
-            // If still 0, try to restore from localStorage
-            if (productRecords[i].previousMrp === 0) {
-              const localRecords = existingLocal.filter(l => l.productCode === productRecords[i].productCode);
-              if (localRecords.length > 0) {
-                localRecords.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
-                if (localRecords[0].previousMrp) {
-                  productRecords[i].previousMrp = localRecords[0].previousMrp;
-                }
+            // Try to restore missing fields from localStorage
+            const localRecords = existingLocal.filter(l => l.productCode === productRecords[i].productCode);
+            if (localRecords.length > 0) {
+              localRecords.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+              if (productRecords[i].previousMrp === 0 && localRecords[0].previousMrp) {
+                productRecords[i].previousMrp = localRecords[0].previousMrp;
+              }
+              if (!productRecords[i].remarks && localRecords[0].remarks) {
+                productRecords[i].remarks = localRecords[0].remarks;
+              }
+              if (!productRecords[i].revisionReason && localRecords[0].revisionReason) {
+                productRecords[i].revisionReason = localRecords[0].revisionReason;
               }
             }
           }
