@@ -61,15 +61,9 @@ export default function CurrentStock() {
   }, []);
 
   useEffect(() => {
-    // Load inventory from service and filter by logged-in distributor
-    if (loggedInDistributorCode) {
-      inventoryService.loadInventory().then(allInventory => {
-        const myInventory = allInventory.filter(
-          record => record.warehouseId === loggedInDistributorCode || record.warehouseCode === loggedInDistributorCode
-        );
-        setRawInventory([...myInventory].sort((a, b) => Number(b.id) - Number(a.id)));
-      });
-    }
+    inventoryService.loadInventory().then(allInventory => {
+      setRawInventory([...allInventory].sort((a, b) => Number(b.id) - Number(a.id)));
+    });
   }, [loggedInDistributorCode]);
 
   const handleToggleRetailAvailability = (id: string) => {
@@ -88,13 +82,7 @@ export default function CurrentStock() {
     });
     inventoryService.saveAll(updatedInventory);
 
-    // Update local React state with the filtered list for this warehouse
-    if (loggedInDistributorCode) {
-      const myInventory = updatedInventory.filter(
-        record => record.warehouseId === loggedInDistributorCode || record.warehouseCode === loggedInDistributorCode
-      );
-      setRawInventory([...myInventory].sort((a, b) => Number(b.id) - Number(a.id)));
-    }
+    setRawInventory([...updatedInventory].sort((a, b) => Number(b.id) - Number(a.id)));
   };
 
   const stockData = useMemo<StockRow[]>(() => {
