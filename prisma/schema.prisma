@@ -15,7 +15,7 @@ model User {
   role                  Role
   isActive              Boolean      @default(true)
   createdAt             DateTime     @default(now())
-  updatedAt             DateTime     @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   branchId              Int?
   companyId             Int?
   currentDeviceId       String?
@@ -37,7 +37,7 @@ model Company {
   address         String?
   isActive        Boolean                    @default(true)
   createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   branches        Branch[]
   permissions     CompanyFeaturePermission[]
   products        Product[]
@@ -55,7 +55,7 @@ model Branch {
   companyId Int
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   company   Company  @relation(fields: [companyId], references: [id])
   users     User[]
 }
@@ -65,7 +65,7 @@ model Module {
   name        String    @unique
   description String?
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   features    Feature[]
 }
 
@@ -75,7 +75,7 @@ model Feature {
   description     String?
   moduleId        Int
   createdAt       DateTime                   @default(now())
-  updatedAt       DateTime                   @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   permissions     CompanyFeaturePermission[]
   module          Module                     @relation(fields: [moduleId], references: [id])
   rolePermissions RolePermission[]
@@ -87,7 +87,7 @@ model CompanyFeaturePermission {
   featureId Int
   enabled   Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   company   Company  @relation(fields: [companyId], references: [id])
   feature   Feature  @relation(fields: [featureId], references: [id])
 
@@ -109,7 +109,7 @@ model ProductCategory {
   name        String    @unique
   description String?
   createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   products    Product[]
 }
 
@@ -126,7 +126,7 @@ model Product {
   ptd                    Float?
   companyId              Int
   createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   minStock               Int
   batchTracking          Boolean                 @default(false)
   brandName              String?
@@ -167,7 +167,7 @@ model Batch {
   quantity               Int
   remarks                String?
   createdAt              DateTime                @default(now())
-  updatedAt              DateTime                @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   product                Product                 @relation(fields: [productId], references: [id])
   creditNoteItems        CreditNoteItem[]
   dispatches             Dispatch[]
@@ -195,7 +195,7 @@ model Warehouse {
   address       String?
   companyId     Int
   createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   branch        String         @default("Default Branch")
   city          String?
   contactPerson String?
@@ -851,7 +851,7 @@ model InwardStock {
   remarks       String?
   createdBy     String?
   updatedBy     String?
-  updatedAt     DateTime          @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   createdAt     DateTime          @default(now())
   supplier      Supplier          @relation(fields: [supplierId], references: [id])
   warehouse     Warehouse         @relation(fields: [warehouseId], references: [id])
@@ -909,7 +909,7 @@ model HSNCode {
   status      String   @default("Active")
   remarks     String?
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
 }
 
 model GSTRecord {
@@ -921,7 +921,7 @@ model GSTRecord {
   createdBy     String?
   lastUpdatedBy String?
   createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   remarks       String?
   status        String    @default("Active")
 }
@@ -932,7 +932,7 @@ model PackingType {
   description String
   status      String   @default("Active")
   createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   name        String   @default("")
   uom         String   @default("")
 }
@@ -950,7 +950,7 @@ model PricingMaster {
   revisionReason String?
   previousMrp    Float?
   createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   batchId        Int?
   status         String    @default("Active")
   batch         Batch?    @relation(fields: [batchId], references: [id])
@@ -968,7 +968,7 @@ model SchemeMaster {
   endDate             DateTime?
   status              String    @default("Active")
   createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
+  updatedAt DateTime @updatedAt @default(now())
   batchId             Int?
   applicableSelection String    @default("")
   applicableTo        String    @default("All Products")
