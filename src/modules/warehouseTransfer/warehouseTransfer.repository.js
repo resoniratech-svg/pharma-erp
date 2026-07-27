@@ -2,7 +2,15 @@ const prisma = require("../../config/db");
 
 const createTransferRepo = (data) => {
   return prisma.warehouseTransfer.create({
-    data,
+    data: {
+      ...data,
+      items: {
+        create: data.items,
+      },
+    },
+    include: {
+      items: true,
+    },
   });
 };
 
