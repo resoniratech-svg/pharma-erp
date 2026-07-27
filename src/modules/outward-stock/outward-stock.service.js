@@ -22,6 +22,10 @@ class OutwardStockService {
       const outward = await tx.outwardStock.create({
         data: {
           ...outwardStockData,
+          transporter,
+          lrNumber,
+          vehicleNumber,
+          expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
           itemsCount: itemsCount || items.length,
           totalQuantity: totalQuantity || items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
           totalValue: totalValue || items.reduce((sum, item) => sum + ((Number(item.quantity) || 0) * (Number(item.rate) || 0)), 0),

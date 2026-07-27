@@ -883,11 +883,15 @@ model OutwardStock {
   itemsCount      Int                @default(0)
   totalQuantity   Int                @default(0)
   totalValue      Float              @default(0.0)
-  status          String             @default("Dispatched")
-  remarks         String?
-  createdAt       DateTime           @default(now())
-  warehouse       Warehouse          @relation(fields: [warehouseId], references: [id])
-  items           OutwardStockItem[]
+  status               String             @default("Dispatched")
+  remarks              String?
+  transporter          String?
+  lrNumber             String?
+  vehicleNumber        String?
+  expectedDeliveryDate DateTime?
+  createdAt            DateTime           @default(now())
+  warehouse            Warehouse          @relation(fields: [warehouseId], references: [id])
+  items                OutwardStockItem[]
 }
 
 model OutwardStockItem {
