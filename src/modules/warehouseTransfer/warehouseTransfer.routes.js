@@ -26,4 +26,10 @@ router.get(
   controller.getTransferById
 );
 
+router.put(
+  "/:id/status",
+  authMiddleware,
+  controller.updateStatus
+);
+
 module.exports = router;

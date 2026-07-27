@@ -61,8 +61,25 @@ async (req, res) => {
 
 };
 
+const updateStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const result = await service.updateTransferStatusService(Number(req.params.id), status);
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   createTransfer,
   getTransfers,
   getTransferById,
+  updateStatus,
 };

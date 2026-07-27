@@ -98,8 +98,13 @@ const getTransferByIdService = (
   );
 };
 
+const updateTransferStatusService = (id, status) => {
+  return repository.updateTransferStatusRepo(id, status);
+};
+
 module.exports = {
   createTransferService,
   getTransfersService,
   getTransferByIdService,
+  updateTransferStatusService,
 };
