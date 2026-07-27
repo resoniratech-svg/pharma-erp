@@ -24,6 +24,9 @@ const getTransfersRepo = () => {
         },
       },
     },
+    orderBy: {
+      createdAt: 'desc',
+    },
   });
 };
 
