@@ -17,7 +17,12 @@ const create = async (data) => {
 const findAll = async () => {
   return prisma.warehouseTransfer.findMany({
     include: {
-      items: true
+      items: {
+        include: {
+          product: true,
+          batch: true,
+        },
+      },
     }
   });
 };
@@ -26,7 +31,12 @@ const findById = async (id) => {
   return prisma.warehouseTransfer.findUnique({
     where: { id },
     include: {
-      items: true
+      items: {
+        include: {
+          product: true,
+          batch: true,
+        },
+      },
     }
   });
 };

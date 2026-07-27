@@ -20,7 +20,7 @@ const getWarehouseTransfers = async (req, res, next) => {
 
 const getWarehouseTransferById = async (req, res, next) => {
   try {
-    const warehouseTransfer = await service.getWarehouseTransferById(req.params.id);
+    const warehouseTransfer = await service.getWarehouseTransferById(Number(req.params.id));
     if (!warehouseTransfer) {
       return res.status(404).json({ message: 'WarehouseTransfer not found' });
     }
@@ -32,7 +32,7 @@ const getWarehouseTransferById = async (req, res, next) => {
 
 const updateWarehouseTransfer = async (req, res, next) => {
   try {
-    const warehouseTransfer = await service.updateWarehouseTransfer(req.params.id, req.body);
+    const warehouseTransfer = await service.updateWarehouseTransfer(Number(req.params.id), req.body);
     res.status(200).json(warehouseTransfer);
   } catch (error) {
     next(error);
@@ -41,7 +41,7 @@ const updateWarehouseTransfer = async (req, res, next) => {
 
 const deleteWarehouseTransfer = async (req, res, next) => {
   try {
-    await service.deleteWarehouseTransfer(req.params.id);
+    await service.deleteWarehouseTransfer(Number(req.params.id));
     res.status(204).send();
   } catch (error) {
     next(error);
