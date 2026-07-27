@@ -12,6 +12,10 @@ export interface OutwardStockRecord {
   totalValue: number;
   status: string;
   remarks?: string;
+  transporter?: string;
+  lrNumber?: string;
+  vehicleNumber?: string;
+  expectedDeliveryDate?: string;
   warehouseCode?: string;
   warehouseName?: string;
   items: Array<{

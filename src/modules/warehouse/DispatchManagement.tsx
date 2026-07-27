@@ -283,6 +283,18 @@ export default function DispatchManagement() {
       setNewWarehouse(record.warehouseName);
       setNewCustomer(record.client);
       setDispatchAddress(record.address || '');
+      
+      if (record.transporter) setNewTransporter(record.transporter);
+      if (record.lrNumber) setNewLRNumber(record.lrNumber);
+      if (record.vehicleNumber) setNewVehicle(record.vehicleNumber);
+      if (record.expectedDeliveryDate) {
+        let formatted = record.expectedDeliveryDate;
+        if (typeof record.expectedDeliveryDate === 'string' && record.expectedDeliveryDate.includes('T')) {
+          formatted = record.expectedDeliveryDate.split('T')[0];
+        }
+        setNewExpectedDeliveryDate(formatted);
+      }
+
       const mapped = (record.items || record.products || []).map((p: any) => ({
         productName: p.productName || p.product,
         batchNo: p.batchNo || p.batchNumber,
