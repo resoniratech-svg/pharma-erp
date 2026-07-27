@@ -68,7 +68,7 @@ require("./modules/expiryMonitoring/expiryMonitoring.routes");
 const deadStockRoutes =
 require("./modules/deadStock/deadStock.routes");
 
-const warehouseTransferRoutes = require("./modules/warehouse-transfer/warehouse-transfer.routes");
+const warehouseTransferRoutes = require("./modules/warehouseTransfer/warehouseTransfer.routes");
 
 const inwardStockRoutes = require("./modules/inward-stock/inward-stock.routes");
 const outwardStockRoutes = require("./modules/outward-stock/outward-stock.routes");
