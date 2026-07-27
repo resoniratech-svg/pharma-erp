@@ -98,7 +98,13 @@ export default function WarehouseTransfer() {
           itemsCount: r.itemsCount,
           totalQuantity: r.totalQuantity,
           remarks: r.remarks,
-          products: [],
+          products: (r.items || []).map((item: any) => ({
+            id: String(item.id),
+            product: item.product?.code || item.product?.name || String(item.productId),
+            batchNo: item.batch?.batchNumber || String(item.batchId),
+            availableQty: 0,
+            transferQty: item.quantity
+          })),
           createdBy: '',
           createdDate: r.date,
           lastUpdatedBy: '',
@@ -509,7 +515,13 @@ export default function WarehouseTransfer() {
     alert("Warehouse transfer initiated successfully!");
   };
 
-  const handleCompleteTransfer = (transfer: WarehouseTransfer) => {
+  const handleCompleteTransfer = async (transfer: WarehouseTransfer) => {
+    const success = await warehouseTransferService.updateStatus(transfer.id, "Completed");
+    if (!success) {
+      alert("Failed to update transfer status in the database.");
+      return;
+    }
+
     const updatedTransfers: WarehouseTransfer[] = transferRecords.map((t) =>
       t.id === transfer.id
         ? {

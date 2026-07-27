@@ -52,5 +52,18 @@ export const warehouseTransferService = {
       console.error("Failed to save warehouse transfer:", e);
       return false;
     }
+  },
+
+  async updateStatus(id: string, status: string): Promise<boolean> {
+    try {
+      const response = await apiRequest<any>(`/warehouse-transfers/${id}/status`, {
+        method: 'PUT',
+        bodyData: { status },
+      });
+      return !!(response && response.success);
+    } catch (e) {
+      console.error(`Failed to update status for transfer ${id}:`, e);
+      return false;
+    }
   }
 };
