@@ -43,7 +43,10 @@ const updateDispatchService = async (id, data) => {
             });
 
             if (existingInv) {
-              const newQty = Math.max(0, existingInv.quantity - Number(item.quantity));
+              if (existingInv.quantity < Number(item.quantity)) {
+                throw new Error(`Insufficient stock for product. Available: ${existingInv.quantity}, Requested: ${item.quantity}`);
+              }
+              const newQty = existingInv.quantity - Number(item.quantity);
               await tx.inventory.update({
                 where: { id: existingInv.id },
                 data: { quantity: newQty }

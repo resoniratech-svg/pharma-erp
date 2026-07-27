@@ -94,6 +94,9 @@ class OutwardStockService {
           }
         });
         if (inv) {
+          if (inv.quantity < Number(item.quantity)) {
+            throw new Error(`Insufficient stock for product. Available: ${inv.quantity}, Requested: ${item.quantity}`);
+          }
           const newQty = inv.quantity - Number(item.quantity);
           await tx.inventory.update({
             where: { id: inv.id },
