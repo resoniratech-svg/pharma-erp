@@ -208,13 +208,6 @@ export default function LowStockAlerts() {
           >
             View
           </button>
-          <ActionButton 
-            variant="secondary" 
-            icon={<ShoppingCart className="w-4 h-4" />}
-            onClick={() => openPOModal(row)}
-          >
-            Create PO
-          </ActionButton>
         </div>
       )
     }
@@ -473,7 +466,6 @@ export default function LowStockAlerts() {
 
             <div className="pt-6 border-t border-slate-100 flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setSelectedRecord(null)}>Close</ActionButton>
-              <ActionButton icon={<ShoppingCart className="w-4 h-4" />} onClick={() => openPOModal(selectedRecord)}>Create PO</ActionButton>
             </div>
           </div>
         )}
