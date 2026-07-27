@@ -56,7 +56,7 @@ export const warehouseTransferService = {
 
   async updateStatus(id: string, status: string): Promise<boolean> {
     try {
-      const response = await apiRequest<any>(`/warehouse-transfers/${id}`, {
+      const response = await apiRequest<any>(`/warehouse-transfers/${id}/status`, {
         method: 'PUT',
         bodyData: { status },
       });
