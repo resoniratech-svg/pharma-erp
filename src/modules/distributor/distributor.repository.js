@@ -16,6 +16,7 @@ const createDistributorRepo = async (data) => {
       contactPerson: data.contactPerson || null,
       mobile: data.mobileNumber || data.mobile || null,
       email: data.emailAddress || data.email || null,
+      state: data.state || null,
       status: data.status || "Active",
     },
   });
@@ -27,6 +28,7 @@ const updateDistributorRepo = async (id, data) => {
   if (data.contactPerson !== undefined) updateData.contactPerson = data.contactPerson;
   if (data.mobileNumber !== undefined || data.mobile !== undefined) updateData.mobile = data.mobileNumber || data.mobile;
   if (data.emailAddress !== undefined || data.email !== undefined) updateData.email = data.emailAddress || data.email;
+  if (data.state !== undefined) updateData.state = data.state;
   if (data.status !== undefined) updateData.status = data.status;
 
   return prisma.distributor.update({

@@ -814,6 +814,7 @@ model Distributor {
   contactPerson String?
   createdAt     DateTime     @default(now())
   email         String?
+  state         String?
   status        String       @default("Active")
   creditNotes   CreditNote[]
 }
