@@ -287,6 +287,9 @@ export default function DispatchManagement() {
       if (record.transporter) setNewTransporter(record.transporter);
       if (record.lrNumber) setNewLRNumber(record.lrNumber);
       if (record.vehicleNumber) setNewVehicle(record.vehicleNumber);
+      if (record.driverName) setNewDriverName(record.driverName);
+      if (record.driverMobile) setNewDriverMobile(record.driverMobile);
+      if (record.remarks) setNewRemarks(record.remarks);
       if (record.expectedDeliveryDate) {
         let formatted = record.expectedDeliveryDate;
         if (typeof record.expectedDeliveryDate === 'string' && record.expectedDeliveryDate.includes('T')) {

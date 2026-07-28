@@ -15,6 +15,8 @@ export interface OutwardStockRecord {
   transporter?: string;
   lrNumber?: string;
   vehicleNumber?: string;
+  driverName?: string;
+  driverMobile?: string;
   expectedDeliveryDate?: string;
   warehouseCode?: string;
   warehouseName?: string;
