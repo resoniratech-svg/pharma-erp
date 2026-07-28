@@ -95,7 +95,7 @@ export default function DistributorMaster() {
     XLSX.writeFile(workbook, fileName);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!formData.name.trim()) {
       alert('Distributor Name is required');
       return;
@@ -133,14 +133,18 @@ export default function DistributorMaster() {
     }
 
     if (isEditingModal && selectedDistributor) {
-      distributorMasterService.update(selectedDistributor.id, {
+      const updatedRec = await distributorMasterService.update(selectedDistributor.id, {
         name: formData.name,
         contactPerson: formData.contactPerson,
         mobileNumber: formData.mobileNumber,
         emailAddress: formData.emailAddress,
         state: formData.state,
-        status: formData.status
+        status: formData.status,
+        ...(formData.password ? { password: formData.password } : {})
       });
+      if (updatedRec) {
+        setSelectedDistributor(updatedRec);
+      }
       activityLogService.addLog({
         userId: currentUser?.id,
         userName: currentUser?.fullName,
@@ -148,7 +152,7 @@ export default function DistributorMaster() {
         module: "Distributor Master",
       });
     } else {
-      distributorMasterService.create({
+      await distributorMasterService.create({
         name: formData.name,
         contactPerson: formData.contactPerson,
         mobileNumber: formData.mobileNumber,
@@ -164,7 +168,7 @@ export default function DistributorMaster() {
       });
     }
 
-    loadDistributors();
+    await loadDistributors();
     setShowFormModal(false);
   };
 
@@ -184,16 +188,16 @@ export default function DistributorMaster() {
       emailAddress: distributor.emailAddress || '',
       state: distributor.state || '',
       status: distributor.status,
-      password: '',
-      confirmPassword: ''
+      password: distributor.password || '',
+      confirmPassword: distributor.password || ''
     });
     setShowFormModal(true);
   };
 
-  const toggleStatus = (id: string, currentStatus: string) => {
+  const toggleStatus = async (id: string, currentStatus: string) => {
     const newStatus = currentStatus === 'Active' ? 'Inactive' : 'Active';
-    distributorMasterService.updateStatus(id, newStatus as any);
-    loadDistributors();
+    await distributorMasterService.updateStatus(id, newStatus as any);
+    await loadDistributors();
   };
 
   const formatDate = (dateStr: string) => {

@@ -74,6 +74,7 @@ export const distributorMasterService = {
 
     const newRecord: DistributorMasterRecord = {
       ...record,
+      password: password || record.password || '',
       id: Date.now().toString(),
       code: generatedCode,
       createdDate: new Date().toISOString().split('T')[0]
@@ -101,21 +102,26 @@ export const distributorMasterService = {
     return newRecord;
   },
 
-  update(id: string, updates: Partial<DistributorMasterRecord>): void {
+  async update(id: string, updates: Partial<DistributorMasterRecord>): Promise<DistributorMasterRecord | null> {
     const records = this.getAll();
-    const index = records.findIndex(r => r.id === id);
+    const index = records.findIndex(r => r.id === id || r.code === id);
     if (index !== -1) {
       records[index] = { ...records[index], ...updates };
       localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    }
 
-      const numId = parseInt(id, 10);
-      if (!isNaN(numId)) {
-        apiRequest(`/distributors/${numId}`, {
+    const numId = parseInt(id, 10);
+    if (!isNaN(numId)) {
+      try {
+        await apiRequest(`/distributors/${numId}`, {
           method: 'PUT',
           bodyData: updates
-        }).catch(err => console.warn("Backend API sync warning:", err.message));
+        });
+      } catch (err: any) {
+        console.warn("Backend API sync warning:", err.message);
       }
     }
+    return index !== -1 ? records[index] : null;
   },
 
   updateStatus(id: string, status: 'Active' | 'Inactive'): void {
