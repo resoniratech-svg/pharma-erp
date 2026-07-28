@@ -795,8 +795,8 @@ export default function DispatchManagement() {
                       <tr key={i} className="border-b border-slate-100 last:border-0">
                         <td className="py-2 px-3 text-slate-800">{p.productName}</td>
                         <td className="py-2 px-3 text-slate-600">{p.batchNo}</td>
-                        <td className="py-2 px-3 text-slate-600">{p.availableQty}</td>
-                        <td className="py-2 px-3 text-slate-900 font-medium text-right">{p.dispatchQty}</td>
+                        <td className="py-2 px-3 text-slate-600">{p.availableQty ?? p.quantity ?? p.qty ?? '—'}</td>
+                        <td className="py-2 px-3 text-slate-900 font-medium text-right">{p.dispatchQty ?? p.quantity ?? p.qty ?? '—'}</td>
                       </tr>
                     ))}
                   </tbody>
