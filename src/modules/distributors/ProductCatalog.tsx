@@ -57,6 +57,16 @@ export default function ProductCatalog() {
 
   const [selectedProduct, setSelectedProduct] = useState<CatalogItem | null>(null);
 
+  const formatDate = (dateString?: string) => {
+    if (!dateString || dateString === '-') return "-";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return dateString;
+    const yyyy = date.getFullYear();
+    const mm = String(date.getMonth() + 1).padStart(2, '0');
+    const dd = String(date.getDate()).padStart(2, '0');
+    return `${dd}-${mm}-${yyyy}`;
+  };
+
   // Sync catalog dynamically with production integrations
   useEffect(() => {
     const fetchCatalog = async () => {
@@ -122,6 +132,9 @@ export default function ProductCatalog() {
               derivedStatus = 'Low Stock';
             }
 
+            const validFromVal = activeScheme?.validFrom || activeScheme?.startDate || activeScheme?.createdAt || activeScheme?.createdDate;
+            const validToVal = activeScheme?.validTo || activeScheme?.endDate || activeScheme?.validTill;
+
             return {
               id: p.id,
               productCode: p.code || 'N/A',
@@ -137,8 +150,8 @@ export default function ProductCatalog() {
               reorderLevel: reorderLvl,
               schemeAvailable: activeScheme ? (activeScheme.name || 'Scheme Available') : 'No Scheme',
               schemeType: activeScheme ? (activeScheme.type || '-') : '-',
-              schemeValidFrom: activeScheme ? (activeScheme.validFrom || '-') : '-',
-              schemeValidTo: activeScheme ? (activeScheme.validTo || '-') : '-',
+              schemeValidFrom: validFromVal ? formatDate(validFromVal) : '-',
+              schemeValidTo: validToVal ? formatDate(validToVal) : (activeScheme ? 'Ongoing' : '-'),
               schemeDescription: activeScheme ? (activeScheme.remarks || activeScheme.name) : '-',
               status: derivedStatus,
               _batchInfo: { activeBatches: activeBatchesList, nextExpiry }
@@ -430,7 +443,6 @@ export default function ProductCatalog() {
               <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Stock Information</h3>
               <div className="space-y-2">
                 <DrawerField label="Available Stock" value={<span className="font-mono">{selectedProduct.availableStock}</span>} />
-                <DrawerField label="Reserved Stock" value={<span className="font-mono">{selectedProduct.reservedStock}</span>} />
                 <DrawerField label="Reorder Level" value={<span className="font-mono">{selectedProduct.reorderLevel}</span>} />
                 <DrawerField label="Status" value={
                   <Badge variant={
