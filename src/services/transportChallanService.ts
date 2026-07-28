@@ -326,7 +326,17 @@ function mapDispatchToUi(db: DbDispatch): any {
     driverMobile: db.driverMobile || '',
     remarks: db.remarks || '',
     createdBy: db.createdBy || '',
-    createdDate: db.createdDate || ''
+    createdDate: db.createdDate || '',
+    podStatus: (db as any).podStatus || 'Pending Upload',
+    podUploadedBy: (db as any).podUploadedBy || '',
+    podUploadedDate: (db as any).podUploadedDate || '',
+    podReceivedBy: (db as any).podReceivedBy || '',
+    podDesignation: (db as any).podDesignation || '',
+    podFileUrl: (db as any).podFileUrl || '',
+    podFileName: (db as any).podFileName || '',
+    podFileType: (db as any).podFileType || '',
+    podRemarks: (db as any).podRemarks || '',
+    actualDeliveryDate: (db as any).actualDeliveryDate || ''
   };
 }
 
