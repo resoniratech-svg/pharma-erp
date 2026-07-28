@@ -22,9 +22,16 @@ const createDistributorRepo = async (data) => {
 };
 
 const updateDistributorRepo = async (id, data) => {
+  const updateData = {};
+  if (data.name !== undefined) updateData.name = data.name;
+  if (data.contactPerson !== undefined) updateData.contactPerson = data.contactPerson;
+  if (data.mobileNumber !== undefined || data.mobile !== undefined) updateData.mobile = data.mobileNumber || data.mobile;
+  if (data.emailAddress !== undefined || data.email !== undefined) updateData.email = data.emailAddress || data.email;
+  if (data.status !== undefined) updateData.status = data.status;
+
   return prisma.distributor.update({
     where: { id: Number(id) },
-    data,
+    data: updateData,
   });
 };
 
