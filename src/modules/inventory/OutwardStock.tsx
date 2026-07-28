@@ -1285,10 +1285,6 @@ export default function OutwardStock() {
               </h3>
               <div className="space-y-2">
                 <DrawerField
-                  label="Created By"
-                  value={selectedRecord.createdBy}
-                />
-                <DrawerField
                   label="Created On"
                   value={formatDate(selectedRecord.createdDate)}
                 />
