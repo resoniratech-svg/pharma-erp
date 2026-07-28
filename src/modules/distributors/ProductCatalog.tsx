@@ -85,6 +85,8 @@ export default function ProductCatalog() {
               availStock += (Number(inv.availableQty) || 0);
               reservedStock += (Number(inv.reservedQty) || 0);
             });
+            availStock = Math.max(0, availStock);
+            reservedStock = Math.max(0, reservedStock);
             
             // --- Batch Integration ---
             // Using BatchRecord interface properties from batchService.ts
