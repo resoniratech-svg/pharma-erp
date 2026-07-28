@@ -18,6 +18,7 @@ import {
 import { type Column, type BadgeVariant } from './components/shared';
 import { warehouseTransferService } from '../../services/warehouseTransferService';
 import { warehouseService } from '../../services/warehouseService';
+import { transportChallanService } from '../../services/transportChallanService';
 
 // Local TrackingRecord type — maps WarehouseTransferRecord to tracking UI shape
 interface TrackingRecord {
@@ -63,27 +64,37 @@ export default function WarehouseTransferTracking() {
     async function loadTracking() {
       const records = await warehouseTransferService.getAll();
       const warehouses = await warehouseService.loadWarehouses();
+      const dispatches = await transportChallanService.loadDispatches();
+
       const warehouseMap: Record<string, string> = {};
       warehouses.forEach(w => {
         warehouseMap[w.id] = w.name;
       });
 
-      const trackingRecords = records.map(r => ({
-        id: r.id || '',
-        transferNo: r.transferNo,
-        fromWarehouse: warehouseMap[String(r.fromWarehouseId)] || `Warehouse ${r.fromWarehouseId}`,
-        toWarehouse: warehouseMap[String(r.toWarehouseId)] || `Warehouse ${r.toWarehouseId}`,
-        transferDate: r.date,
-        expectedDelivery: r.date,
-        currentStatus: r.status,
-        itemsCount: r.itemsCount,
-        totalQuantity: r.totalQuantity,
-        totalItems: r.itemsCount,
-        vehicleNo: undefined,
-        driverName: undefined,
-        driverMobile: undefined,
-        timeline: [{ date: r.date, status: r.status }],
-      }));
+      const trackingRecords = records.map(r => {
+        const matchingDispatch = dispatches.find((d: any) => 
+          d.orderId === r.transferNo || 
+          d.dispatchId === r.transferNo || 
+          (d.remarks && d.remarks.includes(r.transferNo))
+        );
+
+        return {
+          id: r.id || '',
+          transferNo: r.transferNo,
+          fromWarehouse: warehouseMap[String(r.fromWarehouseId)] || `Warehouse ${r.fromWarehouseId}`,
+          toWarehouse: warehouseMap[String(r.toWarehouseId)] || `Warehouse ${r.toWarehouseId}`,
+          transferDate: r.date,
+          expectedDelivery: r.date,
+          currentStatus: matchingDispatch?.status || r.status,
+          itemsCount: r.itemsCount,
+          totalQuantity: r.totalQuantity,
+          totalItems: r.itemsCount,
+          vehicleNo: matchingDispatch?.vehicleNumber || (r as any).vehicleNumber || '—',
+          driverName: matchingDispatch?.driverName || (r as any).driverName || '—',
+          driverMobile: matchingDispatch?.driverMobile || (r as any).driverMobile || '—',
+          timeline: matchingDispatch?.timeline || [{ date: r.date, status: r.status }],
+        };
+      });
       
       // Sort to show newly added items at the top
       trackingRecords.sort((a, b) => Number(b.id) - Number(a.id));
