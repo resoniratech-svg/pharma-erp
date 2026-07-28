@@ -25,6 +25,8 @@ class OutwardStockService {
           transporter,
           lrNumber,
           vehicleNumber,
+          driverName,
+          driverMobile,
           expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate) : null,
           itemsCount: itemsCount || items.length,
           totalQuantity: totalQuantity || items.reduce((sum, item) => sum + (Number(item.quantity) || 0), 0),
