@@ -63,35 +63,7 @@ class OutwardStockService {
         amount: item.quantity * item.rate
       }));
 
-      // 3. Create Dispatch in IN_TRANSIT status with logistics details
-      const remarks = expectedDeliveryDate 
-        ? `EXPECTED_DELIVERY_DATE: ${expectedDeliveryDate} | ${data.remarks || ''}`
-        : (data.remarks || '');
-
-      await tx.dispatch.create({
-        data: {
-          dispatchNo: outward.dispatchNo,
-          dispatchType: "Distributor Order",
-          orderId: outward.referenceNumber || "N/A",
-          customerName: outward.client,
-          sourceWarehouse: outward.warehouse?.name || "Main Warehouse",
-          warehouseId: outward.warehouseId,
-          totalItems: outward.itemsCount,
-          totalQuantity: outward.totalQuantity,
-          status: "IN_TRANSIT",
-          transporter: transporter || "N/A",
-          lrNumber: lrNumber || "N/A",
-          vehicleNumber: vehicleNumber || "N/A",
-          driverName: driverName || "N/A",
-          driverMobile: driverMobile || "N/A",
-          remarks: remarks,
-          products: productsJson,
-          createdBy: "System Administrator",
-          createdDate: new Date().toISOString().split('T')[0]
-        }
-      });
-
-      // 4. Deduct inventory at source warehouse immediately
+      // 3. Deduct inventory at source warehouse immediately
       for (const item of productsJson) {
         const inv = await tx.inventory.findFirst({
           where: {
