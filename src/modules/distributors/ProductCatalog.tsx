@@ -1,5 +1,5 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Download, Filter, PackageSearch, PackageCheck, Tags, AlertCircle, Eye, ChevronDown } from 'lucide-react';
+import { Download, Filter, PackageSearch, PackageCheck, PackageX, AlertCircle, Eye, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -183,7 +183,7 @@ export default function ProductCatalog() {
     return {
       totalProducts: data.length,
       availableProducts: data.filter(p => p.availableStock > 0).length,
-      activeSchemes: data.filter(p => p.schemeAvailable !== 'No Scheme').length,
+      outOfStockProducts: data.filter(p => p.availableStock <= 0 || p.status === 'Out Of Stock').length,
       lowStockProducts: data.filter(p => p.status === 'Low Stock').length,
     };
   }, [data]);
@@ -352,12 +352,12 @@ export default function ProductCatalog() {
           bgClass="bg-emerald-50"
         />
         <SummaryCard
-          title="Active Schemes"
-          value={kpis.activeSchemes.toString()}
-          subtitle="Products with offers"
-          icon={<Tags className="w-6 h-6" />}
-          colorClass="text-blue-600"
-          bgClass="bg-blue-50"
+          title="Out of Stock"
+          value={kpis.outOfStockProducts.toString()}
+          subtitle="Currently unavailable"
+          icon={<PackageX className="w-6 h-6" />}
+          colorClass="text-rose-600"
+          bgClass="bg-rose-50"
         />
         <SummaryCard
           title="Low Stock Products"
