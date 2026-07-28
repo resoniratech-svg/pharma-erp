@@ -304,18 +304,6 @@ export default function OutwardStock() {
     { key: 'totalQuantity', label: 'Total Quantity', render: (row) => row.totalQuantity.toLocaleString() },
     { key: 'totalValue', label: 'Total Value', render: (row) => `₹${row.totalValue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` },
     {
-      key: 'status',
-      label: 'Status',
-      render: (row) => {
-        let variant: 'success' | 'warning' | 'danger' | 'neutral' | 'info' = 'neutral';
-        if (row.status === 'Dispatched') variant = 'success';
-        if (row.status === 'Processing') variant = 'info';
-        if (row.status === 'Cancelled') variant = 'danger';
-        if (row.status === 'Draft') variant = 'warning';
-        return <Badge variant={variant}>{row.status}</Badge>;
-      },
-    },
-    {
       key: 'id',
       label: 'Actions',
       render: (row) => (
@@ -721,17 +709,6 @@ export default function OutwardStock() {
           <Filter className="w-4 h-4 text-slate-400" />
           <span className="text-sm font-medium text-slate-600">Filters:</span>
         </div>
-        <SelectFilter
-          value={statusFilter}
-          onChange={setStatusFilter}
-          options={[
-            { label: "Dispatched", value: "Dispatched" },
-            { label: "Processing", value: "Processing" },
-            { label: "Draft", value: "Draft" },
-            { label: "Cancelled", value: "Cancelled" },
-          ]}
-          placeholder="All Status"
-        />
       </FilterBar>
 
       <TableCard>
