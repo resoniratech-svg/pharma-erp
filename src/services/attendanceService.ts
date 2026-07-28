@@ -60,3 +60,48 @@ export const getAttendanceLogs = async () => {
   });
   return response.data.data || response.data;
 };
+
+// Device Local Timezone Helper (IST Safe)
+export const getLocalDateStr = (d = new Date()) => {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
+// Live Backend Attendance Status Verifier
+export const checkAttendanceStatus = async (): Promise<{
+  isCheckedInToday: boolean;
+  isCheckedOutToday: boolean;
+}> => {
+  const todayLocalStr = getLocalDateStr();
+  
+  // Live Easypanel Backend API call
+  const serverLogs = await getAttendanceLogs();
+  const logsList = Array.isArray(serverLogs) ? serverLogs : (serverLogs?.data || []);
+
+  let isCheckedInToday = false;
+  let isCheckedOutToday = false;
+
+  if (logsList && logsList.length > 0) {
+    const todayLog = logsList.find((log: any) => {
+      const rawDate = log.date || log.checkIn || log.checkInTime;
+      if (!rawDate) return false;
+      const logDateStr = getLocalDateStr(new Date(rawDate));
+      return logDateStr === todayLocalStr;
+    });
+
+    if (todayLog) {
+      const checkOut = todayLog.checkOut ?? todayLog.checkOutTime;
+      if (checkOut && checkOut !== 'null' && checkOut !== 'NULL') {
+        isCheckedOutToday = true;
+        isCheckedInToday = false;
+      } else {
+        isCheckedInToday = true;
+        isCheckedOutToday = false;
+      }
+    }
+  }
+
+  return { isCheckedInToday, isCheckedOutToday };
+};

@@ -1,16 +1,15 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
-import { getAttendanceLogs } from '../../services/attendanceService';
 import {
   ActivityIndicator,
-  Image,
   ScrollView,
   StyleSheet,
   Text,
   TouchableOpacity,
-  View,
+  View
 } from 'react-native';
+import { getAttendanceLogs } from '../../services/attendanceService';
 
 const safeJsonParse = (data: string | null, fallback: any) => {
   if (!data) return fallback;
@@ -161,6 +160,25 @@ const AttendanceScreen = () => {
       restoreAttendanceStatus();
     }
   }, [isFocused]);
+
+  useEffect(() => {
+    navigation.setOptions({
+      headerLeft: () => (
+        <TouchableOpacity 
+          onPress={() => {
+            if (hasCheckedOutToday) {
+              navigation.navigate('Dashboard');
+            } else {
+              navigation.goBack();
+            }
+          }}
+          style={{ paddingRight: 15, paddingVertical: 5 }}
+        >
+          <Text style={{ fontSize: 20, color: '#000' }}>←</Text>
+        </TouchableOpacity>
+      ),
+    });
+  }, [navigation, hasCheckedOutToday]);
 
   const restoreAttendanceStatus = async () => {
     try {

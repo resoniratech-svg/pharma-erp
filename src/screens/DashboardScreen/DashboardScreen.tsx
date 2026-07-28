@@ -1,14 +1,14 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
-import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, Platform } from 'react-native';
-import { getMeetingsByMr } from '../../services/meetingService';
+import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { getAttendanceLogs } from '../../services/attendanceService';
-import { getMrDashboardAnalytics } from '../../services/dashboardService';
-import { getRetailerOrders } from '../../services/orderService';
-import { getFollowUpsByMr, getAllFollowUps } from '../../services/followUpService';
-import { getDoctorVisitsByMr } from '../../services/doctorService';
 import { getChemistVisitsByMr } from '../../services/chemistService';
+import { getMrDashboardAnalytics } from '../../services/dashboardService';
+import { getDoctorVisitsByMr } from '../../services/doctorService';
+import { getAllFollowUps, getFollowUpsByMr } from '../../services/followUpService';
+import { getMeetingsByMr } from '../../services/meetingService';
+import { getRetailerOrders } from '../../services/orderService';
 
 interface RecentOrder {
   id: string; client: string; status: 'Shipped' | 'Pending' | 'Failed'; amount: string; date: string;
@@ -982,7 +982,27 @@ const DashboardScreen = () => {
               <TouchableOpacity style={[styles.drawerItem, styles.activeDrawerItem]} onPress={() => { setIsMenuOpen(false); }}>
                 <Text style={[styles.drawerItemText, styles.activeDrawerItemText]}>🏠 Dashboard</Text>
               </TouchableOpacity>
-
+               <TouchableOpacity style={styles.drawerGroupHeader} onPress={() => setShowGPS(!showGPS)}>
+                <Text style={styles.drawerGroupLabel}>🧭 GPS & Location Tracking</Text>
+                <Text style={styles.arrowIcon}>{showGPS ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+              {showGPS && (
+                <View style={styles.groupChildren}>
+                  {[
+                    { label: '🕒 GPS Attendance', route: 'Attendance' },
+                    { label: '🩺 Geo Tagged Doctor Visits', route: 'GeoTaggedDoctorVisits' },
+                    { label: '💊 Geo Tagged Chemist Visits', route: 'GeoTaggedChemistVisits' },
+                    { label: '🛣️ Route History', route: 'RouteHistory' },
+                    { label: '📍 Territory Tracking', route: 'TerritoryTracking' },
+                    { label: '🧭 Daily Movement Tracking', route: 'DailyMovementTracking' },
+                    { label: '🤝 Meeting/Event Location Tracking', route: 'MeetingLocation' },
+                  ].map((item, index) => (
+                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => { setIsMenuOpen(false); navigation.navigate(item.route); }}>
+                      <Text style={styles.drawerSubItemText}>{item.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
               <TouchableOpacity style={styles.drawerGroupHeader} onPress={() => setShowMROps(!showMROps)}>
                 <Text style={styles.drawerGroupLabel}>👤 MR Operations</Text>
                 <Text style={styles.arrowIcon}>{showMROps ? '▲' : '▼'}</Text>
@@ -1008,7 +1028,7 @@ const DashboardScreen = () => {
                 </View>
               )}
 
-              <TouchableOpacity style={styles.drawerGroupHeader} onPress={() => setShowGPS(!showGPS)}>
+              {/* <TouchableOpacity style={styles.drawerGroupHeader} onPress={() => setShowGPS(!showGPS)}>
                 <Text style={styles.drawerGroupLabel}>🧭 GPS & Location Tracking</Text>
                 <Text style={styles.arrowIcon}>{showGPS ? '▲' : '▼'}</Text>
               </TouchableOpacity>
@@ -1028,7 +1048,7 @@ const DashboardScreen = () => {
                     </TouchableOpacity>
                   ))}
                 </View>
-              )}
+              )} */}
 
               <TouchableOpacity style={styles.drawerGroupHeader} onPress={() => setShowAlerts(!showAlerts)}>
                 <Text style={styles.drawerGroupLabel}>🔔 Alerts & Notifications</Text>
@@ -1180,10 +1200,10 @@ const styles = StyleSheet.create({
   drawerContainer: { width: '78%', height: '100%', backgroundColor: '#FFFFFF', shadowColor: '#000', shadowOffset: { width: 4, height: 0 }, shadowOpacity: 0.1, shadowRadius: 15, elevation: 16, paddingTop: 50, paddingBottom: 20, display: 'flex' },
   drawerHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingBottom: 20, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   logoRow: { flexDirection: 'row', alignItems: 'center' },
-  drawerLogo: { width: 85, height: 85, marginTop: -20, marginBottom: -20, marginLeft: -15, marginRight: 0 },
-  logoTextContainer: { flexDirection: 'column', justifyContent: 'center', marginLeft: 10 },
-  logoText: { fontSize: 16, fontWeight: 'bold', color: '#0F172A' },
-  logoSubtitle: { fontSize: 11, color: '#64748B', marginTop: 2, fontWeight: '500' },
+  drawerLogo: { width: 125, height: 125, marginTop: -35, marginBottom: -35, marginLeft: -22, marginRight: 0 },
+  logoTextContainer: { flexDirection: 'column', justifyContent: 'center', marginLeft: 8 },
+  logoText: { fontSize: 18, fontWeight: '700', color: '#0F172A' },
+  logoSubtitle: { fontSize: 12, color: '#64748B', marginTop: 2, fontWeight: '500' },
   closeIcon: { fontSize: 18, color: '#64748B', fontWeight: 'bold' },
   drawerScroll: { flex: 1, paddingHorizontal: 12, paddingTop: 15 },
   drawerItem: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginBottom: 4 },

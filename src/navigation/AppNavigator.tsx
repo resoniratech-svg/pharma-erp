@@ -133,6 +133,8 @@ import ActivityTrackingScreen from '../screens/ActivityTrackingScreen/ActivityTr
 import AttendanceScreen from '../screens/AttendanceScreen/AttendanceScreen';
 import BookOrderScreen from '../screens/BookOrderScreen/BookOrderScreen';
 
+import ActivityNotificationsScreen from '@/screens/ActivityNotificationsScreen/ActivityNotificationsScreen';
+import MeetingRemindersScreen from '@/screens/MeetingRemindersScreen/MeetingRemindersScreen';
 import CheckInScreen from '../screens/CheckInScreen/CheckInScreen';
 import CheckOutScreen from '../screens/CheckOutScreen/CheckOutScreen';
 import ChemistVisitScreen from '../screens/ChemistVisitScreen/ChemistVisitScreen';
@@ -143,25 +145,23 @@ import DailyScheduleScreen from '../screens/DailyScheduleScreen/DailyScheduleScr
 import DashboardScreen from '../screens/DashboardScreen/DashboardScreen';
 import DoctorVisitScreen from '../screens/DoctorVisitScreen/DoctorVisitScreen';
 import ExpenseClaimScreen from '../screens/ExpenseClaimScreen/ExpenseClaimScreen';
+import ExpiryAlertsScreen from '../screens/ExpiryAlertsScreen/ExpiryAlertsScreen';
+import FollowUpRemindersScreen from '../screens/FollowUpRemindersScreen/FollowUpRemindersScreen';
 import FollowUpsScreen from '../screens/FollowUpsScreen/FollowUpsScreen';
 import GeoTaggedChemistVisitsScreen from '../screens/GeoTaggedChemistVisitsScreen/GeoTaggedChemistVisitsScreen';
 import GeoTaggedDoctorVisitsScreen from '../screens/GeoTaggedDoctorVisitsScreen/GeoTaggedDoctorVisitsScreen';
 import LeaveRequestScreen from '../screens/LeaveRequestScreen/LeaveRequestScreen';
 import MeetingLocationScreen from '../screens/MeetingLocationScreen/MeetingLocationScreen';
-import MeetingSchedulerScreen from '../screens/MeetingSchedulingScreen/MeetingSchedulingScreen';
+import { default as MeetingSchedulerScreen, default as MeetingSchedulingScreen } from '../screens/MeetingSchedulingScreen/MeetingSchedulingScreen';
 import NotificationsScreen from '../screens/NotificationsScreen/NotificationsScreen';
 import ProductCatalogScreen from '../screens/ProductCatalogScreen/ProductCatalogScreen';
 import ProfileScreen from '../screens/ProfileScreen/ProfileScreen';
 import RouteHistoryScreen from '../screens/RouteHistoryScreen/RouteHistoryScreen';
 import TargetTrackingScreen from '../screens/TargetTrackingScreen/TargetTrackingScreen';
+import TerritoryMapScreen from '../screens/TerritoryMapScreen/TerritoryMapScreen';
 import TerritoryTrackingScreen from '../screens/TerritoryTrackingScreen/TerritoryTrackingScreen';
 import TourPlanningScreen from '../screens/TourPlanningScreen/TourPlanningScreen';
-import ExpiryAlertsScreen from '../screens/ExpiryAlertsScreen/ExpiryAlertsScreen';
-import FollowUpRemindersScreen from '../screens/FollowUpRemindersScreen/FollowUpRemindersScreen';
-import MeetingRemindersScreen from '@/screens/MeetingRemindersScreen/MeetingRemindersScreen';
-import ActivityNotificationsScreen from '@/screens/ActivityNotificationsScreen/ActivityNotificationsScreen';
-import MeetingSchedulingScreen from '../screens/MeetingSchedulingScreen/MeetingSchedulingScreen';
-import TerritoryMapScreen from '../screens/TerritoryMapScreen/TerritoryMapScreen';
+
 
 
 const Stack = createNativeStackNavigator();
@@ -328,8 +328,38 @@ const AppNavigator = () => {
       <Stack.Screen 
       name="ActivityNotifications"
      component={ActivityNotificationsScreen} />
+
+
+     {/* <Stack.Screen
+  //name="Attendance"
+  component={AttendanceScreen}
+  options={({ navigation }) => ({
+    headerLeft: () => (
+      <TouchableOpacity 
+        onPress={async () => {
+          const checkedIn = await AsyncStorage.getItem('@checked_in');
+          const checkInDate = await AsyncStorage.getItem('@check_in_date');
+          const todayStr = new Date().toISOString().slice(0, 10);
+          
+          // If Duty Completed for today, go straight to Dashboard to avoid Check-in popup!
+          if (checkedIn === 'false' && checkInDate === todayStr) {
+            navigation.navigate('Dashboard');
+          } else {
+            navigation.goBack();
+          }
+        }}
+        style={{ paddingRight: 15, paddingVertical: 5 }}
+      >
+        <Text style={{ fontSize: 20, color: '#000' }}>←</Text>
+      </TouchableOpacity>
+    ),
+  })} 
+/>*/}
     </Stack.Navigator>
+
+    
   );
+  
 };
 
 export default AppNavigator;

@@ -61,6 +61,21 @@ const CustomerDirectoryScreen = () => {
     loadCustomers();
   }, []);
 
+  const resolveArrayResponse = (response: any, arrayName: string): any[] => {
+    if (!response) return [];
+    if (Array.isArray(response)) return response;
+    if (Array.isArray(response.data)) return response.data;
+    if (response.data && Array.isArray(response.data.data)) return response.data.data;
+    if (Array.isArray(response[arrayName])) return response[arrayName];
+    if (response.data && Array.isArray(response.data[arrayName])) return response.data[arrayName];
+    
+    const listKey = `${arrayName}List`;
+    if (Array.isArray(response[listKey])) return response[listKey];
+    
+    const fallback = response.data || response;
+    return Array.isArray(fallback) ? fallback : [];
+  };
+
   const loadCustomers = async () => {
     setLoading(true);
     setError(null);
@@ -72,30 +87,46 @@ const CustomerDirectoryScreen = () => {
 
       try {
         const docRes = await getDoctors();
-        docList = docRes.data || docRes || [];
+        docList = resolveArrayResponse(docRes, 'doctors');
       } catch (e) { console.log('Docs load error in directory:', e); }
 
       try {
         const chemRes = await getChemists();
-        chemList = chemRes.data || chemRes || [];
+        chemList = resolveArrayResponse(chemRes, 'chemists');
       } catch (e) { console.log('Chemists load error in directory:', e); }
 
       try {
         const hospRes = await getHospitals();
-        hospList = hospRes.data || hospRes || [];
+        hospList = resolveArrayResponse(hospRes, 'hospitals');
       } catch (e) { console.log('Hospitals load error in directory:', e); }
 
       try {
         const stockRes = await getStockists();
-        stockList = stockRes.data || stockRes || [];
+        stockList = resolveArrayResponse(stockRes, 'stockists');
       } catch (e) { console.log('Stockists load error in directory:', e); }
 
+      // Helper to detect type from item properties
+      const detectType = (item: any, defaultType: 'Doctor' | 'Chemist' | 'Hospital' | 'Stockist'): 'Doctor' | 'Chemist' | 'Hospital' | 'Stockist' => {
+        const rawType = (item.type || item.customerType || '').toString().toUpperCase();
+        if (rawType.includes('DOCTOR')) return 'Doctor';
+        if (rawType.includes('CHEMIST')) return 'Chemist';
+        if (rawType.includes('HOSPITAL')) return 'Hospital';
+        if (rawType.includes('STOCKIST')) return 'Stockist';
+
+        if (item.specialization || item.specialty || item.doctorCode) return 'Doctor';
+        if (item.ownerName || item.proprietor || item.chemistCode) return 'Chemist';
+        if (item.hospitalCode || item.procurement || (item.name && item.name.toLowerCase().includes('hospital'))) return 'Hospital';
+        if (item.stockistCode || (item.name && item.name.toLowerCase().includes('stockist'))) return 'Stockist';
+
+        return defaultType;
+      };
+
       // Map doctors
-      const mappedDocs: Customer[] = (Array.isArray(docList) ? docList : []).map((d: any) => ({
+      const mappedDocs: Customer[] = docList.map((d: any) => ({
         id: Number(d.id || d._id) || 0,
         customerCode: d.doctorCode || d.code || '',
         name: d.name || d.doctorName || '',
-        type: 'Doctor' as const,
+        type: detectType(d, 'Doctor'),
         subText: d.specialization || d.specialty || '',
         phone: d.mobile || d.phone || '',
         address: d.clinicAddress || d.address || '',
@@ -106,11 +137,11 @@ const CustomerDirectoryScreen = () => {
       })).filter(c => c.id !== 0 && c.name && c.name !== '');
 
       // Map Chemists
-      const mappedChems: Customer[] = (Array.isArray(chemList) ? chemList : []).map((c: any) => ({
+      const mappedChems: Customer[] = chemList.map((c: any) => ({
         id: Number(c.id || c._id) || 0,
         customerCode: c.chemistCode || c.code || '',
         name: c.name || c.chemistName || '',
-        type: 'Chemist' as const,
+        type: detectType(c, 'Chemist'),
         subText: c.ownerName || c.proprietor ? `Proprietor: ${c.ownerName || c.proprietor}` : '',
         phone: c.mobile || c.phone || '',
         address: c.address || '',
@@ -125,11 +156,11 @@ const CustomerDirectoryScreen = () => {
       })).filter(c => c.id !== 0 && c.name && c.name !== '');
 
       // Map Hospitals
-      const mappedHosps: Customer[] = (Array.isArray(hospList) ? hospList : []).map((h: any) => ({
+      const mappedHosps: Customer[] = hospList.map((h: any) => ({
         id: Number(h.id || h._id) || 0,
         customerCode: h.hospitalCode || h.code || '',
         name: h.name || h.hospitalName || '',
-        type: 'Hospital' as const,
+        type: detectType(h, 'Hospital'),
         subText: h.contactPerson || h.procurement ? `Procurement: ${h.contactPerson || h.procurement}` : '',
         phone: h.mobile || h.phone || '',
         address: h.address || '',
@@ -145,11 +176,11 @@ const CustomerDirectoryScreen = () => {
       })).filter(c => c.id !== 0 && c.name && c.name !== '');
 
       // Map Stockists
-      const mappedStocks: Customer[] = (Array.isArray(stockList) ? stockList : []).map((s: any) => ({
+      const mappedStocks: Customer[] = stockList.map((s: any) => ({
         id: Number(s.id || s._id) || 0,
         customerCode: s.stockistCode || s.code || '',
         name: s.name || s.stockistName || '',
-        type: 'Stockist' as const,
+        type: detectType(s, 'Stockist'),
         subText: s.contactPerson || s.owner ? `Manager: ${s.contactPerson || s.owner}` : '',
         phone: s.mobile || s.phone || '',
         address: s.address || '',
@@ -163,10 +194,21 @@ const CustomerDirectoryScreen = () => {
         longitude: s.longitude != null ? Number(s.longitude) : undefined,
       })).filter(c => c.id !== 0 && c.name && c.name !== '');
 
-      // Combine and sort alphabetically by customer name
-      const sortedCombined = [...mappedDocs, ...mappedChems, ...mappedHosps, ...mappedStocks];
-      sortedCombined.sort((a, b) => a.name.localeCompare(b.name));
-      setCustomers(sortedCombined);
+      // Deduplicate combined list by (type + id)
+      const combined = [...mappedDocs, ...mappedChems, ...mappedHosps, ...mappedStocks];
+      const seen = new Set<string>();
+      const uniqueCombined: Customer[] = [];
+
+      for (const item of combined) {
+        const uniqueKey = `${item.type}-${item.id}-${item.name.toLowerCase().trim()}`;
+        if (!seen.has(uniqueKey)) {
+          seen.add(uniqueKey);
+          uniqueCombined.push(item);
+        }
+      }
+
+      uniqueCombined.sort((a, b) => a.name.localeCompare(b.name));
+      setCustomers(uniqueCombined);
     } catch (err: any) {
       console.error('Customers Directory Load Error:', err);
       setError('Failed to fetch customer directory records. Pull down to try again.');
@@ -233,13 +275,16 @@ const CustomerDirectoryScreen = () => {
 
   const filteredCustomers = customers.filter((item) => {
     const matchesSearch =
-      item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.subText.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.address.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      item.phone.includes(searchQuery) ||
-      (item.customerCode && item.customerCode.toLowerCase().includes(searchQuery.toLowerCase()));
+      !searchQuery.trim() ||
+      item.name.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+      item.subText.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+      item.address.toLowerCase().includes(searchQuery.toLowerCase().trim()) ||
+      item.phone.includes(searchQuery.trim()) ||
+      (item.customerCode && item.customerCode.toLowerCase().includes(searchQuery.toLowerCase().trim()));
 
-    const matchesTab = activeTab === 'All' || item.type === activeTab;
+    const matchesTab =
+      activeTab === 'All' ||
+      String(item.type).trim().toLowerCase() === String(activeTab).trim().toLowerCase();
 
     return matchesSearch && matchesTab;
   });
@@ -323,7 +368,7 @@ const CustomerDirectoryScreen = () => {
 
               return (
                 <TouchableOpacity
-                  key={customer.id}
+                  key={`${customer.type}-${customer.id}-${customer.name}`}
                   activeOpacity={0.9}
                   onPress={() => setSelectedProfileCustomer(customer)}
                   style={[styles.card, { borderLeftColor: colorTheme }]}

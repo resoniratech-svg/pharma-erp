@@ -30,6 +30,7 @@ import {
   getMeetingsByMr,
 } from '../../services/meetingService';
 import { getStockists } from '../../services/stockistService';
+import { checkAttendanceStatus, getLocalDateStr } from '../../services/attendanceService';
 
 interface Meeting {
   id: number;
@@ -269,13 +270,48 @@ const MeetingSchedulerScreen = () => {
         return;
       }
 
-      const todayStr = new Date().toISOString().split('T')[0];
-      if (meetingDate < todayStr) {
+      const todayLocalStr = getLocalDateStr();
+
+      // Rule 1: Block Past Dates
+      if (meetingDate < todayLocalStr) {
         customAlert('Scheduling Blocked', 'Cannot schedule a meeting on a past date.');
+        setSubmitting(false);
         return;
       }
 
-      if (meetingDate === todayStr) {
+      // Rule 2: Today's Meetings Check-In & Duty Validation via Live Backend
+      if (meetingDate === todayLocalStr) {
+        try {
+          const { isCheckedInToday, isCheckedOutToday } = await checkAttendanceStatus();
+
+          if (isCheckedOutToday) {
+            customAlert(
+              'Duty Completed 🔒',
+              'Your duty has already been completed for today. Same-day meeting creation is locked after check-out.'
+            );
+            setSubmitting(false);
+            return;
+          }
+
+          if (!isCheckedInToday) {
+            customAlert(
+              'Check-In Required 🔒',
+              'Please check-in first so that attendance is recorded correctly for today\'s meetings.'
+            );
+            navigation.navigate('Attendance');
+            setSubmitting(false);
+            return;
+          }
+        } catch (err) {
+          customAlert(
+            'Network Error ⚠️',
+            'Unable to verify live attendance status from server. Please check your network connection.'
+          );
+          setSubmitting(false);
+          return;
+        }
+
+        // Past time check for today
         const now = new Date();
         const currentHours = now.getHours();
         const currentMinutes = now.getMinutes();
@@ -284,6 +320,7 @@ const MeetingSchedulerScreen = () => {
 
         if (selectedTime24 < currentTimeStr) {
           customAlert('Scheduling Blocked', 'Cannot schedule a meeting at a past time today.');
+          setSubmitting(false);
           return;
         }
       }
