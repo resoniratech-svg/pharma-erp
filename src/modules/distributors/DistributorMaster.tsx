@@ -481,6 +481,7 @@ export default function DistributorMaster() {
               <div className="space-y-1">
                 <DrawerField label="Distributor Code" value={selectedDistributor.code} />
                 <DrawerField label="Distributor Name" value={selectedDistributor.name} />
+                <DrawerField label="State" value={selectedDistributor.state || 'N/A'} />
               </div>
             </section>
 
