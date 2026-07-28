@@ -280,6 +280,7 @@ export default function DeliveryTracking() {
       render: (row) => {
         let variant: BadgeVariant = 'neutral';
         if (row.status === 'Delivered') variant = 'success';
+        if (row.status === 'Dispatched') variant = 'info';
         if (row.status === 'In Transit' || row.status === 'Out For Delivery') variant = 'info';
         if (row.status === 'Delayed') variant = 'danger';
         if (row.status === 'Returned') variant = 'warning';
@@ -368,6 +369,7 @@ export default function DeliveryTracking() {
           onChange={setStatusFilter}
           options={[
             { label: 'In Transit', value: 'In Transit' },
+            { label: 'Dispatched', value: 'Dispatched' },
             { label: 'Out For Delivery', value: 'Out For Delivery' },
             { label: 'Delivered', value: 'Delivered' },
             { label: 'Delayed', value: 'Delayed' },

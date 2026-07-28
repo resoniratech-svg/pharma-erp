@@ -77,7 +77,7 @@ export interface DeliveryRecord {
   challanNo: string;
   expectedDate: string;
   actualDate: string;
-  status: 'In Transit' | 'Out For Delivery' | 'Delivered' | 'Delayed' | 'Returned';
+  status: 'In Transit' | 'Out For Delivery' | 'Delivered' | 'Delayed' | 'Returned' | 'Dispatched';
   podStatus: 'Pending Upload' | 'Uploaded' | 'Verified' | 'Rejected';
   transporter: string;
   vehicleNo: string;
@@ -720,6 +720,7 @@ export const transportChallanService = {
       const rawStatus = (dispatch.status || '').toUpperCase();
       let dStatus: DeliveryRecord['status'] = 'In Transit';
       if (rawStatus === 'DELIVERED') dStatus = 'Delivered';
+      else if (rawStatus === 'SUCCESS' || rawStatus === 'DISPATCHED') dStatus = 'Dispatched';
       else if (rawStatus === 'CANCELLED') dStatus = 'Returned';
       else dStatus = 'In Transit';
 
