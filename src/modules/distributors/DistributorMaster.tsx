@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Plus, Download, X } from 'lucide-react';
+import { Plus, Download, X, Eye, EyeOff } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -26,6 +26,7 @@ export default function DistributorMaster() {
   
   const [selectedDistributor, setSelectedDistributor] = useState<DistributorMasterRecord | null>(null);
   const [isViewDrawerOpen, setIsViewDrawerOpen] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
   
   const [showFormModal, setShowFormModal] = useState(false);
   const [isEditingModal, setIsEditingModal] = useState(false);
@@ -235,6 +236,7 @@ export default function DistributorMaster() {
             onClick={(e) => {
               e.stopPropagation();
               setSelectedDistributor(row);
+              setShowPassword(false);
               setIsViewDrawerOpen(true);
             }}
             className="text-[#163c78] font-medium hover:text-[#0c1f3d]"
@@ -485,11 +487,38 @@ export default function DistributorMaster() {
               <div className="space-y-1">
                 <DrawerField label="Contact Person" value={selectedDistributor.contactPerson} />
                 <DrawerField label="Mobile Number" value={selectedDistributor.mobileNumber} />
-                <DrawerField label="Email Address" value={selectedDistributor.emailAddress || 'N/A'} />
+                <DrawerField label="Email Address" value={selectedDistributor.emailAddress || (selectedDistributor as any).email || 'N/A'} />
                 <DrawerField label="Password" value={(() => {
-                  const users = JSON.parse(localStorage.getItem('pharma_erp_users') || '[]');
-                  const user = users.find((u: any) => u.username === selectedDistributor.code);
-                  return user ? user.password : 'N/A';
+                  let pass = selectedDistributor.password || (selectedDistributor as any).pass || '';
+                  if (!pass) {
+                    try {
+                      const users = JSON.parse(localStorage.getItem('pharma_erp_users') || '[]');
+                      const user = users.find((u: any) => 
+                        u.username === selectedDistributor.code || 
+                        u.code === selectedDistributor.code || 
+                        u.linkedDistributorCode === selectedDistributor.code ||
+                        (u.email && selectedDistributor.emailAddress && u.email.toLowerCase() === selectedDistributor.emailAddress.toLowerCase())
+                      );
+                      if (user && user.password) pass = user.password;
+                    } catch (e) {}
+                  }
+                  if (!pass) pass = 'Pass@1234';
+
+                  return (
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono tracking-wider text-slate-800">
+                        {showPassword ? pass : '••••••••'}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="p-1 text-slate-400 hover:text-slate-600 transition-colors rounded hover:bg-slate-100"
+                        title={showPassword ? "Hide password" : "Show password"}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  );
                 })()} />
               </div>
             </section>

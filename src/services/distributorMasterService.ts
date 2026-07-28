@@ -31,7 +31,8 @@ export const distributorMasterService = {
           name: d.name,
           contactPerson: d.contactPerson || d.name,
           mobileNumber: d.mobile || d.mobileNumber || '-',
-          emailAddress: d.email || '',
+          emailAddress: d.emailAddress || d.email || '',
+          password: d.password || d.pass || '',
           state: d.state || '',
           status: d.status === 'Inactive' ? 'Inactive' : 'Active',
           createdDate: d.createdAt ? new Date(d.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
