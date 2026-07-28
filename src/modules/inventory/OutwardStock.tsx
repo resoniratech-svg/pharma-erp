@@ -1293,10 +1293,6 @@ export default function OutwardStock() {
                   value={formatDate(selectedRecord.createdDate)}
                 />
                 <DrawerField
-                  label="Updated By"
-                  value={selectedRecord.lastUpdatedBy}
-                />
-                <DrawerField
                   label="Updated On"
                   value={formatDate(selectedRecord.lastUpdatedDate)}
                 />
