@@ -20,7 +20,12 @@ class OutwardStockRepository {
   async findAll() {
     return prisma.outwardStock.findMany({
       include: {
-        items: true,
+        items: {
+          include: {
+            product: true,
+            batch: true,
+          }
+        },
         warehouse: true,
       },
       orderBy: {
