@@ -298,12 +298,19 @@ export default function DispatchManagement() {
         setNewExpectedDeliveryDate(formatted);
       }
 
-      const mapped = (record.items || record.products || []).map((p: any) => ({
-        productName: p.productName || p.product,
-        batchNo: p.batchNo || p.batchNumber,
-        availableQty: p.availableQty || p.stock || p.quantity || 0,
-        dispatchQty: p.dispatchQty || p.quantity || 0
-      }));
+      const batchesCache = batchService.getAll();
+      const productsCache = productService.getProducts();
+
+      const mapped = (record.items || record.products || []).map((p: any) => {
+        const foundBatch = batchesCache.find((b: any) => String(b.id) === String(p.batchId) || b.batchNo === p.batchNo);
+        const foundProduct = productsCache.find((prod: any) => String(prod.id) === String(p.productId) || prod.name === p.productName);
+        return {
+          productName: p.productName || p.product || p.product?.name || foundProduct?.name || `Product ${p.productId || ''}`,
+          batchNo: p.batchNo || p.batchNumber || p.batch?.batchNumber || foundBatch?.batchNo || foundBatch?.batchNumber || (p.batchId ? `Batch ${p.batchId}` : '-'),
+          availableQty: p.availableQty || p.stock || p.quantity || 0,
+          dispatchQty: p.dispatchQty || p.quantity || 0
+        };
+      });
       setNewProducts(mapped);
     }
   };
