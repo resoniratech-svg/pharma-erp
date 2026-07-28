@@ -642,10 +642,22 @@ export const transportChallanService = {
 
   getAllDeliveryRecords: (): DeliveryRecord[] => {
     const challans = transportChallanService.getAllChallans();
-    return challans.map(challan => {
+    const dispatches = transportChallanService.getAllDispatches();
+
+    const hasRealDispatches = dispatches.some((d: any) => 
+      d.id && !String(d.id).startsWith('DSP-2026-0881') && !String(d.id).startsWith('DSP-2026-0875') && !String(d.id).startsWith('DSP-2026-0890')
+    );
+    const hasRealChallans = challans.some((c: any) => 
+      c.id && !['CHL-1001', 'CHL-1002', 'CHL-1003'].includes(c.id)
+    );
+
+    const filteredChallans = (hasRealDispatches || hasRealChallans)
+      ? challans.filter(c => !['CHL-1001', 'CHL-1002', 'CHL-1003'].includes(c.id))
+      : challans;
+
+    const records: DeliveryRecord[] = filteredChallans.map(challan => {
       let dStatus: DeliveryRecord['status'] = 'In Transit';
-      if (challan.status === 'Generated') dStatus = 'In Transit';
-      else if (challan.status === 'In Transit') dStatus = 'In Transit';
+      if (challan.status === 'Generated' || challan.status === 'In Transit') dStatus = 'In Transit';
       else if (challan.status === 'Delivered') dStatus = 'Delivered';
       else if (challan.status === 'Cancelled') dStatus = 'Returned'; 
 
@@ -668,13 +680,13 @@ export const transportChallanService = {
 
       return {
         id: challan.id,
-        deliveryNo: challan.challanNo.replace('CHL', 'DEL'),
+        deliveryNo: challan.challanNo ? challan.challanNo.replace('CHL-', 'DEL-') : `DEL-${challan.id}`,
         customer: challan.customer,
-        contactPerson: 'Contact Person',
-        mobile: '9876543210',
-        deliveryAddress: 'Customer Delivery Address',
+        contactPerson: challan.driverName || 'Contact Person',
+        mobile: challan.driverMobile || '9876543210',
+        deliveryAddress: challan.sourceWarehouse ? `Destination from ${challan.sourceWarehouse}` : 'Customer Delivery Address',
         dispatchNo: challan.dispatchNo,
-        lrNumber: challan.challanNo.replace('CHL', 'LR'),
+        lrNumber: challan.challanNo ? challan.challanNo.replace('CHL-', 'LR-') : `LR-${challan.id}`,
         challanNo: challan.challanNo,
         expectedDate: dateStr,
         actualDate: challan.actualDeliveryDate || '—',
@@ -695,5 +707,67 @@ export const transportChallanService = {
         timeline
       };
     });
+
+    const existingChallanDispatchNos = new Set(records.map(r => r.dispatchNo));
+    const filteredDispatches = (hasRealDispatches || hasRealChallans)
+      ? dispatches.filter((d: any) => !['DSP-2026-0881', 'DSP-2026-0875', 'DSP-2026-0890'].includes(String(d.id)) && !['DSP-2026-0881', 'DSP-2026-0875', 'DSP-2026-0890'].includes(String(d.dispatchId)))
+      : dispatches;
+
+    filteredDispatches.forEach((dispatch: any) => {
+      const dNo = dispatch.dispatchId || dispatch.dispatchNo || `DSP-${dispatch.id}`;
+      if (existingChallanDispatchNos.has(dNo)) return;
+
+      const rawStatus = (dispatch.status || '').toUpperCase();
+      let dStatus: DeliveryRecord['status'] = 'In Transit';
+      if (rawStatus === 'DELIVERED') dStatus = 'Delivered';
+      else if (rawStatus === 'CANCELLED') dStatus = 'Returned';
+      else dStatus = 'In Transit';
+
+      const dateStr = dispatch.date || dispatch.createdDate || new Date().toISOString().split('T')[0];
+
+      const timeline: TimelineEvent[] = [
+        { status: 'Dispatch Created', date: dateStr, time: '10:00 AM' }
+      ];
+
+      if (dStatus === 'In Transit' || dStatus === 'Delivered') {
+        timeline.push({ status: 'Picked Up', date: dateStr, time: '12:00 PM' });
+        timeline.push({ status: 'In Transit', date: dateStr, time: '02:00 PM' });
+      }
+      if (dStatus === 'Delivered') {
+        timeline.push({ status: 'Out For Delivery', date: dateStr, time: '04:00 PM' });
+        timeline.push({ status: 'Delivered', date: dispatch.actualDeliveryDate || dateStr, time: '06:00 PM' });
+      }
+
+      records.push({
+        id: String(dispatch.id),
+        deliveryNo: dNo.startsWith('DSP-') ? dNo.replace('DSP-', 'DEL-') : `DEL-${dNo}`,
+        customer: dispatch.client || dispatch.customerName || 'Customer / Stock Point',
+        contactPerson: dispatch.driverName || 'Contact Person',
+        mobile: dispatch.driverMobile || '9876543210',
+        deliveryAddress: dispatch.sourceWarehouse ? `Destination from ${dispatch.sourceWarehouse}` : 'Customer Delivery Address',
+        dispatchNo: dNo,
+        lrNumber: dispatch.lrNumber || (dNo.startsWith('DSP-') ? dNo.replace('DSP-', 'LR-') : `LR-${dNo}`),
+        challanNo: dNo,
+        expectedDate: dateStr,
+        actualDate: dispatch.actualDeliveryDate || '—',
+        status: dStatus,
+        podStatus: dispatch.podStatus || (rawStatus === 'DELIVERED' ? 'Uploaded' : 'Pending Upload'),
+        transporter: dispatch.transporter || '—',
+        vehicleNo: dispatch.vehicleNumber || dispatch.vehicleNo || '—',
+        driverName: dispatch.driverName || '—',
+        driverMobile: dispatch.driverMobile || '—',
+        podUploadedBy: dispatch.podUploadedBy,
+        podUploadedDate: dispatch.podUploadedDate,
+        podReceivedBy: dispatch.podReceivedBy,
+        podDesignation: dispatch.podDesignation,
+        podFileUrl: dispatch.podFileUrl,
+        podFileName: dispatch.podFileName,
+        podFileType: dispatch.podFileType,
+        remarks: dispatch.remarks,
+        timeline
+      });
+    });
+
+    return records;
   }
 };

@@ -51,7 +51,10 @@ export default function DeliveryTracking() {
   };
 
   useEffect(() => {
-    transportChallanService.loadChallans().then(() => {
+    Promise.all([
+      transportChallanService.loadChallans(),
+      transportChallanService.loadDispatches()
+    ]).then(() => {
       setData(transportChallanService.getAllDeliveryRecords());
     });
 
@@ -202,8 +205,8 @@ export default function DeliveryTracking() {
       
 
 
-    transportChallanService.updateChallan(uploadRecord.id, {
-      status: 'Delivered',
+    const podPayload = {
+      status: 'DELIVERED',
       podStatus: 'Uploaded',
       actualDeliveryDate: formatDate(new Date().toISOString()),
       podReceivedBy,
@@ -214,15 +217,21 @@ export default function DeliveryTracking() {
       podFileName: podFile.name,
       podFileType: podFile.type,
       podRemarks
-    })
-      .then(() => {
-        transportChallanService.loadChallans().then(() => {
-          setData(transportChallanService.getAllDeliveryRecords());
-        });
-      })
-      .catch((err: any) => {
-        alert(err.message || "Failed to upload POD");
+    };
+
+    Promise.all([
+      transportChallanService.updateChallan(uploadRecord.id, podPayload as any).catch(() => {}),
+      transportChallanService.updateDispatch(uploadRecord.id, podPayload).catch(() => {})
+    ]).then(() => {
+      Promise.all([
+        transportChallanService.loadChallans(),
+        transportChallanService.loadDispatches()
+      ]).then(() => {
+        setData(transportChallanService.getAllDeliveryRecords());
       });
+    }).catch((err: any) => {
+      alert(err.message || "Failed to upload POD");
+    });
 
 
       setShowUploadModal(false);
