@@ -139,11 +139,19 @@ export default function DistributorOrders() {
     }
   };
 
+  const getOrderGrandTotal = (row: OrderData) => {
+    const subtotal = row.items.reduce((s, i) => s + (i.amount || 0), 0);
+    const schemeDiscount = row.items.reduce((s, i) => s + ((i as any).schemeDiscount || 0), 0);
+    const afterDiscount = Math.max(0, subtotal - schemeDiscount);
+    const gstAmount = afterDiscount * 0.12;
+    return afterDiscount + gstAmount;
+  };
+
   const columns: Column<OrderData>[] = [
     { key: 'orderNo', label: 'Order No', render: (row) => <span className="font-semibold text-slate-900">{row.orderNo}</span> },
     { key: 'date', label: 'Order Date' },
     { key: 'distributorName', label: 'Distributor Name', render: (row) => <span className="font-medium text-slate-800">{row.distributorName}</span> },
-    { key: 'orderValue', label: 'Order Value', render: (row) => <span className="font-semibold text-emerald-600">{formatCurrency(row.items.reduce((s, i) => s + i.amount, 0))}</span> },
+    { key: 'orderValue', label: 'Order Value (Inc. GST)', render: (row) => <span className="font-semibold text-emerald-600">{formatCurrency(getOrderGrandTotal(row))}</span> },
     { key: 'status', label: 'Order Status', render: (row) => <Badge variant={getStatusVariant(row.status) as any}>{row.status}</Badge> },
     {
       key: 'actions',
@@ -175,7 +183,7 @@ export default function DistributorOrders() {
       pendingCount: pendingOrders.length,
       approvedCount: orders.filter(o => ['Approved', 'Processing', 'Partially Fulfilled', 'Fulfilled', 'Partially Paid'].includes(o.status)).length,
       rejectedCount: orders.filter(o => ['Rejected', 'Cancelled'].includes(o.status)).length,
-      pendingValue: pendingOrders.reduce((sum, o) => sum + o.items.reduce((s, i) => s + i.amount, 0), 0)
+      pendingValue: pendingOrders.reduce((sum, o) => sum + getOrderGrandTotal(o), 0)
     };
   }, [orders]);
 
@@ -234,12 +242,15 @@ export default function DistributorOrders() {
       let backendStatus = 'PENDING';
       
       if (newStatus === 'Approved') {
-        const grandTotal = currentFinancials ? currentFinancials.grandTotal : 0;
+        const grandTotal = currentFinancials ? currentFinancials.grandTotal : getOrderGrandTotal(viewOrder);
         const totalPaidSoFar = viewOrder.amountPaid || 0;
         const newlyPaid = Number(amountPaid) || 0;
         const cumulativePaid = totalPaidSoFar + newlyPaid;
 
-        if (cumulativePaid > 0 && cumulativePaid < grandTotal) {
+        if (cumulativePaid >= grandTotal - 0.01 || newlyPaid >= grandTotal - 0.01) {
+          finalStatus = 'Approved';
+          backendStatus = 'APPROVED';
+        } else if (cumulativePaid > 0) {
           finalStatus = 'Partially Paid';
           backendStatus = 'PARTIALLY_PAID';
         } else {
@@ -288,6 +299,14 @@ export default function DistributorOrders() {
 
   const currentFinancials = viewOrder ? getFinancialSummary(viewOrder.items) : null;
   const currentInventory = viewOrder ? getInventoryStatus(viewOrder.items) : null;
+
+  useEffect(() => {
+    if (viewOrder) {
+      const fin = getFinancialSummary(viewOrder.items);
+      const remaining = Math.max(0, fin.grandTotal - (viewOrder.amountPaid || 0));
+      setAmountPaid(remaining > 0 ? Math.round(remaining) : Math.round(fin.grandTotal));
+    }
+  }, [viewOrder]);
 
   return (
     <div className="animate-in fade-in duration-500">
