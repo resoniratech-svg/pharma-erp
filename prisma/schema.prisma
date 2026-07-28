@@ -277,6 +277,16 @@ model Dispatch {
   totalQuantity     Int?
   transporter       String?
   vehicleNumber     String?
+  podStatus          String?
+  podUploadedBy      String?
+  podUploadedDate    String?
+  podReceivedBy      String?
+  podDesignation     String?
+  podFileUrl         String?
+  podFileName        String?
+  podFileType        String?
+  podRemarks         String?
+  actualDeliveryDate String?
   batch             Batch?             @relation(fields: [batchId], references: [id])
   warehouse         Warehouse?         @relation(fields: [warehouseId], references: [id])
   transportChallans TransportChallan[]
