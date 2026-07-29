@@ -40,7 +40,7 @@ function mapToUi(inv: any): InventoryRecord {
     warehouseId: String(inv.warehouseId),
     warehouseCode: inv.warehouse ? inv.warehouse.code : "",
     warehouseName: inv.warehouse ? inv.warehouse.name : "",
-    availableQty: Number(inv.quantity),
+    availableQty: Math.max(0, Number(inv.quantity) || 0),
     reservedQty: 0,
     damagedQty: 0,
     blockedQty: 0,
@@ -62,7 +62,7 @@ try {
 export const inventoryService = {
   // Synchronous method for backward compatibility
   getAll(): InventoryRecord[] {
-    return inventoryCache;
+    return inventoryCache.map(i => ({ ...i, availableQty: Math.max(0, Number(i.availableQty) || 0) }));
   },
 
   // Asynchronous method to load inventory from database and refresh cache

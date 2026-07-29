@@ -112,7 +112,7 @@ export default function MultiLocationStock() {
       const productMap = new Map<string, number>();
       whInventory.forEach(item => {
         const code = item.productCode;
-        const qty = Number(item.availableQty) || 0;
+        const qty = Math.max(0, Number(item.availableQty) || 0);
         productMap.set(code, (productMap.get(code) || 0) + qty);
       });
 
@@ -121,9 +121,10 @@ export default function MultiLocationStock() {
       let lowStockProducts = 0;
       let outOfStockProducts = 0;
 
-      productMap.forEach((qty, productCode) => {
+      productMap.forEach((rawQty, productCode) => {
         const product = products.find(p => p.code === productCode);
         const reorderLevel = Number(product?.reorderLevel) || 0;
+        const qty = Math.max(0, rawQty);
 
         numProducts++;
         totalStock += qty;
@@ -262,11 +263,11 @@ export default function MultiLocationStock() {
     
     whInventory.forEach(item => {
       const code = item.productCode;
-      const qty = Number(item.availableQty) || 0;
+      const qty = Math.max(0, Number(item.availableQty) || 0);
       
       if (productMap.has(code)) {
         const existing = productMap.get(code)!;
-        existing.availableQty += qty;
+        existing.availableQty = Math.max(0, existing.availableQty + qty);
         
         const reorderLevel = existing.reorderLevel;
         if (existing.availableQty <= 0) existing.status = "Out Of Stock";
@@ -345,7 +346,7 @@ export default function MultiLocationStock() {
         id: item.id || `batch-${index}`,
         batchNo: item.batchNo,
         barcode: batchInfo?.barcode || '-',
-        availableQty: Number(item.availableQty) || 0,
+        availableQty: Math.max(0, Number(item.availableQty) || 0),
         mfgDate: batchInfo?.mfgDate || '-',
         expiryDate: batchInfo?.expDate || '-',
         status: batchInfo?.status || 'Active'
