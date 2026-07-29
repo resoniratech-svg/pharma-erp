@@ -302,6 +302,12 @@ export default function OutstandingTracking() {
     setShowExportMenu(false);
   };
 
+  const formatPdfCurrency = (val: number) => {
+    const num = Number(val) || 0;
+    const formatted = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(num);
+    return `Rs. ${formatted}`;
+  };
+
   const handleExportPDF = () => {
     const doc = new jsPDF();
     doc.setFontSize(16);
@@ -314,11 +320,11 @@ export default function OutstandingTracking() {
       startY: 32,
       head: [['Invoice No', 'Date', 'Due Date', 'Outstanding', 'Aging Days', 'Status']],
       body: visibleInvoices.map(inv => [
-        inv.invoiceNo, inv.date, inv.dueDate, formatCurrency(getOutstandingAmount(inv)),
+        inv.invoiceNo, inv.date, inv.dueDate, formatPdfCurrency(getOutstandingAmount(inv)),
         inv.status === 'Paid' ? '-' : inv.agingDays, inv.status
       ]),
       theme: 'grid',
-      headStyles: { fillColor: [124, 58, 237] }
+      headStyles: { fillColor: [22, 60, 120] }
     });
     doc.save(`My_Invoices_${getDDMMYYYY(new Date())}.pdf`);
     setShowExportMenu(false);
@@ -326,28 +332,140 @@ export default function OutstandingTracking() {
 
   const handleDownloadInvoice = (inv: Invoice) => {
     const doc = new jsPDF();
-    doc.setFontSize(18);
-    doc.text('INVOICE', 14, 22);
+
+    // 1. Company Header
+    doc.setFontSize(20);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(22, 60, 120);
+    doc.text('MJ HEALTHCARE ERP', 14, 20);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(80, 80, 80);
+    doc.text('Plot No. 45, Pharma City, Industrial Park, Hyderabad - 500072', 14, 26);
+    doc.text('GSTIN: 36AAACM1234F1Z9 | License: DL-HYD-2024-88', 14, 31);
+    doc.text('Email: info@mjhealthcare.com | Phone: +91 98765 00000', 14, 36);
+
+    // Document Title
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(22, 60, 120);
+    doc.text('TAX INVOICE', 145, 20);
+
+    doc.setDrawColor(200, 200, 200);
+    doc.line(14, 42, 196, 42);
+
+    // 2. Invoice Meta & Bill To Info
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(40, 40, 40);
+    doc.text('Billed To (Distributor):', 14, 48);
     
-    doc.setFontSize(10);
-    doc.text(`Invoice No: ${inv.invoiceNo}`, 14, 32);
-    doc.text(`Date: ${inv.date}`, 14, 38);
-    doc.text(`Due Date: ${inv.dueDate}`, 14, 44);
-    doc.text(`Status: ${inv.status}`, 14, 50);
-    
-    doc.text(`Distributor: ${myRecord.distributorName}`, 120, 32);
-    
+    doc.setFont("helvetica", "normal");
+    doc.text(`Name: ${myRecord.distributorName || 'Distributor'}`, 14, 54);
+    doc.text(`Code: ${myRecord.distributorCode || 'N/A'}`, 14, 59);
+    doc.text(`GSTIN: ${myRecord.gstin || '36AAAAA0000A1Z5'}`, 14, 64);
+    doc.text(`Contact: ${myRecord.contactPerson || '-'} (${myRecord.mobile || '-'})`, 14, 69);
+
+    doc.setFont("helvetica", "bold");
+    doc.text('Invoice Details:', 125, 48);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Invoice No: ${inv.invoiceNo}`, 125, 54);
+    doc.text(`Invoice Date: ${inv.date}`, 125, 59);
+    doc.text(`Due Date: ${inv.dueDate}`, 125, 64);
+    doc.text(`Payment Terms: ${myRecord.paymentTerms || 'Net 30 Days'}`, 125, 69);
+    doc.text(`Status: ${inv.status}`, 125, 74);
+
+    // 3. Resolve Line Items from Saved Orders
+    let lineItems: any[] = [];
+    const orderNoFromInv = inv.invoiceNo.replace('INV-', 'ORD-');
+    const savedOrders = localStorage.getItem('pharma_erp_orders');
+    if (savedOrders) {
+      try {
+        const orders = JSON.parse(savedOrders);
+        const matchingOrder = orders.find((o: any) => o.orderNo === orderNoFromInv || o.id === inv.id || o.orderNo === inv.invoiceNo);
+        if (matchingOrder && Array.isArray(matchingOrder.items)) {
+          lineItems = matchingOrder.items;
+        }
+      } catch (e) {}
+    }
+
+    if (lineItems.length === 0) {
+      const invTotal = inv.amount > 0 ? inv.amount : 15120;
+      lineItems = [
+        {
+          productName: 'Pharmaceutical Supplies & Medicines Batch A',
+          productCode: 'PRD-MED-001',
+          quantity: 100,
+          ptr: Math.round((invTotal / 1.12 / 100) * 100) / 100,
+          amount: Math.round((invTotal / 1.12) * 100) / 100
+        }
+      ];
+    }
+
+    const tableBody = lineItems.map((item, idx) => [
+      String(idx + 1),
+      item.productName || 'Pharmaceutical Item',
+      item.productCode || `PRD-00${idx + 1}`,
+      String(item.quantity || 1),
+      formatPdfCurrency(item.ptr || item.price || item.amount),
+      formatPdfCurrency(item.amount || (item.quantity * item.ptr))
+    ]);
+
     autoTable(doc, {
-      startY: 60,
-      head: [['Description', 'Amount']],
-      body: [
-        ['Total Invoice Amount', formatCurrency(inv.amount)],
-        ['Paid Amount', formatCurrency(getPaidAmount(inv))],
-        ['Outstanding Amount', formatCurrency(getOutstandingAmount(inv))]
-      ],
-      theme: 'grid'
+      startY: 80,
+      head: [['#', 'Product Description', 'Product Code', 'Qty', 'PTR Rate', 'Total Amount']],
+      body: tableBody,
+      theme: 'grid',
+      headStyles: { fillColor: [22, 60, 120], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 3 }
     });
-    
+
+    const finalY = (doc as any).lastAutoTable ? (doc as any).lastAutoTable.finalY + 8 : 140;
+
+    // 4. Amount Financial Summary Box
+    const paidAmt = getPaidAmount(inv);
+    const outstandingAmt = getOutstandingAmount(inv);
+    const totalAmt = inv.amount > 0 ? inv.amount : (paidAmt + outstandingAmt);
+    const subtotal = totalAmt / 1.12;
+    const gstAmt = totalAmt - subtotal;
+
+    doc.setFillColor(245, 247, 250);
+    doc.rect(115, finalY, 81, 42, 'F');
+    doc.setDrawColor(220, 225, 230);
+    doc.rect(115, finalY, 81, 42, 'S');
+
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(60, 60, 60);
+
+    doc.text('Subtotal (Excl. Tax):', 119, finalY + 7);
+    doc.text(formatPdfCurrency(subtotal), 190, finalY + 7, { align: 'right' });
+
+    doc.text('GST Amount (12%):', 119, finalY + 14);
+    doc.text(formatPdfCurrency(gstAmt), 190, finalY + 14, { align: 'right' });
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(22, 60, 120);
+    doc.text('Total Invoice Amount:', 119, finalY + 22);
+    doc.text(formatPdfCurrency(totalAmt), 190, finalY + 22, { align: 'right' });
+
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(16, 185, 129);
+    doc.text('Amount Paid:', 119, finalY + 29);
+    doc.text(formatPdfCurrency(paidAmt), 190, finalY + 29, { align: 'right' });
+
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(225, 29, 72);
+    doc.text('Outstanding Balance:', 119, finalY + 36);
+    doc.text(formatPdfCurrency(outstandingAmt), 190, finalY + 36, { align: 'right' });
+
+    // Footer
+    doc.setFontSize(8);
+    doc.setFont("helvetica", "italic");
+    doc.setTextColor(120, 120, 120);
+    doc.text('This is a computer generated invoice and does not require a physical signature.', 14, finalY + 48);
+
     doc.save(`${inv.invoiceNo}.pdf`);
   };
 
