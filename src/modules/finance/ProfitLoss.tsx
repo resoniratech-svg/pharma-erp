@@ -1,8 +1,7 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, ChevronDown, Printer, FileText, TrendingUp, DollarSign, Percent, BarChart3, Info } from 'lucide-react';
+import { Download, ChevronDown, FileText, TrendingUp, DollarSign, Percent, BarChart3, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generateProfitLossPdf } from '../../documents/generators/pdfGenerator';
-import { generateProfitLossPrint } from '../../documents/generators/printGenerator';
 
 import {
   PageHeader,
@@ -192,11 +191,6 @@ export default function ProfitLoss() {
     setShowExportMenu(false);
   };
 
-  const handlePrintStatement = () => {
-    generateProfitLossPrint({ fy, periodType, fromDate, toDate, branch, division, drItems, crItems });
-    setShowExportMenu(false);
-  };
-
   // Drilldown Table Columns
   const drilldownColumns: Column<DrillDownTxn>[] = [
     { key: 'date', label: 'Date' },
@@ -236,13 +230,6 @@ export default function ProfitLoss() {
                     className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-700 flex items-center gap-2"
                   >
                     <FileText className="w-4 h-4" /> Export PDF
-                  </button>
-                  <div className="h-px bg-slate-100 my-1"></div>
-                  <button 
-                    onClick={handlePrintStatement}
-                    className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-700 flex items-center gap-2"
-                  >
-                    <Printer className="w-4 h-4" /> Print Statement
                   </button>
                 </div>
               )}
