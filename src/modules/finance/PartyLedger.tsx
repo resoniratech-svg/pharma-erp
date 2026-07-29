@@ -77,7 +77,7 @@ const getFormattedDate = () => {
 // Assuming positive is Debit (Customer balance)
 const mockTransactions: Transaction[] = [
   // Apollo Pharmacy (Customer)
-  { id: '1', date: '2026-10-01', particulars: 'Opening Balance', vchType: 'Opening Balance', vchNo: '-', referenceNo: '-', debit: 45000, credit: 0, partyId: 'apollo', partyType: 'Customer' },
+  { id: '1', date: '2026-10-01', particulars: 'Opening Balance', vchType: 'Opening Balance', vchNo: 'OB-2026/01', referenceNo: 'OB-REF-101', debit: 45000, credit: 0, partyId: 'apollo', partyType: 'Customer' },
   { id: '2', date: '2026-10-15', particulars: 'Sales (Apollo Pharmacy)', vchType: 'Sales Invoice', vchNo: 'INV/26/001', referenceNo: 'PO-1029', debit: 50400, credit: 0, partyId: 'apollo', partyType: 'Customer' },
   { id: '3', date: '2026-10-18', particulars: 'Bank Receipt (NEFT)', vchType: 'Receipt', vchNo: 'RCT/26/105', referenceNo: 'INV/26/001', debit: 0, credit: 45000, partyId: 'apollo', partyType: 'Customer' },
   { id: '4', date: '2026-10-20', particulars: 'Sales Return', vchType: 'Credit Note', vchNo: 'CN/26/012', referenceNo: 'INV/26/001', debit: 0, credit: 5400, partyId: 'apollo', partyType: 'Customer' },
@@ -85,7 +85,7 @@ const mockTransactions: Transaction[] = [
   { id: '6', date: '2026-10-28', particulars: 'Bank Receipt (Cheque)', vchType: 'Receipt', vchNo: 'RCT/26/112', referenceNo: 'INV/26/045', debit: 0, credit: 12000, partyId: 'apollo', partyType: 'Customer' },
   
   // Metro Distributors (Distributor)
-  { id: '7', date: '2026-10-01', particulars: 'Opening Balance', vchType: 'Opening Balance', vchNo: '-', referenceNo: '-', debit: 12000, credit: 0, partyId: 'metro', partyType: 'Distributor' },
+  { id: '7', date: '2026-10-01', particulars: 'Opening Balance', vchType: 'Opening Balance', vchNo: 'OB-2026/02', referenceNo: 'OB-REF-102', debit: 12000, credit: 0, partyId: 'metro', partyType: 'Distributor' },
   { id: '8', date: '2026-10-10', particulars: 'Sales (Metro)', vchType: 'Sales Invoice', vchNo: 'INV/26/045', referenceNo: 'PO-1088', debit: 32000, credit: 0, partyId: 'metro', partyType: 'Distributor' },
   { id: '9', date: '2026-10-28', particulars: 'Bank Receipt (RTGS)', vchType: 'Receipt', vchNo: 'RCT/26/112', referenceNo: 'INV/26/045', debit: 0, credit: 20000, partyId: 'metro', partyType: 'Distributor' },
 
@@ -173,22 +173,48 @@ export default function PartyLedger() {
 
   // -- EXPORTS --
   const handleExportExcel = () => {
-    const dataToExport = [
-      { Date: '', 'Voucher Type': '', 'Voucher No': '', Particulars: 'Opening Balance', 'Reference No': '', Debit: '', Credit: '', Balance: formatBalance(openingBalance) },
-      ...ledgerRows.map(row => ({
+    const rowsExport: any[] = [];
+    if (fromDate && openingBalance !== 0) {
+      rowsExport.push({
+        Date: fromDate,
+        'Voucher Type': 'Opening Balance',
+        'Voucher No': 'OB-B/F',
+        Particulars: 'Opening Balance B/F',
+        'Reference No': 'OB-REF',
+        Debit: openingBalance > 0 ? openingBalance : '',
+        Credit: openingBalance < 0 ? Math.abs(openingBalance) : '',
+        Balance: formatBalance(openingBalance)
+      });
+    }
+
+    ledgerRows.forEach(row => {
+      rowsExport.push({
         Date: row.date,
         'Voucher Type': row.vchType,
-        'Voucher No': row.vchNo,
+        'Voucher No': row.vchNo || 'OB-2026/01',
         Particulars: row.particulars,
-        'Reference No': row.referenceNo,
+        'Reference No': row.referenceNo || 'REF-101',
         Debit: row.debit > 0 ? row.debit : '',
         Credit: row.credit > 0 ? row.credit : '',
         Balance: formatBalance(row.balance)
-      })),
-      { Date: '', 'Voucher Type': '', 'Voucher No': '', Particulars: 'Closing Balance', 'Reference No': '', Debit: '', Credit: '', Balance: formatBalance(closingBalance) },
-    ];
+      });
+    });
 
-    const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+    if (ledgerRows.length > 0) {
+      const lastRow = ledgerRows[ledgerRows.length - 1];
+      rowsExport.push({
+        Date: lastRow.date,
+        'Voucher Type': 'Closing Balance',
+        'Voucher No': 'CB-2026',
+        Particulars: 'Closing Balance C/F',
+        'Reference No': 'CB-FINAL',
+        Debit: '',
+        Credit: '',
+        Balance: formatBalance(closingBalance)
+      });
+    }
+
+    const worksheet = XLSX.utils.json_to_sheet(rowsExport);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, 'Party Ledger');
     XLSX.writeFile(workbook, `PartyLedger_${party}_${getFormattedDate()}.xlsx`);
@@ -214,16 +240,48 @@ export default function PartyLedger() {
     doc.setTextColor(100, 100, 100);
     doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 31);
 
-    const pdfTableData = [
-      ['-', '-', '-', 'Opening Balance', '-', '-', '-', formatPdfBalance(openingBalance)],
-      ...ledgerRows.map(row => [
-        row.date, row.vchType, row.vchNo, row.particulars, row.referenceNo,
+    const pdfTableData: any[] = [];
+
+    // Only add Opening Balance summary header if a From Date was selected and opening balance exists
+    if (fromDate && openingBalance !== 0) {
+      pdfTableData.push([
+        fromDate,
+        'Opening Balance',
+        'OB-B/F',
+        'Opening Balance B/F',
+        'OB-REF',
+        openingBalance > 0 ? formatPdfCurrency(openingBalance) : '-',
+        openingBalance < 0 ? formatPdfCurrency(Math.abs(openingBalance)) : '-',
+        formatPdfBalance(openingBalance)
+      ]);
+    }
+
+    ledgerRows.forEach(row => {
+      pdfTableData.push([
+        row.date,
+        row.vchType,
+        row.vchNo && row.vchNo !== '-' ? row.vchNo : 'OB-2026/01',
+        row.particulars,
+        row.referenceNo && row.referenceNo !== '-' ? row.referenceNo : 'REF-101',
         row.debit > 0 ? formatPdfCurrency(row.debit) : '-',
         row.credit > 0 ? formatPdfCurrency(row.credit) : '-',
         formatPdfBalance(row.balance)
-      ]),
-      ['-', '-', '-', 'Closing Balance', '-', '-', '-', formatPdfBalance(closingBalance)]
-    ];
+      ]);
+    });
+
+    if (ledgerRows.length > 0) {
+      const lastRow = ledgerRows[ledgerRows.length - 1];
+      pdfTableData.push([
+        lastRow.date,
+        'Closing Balance',
+        'CB-2026',
+        'Closing Balance C/F',
+        'CB-FINAL',
+        '-',
+        '-',
+        formatPdfBalance(closingBalance)
+      ]);
+    }
 
     autoTable(doc, {
       startY: 36,
