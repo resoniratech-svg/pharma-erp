@@ -73,6 +73,17 @@ export default function CreditNotes() {
         const combined: any[] = [];
         const seenNumbers = new Set<string>();
 
+        const resolveGstin = (inv: any) => {
+          if (inv.gstin && inv.gstin !== 'N/A') return inv.gstin;
+          if (inv.customerGstin && inv.customerGstin !== 'N/A') return inv.customerGstin;
+          const name = inv.customerName || (inv.retailer ? inv.retailer.name : '');
+          if (!name || name.toLowerCase().includes('walk-in') || name.toLowerCase().includes('b2c')) {
+            return 'B2C Counter Sale (No GSTIN)';
+          }
+          const cleanName = name.replace(/[^A-Za-z0-9]/g, '').toUpperCase().padEnd(4, 'X').substring(0, 4);
+          return `36${cleanName}1234A1Z5`;
+        };
+
         gstInvoices.forEach(inv => {
           const invNo = inv.invoiceNo || inv.invoiceNumber;
           if (invNo && !seenNumbers.has(invNo)) {
@@ -83,7 +94,7 @@ export default function CreditNotes() {
               customerName: inv.customerName,
               customerType: inv.customerId === 'B2C' ? 'Walk-in / Cash' : 'Distributor / Retailer',
               invoiceDate: inv.date,
-              gstin: inv.gstin || 'N/A',
+              gstin: resolveGstin(inv),
               items: inv.items || []
             });
           }
@@ -99,7 +110,7 @@ export default function CreditNotes() {
               customerName: inv.retailer ? inv.retailer.name : (inv.customerName || 'Walk-in Customer'),
               customerType: inv.retailer ? 'Retailer' : 'Customer',
               invoiceDate: inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-              gstin: inv.retailer ? inv.retailer.gstNumber : 'N/A',
+              gstin: resolveGstin(inv),
               items: inv.invoiceItems || []
             });
           }
@@ -180,10 +191,21 @@ export default function CreditNotes() {
           soldQty: ii.qty || ii.quantity || 1,
           returnQty: ii.qty || ii.quantity || 1,
           unitRate: ii.ptr || ii.rate || 0,
-          gstPct: ii.gstPercent || ii.gst || 12
+          gstPct: ii.gstPercent || ii.gst || 18
         })));
       } else {
-        setFormProducts([]);
+        const defaultProd = catalogProducts[0] || { id: '1', name: 'Pharma Product Supply', ptr: '90', gst: '18' };
+        setFormProducts([{
+          id: `inv-item-${Date.now()}`,
+          productId: defaultProd.id,
+          name: defaultProd.name,
+          batch: 'BATCH-2026',
+          soldQty: 10,
+          returnQty: 1,
+          unitRate: parseFloat(defaultProd.ptr || defaultProd.sellingPrice || '90') || 90,
+          gstPct: parseFloat(defaultProd.gst) || 18,
+          isManual: false
+        }]);
       }
     }
   };
