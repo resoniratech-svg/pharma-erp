@@ -10,6 +10,7 @@ import { applyCreditNoteTemplate } from '../../documents/templates/CreditNoteTem
 import { creditNoteService, type CreditNoteData, type CNStatus } from '../../services/creditNoteService';
 
 import { billingService } from '../../services/billingService';
+import { productService } from '../../services/productService';
 
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -20,8 +21,9 @@ export default function CreditNotes() {
   const [sectionFilter, setSectionFilter] = useState('');
   const [loading, setLoading] = useState(false);
 
-  // Invoices list for form dropdown
+  // Invoices & Products list for form dropdown
   const [invoices, setInvoices] = useState<any[]>([]);
+  const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
 
   // Drawer States
   const [viewRecord, setViewRecord] = useState<CreditNoteData | null>(null);
@@ -104,8 +106,20 @@ export default function CreditNotes() {
         });
 
         setInvoices(combined);
+
+        // Load Products Master Catalog
+        const loadedProds = await productService.loadProducts();
+        const fallbackProds = [
+          { id: '1', name: 'Paracetamol 500mg Tablets', code: 'PCM-500', ptr: 12.50, gst: 12 },
+          { id: '2', name: 'Amoxicillin 250mg Capsules', code: 'AMX-250', ptr: 45.00, gst: 12 },
+          { id: '3', name: 'Azithromycin 500mg Tablets', code: 'AZI-500', ptr: 85.00, gst: 12 },
+          { id: '4', name: 'Pantoprazole 40mg Tablets', code: 'PAN-40', ptr: 28.00, gst: 12 },
+          { id: '5', name: 'Cefixime 200mg Tablets', code: 'CFX-200', ptr: 65.00, gst: 12 },
+          { id: '6', name: 'Dolo 650mg Tablets', code: 'DOLO-650', ptr: 15.00, gst: 12 },
+        ];
+        setCatalogProducts(loadedProds && loadedProds.length > 0 ? loadedProds : fallbackProds);
       } catch (err) {
-        console.error("Failed to fetch invoices:", err);
+        console.error("Failed to fetch invoices or products:", err);
       }
     };
     loadFormOptions();
@@ -283,17 +297,37 @@ export default function CreditNotes() {
   }, [formProducts, manualTaxable, manualGstPct]);
 
   const handleAddCustomProduct = () => {
+    const firstProd = catalogProducts[0] || { id: '1', name: 'Paracetamol 500mg Tablets', ptr: '12.5', gst: '12' };
     const newItem = {
       id: `custom-${Date.now()}`,
-      productId: Date.now(),
-      name: 'Returned Item',
+      productId: firstProd.id,
+      name: firstProd.name,
       batch: 'BATCH-001',
       soldQty: 10,
       returnQty: 1,
-      unitRate: 100,
-      gstPct: 12
+      unitRate: parseFloat(firstProd.ptr || firstProd.sellingPrice || '10') || 10,
+      gstPct: parseFloat(firstProd.gst) || 12,
+      isManual: true
     };
     setFormProducts(prev => [...prev, newItem]);
+  };
+
+  const handleProductDropdownChange = (itemId: string, selectedProdId: string) => {
+    const prod = catalogProducts.find(p => String(p.id) === String(selectedProdId));
+    if (!prod) return;
+
+    setFormProducts(prev => prev.map(p => {
+      if (p.id === itemId) {
+        return {
+          ...p,
+          productId: prod.id,
+          name: prod.name,
+          unitRate: parseFloat(prod.ptr || prod.sellingPrice || '0') || p.unitRate,
+          gstPct: parseFloat(prod.gst) || p.gstPct
+        };
+      }
+      return p;
+    }));
   };
 
   const handleRemoveProduct = (id: string) => {
@@ -534,13 +568,27 @@ export default function CreditNotes() {
                     <tbody className="divide-y divide-slate-100 text-sm">
                       {formProducts.map(p => (
                         <tr key={p.id} className={p.returnQty > 0 ? "bg-emerald-50/40" : ""}>
-                          <td className="px-3 py-2">
-                            <input
-                              type="text"
-                              className="w-full border border-slate-200 rounded px-2 py-1 text-sm bg-white"
-                              value={p.name}
-                              onChange={e => updateProductField(p.id, 'name', e.target.value)}
-                            />
+                          <td className="px-3 py-2 min-w-[200px]">
+                            {p.isManual ? (
+                              <select
+                                className="w-full border border-slate-200 rounded px-2 py-1 text-sm bg-white font-medium text-slate-800 outline-none focus:border-violet-500"
+                                value={p.productId}
+                                onChange={e => handleProductDropdownChange(p.id, e.target.value)}
+                              >
+                                {catalogProducts.map(cp => (
+                                  <option key={cp.id} value={cp.id}>
+                                    {cp.name} {cp.code ? `(${cp.code})` : ''} - ₹{cp.ptr || cp.mrp || '0'}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input
+                                type="text"
+                                className="w-full border border-slate-200 rounded px-2 py-1 text-sm bg-white font-medium text-slate-800"
+                                value={p.name}
+                                onChange={e => updateProductField(p.id, 'name', e.target.value)}
+                              />
+                            )}
                           </td>
                           <td className="px-3 py-2">
                             <input
