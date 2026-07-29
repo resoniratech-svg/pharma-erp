@@ -48,77 +48,97 @@ export default function CurrentStock() {
 
   const [rawInventory, setRawInventory] = useState<InventoryRecord[]>([]);
 
-  const loggedInDistributorCode = useMemo(() => {
+  const loggedInDistributorInfo = useMemo(() => {
     const user = authService.getCurrentUser();
     const role = localStorage.getItem('activeRole') || (user as any)?.role || '';
-    if (role === 'SUPER_ADMIN') {
-      return '';
-    }
-    let code = (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || '';
-    if (!code && user?.email === 'distributor@pharmaerp.com') {
-      return 'DIST-001';
-    }
-    return code;
+    const code = (user as any)?.linkedDistributorCode || (user as any)?.distributorCode || '';
+    const name = user?.fullName || user?.name || (user as any)?.distributorName || '';
+    const email = user?.email || '';
+    return { role, code, name, email };
   }, []);
 
   useEffect(() => {
-    if (loggedInDistributorCode) {
-      orderService.loadOrders().then(allOrders => {
-        const approvedOrders = allOrders.filter(
-          o => (o.distributorCode === loggedInDistributorCode || (o.distributorName && o.distributorName.includes(loggedInDistributorCode))) 
-            && ['Approved', 'Partially Paid', 'Processing', 'Partially Fulfilled', 'Fulfilled'].includes(o.status)
-        );
+    orderService.loadOrders().then(allOrders => {
+      const approvedStatuses = ['Approved', 'Partially Paid', 'Processing', 'Partially Fulfilled', 'Fulfilled'];
 
-        const stockMap = new Map<string, any>();
-        
-        approvedOrders.forEach(order => {
-          (order.items || []).forEach(item => {
-            const pCode = item.productCode || `PRD-${item.productId}`;
-            if (!stockMap.has(pCode)) {
-              stockMap.set(pCode, {
-                id: pCode,
-                productCode: pCode,
-                productName: item.productName || 'Unknown Product',
-                batchNo: 'N/A',
-                availableQty: 0,
-                warehouseId: loggedInDistributorCode,
-                warehouseCode: loggedInDistributorCode,
-                isAvailableForOrdering: true
-              });
-            }
-            const record = stockMap.get(pCode);
-            record.availableQty += (item.quantity || 0);
-          });
-        });
-        
-        setRawInventory(Array.from(stockMap.values()));
+      const approvedOrders = allOrders.filter(o => {
+        if (!approvedStatuses.includes(o.status)) return false;
+
+        // If Super Admin, show all approved orders
+        if (loggedInDistributorInfo.role === 'SUPER_ADMIN') return true;
+
+        // Match logged in distributor by code or name
+        if (loggedInDistributorInfo.code && o.distributorCode === loggedInDistributorInfo.code) return true;
+        if (loggedInDistributorInfo.name && o.distributorName && o.distributorName.toLowerCase().includes(loggedInDistributorInfo.name.toLowerCase())) return true;
+        if (o.distributorName && loggedInDistributorInfo.name && loggedInDistributorInfo.name.toLowerCase().includes(o.distributorName.toLowerCase())) return true;
+
+        // Fallback for default distributor accounts or generic distributor portal sessions
+        if (!loggedInDistributorInfo.code || o.distributorName === 'Distributor' || !o.distributorCode) return true;
+
+        return false;
       });
-    }
-  }, [loggedInDistributorCode]);
+
+      const products = productService.getProducts();
+      const stockMap = new Map<string, any>();
+      
+      approvedOrders.forEach(order => {
+        (order.items || []).forEach(item => {
+          const pCode = item.productCode || `PRD-${item.productId}`;
+          const product = products.find(p => p.code === pCode || p.id === item.productId);
+          const pName = item.productName || product?.name || 'Unknown Product';
+          
+          if (!stockMap.has(pCode)) {
+            stockMap.set(pCode, {
+              id: pCode,
+              productCode: pCode,
+              productName: pName,
+              batchNo: item.batchNo || 'N/A',
+              availableQty: 0,
+              mrp: item.mrp || product?.mrp || 0,
+              ptr: item.ptr || product?.ptr || 0,
+              warehouseId: loggedInDistributorInfo.code || 'DIST',
+              warehouseCode: loggedInDistributorInfo.code || 'DIST',
+              isAvailableForOrdering: true
+            });
+          }
+          const record = stockMap.get(pCode);
+          record.availableQty += (Number(item.quantity) || 0);
+        });
+      });
+
+      // Merge with default inventory records if present
+      const defaultInventory = inventoryService.getAll();
+      defaultInventory.forEach(inv => {
+        if (!stockMap.has(inv.productCode) && inv.availableQty > 0) {
+          stockMap.set(inv.productCode, {
+            id: inv.productCode,
+            productCode: inv.productCode,
+            productName: inv.productName,
+            batchNo: inv.batchNo || 'N/A',
+            availableQty: inv.availableQty,
+            mrp: inv.ptr || 0,
+            ptr: inv.ptr || 0,
+            warehouseId: inv.warehouseCode,
+            warehouseCode: inv.warehouseCode,
+            isAvailableForOrdering: true
+          });
+        }
+      });
+      
+      setRawInventory(Array.from(stockMap.values()));
+    });
+  }, [loggedInDistributorInfo]);
 
   const handleToggleRetailAvailability = (id: string) => {
-    const allInventory = inventoryService.getAll();
-    const updatedInventory = allInventory.map(record => {
-      if (record.id === id) {
-        const currentVal = (record as any).isAvailableForOrdering !== undefined 
-          ? (record as any).isAvailableForOrdering 
-          : true; // Default visibility is true
+    setRawInventory(prev => prev.map(record => {
+      if (record.id === id || record.productCode === id) {
         return {
           ...record,
-          isAvailableForOrdering: !currentVal
+          isAvailableForOrdering: !(record as any).isAvailableForOrdering
         };
       }
       return record;
-    });
-    inventoryService.saveAll(updatedInventory);
-
-    // Update local React state with the filtered list for this warehouse
-    if (loggedInDistributorCode) {
-      const myInventory = updatedInventory.filter(
-        record => record.warehouseId === loggedInDistributorCode || record.warehouseCode === loggedInDistributorCode
-      );
-      setRawInventory([...myInventory].sort((a, b) => Number(b.id) - Number(a.id)));
-    }
+    }));
   };
 
   const stockData = useMemo<StockRow[]>(() => {
