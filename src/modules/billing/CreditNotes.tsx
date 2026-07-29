@@ -64,77 +64,95 @@ export default function CreditNotes() {
     loadCreditNotes();
   }, [statusFilter, sectionFilter]);
 
-  useEffect(() => {
-    const loadFormOptions = async () => {
+  const loadFormOptions = async () => {
+    try {
+      const gstInvoices = billingService.getInvoices();
+      let backendInvoices: any[] = [];
       try {
-        const backendInvoices = await creditNoteService.getInvoices();
-        const gstInvoices = billingService.getInvoices();
-
-        const combined: any[] = [];
-        const seenNumbers = new Set<string>();
-
-        const resolveGstin = (inv: any) => {
-          if (inv.gstin && inv.gstin !== 'N/A') return inv.gstin;
-          if (inv.customerGstin && inv.customerGstin !== 'N/A') return inv.customerGstin;
-          const name = inv.customerName || (inv.retailer ? inv.retailer.name : '');
-          if (!name || name.toLowerCase().includes('walk-in') || name.toLowerCase().includes('b2c')) {
-            return 'B2C Counter Sale (No GSTIN)';
-          }
-          const cleanName = name.replace(/[^A-Za-z0-9]/g, '').toUpperCase().padEnd(4, 'X').substring(0, 4);
-          return `36${cleanName}1234A1Z5`;
-        };
-
-        gstInvoices.forEach(inv => {
-          const invNo = inv.invoiceNo || inv.invoiceNumber;
-          if (invNo && !seenNumbers.has(invNo)) {
-            seenNumbers.add(invNo);
-            combined.push({
-              id: inv.id || invNo,
-              invoiceNumber: invNo,
-              customerName: inv.customerName,
-              customerType: inv.customerId === 'B2C' ? 'Walk-in / Cash' : 'Distributor / Retailer',
-              invoiceDate: inv.date,
-              gstin: resolveGstin(inv),
-              items: inv.items || []
-            });
-          }
-        });
-
-        backendInvoices.forEach(inv => {
-          const invNo = inv.invoiceNumber || inv.invoiceNo;
-          if (invNo && !seenNumbers.has(invNo)) {
-            seenNumbers.add(invNo);
-            combined.push({
-              id: String(inv.id),
-              invoiceNumber: invNo,
-              customerName: inv.retailer ? inv.retailer.name : (inv.customerName || 'Walk-in Customer'),
-              customerType: inv.retailer ? 'Retailer' : 'Customer',
-              invoiceDate: inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-              gstin: resolveGstin(inv),
-              items: inv.invoiceItems || []
-            });
-          }
-        });
-
-        setInvoices(combined);
-
-        // Load Products Master Catalog
-        const loadedProds = await productService.loadProducts();
-        const fallbackProds = [
-          { id: '1', name: 'Paracetamol 500mg Tablets', code: 'PCM-500', ptr: 12.50, gst: 12 },
-          { id: '2', name: 'Amoxicillin 250mg Capsules', code: 'AMX-250', ptr: 45.00, gst: 12 },
-          { id: '3', name: 'Azithromycin 500mg Tablets', code: 'AZI-500', ptr: 85.00, gst: 12 },
-          { id: '4', name: 'Pantoprazole 40mg Tablets', code: 'PAN-40', ptr: 28.00, gst: 12 },
-          { id: '5', name: 'Cefixime 200mg Tablets', code: 'CFX-200', ptr: 65.00, gst: 12 },
-          { id: '6', name: 'Dolo 650mg Tablets', code: 'DOLO-650', ptr: 15.00, gst: 12 },
-        ];
-        setCatalogProducts(loadedProds && loadedProds.length > 0 ? loadedProds : fallbackProds);
-      } catch (err) {
-        console.error("Failed to fetch invoices or products:", err);
+        backendInvoices = await creditNoteService.getInvoices();
+      } catch (e) {
+        console.warn("Backend invoice fetch warning:", e);
       }
-    };
+
+      const combined: any[] = [];
+      const seenKeys = new Set<string>();
+
+      const resolveGstin = (inv: any) => {
+        if (inv.gstin && inv.gstin !== 'N/A') return inv.gstin;
+        if (inv.customerGstin && inv.customerGstin !== 'N/A') return inv.customerGstin;
+        const name = inv.customerName || (inv.retailer ? inv.retailer.name : '');
+        if (!name || name.toLowerCase().includes('walk-in') || name.toLowerCase().includes('b2c')) {
+          return 'B2C Counter Sale (No GSTIN)';
+        }
+        const cleanName = name.replace(/[^A-Za-z0-9]/g, '').toUpperCase().padEnd(4, 'X').substring(0, 4);
+        return `36${cleanName}1234A1Z5`;
+      };
+
+      gstInvoices.forEach(inv => {
+        const invNo = inv.invoiceNo || inv.invoiceNumber;
+        const uniqueKey = `${inv.id || invNo}-${inv.customerName || ''}`;
+        if (invNo && !seenKeys.has(uniqueKey)) {
+          seenKeys.add(uniqueKey);
+          combined.push({
+            id: inv.id || invNo,
+            uniqueKey: uniqueKey,
+            invoiceNumber: invNo,
+            customerName: inv.customerName || 'Walk-in Customer',
+            customerType: inv.customerId === 'B2C' ? 'Walk-in / Cash' : 'Distributor / Retailer',
+            invoiceDate: inv.date,
+            gstin: resolveGstin(inv),
+            totalAmount: inv.grandTotal || inv.subTotal || 0,
+            items: inv.items || []
+          });
+        }
+      });
+
+      backendInvoices.forEach(inv => {
+        const invNo = inv.invoiceNumber || inv.invoiceNo;
+        const uniqueKey = `${inv.id || invNo}-${inv.customerName || (inv.retailer ? inv.retailer.name : '')}`;
+        if (invNo && !seenKeys.has(uniqueKey)) {
+          seenKeys.add(uniqueKey);
+          combined.push({
+            id: String(inv.id),
+            uniqueKey: uniqueKey,
+            invoiceNumber: invNo,
+            customerName: inv.retailer ? inv.retailer.name : (inv.customerName || 'Walk-in Customer'),
+            customerType: inv.retailer ? 'Retailer' : 'Customer',
+            invoiceDate: inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            gstin: resolveGstin(inv),
+            totalAmount: inv.totalAmount || 0,
+            items: inv.invoiceItems || []
+          });
+        }
+      });
+
+      setInvoices(combined);
+
+      // Load Products Master Catalog
+      const loadedProds = await productService.loadProducts();
+      const fallbackProds = [
+        { id: '1', name: 'Paracetamol 500mg Tablets', code: 'PCM-500', ptr: 12.50, gst: 12 },
+        { id: '2', name: 'Amoxicillin 250mg Capsules', code: 'AMX-250', ptr: 45.00, gst: 12 },
+        { id: '3', name: 'Azithromycin 500mg Tablets', code: 'AZI-500', ptr: 85.00, gst: 12 },
+        { id: '4', name: 'Pantoprazole 40mg Tablets', code: 'PAN-40', ptr: 28.00, gst: 12 },
+        { id: '5', name: 'Cefixime 200mg Tablets', code: 'CFX-200', ptr: 65.00, gst: 12 },
+        { id: '6', name: 'Dolo 650mg Tablets', code: 'DOLO-650', ptr: 15.00, gst: 12 },
+      ];
+      setCatalogProducts(loadedProds && loadedProds.length > 0 ? loadedProds : fallbackProds);
+    } catch (err) {
+      console.error("Failed to fetch invoices or products:", err);
+    }
+  };
+
+  useEffect(() => {
     loadFormOptions();
   }, []);
+
+  useEffect(() => {
+    if (showCreateForm) {
+      loadFormOptions();
+    }
+  }, [showCreateForm]);
 
   const resetForm = () => {
     setFormCnType('Sales Return');
@@ -516,7 +534,9 @@ export default function CreditNotes() {
                 <select className="w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 bg-white" value={formInvoiceNo} onChange={e => handleInvoiceChange(e.target.value)}>
                   <option value="">-- Select Invoice --</option>
                   {invoices.map(inv => (
-                    <option key={inv.id} value={inv.id}>{inv.invoiceNumber}</option>
+                    <option key={inv.uniqueKey || inv.id} value={inv.id}>
+                      {inv.invoiceNumber} - {inv.customerName} ({formatCurrency(inv.totalAmount || 0)})
+                    </option>
                   ))}
                 </select>
               </div>
