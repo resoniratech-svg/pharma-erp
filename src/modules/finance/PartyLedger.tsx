@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Download, ChevronDown, Printer } from 'lucide-react';
+import { Download, ChevronDown } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { useLocation } from 'react-router';
 
@@ -51,6 +51,21 @@ const formatBalance = (amount: number) => {
   if (amount > 0) return `${formatted} Dr`;
   if (amount < 0) return `${formatted} Cr`;
   return `${formatted}`;
+};
+
+const formatPdfCurrency = (val: number) => {
+  if (!val || val === 0) return '-';
+  const num = Math.abs(val);
+  const formatted = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(num);
+  return `Rs. ${formatted}`;
+};
+
+const formatPdfBalance = (val: number) => {
+  const absVal = Math.abs(val);
+  const formatted = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(absVal);
+  if (val > 0) return `Rs. ${formatted} Dr`;
+  if (val < 0) return `Rs. ${formatted} Cr`;
+  return `Rs. ${formatted}`;
 };
 
 const getFormattedDate = () => {
@@ -181,40 +196,46 @@ export default function PartyLedger() {
   };
 
   const handleExportPDF = () => {
-    const doc = new jsPDF('landscape');
-    doc.setFontSize(16);
-    doc.text(`Party Ledger Statement - ${partyType}`, 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Generated On: ${new Date().toLocaleString()}`, 14, 22);
+    const doc = new jsPDF('p', 'mm', 'a4');
     
-    let filterText = `Filters Applied -> From: ${fromDate || 'Start'} To: ${toDate || 'End'} | Vch: ${vchTypeFilter || 'All'}`;
-    doc.text(filterText, 14, 28);
+    // Header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(22, 60, 120);
+    doc.text('MJ HEALTHCARE ERP', 14, 18);
+
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(40, 40, 40);
+    doc.text(`Party Ledger Statement - ${partyType}`, 14, 25);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 31);
 
     const pdfTableData = [
-      ['', '', '', 'Opening Balance', '', '', '', formatBalance(openingBalance)],
+      ['-', '-', '-', 'Opening Balance', '-', '-', '-', formatPdfBalance(openingBalance)],
       ...ledgerRows.map(row => [
         row.date, row.vchType, row.vchNo, row.particulars, row.referenceNo,
-        row.debit > 0 ? formatCurrency(row.debit) : '-',
-        row.credit > 0 ? formatCurrency(row.credit) : '-',
-        formatBalance(row.balance)
+        row.debit > 0 ? formatPdfCurrency(row.debit) : '-',
+        row.credit > 0 ? formatPdfCurrency(row.credit) : '-',
+        formatPdfBalance(row.balance)
       ]),
-      ['', '', '', 'Closing Balance', '', '', '', formatBalance(closingBalance)]
+      ['-', '-', '-', 'Closing Balance', '-', '-', '-', formatPdfBalance(closingBalance)]
     ];
 
-    (doc as any).autoTable({
-      head: [['Date', 'Voucher Type', 'Voucher No', 'Particulars', 'Ref No', 'Debit', 'Credit', 'Running Balance']],
+    autoTable(doc, {
+      startY: 36,
+      head: [['Date', 'Voucher Type', 'Voucher No', 'Particulars', 'Ref No', 'Debit', 'Credit', 'Balance']],
       body: pdfTableData,
-      startY: 35,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [80, 80, 80] } // Dark grey as requested for professional look
+      theme: 'grid',
+      headStyles: { fillColor: [22, 60, 120], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 3 },
+      margin: { left: 14, right: 14 }
     });
 
     doc.save(`PartyLedger_${party}_${getFormattedDate()}.pdf`);
-    setShowExportMenu(false);
-  };
-
-  const handlePrint = () => {
-    window.print();
     setShowExportMenu(false);
   };
 
@@ -249,7 +270,6 @@ export default function PartyLedger() {
                 <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 py-1">
                   <button onClick={handleExportExcel} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><Download className="w-4 h-4"/> Export Excel</button>
                   <button onClick={handleExportPDF} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><Download className="w-4 h-4"/> Export PDF</button>
-                  <button onClick={handlePrint} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><Printer className="w-4 h-4"/> Print Ledger</button>
                 </div>
               )}
             </div>

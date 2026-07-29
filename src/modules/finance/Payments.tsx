@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { Download, ChevronDown, Printer, Eye, FileText, Edit, Plus, Upload, } from 'lucide-react';
+import { Download, ChevronDown, Eye, FileText, Edit, Plus, Upload, } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { generateReceiptVoucherPdf } from '../../documents/generators/pdfGenerator';
 import { generateReceiptVoucherPrint } from '../../documents/generators/printGenerator';
@@ -275,118 +275,47 @@ export default function Payments() {
     setShowExportMenu(false);
   };
 
+  const formatPdfCurrency = (val: number) => {
+    const num = Number(val) || 0;
+    const formatted = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(num);
+    return `Rs. ${formatted}`;
+  };
+
   const handleExportPDF = () => {
-    const doc = new jsPDF('landscape');
-    doc.setFontSize(16);
-    doc.text(`Payment Tracking Report`, 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Generated On: ${new Date().toLocaleString()}`, 14, 22);
+    const doc = new jsPDF('p', 'mm', 'a4');
+    
+    // Header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(22, 60, 120);
+    doc.text('MJ HEALTHCARE ERP', 14, 18);
+
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(40, 40, 40);
+    doc.text('Payment Tracking Register', 14, 25);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 31);
 
     const pdfTableData = filteredData.map(row => [
-      row.receiptNo, row.date, row.type, row.partyName, row.invoiceRef, row.mode, formatCurrency(row.amount), row.status
+      row.receiptNo, row.date, row.type, row.partyName, row.invoiceRef || '-', row.mode, formatPdfCurrency(row.amount), row.status
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
+      startY: 36,
       head: [['Receipt No', 'Date', 'Type', 'Party Name', 'Invoice Ref', 'Mode', 'Amount', 'Status']],
       body: pdfTableData,
-      startY: 30,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [80, 80, 80] }
+      theme: 'grid',
+      headStyles: { fillColor: [22, 60, 120], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 3 },
+      margin: { left: 14, right: 14 }
     });
 
     doc.save(`Payment_Tracking_${getFormattedDate()}.pdf`);
     setShowExportMenu(false);
-  };
-
-  const handlePrintRegister = () => {
-    setShowExportMenu(false);
-    
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (doc) {
-      doc.open();
-      
-      const filtersText = [
-        search && `Search: ${search}`,
-        statusFilter && `Status: ${statusFilter}`,
-        typeFilter && `Type: ${typeFilter}`,
-        modeFilter && `Mode: ${modeFilter}`,
-        fromDate && `From: ${fromDate}`,
-        toDate && `To: ${toDate}`
-      ].filter(Boolean).join(', ');
-
-      const printRows = filteredData.map(row => `
-        <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${row.receiptNo}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${row.date}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${row.type}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; font-weight: bold; color: #000;">${row.partyName}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${row.invoiceRef}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${row.mode}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; font-weight: bold; color: #000;">${formatCurrency(row.amount)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${row.status}</td>
-        </tr>
-      `).join('');
-
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Payment Tracking Report</title>
-            <style>
-              @page { size: A4 portrait; margin: 15mm; }
-              body { font-family: Arial, sans-serif; margin: 0; padding: 0; color: #000; background: #fff; font-size: 10px; }
-              .header { margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-              .header h1 { font-size: 18px; margin: 0 0 5px 0; color: #000; }
-              .header p { margin: 0 0 3px 0; font-size: 11px; color: #000; }
-              table { width: 100%; border-collapse: collapse; page-break-inside: auto; }
-              tr { page-break-inside: avoid; page-break-after: auto; }
-              thead { display: table-header-group; }
-              th { padding: 8px; border-bottom: 2px solid #000; text-align: left; font-weight: bold; color: #000; }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>Payment Tracking Report</h1>
-              <p>Generated On: ${new Date().toLocaleString()}</p>
-              ${filtersText ? `<p>Filters Applied: ${filtersText}</p>` : ''}
-            </div>
-            <table>
-              <thead>
-                <tr>
-                  <th>Receipt No</th>
-                  <th>Date</th>
-                  <th>Type</th>
-                  <th>Party Name</th>
-                  <th>Invoice Ref</th>
-                  <th>Mode</th>
-                  <th>Amount</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${printRows}
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `);
-      doc.close();
-
-      iframe.onload = () => {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-        setTimeout(() => document.body.removeChild(iframe), 1000);
-      };
-    }
   };
 
   // --- Columns ---
@@ -443,7 +372,6 @@ export default function Payments() {
                   <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 py-1">
                     <button onClick={handleExportExcel} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><Download className="w-4 h-4"/> Export Excel</button>
                     <button onClick={handleExportPDF} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><Download className="w-4 h-4"/> Export PDF</button>
-                    <button onClick={handlePrintRegister} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><Printer className="w-4 h-4"/> Print Report</button>
                   </div>
                 )}
               </div>

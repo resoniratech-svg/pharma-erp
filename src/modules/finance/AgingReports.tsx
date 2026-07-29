@@ -1,8 +1,8 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Download, ChevronDown, Printer, Eye, BookOpen, IndianRupee } from 'lucide-react';
+import { Download, ChevronDown, Eye, BookOpen, IndianRupee } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 import {
@@ -244,158 +244,55 @@ export default function AgingReports() {
     setShowExportMenu(false);
   };
 
+  const formatPdfCurrency = (val: number) => {
+    const num = Number(val) || 0;
+    const formatted = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(num);
+    return `Rs. ${formatted}`;
+  };
+
   const handleExportPDF = () => {
-    const doc = new jsPDF('landscape');
-    doc.setFontSize(16);
-    doc.text(`Outstanding Aging Report`, 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Generated On: ${new Date().toLocaleString()}`, 14, 22);
+    const doc = new jsPDF('p', 'mm', 'a4');
+    
+    // Header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(22, 60, 120);
+    doc.text('MJ HEALTHCARE ERP', 14, 18);
+
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(40, 40, 40);
+    doc.text('Outstanding Aging Report', 14, 25);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 31);
 
     const pdfTableData = filteredData.map(row => [
       row.partyName,
       row.partyType,
-      formatCurrency(row.currentAmt),
-      formatCurrency(row.days31_60),
-      formatCurrency(row.days61_90),
-      formatCurrency(row.days91_120),
-      formatCurrency(row.above120),
-      formatCurrency(row.totalOutstanding),
+      formatPdfCurrency(row.currentAmt),
+      formatPdfCurrency(row.days31_60),
+      formatPdfCurrency(row.days61_90),
+      formatPdfCurrency(row.days91_120),
+      formatPdfCurrency(row.above120),
+      formatPdfCurrency(row.totalOutstanding),
       row.status
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
+      startY: 36,
       head: [['Party Name', 'Type', 'Current', '31-60', '61-90', '91-120', '>120', 'Total', 'Status']],
       body: pdfTableData,
-      startY: 30,
-      styles: { fontSize: 8 },
-      headStyles: { fillColor: [80, 80, 80] }
+      theme: 'grid',
+      headStyles: { fillColor: [22, 60, 120], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 3 },
+      margin: { left: 14, right: 14 }
     });
 
     doc.save(`Outstanding_Aging_${getFormattedDate()}.pdf`);
     setShowExportMenu(false);
-  };
-
-  const handlePrint = () => {
-    setShowExportMenu(false);
-    
-    const iframe = document.createElement('iframe');
-    iframe.style.position = 'fixed';
-    iframe.style.right = '0';
-    iframe.style.bottom = '0';
-    iframe.style.width = '0';
-    iframe.style.height = '0';
-    iframe.style.border = '0';
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (doc) {
-      doc.open();
-      
-      const filtersText = [
-        search && `Search: ${search}`,
-        partyTypeFilter && `Party Type: ${partyTypeFilter}`,
-        statusFilter && `Status: ${statusFilter}`,
-        fromDate && `From: ${fromDate}`,
-        toDate && `To: ${toDate}`
-      ].filter(Boolean).join(', ');
-
-      const printRows = filteredData.map(row => `
-        <tr>
-          <td style="padding: 8px; border-bottom: 1px solid #000; font-weight: bold; color: #000;">${row.partyName}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${row.partyType}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${row.creditDays}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${formatCurrency(row.currentAmt)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${formatCurrency(row.days31_60)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${formatCurrency(row.days61_90)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${formatCurrency(row.days91_120)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; font-weight: bold; color: #e11d48;">${formatCurrency(row.above120)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; font-weight: bold; color: #000;">${formatCurrency(row.totalOutstanding)}</td>
-          <td style="padding: 8px; border-bottom: 1px solid #000; color: #000;">${row.status}</td>
-        </tr>
-      `).join('');
-
-      doc.write(`
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <title>Outstanding Aging Report</title>
-            <style>
-              @page { size: A4 portrait; margin: 15mm; }
-              body { 
-                font-family: Arial, sans-serif; 
-                margin: 0; 
-                padding: 0;
-                color: #000; 
-                background: #fff;
-                font-size: 9px;
-              }
-              .header { margin-bottom: 20px; border-bottom: 2px solid #000; padding-bottom: 10px; }
-              .header h1 { font-size: 18px; margin: 0 0 5px 0; color: #000; }
-              .header p { margin: 0 0 3px 0; font-size: 11px; color: #000; }
-              .summary { display: flex; gap: 40px; margin-bottom: 20px; }
-              .summary div { border: 1px solid #000; padding: 10px; flex: 1; }
-              .summary p.label { font-size: 11px; margin: 0 0 5px 0; font-weight: bold; }
-              .summary p.val { font-size: 16px; margin: 0; font-weight: bold; }
-              table { width: 100%; border-collapse: collapse; page-break-inside: auto; table-layout: fixed; }
-              tr { page-break-inside: avoid; page-break-after: auto; }
-              thead { display: table-header-group; }
-              th { 
-                padding: 8px; 
-                border-bottom: 2px solid #000; 
-                text-align: left; 
-                font-weight: bold; 
-                color: #000;
-              }
-            </style>
-          </head>
-          <body>
-            <div class="header">
-              <h1>Outstanding Aging Report</h1>
-              <p>Generated On: ${new Date().toLocaleString()}</p>
-              ${filtersText ? `<p>Filters Applied: ${filtersText}</p>` : ''}
-            </div>
-            
-            <div class="summary">
-              <div>
-                <p class="label">Total Receivables</p>
-                <p class="val">${formatCurrency(totalReceivables)}</p>
-              </div>
-              <div>
-                <p class="label">Total Payables</p>
-                <p class="val">${formatCurrency(totalPayables)}</p>
-              </div>
-            </div>
-
-            <table>
-              <thead>
-                <tr>
-                  <th style="width: 14%;">Party Name</th>
-                  <th style="width: 8%;">Type</th>
-                  <th style="width: 6%;">Days</th>
-                  <th style="width: 9%;">Current</th>
-                  <th style="width: 9%;">31-60</th>
-                  <th style="width: 9%;">61-90</th>
-                  <th style="width: 9%;">91-120</th>
-                  <th style="width: 9%;">>120</th>
-                  <th style="width: 10%;">Total</th>
-                  <th style="width: 8%;">Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${printRows}
-              </tbody>
-            </table>
-          </body>
-        </html>
-      `);
-      doc.close();
-
-      iframe.onload = () => {
-        iframe.contentWindow?.focus();
-        iframe.contentWindow?.print();
-        setTimeout(() => document.body.removeChild(iframe), 1000);
-      };
-    }
   };
 
   const handleViewLedger = (party: ComputedAgingRow) => {
@@ -462,7 +359,6 @@ export default function AgingReports() {
                 <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50 py-1">
                   <button onClick={handleExportExcel} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><Download className="w-4 h-4"/> Export Excel</button>
                   <button onClick={handleExportPDF} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><Download className="w-4 h-4"/> Export PDF</button>
-                  <button onClick={handlePrint} className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"><Printer className="w-4 h-4"/> Print Report</button>
                 </div>
               )}
             </div>
