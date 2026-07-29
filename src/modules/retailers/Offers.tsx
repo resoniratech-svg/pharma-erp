@@ -306,18 +306,34 @@ export default function Offers() {
       setShowExportMenu(false);
       return;
     }
-    const doc = new jsPDF('landscape');
+    const doc = new jsPDF('p', 'mm', 'a4');
     const headers = Object.keys(data[0] || {});
     const body = data.map(obj => headers.map(header => (obj as any)[header]));
     
-    doc.text("Offer Visibility", 14, 15);
+    // Header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(22, 60, 120);
+    doc.text('MJ HEALTHCARE ERP', 14, 18);
+
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(40, 40, 40);
+    doc.text('Trade Offer & Scheme Visibility Report', 14, 25);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 31);
+
     autoTable(doc, {
-      startY: 20,
+      startY: 36,
       head: [headers],
       body: body,
-      theme: 'striped',
-      headStyles: { fillColor: [22, 60, 120] },
-      styles: { fontSize: 8 }
+      theme: 'grid',
+      headStyles: { fillColor: [22, 60, 120], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 3 },
+      margin: { left: 14, right: 14 }
     });
     doc.save("Offer_Visibility.pdf");
     setShowExportMenu(false);
