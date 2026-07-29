@@ -66,7 +66,7 @@ export default function CreditNotes() {
 
   const loadFormOptions = async () => {
     try {
-      const gstInvoices = billingService.getInvoices();
+      // Step 1: Fetch backend invoices and sync them to localStorage first
       let backendInvoices: any[] = [];
       try {
         backendInvoices = await creditNoteService.getInvoices();
@@ -74,54 +74,92 @@ export default function CreditNotes() {
         console.warn("Backend invoice fetch warning:", e);
       }
 
+      // Step 2: Also load localStorage invoices (from GSTBilling / BarcodeBilling)
+      // Use loadInvoices to get the latest from backend as GSTInvoice format
+      let gstInvoices: any[] = [];
+      try {
+        gstInvoices = await billingService.loadInvoices();
+      } catch (e) {
+        gstInvoices = billingService.getInvoices();
+      }
+
       const combined: any[] = [];
-      const seenKeys = new Set<string>();
+      const seenInvoiceNos = new Set<string>();
 
       const resolveGstin = (inv: any) => {
+        // Check retailer object first (backend records - field is gstNumber in Prisma schema)
+        if (inv.retailer && inv.retailer.gstNumber && inv.retailer.gstNumber !== 'N/A') return inv.retailer.gstNumber;
+        // Fallback to gstin alias if present
+        if (inv.retailer && inv.retailer.gstin && inv.retailer.gstin !== 'N/A') return inv.retailer.gstin;
+        // Then direct gstin field (localStorage invoices)
         if (inv.gstin && inv.gstin !== 'N/A') return inv.gstin;
         if (inv.customerGstin && inv.customerGstin !== 'N/A') return inv.customerGstin;
         const name = inv.customerName || (inv.retailer ? inv.retailer.name : '');
-        if (!name || name.toLowerCase().includes('walk-in') || name.toLowerCase().includes('b2c')) {
+        if (!name || name.toLowerCase().includes('walk-in') || name.toLowerCase().includes('b2c') || name.toLowerCase().includes('default')) {
           return 'B2C Counter Sale (No GSTIN)';
         }
+        // Generate placeholder GSTIN based on name for known customers
         const cleanName = name.replace(/[^A-Za-z0-9]/g, '').toUpperCase().padEnd(4, 'X').substring(0, 4);
         return `36${cleanName}1234A1Z5`;
       };
 
-      gstInvoices.forEach(inv => {
-        const invNo = inv.invoiceNo || inv.invoiceNumber;
-        const uniqueKey = `${inv.id || invNo}-${inv.customerName || ''}`;
-        if (invNo && !seenKeys.has(uniqueKey)) {
-          seenKeys.add(uniqueKey);
+      const getCustomerName = (inv: any) => {
+        if (inv.retailer && inv.retailer.name) return inv.retailer.name;
+        if (inv.customerName && inv.customerName !== 'Walk-in Customer' && inv.customerName !== 'Default Retailer') return inv.customerName;
+        return 'Walk-in Customer';
+      };
+
+      // Add backend invoices first (authoritative source)
+      backendInvoices.forEach(inv => {
+        const invNo = inv.invoiceNumber || inv.invoiceNo || `INV-${inv.id}`;
+        // Deduplicate by invoice number
+        if (invNo && !seenInvoiceNos.has(invNo)) {
+          seenInvoiceNos.add(invNo);
           combined.push({
-            id: inv.id || invNo,
-            uniqueKey: uniqueKey,
+            id: String(inv.id),
             invoiceNumber: invNo,
-            customerName: inv.customerName || 'Walk-in Customer',
-            customerType: inv.customerId === 'B2C' ? 'Walk-in / Cash' : 'Distributor / Retailer',
-            invoiceDate: inv.date,
+            customerName: getCustomerName(inv),
+            customerType: inv.retailer ? 'Retailer' : 'Customer',
+            invoiceDate: inv.invoiceDate || inv.createdAt
+              ? new Date(inv.invoiceDate || inv.createdAt).toISOString().split('T')[0]
+              : new Date().toISOString().split('T')[0],
             gstin: resolveGstin(inv),
-            totalAmount: inv.grandTotal || inv.subTotal || 0,
-            items: inv.items || []
+            totalAmount: Number(inv.totalAmount || 0),
+            items: (inv.invoiceItems || []).map((ii: any) => ({
+              id: ii.id,
+              productId: ii.productId,
+              productName: ii.product ? ii.product.name : 'Product',
+              batchNo: ii.batch ? ii.batch.batchNumber : 'DEFAULT',
+              qty: ii.quantity || 1,
+              ptr: ii.rate || ii.ptr || 0,
+              gstPercent: ii.gstPercent || 12
+            }))
           });
         }
       });
 
-      backendInvoices.forEach(inv => {
-        const invNo = inv.invoiceNumber || inv.invoiceNo;
-        const uniqueKey = `${inv.id || invNo}-${inv.customerName || (inv.retailer ? inv.retailer.name : '')}`;
-        if (invNo && !seenKeys.has(uniqueKey)) {
-          seenKeys.add(uniqueKey);
+      // Add localStorage invoices that aren't already added (created locally from billing modules)
+      gstInvoices.forEach(inv => {
+        const invNo = inv.invoiceNo || inv.invoiceNumber;
+        if (invNo && !seenInvoiceNos.has(invNo)) {
+          seenInvoiceNos.add(invNo);
           combined.push({
-            id: String(inv.id),
-            uniqueKey: uniqueKey,
+            id: inv.id || invNo,
             invoiceNumber: invNo,
-            customerName: inv.retailer ? inv.retailer.name : (inv.customerName || 'Walk-in Customer'),
-            customerType: inv.retailer ? 'Retailer' : 'Customer',
-            invoiceDate: inv.invoiceDate ? new Date(inv.invoiceDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+            customerName: getCustomerName(inv),
+            customerType: (inv.customerId === 'B2C' || !inv.customerId) ? 'Walk-in / Cash' : 'Distributor / Retailer',
+            invoiceDate: inv.date || new Date().toISOString().split('T')[0],
             gstin: resolveGstin(inv),
-            totalAmount: inv.totalAmount || 0,
-            items: inv.invoiceItems || []
+            totalAmount: inv.grandTotal || inv.subTotal || 0,
+            items: (inv.items || []).map((ii: any) => ({
+              id: ii.id,
+              productId: ii.productId,
+              productName: ii.productName,
+              batchNo: ii.batchNo || 'DEFAULT',
+              qty: ii.qty || 1,
+              ptr: ii.ptr || 0,
+              gstPercent: ii.gstPercent || 12
+            }))
           });
         }
       });
@@ -129,7 +167,12 @@ export default function CreditNotes() {
       setInvoices(combined);
 
       // Load Products Master Catalog
-      const loadedProds = await productService.loadProducts();
+      let loadedProds: any[] = [];
+      try {
+        loadedProds = await productService.loadProducts();
+      } catch (e) {
+        console.warn('Product catalog load warning:', e);
+      }
       const fallbackProds = [
         { id: '1', name: 'Paracetamol 500mg Tablets', code: 'PCM-500', ptr: 12.50, gst: 12 },
         { id: '2', name: 'Amoxicillin 250mg Capsules', code: 'AMX-250', ptr: 45.00, gst: 12 },
@@ -187,43 +230,43 @@ export default function CreditNotes() {
 
     const selectedInv = invoices.find(i => String(i.id) === String(selectedVal) || i.invoiceNumber === selectedVal);
     if (selectedInv) {
-      const formattedDate = selectedInv.invoiceDate 
-        ? new Date(selectedInv.invoiceDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')
-        : new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+      let formattedDate = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+      try {
+        if (selectedInv.invoiceDate) {
+          const d = new Date(selectedInv.invoiceDate);
+          if (!isNaN(d.getTime())) {
+            formattedDate = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+          }
+        }
+      } catch (_) {}
+
+      // Resolve GSTIN: prefer the resolved one, show 'B2C Counter Sale (No GSTIN)' for walk-ins
+      const resolvedGstin = selectedInv.gstin && selectedInv.gstin !== 'N/A' ? selectedInv.gstin : 'B2C Counter Sale (No GSTIN)';
 
       setFormClientInfo({
         customerName: selectedInv.customerName || 'Walk-in Customer',
-        customerType: selectedInv.customerType || 'Customer',
-        gstin: selectedInv.gstin || 'N/A',
+        customerType: selectedInv.customerType || 'Retailer',
+        gstin: resolvedGstin,
         invoiceDate: formattedDate,
-        retailerId: selectedInv.retailerId || null
+        retailerId: selectedInv.retailerId || null,
+        againstInvoiceNo: selectedInv.invoiceNumber
       });
 
       if (selectedInv.items && selectedInv.items.length > 0) {
         setFormProducts(selectedInv.items.map((ii: any, idx: number) => ({
-          id: String(ii.id || idx + 1),
+          id: String(ii.id || `item-${idx + 1}-${Date.now()}`),
           productId: ii.productId || (idx + 1),
           name: ii.productName || (ii.product ? ii.product.name : 'Product Item'),
-          batchId: ii.batchNo || (ii.batch ? ii.batch.batchNumber : 'DEFAULT'),
           batch: ii.batchNo || (ii.batch ? ii.batch.batchNumber : 'DEFAULT'),
-          soldQty: ii.qty || ii.quantity || 1,
-          returnQty: ii.qty || ii.quantity || 1,
-          unitRate: ii.ptr || ii.rate || 0,
-          gstPct: ii.gstPercent || ii.gst || 18
+          soldQty: Number(ii.qty || ii.quantity || 1),
+          returnQty: Number(ii.qty || ii.quantity || 1),
+          unitRate: Number(ii.ptr || ii.rate || 0),
+          gstPct: Number(ii.gstPercent || ii.gst || 18),
+          isManual: false
         })));
       } else {
-        const defaultProd = catalogProducts[0] || { id: '1', name: 'Pharma Product Supply', ptr: '90', gst: '18' };
-        setFormProducts([{
-          id: `inv-item-${Date.now()}`,
-          productId: defaultProd.id,
-          name: defaultProd.name,
-          batch: 'BATCH-2026',
-          soldQty: 10,
-          returnQty: 1,
-          unitRate: parseFloat(defaultProd.ptr || defaultProd.sellingPrice || '90') || 90,
-          gstPct: parseFloat(defaultProd.gst) || 18,
-          isManual: false
-        }]);
+        // No items — show empty state so user can manually add items
+        setFormProducts([]);
       }
     }
   };
