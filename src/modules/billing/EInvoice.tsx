@@ -299,27 +299,6 @@ export default function EInvoice() {
       <PageHeader
         title="E-Invoice Support"
         subtitle="Manage E-Invoicing workflows, IRN generation, and compliance."
-        actions={
-          <div className="relative inline-block text-left" ref={exportMenuRef}>
-            <ActionButton 
-              variant="secondary" 
-              icon={<Download className="w-4 h-4" />}
-              onClick={() => setShowExportMenu(!showExportMenu)}
-            >
-              Export
-              <ChevronDown className="w-3 h-3 ml-1" />
-            </ActionButton>
-            {showExportMenu && (
-              <div className="absolute right-0 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5 z-50">
-                <div className="py-1">
-                  <button onClick={handleExportExcel} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export Excel (.xlsx)</button>
-                  <button onClick={handleExportCSV} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export CSV (.csv)</button>
-                  <button onClick={handleExportPDF} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export PDF (.pdf)</button>
-                </div>
-              </div>
-            )}
-          </div>
-        }
       />
 
       <FilterBar>
