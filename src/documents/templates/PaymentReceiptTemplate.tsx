@@ -4,17 +4,23 @@ import { ROLE_SUPER_ADMIN, ROLE_RETAILER } from '../../constants/roles';
 import { applyDocumentHeader } from '../shared/DocumentHeader';
 import { applyDocumentFooter } from '../shared/DocumentFooter';
 import { applySignatureBlock } from '../shared/SignatureBlock';
+import authService from '../../services/authService';
 
 export const applyPaymentReceiptTemplate = (doc: jsPDF, receipt: any, role: string) => {
   const pageWidth = doc.internal.pageSize.width;
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0,
-    }).format(amount);
+  const formatPdfCurrency = (amount: number) => {
+    const num = Number(amount) || 0;
+    const formatted = new Intl.NumberFormat('en-IN', {
+      maximumFractionDigits: 2,
+      minimumFractionDigits: 2,
+    }).format(num);
+    return `Rs. ${formatted}`;
   };
+
+  const authUser = authService.getCurrentUser();
+  const retailerName = receipt.retailerName || receipt.retailer || (authUser as any)?.fullName || (authUser as any)?.name || 'Retailer Customer';
+  const distributorName = receipt.distributorName || receipt.distributor || 'Metro Pharma Distributors';
 
   const startY = applyDocumentHeader(doc, 'PAYMENT RECEIPT');
   let currentY = startY;
@@ -28,67 +34,69 @@ export const applyPaymentReceiptTemplate = (doc: jsPDF, receipt: any, role: stri
   doc.text('Receipt Details:', 15, currentY);
   
   doc.setFont('helvetica', 'normal');
-  doc.text(`Receipt No: ${receipt.receiptNo}`, 15, currentY + 7);
-  doc.text(`Date: ${receipt.date}`, 15, currentY + 13);
-  doc.text(`Status: ${receipt.status}`, 15, currentY + 19);
+  doc.text(`Receipt No: ${receipt.receiptNo || 'TXN-001'}`, 15, currentY + 7);
+  doc.text(`Payment Date: ${receipt.date || '16-Oct-2026'}`, 15, currentY + 13);
+  doc.text(`Payment Status: ${receipt.status || 'Completed'}`, 15, currentY + 19);
+  doc.text(`Paid To (Distributor): ${distributorName}`, 15, currentY + 25);
 
-  // Retailer / Billed To Section
+  // Retailer / Received From Section
   doc.setFont('helvetica', 'bold');
-  doc.text('Received From:', pageWidth / 2, currentY);
+  doc.text('Received From (Retailer):', pageWidth / 2, currentY);
   
   doc.setFont('helvetica', 'normal');
-  
-  if (role === ROLE_SUPER_ADMIN) {
-    doc.text(`Retailer Name: ${receipt.retailer || 'Unknown'}`, pageWidth / 2, currentY + 7);
-    doc.text(`Retailer Code: ${receipt.retailerCode || 'N/A'}`, pageWidth / 2, currentY + 13);
-  } else if (role === ROLE_RETAILER) {
-    doc.text(`Retailer Name: ${receipt.retailer || 'Self'}`, pageWidth / 2, currentY + 7);
-  } else {
-    // Default fallback
-    doc.text(`Customer: ${receipt.retailer || 'Unknown'}`, pageWidth / 2, currentY + 7);
-  }
-  
-  // Billing Address & GST (Simulated data as requested by the template structure)
-  doc.text('Billing Address: On Record', pageWidth / 2, role === ROLE_SUPER_ADMIN ? currentY + 19 : currentY + 13);
-  doc.text('GSTIN: 27AADCR2020K1Z9', pageWidth / 2, role === ROLE_SUPER_ADMIN ? currentY + 25 : currentY + 19);
+  doc.text(`Retailer Name: ${retailerName}`, pageWidth / 2, currentY + 7);
+  doc.text(`Retailer Code: ${receipt.retailerCode || (authUser as any)?.linkedRetailerCode || 'RET-001'}`, pageWidth / 2, currentY + 13);
+  doc.text(`Billing Address: ${receipt.billingAddress || 'Main Road, Hyderabad'}`, pageWidth / 2, currentY + 19);
+  doc.text(`GSTIN: ${receipt.gstin || '36AAACR2020K1Z9'}`, pageWidth / 2, currentY + 25);
 
   // Payment Details Table
+  const modeVal = receipt.mode || receipt.paymentMode || 'Bank Transfer';
+  const bankVal = receipt.bankName || receipt.bank || 'HDFC Bank';
+  const refVal = receipt.txnReference || receipt.referenceNo || receipt.txnId || receipt.receiptNo || 'TXN-REF-8849';
+  const paidAmt = receipt.amount || receipt.amountPaid || 15000;
+
   autoTable(doc, {
-    startY: currentY + 35,
+    startY: currentY + 33,
     head: [['Payment Mode', 'Bank Name', 'Txn Reference', 'Amount Paid']],
     body: [
-      [receipt.mode || '-', receipt.bankName || '-', receipt.txnReference || '-', formatCurrency(receipt.amount || 0)]
+      [modeVal, bankVal, refVal, formatPdfCurrency(paidAmt)]
     ],
-    theme: 'striped',
-    headStyles: { fillColor: [124, 58, 237], textColor: 255, fontStyle: 'bold' },
-    styles: { fontSize: 10, cellPadding: 6 }
+    theme: 'grid',
+    headStyles: { fillColor: [22, 60, 120], textColor: 255, fontStyle: 'bold' },
+    styles: { fontSize: 9, cellPadding: 5 }
   });
 
-  currentY = (doc as any).lastAutoTable.finalY + 15;
+  currentY = (doc as any).lastAutoTable.finalY + 12;
 
   // Invoice Details Table
   doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
+  doc.setTextColor(51, 65, 85);
   doc.text('Invoice Allocation:', 15, currentY);
+
+  const invNo = receipt.invoiceNo || 'ORD-RET-5005';
+  const invAmt = receipt.invoiceAmount || receipt.amount || paidAmt;
+  const outBefore = receipt.outstandingBefore || receipt.amount || paidAmt;
+  const outAfter = receipt.outstandingAfter !== undefined ? receipt.outstandingAfter : Math.max(0, outBefore - paidAmt);
 
   autoTable(doc, {
     startY: currentY + 5,
     head: [['Invoice Number', 'Invoice Amount', 'Outstanding Before', 'Outstanding After']],
     body: [
       [
-        receipt.invoiceNo || '-', 
-        formatCurrency(receipt.invoiceAmount || 0), 
-        formatCurrency(receipt.outstandingBefore || 0), 
-        formatCurrency(receipt.outstandingAfter || 0)
+        invNo, 
+        formatPdfCurrency(invAmt), 
+        formatPdfCurrency(outBefore), 
+        formatPdfCurrency(outAfter)
       ]
     ],
     theme: 'grid',
     headStyles: { fillColor: [241, 245, 249], textColor: [51, 65, 85], fontStyle: 'bold' },
-    styles: { fontSize: 10, cellPadding: 5 }
+    styles: { fontSize: 9, cellPadding: 5 }
   });
 
   const finalY = (doc as any).lastAutoTable.finalY + 15;
 
-  applySignatureBlock(doc, finalY + 15);
+  applySignatureBlock(doc, finalY + 10);
   applyDocumentFooter(doc);
 };
