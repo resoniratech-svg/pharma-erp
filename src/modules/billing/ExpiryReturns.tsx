@@ -210,7 +210,7 @@ export default function ExpiryReturns() {
   };
 
   const handleExportPDF = () => {
-    const doc = new jsPDF('landscape');
+    const doc = new jsPDF();
     
     doc.setFontSize(16);
     doc.text('MJ Healthcare ERP - Expiry Return Register', 14, 15);
@@ -237,7 +237,7 @@ export default function ExpiryReturns() {
       head: [['Return No', 'Date', 'Customer', 'Product', 'Batch', 'Expiry', 'Qty', 'Vendor', 'Settlement', 'Value', 'Status']],
       body: tableData,
       startY: 35,
-      styles: { fontSize: 8 },
+      styles: { fontSize: 7, cellPadding: 1.5 },
       headStyles: { fillColor: [79, 70, 229] }
     });
 
