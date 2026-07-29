@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';             
 import { Download, ReceiptText, Printer } from 'lucide-react';
 import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { salesInvoiceService } from '../../services/salesInvoiceService';
 import {
   PageHeader,
