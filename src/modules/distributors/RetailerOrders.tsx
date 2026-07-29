@@ -453,25 +453,42 @@ export default function RetailerOrders() {
     doc.setFontSize(16);
     doc.text('Retailer Orders Export', 14, 15);
     doc.setFontSize(10);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 22);
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 22);
+
+    const formatPdfCurrency = (val: number) => {
+      const num = Number(val) || 0;
+      const formatted = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(num);
+      return `Rs. ${formatted}`;
+    };
+
+    const formatPdfDate = (dateStr: string) => {
+      if (!dateStr) return '-';
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      const day = String(d.getDate()).padStart(2, '0');
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const year = d.getFullYear();
+      return `${day}-${month}-${year}`;
+    };
 
     autoTable(doc, {
       startY: 30,
       head: [['Order No', 'Retailer', 'Date', 'Order Value', 'Payment', 'Status']],
       body: visibleOrders.map(row => {
         const retailer = getRetailerDetails(row.retailerCode);
+        const retailerName = row.retailerName || retailer.name || row.retailer || row.retailerCode || 'N/A';
         const currentStatus = getOrderCurrentStatus(row);
         return [
           row.orderNo,
-          retailer.name || '--',
-          row.date,
-          formatCurrency(row.netAmount),
-          row.paymentStatus,
+          retailerName,
+          formatPdfDate(row.date),
+          formatPdfCurrency(row.netAmount),
+          row.paymentStatus || 'Unpaid',
           currentStatus
         ];
       }),
       theme: 'grid',
-      headStyles: { fillColor: [139, 92, 246] }
+      headStyles: { fillColor: [22, 60, 120] }
     });
     doc.save(`retailer_orders_${getFormattedDate()}.pdf`);
     setShowExportMenu(false);
