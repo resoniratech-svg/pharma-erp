@@ -129,7 +129,7 @@ class CreditNoteService {
       retailerId: retailerId,
       distributorId: distributorId,
       mrId: data.mrId && !isNaN(parseInt(data.mrId, 10)) ? parseInt(data.mrId, 10) : null,
-      againstInvoiceId: invoice ? invoice.id : (data.againstInvoiceId && !isNaN(parseInt(data.againstInvoiceId, 10)) ? parseInt(data.againstInvoiceId, 10) : null),
+      againstInvoiceId: invoice ? invoice.id : null,
       status: "PAID",
       taxableAmount: finalSubTotal,
       gstAmount: finalGstAmount,
