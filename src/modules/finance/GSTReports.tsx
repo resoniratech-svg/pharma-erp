@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, Eye, ChevronDown, FileText, Printer, FileJson } from 'lucide-react';
+import { Download, Eye, ChevronDown, FileText } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 import {
@@ -16,7 +16,6 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 import { generateGstReportPdf } from '../../documents/generators/pdfGenerator';
-import { generateGstReportPrint } from '../../documents/generators/printGenerator';
 
 // --- Types ---
 interface GSTReportItem {
@@ -262,31 +261,8 @@ export default function GSTReports() {
     setShowExportMenu(false);
   };
 
-  const handleExportJSON = () => {
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(filteredData, null, 2));
-    const downloadAnchorNode = document.createElement('a');
-    downloadAnchorNode.setAttribute("href",     dataStr);
-    downloadAnchorNode.setAttribute("download", `GST_Returns_${fy === 'All' ? 'Overall' : fy}.json`);
-    document.body.appendChild(downloadAnchorNode);
-    downloadAnchorNode.click();
-    downloadAnchorNode.remove();
-    setShowExportMenu(false);
-  };
-
   const handleExportPDF = () => {
     generateGstReportPdf({ 
-      fy, period, branch, division, data: filteredData,
-      summary: {
-        outputGst: 807000,
-        inputTaxCredit: 310000,
-        netGstPayable: 165000
-      }
-    });
-    setShowExportMenu(false);
-  };
-
-  const handlePrintReport = () => {
-    generateGstReportPrint({ 
       fy, period, branch, division, data: filteredData,
       summary: {
         outputGst: 807000,
@@ -320,13 +296,6 @@ export default function GSTReports() {
                 </button>
                 <button onClick={handleExportPDF} className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-700 flex items-center gap-2">
                   <FileText className="w-4 h-4" /> Export PDF
-                </button>
-                <button onClick={handleExportJSON} className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-700 flex items-center gap-2">
-                  <FileJson className="w-4 h-4" /> Export JSON
-                </button>
-                <div className="h-px bg-slate-100 my-1"></div>
-                <button onClick={handlePrintReport} className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-700 flex items-center gap-2">
-                  <Printer className="w-4 h-4" /> Print Report
                 </button>
               </div>
             )}
