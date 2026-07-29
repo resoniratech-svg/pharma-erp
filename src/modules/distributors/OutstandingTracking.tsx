@@ -652,7 +652,16 @@ export default function OutstandingTracking() {
                 <DrawerField label="Payment Terms" value={myRecord.paymentTerms || 'Standard'} />
                 <DrawerField label="Credit Days" value={myRecord.creditDays ? `${myRecord.creditDays} Days` : '30 Days'} />
                 <DrawerField label="Payment Type" value={myRecord.paymentType || 'Credit'} />
-                <DrawerField label="Last Payment Date" value={myRecord.lastPaymentDate || '-'} />
+                <DrawerField 
+                  label="Last Payment Date" 
+                  value={
+                    (selectedInvoice as any).paymentDate 
+                      ? getDDMMYYYY(parseDateString((selectedInvoice as any).paymentDate))
+                      : (selectedInvoice.status === 'Paid' || selectedInvoice.status === 'Partially Paid')
+                        ? (myRecord.lastPaymentDate && myRecord.lastPaymentDate !== '-' ? myRecord.lastPaymentDate : selectedInvoice.date)
+                        : '-'
+                  } 
+                />
                 <DrawerField label="Aging Days" value={selectedInvoice.status === 'Paid' ? '-' : `${selectedInvoice.agingDays} Days`} />
               </div>
             </div>
