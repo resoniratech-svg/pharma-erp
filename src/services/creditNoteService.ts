@@ -157,6 +157,7 @@ export const creditNoteService = {
   },
 
   async createCreditNote(input: CreditNoteInput): Promise<CreditNoteData> {
+    let backendError: string | null = null;
     try {
       const response = await apiRequest<{ success: boolean; data: any }>('/credit-notes', {
         method: 'POST',
@@ -168,31 +169,46 @@ export const creditNoteService = {
         if (input.againstInvoiceNo) record.againstInvoiceNo = input.againstInvoiceNo;
         return record;
       }
-    } catch (err) {
-      console.warn("Backend credit-note create API failed, using fallback:", err);
+      backendError = (response as any)?.message || 'Backend returned an error';
+    } catch (err: any) {
+      backendError = err?.message || 'Network error';
+      console.warn("Backend credit-note create API failed:", backendError);
     }
 
-    // Local Storage Fallback
-    const localRecord: CreditNoteData = {
-      id: `cn-local-${Date.now()}`,
-      cnNo: `CN/26/${Math.floor(1000 + Math.random() * 9000)}`,
-      customerName: input.customerName || 'Walk-in Customer',
-      customerType: 'Distributor / Retailer',
-      againstInvoiceNo: input.againstInvoiceNo || 'N/A',
-      invoiceDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
-      cnDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
-      cnType: input.cnType,
-      reason: input.reason,
-      taxableAmount: input.taxableAmount,
-      gstAmount: input.gstAmount,
-      totalAmount: input.totalAmount,
-      status: 'PAID'
-    };
-
-    const existingData = this.getLocalCreditNotes();
-    existingData.unshift(localRecord);
-    localStorage.setItem("pharma_erp_credit_notes", JSON.stringify(existingData));
-    return localRecord;
+    // Local Storage Fallback — saves locally when backend is unavailable
+    try {
+      const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+      const localRecord: CreditNoteData = {
+        id: `cn-local-${Date.now()}`,
+        cnNo: `CN/26/${Math.floor(1000 + Math.random() * 9000)}`,
+        customerName: input.customerName || 'Walk-in Customer',
+        customerType: 'Distributor / Retailer',
+        againstInvoiceNo: input.againstInvoiceNo || 'N/A',
+        invoiceDate: dateStr,
+        cnDate: dateStr,
+        cnType: input.cnType,
+        reason: input.reason,
+        remarks: input.remarks || null,
+        retailerId: input.retailerId || null,
+        distributorId: input.distributorId || null,
+        mrId: input.mrId || null,
+        againstInvoiceId: input.againstInvoiceId || null,
+        taxableAmount: input.taxableAmount || 0,
+        gstAmount: input.gstAmount || 0,
+        totalAmount: input.totalAmount || 0,
+        amountSettled: input.totalAmount || 0,
+        status: 'PAID',
+        items: []
+      };
+      // Read existing local records safely
+      const existingRaw = localStorage.getItem("pharma_erp_credit_notes");
+      const existingData: CreditNoteData[] = existingRaw ? JSON.parse(existingRaw) : [];
+      existingData.unshift(localRecord);
+      localStorage.setItem("pharma_erp_credit_notes", JSON.stringify(existingData));
+      return localRecord;
+    } catch (localErr: any) {
+      throw new Error(backendError || localErr?.message || 'Failed to create credit note');
+    }
   },
 
   async settleCreditNote(id: string, settlementAmount: number, remarks?: string): Promise<CreditNoteData> {
