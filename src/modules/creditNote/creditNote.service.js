@@ -10,14 +10,30 @@ class CreditNoteService {
 
     if (data.againstInvoiceId) {
       const numId = parseInt(data.againstInvoiceId, 10);
-      if (!isNaN(numId)) {
-        invoice = await invoiceRepository.getInvoiceByIdRepo(numId);
+      const INT4_MAX = 2147483647; // PostgreSQL INT4 max value
+      // Only query by numeric ID if it's a valid DB record ID (not a JS timestamp)
+      if (!isNaN(numId) && numId > 0 && numId <= INT4_MAX) {
+        try {
+          invoice = await invoiceRepository.getInvoiceByIdRepo(numId);
+        } catch (e) {
+          console.warn('Invoice lookup by ID failed:', e.message);
+        }
       }
-      if (!invoice && typeof data.againstInvoiceId === 'string') {
-        invoice = await prisma.invoice.findFirst({
-          where: { invoiceNumber: data.againstInvoiceId },
-          include: { invoiceItems: true }
-        });
+      // If not found by integer ID, try by invoice number string
+      if (!invoice) {
+        const invoiceNoStr = String(data.againstInvoiceId);
+        // Only search by invoice number if it looks like an invoice number (not a pure digit timestamp)
+        const looksLikeInvoiceNo = isNaN(Number(invoiceNoStr)) || invoiceNoStr.includes('/') || invoiceNoStr.includes('-') || invoiceNoStr.startsWith('GST') || invoiceNoStr.startsWith('INV');
+        if (looksLikeInvoiceNo) {
+          try {
+            invoice = await prisma.invoice.findFirst({
+              where: { invoiceNumber: invoiceNoStr },
+              include: { invoiceItems: true }
+            });
+          } catch (e) {
+            console.warn('Invoice lookup by number failed:', e.message);
+          }
+        }
       }
     }
 

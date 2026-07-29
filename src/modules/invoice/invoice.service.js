@@ -1,4 +1,5 @@
 const prisma = require("../../config/db");
+const repository = require("./invoice.repository");
 
 const createInvoiceService = async (data) => {
   let retailerId = data.retailerId && !isNaN(parseInt(data.retailerId, 10)) ? parseInt(data.retailerId, 10) : null;
