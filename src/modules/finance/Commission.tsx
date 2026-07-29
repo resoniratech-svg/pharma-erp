@@ -1,7 +1,7 @@
 import { useState, useMemo, useRef, useEffect } from 'react';
-import { Download, ChevronDown, Printer, FileText, Eye, Plus, X } from 'lucide-react';
+import { Download, ChevronDown, FileText, Eye, Plus, X } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 import {
@@ -272,38 +272,46 @@ export default function Commission() {
     setShowExportMenu(false);
   };
 
-  const generatePDFDoc = () => {
-    const doc = new jsPDF('landscape');
-    doc.setFontSize(16);
-    doc.text(`Commission System Report`, 14, 15);
-    doc.setFontSize(10);
-    doc.text(`Generated On: ${new Date().toLocaleString()}`, 14, 22);
-
-    const pdfTableData = filteredData.map(row => [
-      row.repCode, row.role, row.repName, row.month, formatCurrency(row.salesAchieved), `${row.commissionRate.toFixed(1)}%`, formatCurrency(row.commissionAmount), row.status
-    ]);
-
-    (doc as any).autoTable({
-      startY: 30,
-      head: [['Rep Code', 'Role', 'Rep Name', 'Month', 'Sales Achieved', 'Rate', 'Amount', 'Status']],
-      body: pdfTableData,
-      theme: 'grid',
-      headStyles: { fillColor: [124, 58, 237] },
-      styles: { fontSize: 10, cellPadding: 5 }
-    });
-    return doc;
+  const formatPdfCurrency = (val: number) => {
+    const num = Number(val) || 0;
+    const formatted = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 2, minimumFractionDigits: 2 }).format(num);
+    return `Rs. ${formatted}`;
   };
 
   const handleExportPDF = () => {
-    const doc = generatePDFDoc();
-    doc.save(`Commissions_${new Date().toISOString().split('T')[0]}.pdf`);
-    setShowExportMenu(false);
-  };
+    const doc = new jsPDF('p', 'mm', 'a4');
+    
+    // Header
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(22, 60, 120);
+    doc.text('MJ HEALTHCARE ERP', 14, 18);
 
-  const handlePrintReport = () => {
-    const doc = generatePDFDoc();
-    doc.autoPrint();
-    window.open(doc.output('bloburl'), '_blank');
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.setTextColor(40, 40, 40);
+    doc.text('Commission System Report', 14, 25);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.setTextColor(100, 100, 100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString('en-GB')}`, 14, 31);
+
+    const pdfTableData = filteredData.map(row => [
+      row.repCode, row.role, row.repName, row.month, formatPdfCurrency(row.salesAchieved), `${row.commissionRate.toFixed(1)}%`, formatPdfCurrency(row.commissionAmount), row.status
+    ]);
+
+    autoTable(doc, {
+      startY: 36,
+      head: [['Rep Code', 'Role', 'Rep Name', 'Month', 'Sales Achieved', 'Rate', 'Amount', 'Status']],
+      body: pdfTableData,
+      theme: 'grid',
+      headStyles: { fillColor: [22, 60, 120], textColor: [255, 255, 255], fontStyle: 'bold' },
+      styles: { fontSize: 8, cellPadding: 3 },
+      margin: { left: 14, right: 14 }
+    });
+
+    doc.save(`Commissions_${new Date().toISOString().split('T')[0]}.pdf`);
     setShowExportMenu(false);
   };
 
@@ -345,13 +353,6 @@ export default function Commission() {
                     className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-700 flex items-center gap-2"
                   >
                     <FileText className="w-4 h-4" /> Export PDF
-                  </button>
-                  <div className="h-px bg-slate-100 my-1"></div>
-                  <button 
-                    onClick={handlePrintReport}
-                    className="w-full px-4 py-2 text-left text-sm text-slate-700 hover:bg-slate-50 hover:text-violet-700 flex items-center gap-2"
-                  >
-                    <Printer className="w-4 h-4" /> Print Report
                   </button>
                 </div>
               )}
