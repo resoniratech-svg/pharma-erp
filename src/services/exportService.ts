@@ -89,7 +89,7 @@ interface ExportOptions {
 export const ExportService = {
   // 1. GENERATES A REAL ENTERPRISE PDF
   exportToPDF: ({ title, filename, data, columns }: ExportOptions) => {
-    const doc = new jsPDF('landscape'); 
+    const doc = new jsPDF(); 
     
     doc.setFontSize(22);
     doc.setTextColor(79, 70, 229);
@@ -106,7 +106,7 @@ export const ExportService = {
       body: data.map(item => columns.map(col => item[col.dataKey] || '-')),
       theme: 'grid',
       headStyles: { fillColor: [79, 70, 229], textColor: [255, 255, 255] },
-      styles: { fontSize: 9, cellPadding: 4 },
+      styles: { fontSize: 8, cellPadding: 2 },
     });
 
     doc.save(`${filename}.pdf`);
