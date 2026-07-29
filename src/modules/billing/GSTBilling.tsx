@@ -22,6 +22,7 @@ import authService from '../../services/authService';
 import { NotificationService } from '../../services/notificationService';
 import { hasModulePermission } from '../../utils/permissionUtils';
 import { distributorMasterService } from '../../services/distributorMasterService';
+import { generateInvoicePdf } from '../../documents/generators/pdfGenerator';
 
 // --- DYNAMIC DISTRIBUTOR & CRM INTEGRATION ---
 const distributorMasterList = JSON.parse(localStorage.getItem('pharma_erp_distributor_master') || '[]');
@@ -637,13 +638,13 @@ export default function GSTBilling() {
               activityLogService.addLog({
                 userId: currentUser?.id,
                 userName: currentUser?.fullName,
-                action: `Printed invoice details for ${row.invoiceNo}`,
+                action: `Generated & downloaded Tax Invoice PDF for ${row.invoiceNo}`,
                 module: "Wholesale Billing"
               });
-              alert("Invoice preview printed successfully.");
+              generateInvoicePdf(row, activeRole);
             }}
             className="text-[#163c78] hover:text-violet-750 p-1"
-            title="Print Preview Invoice"
+            title="View & Download Tax Invoice PDF"
           >
             <ReceiptText className="w-4 h-4" />
           </button>
