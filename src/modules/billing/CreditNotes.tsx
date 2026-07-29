@@ -33,6 +33,8 @@ export default function CreditNotes() {
   const [formReason, setFormReason] = useState('Sales Return');
   const [formRemarks, setFormRemarks] = useState('');
   const [formProducts, setFormProducts] = useState<any[]>([]);
+  const [manualTaxable, setManualTaxable] = useState(0);
+  const [manualGstPct, setManualGstPct] = useState(12);
   const [formClientInfo, setFormClientInfo] = useState<any>({
     customerName: '',
     customerType: '',
@@ -115,6 +117,8 @@ export default function CreditNotes() {
     setFormReason('Sales Return');
     setFormRemarks('');
     setFormProducts([]);
+    setManualTaxable(0);
+    setManualGstPct(12);
     setFormClientInfo({
       customerName: '',
       customerType: '',
@@ -155,12 +159,12 @@ export default function CreditNotes() {
       if (selectedInv.items && selectedInv.items.length > 0) {
         setFormProducts(selectedInv.items.map((ii: any, idx: number) => ({
           id: String(ii.id || idx + 1),
-          productId: ii.productId,
+          productId: ii.productId || (idx + 1),
           name: ii.productName || (ii.product ? ii.product.name : 'Product Item'),
           batchId: ii.batchNo || (ii.batch ? ii.batch.batchNumber : 'DEFAULT'),
           batch: ii.batchNo || (ii.batch ? ii.batch.batchNumber : 'DEFAULT'),
           soldQty: ii.qty || ii.quantity || 1,
-          returnQty: 0,
+          returnQty: ii.qty || ii.quantity || 1,
           unitRate: ii.ptr || ii.rate || 0,
           gstPct: ii.gstPercent || ii.gst || 12
         })));
@@ -259,11 +263,16 @@ export default function CreditNotes() {
   const calcValues = useMemo(() => {
     let creditAmt = 0;
     let gstAdj = 0;
-    formProducts.forEach(p => {
-      const lineAmt = p.returnQty * p.unitRate;
-      creditAmt += lineAmt;
-      gstAdj += lineAmt * (p.gstPct / 100);
-    });
+    if (formProducts.length > 0) {
+      formProducts.forEach(p => {
+        const lineAmt = (p.returnQty || 0) * (p.unitRate || 0);
+        creditAmt += lineAmt;
+        gstAdj += lineAmt * ((p.gstPct || 12) / 100);
+      });
+    } else {
+      creditAmt = manualTaxable || 0;
+      gstAdj = creditAmt * ((manualGstPct || 12) / 100);
+    }
     return {
       taxable: creditAmt,
       cgst: gstAdj / 2,
@@ -271,7 +280,43 @@ export default function CreditNotes() {
       totalGst: gstAdj,
       net: creditAmt + gstAdj
     };
-  }, [formProducts]);
+  }, [formProducts, manualTaxable, manualGstPct]);
+
+  const handleAddCustomProduct = () => {
+    const newItem = {
+      id: `custom-${Date.now()}`,
+      productId: Date.now(),
+      name: 'Returned Item',
+      batch: 'BATCH-001',
+      soldQty: 10,
+      returnQty: 1,
+      unitRate: 100,
+      gstPct: 12
+    };
+    setFormProducts(prev => [...prev, newItem]);
+  };
+
+  const handleRemoveProduct = (id: string) => {
+    setFormProducts(prev => prev.filter(p => p.id !== id));
+  };
+
+  const updateProductField = (id: string, field: string, value: any) => {
+    setFormProducts(prev => prev.map(p => {
+      if (p.id === id) {
+        return { ...p, [field]: value };
+      }
+      return p;
+    }));
+  };
+
+  const updateProductQty = (id: string, qty: number) => {
+    setFormProducts(prev => prev.map(p => {
+      if (p.id === id) {
+        return { ...p, returnQty: Math.max(0, qty) };
+      }
+      return p;
+    }));
+  };
 
   const handleSubmit = async () => {
     const itemsPayload = formProducts
@@ -286,8 +331,8 @@ export default function CreditNotes() {
         disposition: formCnType === 'Expiry Return' ? 'EXPIRED_DUMP' : (formCnType === 'Damaged Goods' ? 'DESTRUCTION' : 'SALABLE')
       }));
 
-    if (itemsPayload.length === 0 && (formCnType === 'Sales Return' || formCnType === 'Expiry Return')) {
-      alert("Please enter a return quantity for at least one product.");
+    if (itemsPayload.length === 0 && calcValues.net <= 0) {
+      alert("Please enter a return quantity for at least one product in Section 4, or enter a credit amount.");
       return;
     }
 
@@ -313,15 +358,6 @@ export default function CreditNotes() {
     } catch (err: any) {
       alert("Failed to create credit note: " + err.message);
     }
-  };
-
-  const updateProductQty = (id: string, qty: number) => {
-    setFormProducts(prev => prev.map(p => {
-      if (p.id === id) {
-        return { ...p, returnQty: Math.min(Math.max(0, qty), p.soldQty) };
-      }
-      return p;
-    }));
   };
 
   return (
@@ -466,47 +502,116 @@ export default function CreditNotes() {
                 <input type="text" className="w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500" placeholder="Enter remarks..." value={formRemarks} onChange={e => setFormRemarks(e.target.value)} />
               </div>
 
-              {/* SECTION 4: PRODUCT DETAILS */}
-              {formInvoiceNo && formProducts.length > 0 && (
-                <>
-                  <div className="md:col-span-6 mt-4">
-                    <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">4. Product Adjustment Details</h3>
-                  </div>
-                  <div className="md:col-span-6 overflow-x-auto border border-slate-200 rounded-lg">
-                    <table className="w-full text-left border-collapse">
-                      <thead className="bg-slate-50 text-xs font-semibold text-slate-600 border-b border-slate-200 uppercase">
-                        <tr>
-                          <th className="px-4 py-3">Product Name</th>
-                          <th className="px-4 py-3">Batch Number</th>
-                          <th className="px-4 py-3 text-right">Qty Sold</th>
-                          <th className="px-4 py-3 text-right">Return Qty</th>
-                          <th className="px-4 py-3 text-right">Unit Rate</th>
-                          <th className="px-4 py-3 text-right">Credit Amount</th>
+              {/* SECTION 4: PRODUCT ADJUSTMENT DETAILS */}
+              <div className="md:col-span-6 mt-4">
+                <div className="flex items-center justify-between border-b pb-2 mb-2">
+                  <h3 className="text-sm font-semibold text-slate-700">4. Product Return & Adjustment Details</h3>
+                  <button
+                    type="button"
+                    onClick={handleAddCustomProduct}
+                    className="text-xs font-semibold text-[#163c78] hover:text-violet-700 flex items-center gap-1 bg-violet-50 px-2.5 py-1 rounded border border-violet-200"
+                  >
+                    + Add Product Item
+                  </button>
+                </div>
+              </div>
+
+              {formProducts.length > 0 ? (
+                <div className="md:col-span-6 overflow-x-auto border border-slate-200 rounded-lg">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 text-xs font-semibold text-slate-600 border-b border-slate-200 uppercase">
+                      <tr>
+                        <th className="px-3 py-2.5">Product Name</th>
+                        <th className="px-3 py-2.5">Batch</th>
+                        <th className="px-3 py-2.5 text-right">Sold Qty</th>
+                        <th className="px-3 py-2.5 text-right bg-amber-50 text-amber-900 border-x border-amber-200">Return Qty</th>
+                        <th className="px-3 py-2.5 text-right">Unit Rate (₹)</th>
+                        <th className="px-3 py-2.5 text-right">GST %</th>
+                        <th className="px-3 py-2.5 text-right">Credit Value</th>
+                        <th className="px-3 py-2.5 text-center">Action</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 text-sm">
+                      {formProducts.map(p => (
+                        <tr key={p.id} className={p.returnQty > 0 ? "bg-emerald-50/40" : ""}>
+                          <td className="px-3 py-2">
+                            <input
+                              type="text"
+                              className="w-full border border-slate-200 rounded px-2 py-1 text-sm bg-white"
+                              value={p.name}
+                              onChange={e => updateProductField(p.id, 'name', e.target.value)}
+                            />
+                          </td>
+                          <td className="px-3 py-2">
+                            <input
+                              type="text"
+                              className="w-24 border border-slate-200 rounded px-2 py-1 text-sm bg-white"
+                              value={p.batch}
+                              onChange={e => updateProductField(p.id, 'batch', e.target.value)}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-600 font-mono">{p.soldQty}</td>
+                          <td className="px-3 py-2 text-right bg-amber-50/50 border-x border-amber-100">
+                            <input
+                              type="number"
+                              min="0"
+                              className="w-20 text-right font-bold border border-amber-300 rounded px-2 py-1 outline-none focus:border-amber-500 bg-white text-slate-900"
+                              value={p.returnQty}
+                              onChange={e => updateProductQty(p.id, parseInt(e.target.value) || 0)}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              className="w-24 text-right border border-slate-200 rounded px-2 py-1 text-sm bg-white"
+                              value={p.unitRate}
+                              onChange={e => updateProductField(p.id, 'unitRate', parseFloat(e.target.value) || 0)}
+                            />
+                          </td>
+                          <td className="px-3 py-2 text-right text-slate-600 font-mono">{p.gstPct}%</td>
+                          <td className="px-3 py-2 text-right font-bold text-slate-900">{formatCurrency((p.returnQty || 0) * (p.unitRate || 0))}</td>
+                          <td className="px-3 py-2 text-center">
+                            <button type="button" onClick={() => handleRemoveProduct(p.id)} className="text-rose-500 hover:text-rose-700 p-1 font-bold">
+                              ✕
+                            </button>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-slate-100 text-sm">
-                        {formProducts.map(p => (
-                          <tr key={p.id}>
-                            <td className="px-4 py-3 font-medium text-slate-800">{p.name}</td>
-                            <td className="px-4 py-3 text-slate-600">{p.batch}</td>
-                            <td className="px-4 py-3 text-right text-slate-600">{p.soldQty}</td>
-                            <td className="px-4 py-3 text-right">
-                              <input type="number" min="0" max={p.soldQty} className="w-20 text-right border border-slate-200 rounded px-2 py-1 outline-none focus:border-violet-500" value={p.returnQty} onChange={e => updateProductQty(p.id, parseInt(e.target.value) || 0)} />
-                            </td>
-                            <td className="px-4 py-3 text-right text-slate-600">{formatCurrency(p.unitRate)}</td>
-                            <td className="px-4 py-3 text-right font-bold text-slate-800">{formatCurrency(p.returnQty * p.unitRate)}</td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="md:col-span-6 p-4 bg-slate-50 border border-dashed border-slate-200 rounded-lg text-center">
+                  <p className="text-sm text-slate-500 mb-2">No product items added yet.</p>
+                  <button
+                    type="button"
+                    onClick={handleAddCustomProduct}
+                    className="text-xs font-semibold text-[#163c78] hover:text-violet-700 bg-white px-3 py-1.5 rounded border border-slate-300 shadow-sm"
+                  >
+                    + Add Product Return Item
+                  </button>
+                </div>
               )}
 
               {/* SECTION 5: GST ADJUSTMENT */}
               <div className="md:col-span-3 mt-4">
                 <h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">5. GST Adjustment</h3>
                 <div className="space-y-3 mt-4 text-sm bg-slate-50 p-4 rounded-lg border border-slate-100">
+                  {formProducts.length === 0 && (
+                    <div className="mb-3">
+                      <label className="block text-xs font-medium text-slate-700 mb-1">Direct Taxable Credit Amount (₹)</label>
+                      <input
+                        type="number"
+                        min="0"
+                        className="w-full border border-slate-200 rounded px-2 py-1 text-sm bg-white font-semibold"
+                        value={manualTaxable}
+                        onChange={e => setManualTaxable(parseFloat(e.target.value) || 0)}
+                        placeholder="Enter taxable credit amount..."
+                      />
+                    </div>
+                  )}
                   <div className="flex justify-between">
                     <span className="text-slate-600">Taxable Amount</span>
                     <span className="font-semibold">{formatCurrency(calcValues.taxable)}</span>
@@ -518,10 +623,6 @@ export default function CreditNotes() {
                   <div className="flex justify-between">
                     <span className="text-slate-600">SGST Adjustment</span>
                     <span className="text-slate-600">{formatCurrency(calcValues.sgst)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-slate-600">IGST Adjustment</span>
-                    <span className="text-slate-600">₹ 0.00</span>
                   </div>
                   <div className="flex justify-between border-t border-slate-200 pt-3">
                     <span className="font-semibold text-slate-800">Total GST Reversal</span>
