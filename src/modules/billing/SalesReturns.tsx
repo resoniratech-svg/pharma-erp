@@ -2,7 +2,7 @@ import { useState, useMemo, useRef, useEffect } from 'react';
 import { Download, Filter, PackageMinus, Eye, Trash2, FileText, Settings2, ChevronDown } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import { applySalesReturnTemplate } from '../../documents/templates/SalesReturnTemplate';
 import {
   PageHeader,
   FilterBar,
@@ -166,23 +166,42 @@ export default function SalesReturns() {
 
   const downloadDocument = (record: ReturnEntry, e: React.MouseEvent) => {
     e.stopPropagation();
-    const doc = new jsPDF();
-    doc.text(`Sales Return Document`, 14, 20);
-    doc.text(`Return No: ${record.returnNo}`, 14, 30);
-    doc.text(`Customer: ${record.customerName}`, 14, 40);
-    doc.text(`Return Value: ${formatCurrency(record.returnValue)}`, 14, 50);
-    doc.text(`Status: ${record.status}`, 14, 60);
-    
-    const tableData = record.products.map(p => [
-      p.name, p.batch, p.soldQty.toString(), p.returnQty.toString(), formatCurrency(p.unitPrice), formatCurrency(p.returnQty * p.unitPrice)
-    ]);
-    (doc as any).autoTable({
-      head: [['Product', 'Batch', 'Sold Qty', 'Return Qty', 'Unit Price', 'Amount']],
-      body: tableData,
-      startY: 70,
-    });
-
-    doc.save(`${record.returnNo}_Document.pdf`);
+    try {
+      const doc = new jsPDF();
+      applySalesReturnTemplate(doc, {
+        returnNo: record.returnNo,
+        date: record.date,
+        customerName: record.customerName,
+        customerType: record.customerType,
+        invoiceNo: record.invoiceNo,
+        returnType: record.returnType,
+        reason: record.reason,
+        remarks: record.remarks,
+        qcStatus: record.qcStatus,
+        physicalCondition: record.physicalCondition,
+        batchVerification: record.batchVerification,
+        expiryVerification: record.expiryVerification,
+        qcRemarks: record.qcRemarks,
+        returnValue: record.returnValue,
+        gstReversal: record.gstReversal,
+        cnAmount: record.cnAmount,
+        status: record.status,
+        cnStatus: record.cnStatus,
+        approvedBy: record.approvedBy,
+        approvalRemarks: record.approvalRemarks,
+        products: record.products.map(p => ({
+          name: p.name,
+          batch: p.batch,
+          soldQty: p.soldQty,
+          returnQty: p.returnQty,
+          unitPrice: p.unitPrice,
+        }))
+      });
+      doc.save(`${record.returnNo}_SalesReturn.pdf`);
+    } catch (err) {
+      console.error('Failed to generate Sales Return PDF:', err);
+      alert('PDF generation failed. Please try again.');
+    }
   };
 
   const columns: Column<ReturnEntry>[] = [
