@@ -283,11 +283,6 @@ export default function SchemeVisibility() {
     setShowExportMenu(false);
   };
 
-  const handlePrint = () => {
-    window.print();
-    setShowExportMenu(false);
-  };
-
   return (
     <div className="animate-in fade-in duration-500">
       <PageHeader
@@ -308,7 +303,6 @@ export default function SchemeVisibility() {
                   <button onClick={handleExportCSV} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export CSV</button>
                   <button onClick={handleExportExcel} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export Excel</button>
                   <button onClick={handleExportPDF} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100">Export PDF</button>
-                  <button onClick={handlePrint} className="block w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 border-t border-slate-100">Print</button>
                 </div>
               </div>
             )}
