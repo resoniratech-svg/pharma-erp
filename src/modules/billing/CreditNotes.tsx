@@ -453,12 +453,17 @@ export default function CreditNotes() {
       return;
     }
 
+    const INT4_MAX = 2147483647;
+    const numericInvId = Number(formInvoiceNo);
+    const isValidDbId = Number.isInteger(numericInvId) && numericInvId > 0 && numericInvId <= INT4_MAX;
+
     const payload: any = {
       cnType: formCnType,
       reason: formReason,
       remarks: formRemarks,
       retailerId: formClientInfo.retailerId ? Number(formClientInfo.retailerId) : undefined,
-      againstInvoiceId: formInvoiceNo || undefined,
+      // Only send againstInvoiceId if it's a real DB record ID (not a JS timestamp)
+      againstInvoiceId: isValidDbId ? numericInvId : undefined,
       againstInvoiceNo: formClientInfo.againstInvoiceNo || formInvoiceNo || undefined,
       customerName: formClientInfo.customerName || undefined,
       taxableAmount: calcValues.taxable,
