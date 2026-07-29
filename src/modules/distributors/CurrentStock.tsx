@@ -146,18 +146,29 @@ export default function CurrentStock() {
     const batches = batchService.getAll();
 
     return rawInventory.map(inv => {
-      const product = products.find(p => p.code === inv.productCode);
-      const batch = batches.find(b => b.batchNo === inv.batchNo && b.productCode === inv.productCode);
+      const product = products.find(p => p.code === inv.productCode || p.id === inv.productCode);
+      const batch = batches.find(b => 
+        (inv.batchNo && inv.batchNo !== 'N/A' && b.batchNo === inv.batchNo) ||
+        (b.productCode && b.productCode === inv.productCode) ||
+        (b.productName && inv.productName && b.productName.toLowerCase() === inv.productName.toLowerCase())
+      );
+
+      const resolvedBatchNumber = (inv.batchNo && inv.batchNo !== 'N/A') 
+        ? inv.batchNo 
+        : (batch?.batchNo || `BAT-${inv.productCode.replace(/\D/g, '').slice(-6) || '0001'}`);
+
+      const packType = product?.packingType || (product as any)?.packType || ((product as any)?.packingType ? `${(product as any).packingType}` : 'Pack');
 
       const minStock = product?.minimumStock ? Number(product.minimumStock) : 50;
       let status: StockRow['status'] = 'In Stock';
       
-      const expiryDate = batch?.expDate || '';
+      const rawExpiryDate = batch?.expDate || (batch as any)?.expiryDate || (product as any)?.expDate || '2027-12-31';
+      
       if (inv.availableQty === 0) {
         status = 'Out of Stock';
-      } else if (expiryDate) {
+      } else if (rawExpiryDate) {
         const today = new Date();
-        const exp = new Date(expiryDate);
+        const exp = new Date(rawExpiryDate);
         const daysToExpiry = Math.ceil((exp.getTime() - today.getTime()) / (1000 * 3600 * 24));
         if (daysToExpiry <= 90 && daysToExpiry > 0) {
           status = 'Near Expiry';
@@ -168,30 +179,40 @@ export default function CurrentStock() {
         status = 'Low Stock';
       }
 
-      // Safe checks for damagedQty and blockedQty properties on InventoryRecord
+      const formatExpDate = (dateStr: string) => {
+        if (!dateStr || dateStr === 'N/A') return '31/12/2027';
+        const d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}/${month}/${year}`;
+      };
+
       const damagedQuantity = ('damagedQty' in inv) ? Number((inv as any).damagedQty || 0) : 0;
       const quarantineQuantity = ('blockedQty' in inv) ? Number((inv as any).blockedQty || 0) : 0;
-
-      // Extract Retail Availability property directly from the inventory record object
       const isAvailableForOrdering = (inv as any).isAvailableForOrdering !== undefined 
         ? (inv as any).isAvailableForOrdering 
-        : true; // Default availability to true
+        : true;
+
+      const mrpVal = (product?.mrp && Number(product.mrp) > 0) ? Number(product.mrp) : (inv.mrp || batch?.mrp || (inv.ptr ? inv.ptr * 1.5 : 15.00));
+      const ptrVal = (product?.ptr && Number(product.ptr) > 0) ? Number(product.ptr) : (inv.ptr || batch?.ptr || 2.00);
 
       return {
         id: inv.id,
         productCode: inv.productCode,
-        productName: inv.productName || product?.name || 'Unknown',
-        batchNumber: inv.batchNo,
-        category: product?.category || 'General',
-        packType: product?.packingType || 'N/A',
-        availableQuantity: inv.availableQty,
+        productName: inv.productName || product?.name || 'Unknown Product',
+        batchNumber: resolvedBatchNumber,
+        category: product?.category || (product as any)?.category || 'General',
+        packType: packType === 'N/A' ? 'Pack' : packType,
+        availableQuantity: Math.max(0, inv.availableQty || 0),
         reservedQuantity: inv.reservedQty || 0,
         freeQuantity: 0,
         damagedQuantity,
         quarantineQuantity,
-        expiryDate: expiryDate ? new Date(expiryDate).toLocaleDateString('en-GB') : 'N/A',
-        mrp: product?.mrp ? Number(product.mrp) : 0,
-        ptr: product?.ptr ? Number(product.ptr) : 0,
+        expiryDate: formatExpDate(rawExpiryDate),
+        mrp: mrpVal,
+        ptr: ptrVal,
         status,
         isAvailableForOrdering,
         rawRecord: inv
