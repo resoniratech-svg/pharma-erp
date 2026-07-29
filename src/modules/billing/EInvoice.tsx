@@ -381,11 +381,7 @@ export default function EInvoice() {
                 <ActionButton icon={<Play className="w-4 h-4" />} onClick={() => handleGenerateIRN(viewRecord.invoiceNo, viewRecord.id)}>Generate IRN</ActionButton>
               )}
               {viewRecord.irnStatus === 'Generated' && (
-                <>
-                  <ActionButton icon={<Download className="w-4 h-4" />} onClick={() => handleDownloadPDF(viewRecord)}>Download PDF</ActionButton>
-                  <ActionButton variant="secondary" icon={<FileJson className="w-4 h-4" />} onClick={() => handleDownloadJSON(viewRecord)}>Download JSON</ActionButton>
-                  <ActionButton variant="secondary" icon={<QrCode className="w-4 h-4" />} onClick={() => handleDownloadQR(viewRecord)}>Download QR Code</ActionButton>
-                </>
+                <ActionButton icon={<Download className="w-4 h-4" />} onClick={() => handleDownloadPDF(viewRecord)}>Download PDF</ActionButton>
               )}
               {viewRecord.irnStatus === 'Failed' && (
                 <ActionButton icon={<RefreshCw className="w-4 h-4" />} onClick={() => handleRetryGenerateIRN(viewRecord.invoiceNo, viewRecord.id)}>Retry Generate IRN</ActionButton>
@@ -429,53 +425,33 @@ export default function EInvoice() {
                 <div className="col-span-2">
                   <DrawerField label="Response Message" value={viewRecord.responseMessage} />
                 </div>
-                <DrawerField label="Error Code" value={viewRecord.errorCode} />
-                <DrawerField label="Error Description" value={viewRecord.errorDesc} />
+                <DrawerField label="Error Code" value={
+                  viewRecord.nicStatus === 'Success' ? 'NONE' :
+                  viewRecord.nicStatus === 'Pending' ? 'N/A' :
+                  (viewRecord.errorCode && viewRecord.errorCode !== '-' ? viewRecord.errorCode : 'ERR-500')
+                } />
+                <DrawerField label="Error Description" value={
+                  viewRecord.nicStatus === 'Success' ? 'No errors. E-Invoice processed & validated successfully.' :
+                  viewRecord.nicStatus === 'Pending' ? 'Awaiting NIC portal validation.' :
+                  (viewRecord.errorDesc && viewRecord.errorDesc !== '-' ? viewRecord.errorDesc : 'Validation failed')
+                } />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Compliance Info</h3>
-                <div className="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                  <div className="flex justify-between text-sm text-slate-600">
-                    <span>Taxable Amount</span>
-                    <span>{formatCurrency(viewRecord.taxableAmount)}</span>
-                  </div>
-                  <div className="flex justify-between text-sm text-slate-600">
-                    <span>GST Amount</span>
-                    <span>{formatCurrency(viewRecord.gstAmount)}</span>
-                  </div>
-                  <div className="flex justify-between text-base font-bold text-slate-900 pt-3 border-t border-slate-200 mt-2">
-                    <span>Invoice Value</span>
-                    <span className="text-violet-700">{formatCurrency(viewRecord.invoiceValue)}</span>
-                  </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">Compliance Info</h3>
+              <div className="space-y-3 bg-slate-50 p-4 rounded-lg border border-slate-100">
+                <div className="flex justify-between text-sm text-slate-600">
+                  <span>Taxable Amount</span>
+                  <span>{formatCurrency(viewRecord.taxableAmount)}</span>
                 </div>
-              </div>
-
-              <div>
-                <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider mb-3">QR Information</h3>
-                <div className="flex flex-col items-center justify-center p-4 bg-slate-50 rounded-lg border border-slate-100 h-[140px]">
-                  {viewRecord.qrStatus === 'Generated' ? (
-                    <div className="text-center">
-                      <QrCode className="w-16 h-16 text-slate-800 mx-auto mb-2 opacity-80" />
-                      <Badge variant="success">QR Generated</Badge>
-                    </div>
-                  ) : viewRecord.qrStatus === 'Pending' ? (
-                    <div className="text-center">
-                      <div className="w-16 h-16 border-2 border-dashed border-slate-300 rounded mx-auto mb-2 flex items-center justify-center">
-                        <QrCode className="w-8 h-8 text-slate-300" />
-                      </div>
-                      <Badge variant="warning">Pending</Badge>
-                    </div>
-                  ) : (
-                    <div className="text-center">
-                      <div className="w-16 h-16 border-2 border-slate-200 rounded mx-auto mb-2 flex items-center justify-center">
-                        <span className="text-slate-400 text-xs">N/A</span>
-                      </div>
-                      <Badge variant="neutral">Not Applicable</Badge>
-                    </div>
-                  )}
+                <div className="flex justify-between text-sm text-slate-600">
+                  <span>GST Amount</span>
+                  <span>{formatCurrency(viewRecord.gstAmount)}</span>
+                </div>
+                <div className="flex justify-between text-base font-bold text-slate-900 pt-3 border-t border-slate-200 mt-2">
+                  <span>Invoice Value</span>
+                  <span className="text-violet-700">{formatCurrency(viewRecord.invoiceValue)}</span>
                 </div>
               </div>
             </div>
