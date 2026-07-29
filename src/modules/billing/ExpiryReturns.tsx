@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { Download, Filter, AlertTriangle, Eye, Settings2, ChevronDown } from 'lucide-react';
 import { jsPDF } from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 
 import {
@@ -233,7 +233,7 @@ export default function ExpiryReturns() {
       row.status
     ]);
 
-    (doc as any).autoTable({
+    autoTable(doc, {
       head: [['Return No', 'Date', 'Customer', 'Product', 'Batch', 'Expiry', 'Qty', 'Vendor', 'Settlement', 'Value', 'Status']],
       body: tableData,
       startY: 35,
