@@ -11,7 +11,30 @@ export default function CentralLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
+  const handleForgotPassword = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    setError('');
+    setSuccessMsg('');
+
+    if (!email) {
+      setError('Please enter your registered email address above and click Forgot Password again.');
+      return;
+    }
+
+    setResetLoading(true);
+    try {
+      const response = await authService.forgotPassword(email);
+      setSuccessMsg(response.message || 'Reset link sent successfully to your email.');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset link.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -208,6 +231,12 @@ export default function CentralLogin() {
             </p>
           )}
 
+          {successMsg && (
+            <p className="text-sm text-green-600 font-medium text-center bg-green-50 p-2 rounded-md">
+              {successMsg}
+            </p>
+          )}
+
           {/* Remember Me & Forgot Password */}
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -223,9 +252,9 @@ export default function CentralLogin() {
             </div>
 
             <div className="text-sm">
-              <a href="#" className="font-semibold text-[#163c78] hover:text-[#102b5c] transition-colors" onClick={(e) => e.preventDefault()}>
-                Forgot Password?
-              </a>
+              <button type="button" onClick={handleForgotPassword} disabled={resetLoading} className="font-semibold text-[#163c78] hover:text-[#102b5c] transition-colors disabled:opacity-50">
+                {resetLoading ? 'Sending...' : 'Forgot Password?'}
+              </button>
             </div>
           </div>
 

@@ -112,6 +112,28 @@ export default function LoginPage() {
   const [success,      setSuccess]      = useState(false);
   const [emailErr,     setEmailErr]     = useState('');
   const [passwordErr,  setPasswordErr]  = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [successMsg,   setSuccessMsg]   = useState('');
+
+  const handleForgotPassword = async () => {
+    setEmailErr('');
+    setSuccessMsg('');
+    
+    if (!email) {
+      setEmailErr('Please enter your registered email address above and click Forgot Password again.');
+      return;
+    }
+    
+    setResetLoading(true);
+    try {
+      const response = await authService.forgotPassword(email);
+      setSuccessMsg(response.message || 'Reset link sent successfully to your email.');
+    } catch (err: any) {
+      setEmailErr(err.message || 'Failed to send reset link.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   /* Validation helpers */
   const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
@@ -487,6 +509,14 @@ export default function LoginPage() {
                 }
               />
 
+              {successMsg && (
+                <div className="pt-2">
+                  <p className="text-sm text-green-600 font-medium text-center bg-green-50 p-2 rounded-md">
+                    {successMsg}
+                  </p>
+                </div>
+              )}
+
               {/* Remember Me & Forgot Password */}
               <div className="flex items-center justify-between pt-1">
                 <label className="flex items-center gap-2 cursor-pointer group">
@@ -498,9 +528,11 @@ export default function LoginPage() {
                 </label>
                 <button
                   type="button"
-                  className="text-sm font-semibold text-brand-primary hover:text-brand-secondary hover:underline transition-colors"
+                  onClick={handleForgotPassword}
+                  disabled={resetLoading}
+                  className="text-sm font-semibold text-brand-primary hover:text-brand-secondary hover:underline transition-colors disabled:opacity-50"
                 >
-                  Forgot Password?
+                  {resetLoading ? 'Sending...' : 'Forgot Password?'}
                 </button>
               </div>
 

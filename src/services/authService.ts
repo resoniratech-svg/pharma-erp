@@ -147,6 +147,22 @@ export class AuthService {
 
     return true;
   }
+
+  async forgotPassword(email: string): Promise<{ success: boolean; message: string }> {
+    const response = await apiRequest<{ success: boolean; message: string }>('/auth/forgot-password', {
+      method: 'POST',
+      bodyData: { email },
+    });
+    return response;
+  }
+
+  async resetPassword(id: string, token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    const response = await apiRequest<{ success: boolean; message: string }>('/auth/reset-password', {
+      method: 'POST',
+      bodyData: { id, token, newPassword },
+    });
+    return response;
+  }
 }
 
 const authService = new AuthService();

@@ -153,6 +153,7 @@ import FranchiseMonitoring from '../../modules/super-admin/FranchiseMonitoring';
 import SuperAdminNotificationCenter from '../../modules/super-admin/NotificationCenter';
 import UserActivityLogs from '../../modules/super-admin/UserActivityLogs';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
+import ResetPassword from '../../pages/ResetPassword';
 
 export const router = createBrowserRouter([
   {
@@ -170,6 +171,10 @@ export const router = createBrowserRouter([
   {
     path: '/login',
     element: <LoginPage />,
+  },
+  {
+    path: '/reset-password',
+    element: <ResetPassword />,
   },
   {
     path: '/workspace/dashboard',
