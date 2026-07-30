@@ -21,7 +21,7 @@ export default function ProfileSettings() {
   const initialImage = authUser?.profileImage || null;
 
   const [name, setName] = useState(initialName);
-  const [email] = useState(initialEmail);
+  const [email, setEmail] = useState(initialEmail);
   const [mobile, setMobile] = useState(initialMobile);
   const [profileImage, setProfileImage] = useState<string | null>(initialImage);
   
@@ -179,8 +179,8 @@ export default function ProfileSettings() {
                   <input
                     type="email"
                     value={email}
-                    readOnly
-                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg bg-slate-50 text-slate-500 focus:outline-none text-sm cursor-not-allowed"
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary text-sm"
                   />
                 </div>
               </div>
