@@ -15,6 +15,7 @@ import {
 } from './components/shared';
 import { type Column } from './components/shared';
 import { motion, AnimatePresence } from 'framer-motion';
+import { apiRequest } from '../../services/apiClient';
 
 import { seedUsers, type UserRole } from '../../data/seedUsers';
 
@@ -140,51 +141,69 @@ export default function UserManagement() {
     status: 'Active'
   });
 
+  const fetchUsers = async () => {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/users');
+      if (response && response.success && Array.isArray(response.data)) {
+        let parsedUsers = response.data.map(u => ({
+          id: String(u.id),
+          name: u.name,
+          email: u.email,
+          username: u.email.split('@')[0],
+          role: u.role,
+          status: u.isActive ? 'Active' : 'Inactive',
+          lastLogin: u.lastLogin || '-',
+          tenantId: u.companyId,
+          createdDate: new Date(u.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          createdBy: 'System',
+          modifiedBy: 'System',
+          modifiedDate: new Date(u.updatedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        }));
+        
+        // Tenant Scoping
+        const sessionStr = localStorage.getItem('centralAuthSession');
+        const session = sessionStr ? JSON.parse(sessionStr) : null;
+        if (session?.role === 'COMPANY_ADMIN' && session.tenantId) {
+          parsedUsers = parsedUsers.filter((u: any) => u.tenantId === session.tenantId);
+        }
+        
+        setUsers(parsedUsers);
+        
+        // Calculate roles summary
+        const customRolesRaw = localStorage.getItem("custom_roles");
+        const customRoles = customRolesRaw ? JSON.parse(customRolesRaw) : [];
+        
+        const systemRoleNames = [
+          'SUPER_ADMIN', 'ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'ACCOUNTANT', 
+          'DISTRIBUTOR', 'RETAILER', 'MR'
+        ];
+        
+        const allRolesData = [
+          ...systemRoleNames.map(name => ({ title: name, status: 'Active' })),
+          ...customRoles
+        ];
+
+        const mappedRoles = allRolesData.map(r => {
+          const count = parsedUsers.filter((u: UserRole) => u.role === r.title).length;
+          return {
+            name: r.title,
+            users: count,
+            status: r.status || 'Active'
+          };
+        });
+
+        setRoles(mappedRoles);
+      }
+    } catch (err) {
+      console.error("Failed to fetch users", err);
+    }
+  };
+
   useEffect(() => {
-    const savedUsers = localStorage.getItem('users');
-    let parsedUsers: UserRole[] = savedUsers ? JSON.parse(savedUsers) : seedUsers;
-    
-    // Schema migration / regeneration check
-    if (parsedUsers.length > 0 && (!parsedUsers[0].password || parsedUsers[0].password === '123')) {
-      parsedUsers = seedUsers;
-      localStorage.setItem('users', JSON.stringify(seedUsers));
-    }
-    
-    // Tenant Scoping
-    const sessionStr = localStorage.getItem('centralAuthSession');
-    const session = sessionStr ? JSON.parse(sessionStr) : null;
-    if (session?.role === 'COMPANY_ADMIN' && session.tenantId) {
-      parsedUsers = parsedUsers.filter((u: any) => u.tenantId === session.tenantId);
-    }
-    
-    setUsers(parsedUsers);
-
-    const customRolesRaw = localStorage.getItem("custom_roles");
-    const customRoles = customRolesRaw ? JSON.parse(customRolesRaw) : [];
-    
-    const systemRoleNames = [
-      'Super Admin', 'Warehouse Manager', 'Accountant', 
-      'Distributor', 'Retailer', 'Medical Representative'
-    ];
-    
-    const allRolesData = [
-      ...systemRoleNames.map(name => ({ title: name, status: 'Active' })),
-      ...customRoles
-    ];
-
-    const mappedRoles = allRolesData.map(r => {
-      const count = parsedUsers.filter((u: UserRole) => u.role === r.title).length;
-      return {
-        name: r.title,
-        users: count,
-        status: r.status || 'Active'
-      };
-    });
-
-    setRoles(mappedRoles);
+    fetchUsers();
   }, []);
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     const errors: { [key: string]: string } = {};
 
     if (!formData.fullName.trim()) errors.fullName = "Full Name is required";
@@ -204,61 +223,42 @@ export default function UserManagement() {
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    if (editMode) {
-      // Fetch all users to update the correct one
-      const allUsersStr = localStorage.getItem('users');
-      const allUsers = allUsersStr ? JSON.parse(allUsersStr) : [];
-      const updatedAllUsers = allUsers.map((u: any) => u.id === formData.empId ? {
-        ...u,
-        name: formData.fullName,
-        email: formData.email,
-        mobile: formData.phone,
-        username: formData.username,
-        role: formData.roleId,
-        ...(formData.password ? { password: formData.password } : {}),
-        status: formData.status as 'Active' | 'Inactive',
-        modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-      } : u);
-      
-      const updatedUsers = users.map(u => u.id === formData.empId ? updatedAllUsers.find((au: any) => au.id === formData.empId) : u);
-      
-      setUsers(updatedUsers);
-      localStorage.setItem('users', JSON.stringify(updatedAllUsers));
-    } else {
-      const sessionStr = localStorage.getItem('centralAuthSession');
-      const session = sessionStr ? JSON.parse(sessionStr) : null;
+    try {
+      if (editMode) {
+        // Update User
+        await apiRequest(`/users/${formData.empId}`, {
+          method: 'PUT',
+          bodyData: {
+            name: formData.fullName,
+            email: formData.email,
+            mobile: formData.phone,
+            role: formData.roleId,
+            isActive: formData.status === 'Active',
+            ...(formData.password ? { password: formData.password } : {})
+          }
+        });
+      } else {
+        // Create User
+        await apiRequest('/auth/register', {
+          method: 'POST',
+          bodyData: {
+            name: formData.fullName,
+            email: formData.email,
+            password: formData.password,
+            role: formData.roleId
+          }
+        });
+      }
 
-      const newUser: any = {
-        id: formData.empId,
-        name: formData.fullName,
-        email: formData.email,
-        mobile: formData.phone,
-        username: formData.username,
-        password: formData.password,
-        role: formData.roleId,
-        status: formData.status as 'Active' | 'Inactive',
-        lastLogin: '-',
-        createdBy: 'Current User',
-        createdDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        modifiedBy: 'Current User',
-        modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        tenantId: session?.tenantId || null,
-        purchasedModules: session?.purchasedModules || []
-      };
-
-      const allUsersStr = localStorage.getItem('users');
-      const allUsers = allUsersStr ? JSON.parse(allUsersStr) : [];
+      await fetchUsers();
       
-      const updatedAllUsers = [...allUsers, newUser];
-      setUsers([...users, newUser]);
-      localStorage.setItem('users', JSON.stringify(updatedAllUsers));
-      setRoles(roles.map(r => r.name === newUser.role ? { ...r, users: r.users + 1 } : r));
+      setFormData({
+        empId: '', fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
+      });
+      setShowRoleModal(false);
+    } catch (err: any) {
+      alert(`Failed to save user: ${err.message}`);
     }
-
-    setFormData({
-      empId: '', fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
-    });
-    setShowRoleModal(false);
   };
 
   const columns: Column<UserRole>[] = [
@@ -733,8 +733,16 @@ export default function UserManagement() {
             </div>
             <div className="flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setShowResetDialog(false)}>Cancel</ActionButton>
-              <ActionButton variant="primary" onClick={() => {
-                alert('Password reset successfully');
+              <ActionButton variant="primary" onClick={async () => {
+                try {
+                  await apiRequest('/auth/forgot-password', {
+                    method: 'POST',
+                    bodyData: { email: targetUser.email }
+                  });
+                  alert('Password reset link sent to user email successfully.');
+                } catch (err: any) {
+                  alert(`Failed to send reset link: ${err.message}`);
+                }
                 setShowResetDialog(false);
               }}>Reset Password</ActionButton>
             </div>
@@ -763,11 +771,17 @@ export default function UserManagement() {
             </div>
             <div className="flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setShowLockDialog(false)}>Cancel</ActionButton>
-              <ActionButton variant="primary" onClick={() => {
-                const newStatus = targetUser.status === 'Locked' ? 'Active' : 'Locked';
-                const updated = users.map(u => u.id === targetUser.id ? { ...u, status: newStatus as UserRole['status'] } : u);
-                setUsers(updated);
-                localStorage.setItem('users', JSON.stringify(updated));
+              <ActionButton variant="primary" onClick={async () => {
+                try {
+                  const newStatus = targetUser.status === 'Locked' ? 'Active' : 'Locked';
+                  await apiRequest(`/users/${targetUser.id}`, {
+                    method: 'PUT',
+                    bodyData: { isActive: newStatus === 'Active' }
+                  });
+                  await fetchUsers();
+                } catch (err: any) {
+                  alert(`Failed to update status: ${err.message}`);
+                }
                 setShowLockDialog(false);
               }}>
                 {targetUser.status === 'Locked' ? 'Unlock User' : 'Lock User'}
@@ -794,14 +808,20 @@ export default function UserManagement() {
             </div>
             <div className="flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setShowStatusDialog(false)}>Cancel</ActionButton>
-              <ActionButton variant="primary" onClick={() => {
-                const newStatus = targetUser.status === 'Active' ? 'Inactive' : 'Active';
-                const updated = users.map(u => u.id === targetUser.id ? { ...u, status: newStatus as UserRole['status'] } : u);
-                setUsers(updated);
-                localStorage.setItem('users', JSON.stringify(updated));
+              <ActionButton variant="primary" onClick={async () => {
+                try {
+                  const newStatus = targetUser.status === 'Active' ? 'Inactive' : 'Active';
+                  await apiRequest(`/users/${targetUser.id}`, {
+                    method: 'PUT',
+                    bodyData: { isActive: newStatus === 'Active' }
+                  });
+                  await fetchUsers();
+                } catch (err: any) {
+                  alert(`Failed to update status: ${err.message}`);
+                }
                 setShowStatusDialog(false);
               }}>
-                {targetUser.status === 'Active' ? 'Deactivate' : 'Activate'}
+                {targetUser.status === 'Active' ? 'Deactivate User' : 'Activate User'}
               </ActionButton>
             </div>
           </div>
