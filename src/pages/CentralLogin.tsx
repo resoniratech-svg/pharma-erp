@@ -48,32 +48,6 @@ export default function CentralLogin() {
     setLoading(true);
 
     try {
-      const storedAdmins = localStorage.getItem('companyAdmins');
-      const companyAdmins = storedAdmins ? JSON.parse(storedAdmins) : [];
-      const companyAdmin = companyAdmins.find((a: any) => a.email?.toLowerCase() === email.toLowerCase() || a.adminName?.toLowerCase() === email.toLowerCase());
-
-      if (companyAdmin && (companyAdmin.passwordHash === password || companyAdmin.password === password || password.length >= 3)) {
-        const authPayload = {
-          role: 'COMPANY_ADMIN',
-          tenantId: companyAdmin.id,
-          purchasedModules: companyAdmin.subscription?.purchasedModules || [],
-          user: {
-            id: companyAdmin.id,
-            email: companyAdmin.email,
-            fullName: companyAdmin.adminName,
-            companyName: companyAdmin.companyName,
-            role: 'COMPANY_ADMIN'
-          }
-        };
-        localStorage.setItem('authToken', 'token-' + companyAdmin.id + '-' + Date.now());
-        localStorage.setItem('authUser', JSON.stringify(authPayload.user));
-        localStorage.setItem('activeRole', 'COMPANY_ADMIN');
-        localStorage.setItem('centralAuthSession', JSON.stringify(authPayload));
-        setLoading(false);
-        navigate('/workspace');
-        return;
-      }
-
       // 1. Try real backend database authentication
       const loggedUser = await authService.login(email, password);
       setLoading(false);
