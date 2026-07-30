@@ -1,5 +1,6 @@
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
+const nodemailer = require("nodemailer");
 
 const prisma = require("../../config/db");
 
@@ -142,8 +143,80 @@ const getCurrentUser = async (userId) => {
   return user;
 };
 
+const forgotPassword = async (email) => {
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) {
+    const error = new Error("Please enter the correct email id.");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const secret = process.env.JWT_SECRET + user.password;
+  const payload = { email: user.email, id: user.id };
+  const token = jwt.sign(payload, secret, { expiresIn: '15m' });
+
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:5173";
+  const link = `${frontendUrl}/reset-password?token=${token}&id=${user.id}`;
+
+  const transporter = nodemailer.createTransport({
+    service: "gmail",
+    auth: {
+      user: process.env.SMTP_USER,
+      pass: process.env.SMTP_PASS,
+    },
+  });
+
+  const mailOptions = {
+    from: process.env.SMTP_USER,
+    to: user.email,
+    subject: "Password Reset - MJ Healthcare ERP",
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto;">
+        <h3>Password Reset Request</h3>
+        <p>You requested a password reset for your account.</p>
+        <p>Please click the button below to reset your password. This link is valid for 15 minutes.</p>
+        <a href="${link}" style="display: inline-block; padding: 10px 20px; background-color: #4f46e5; color: #fff; text-decoration: none; border-radius: 5px; margin-top: 10px;">Reset Password</a>
+        <p style="margin-top: 20px;">If the button doesn't work, copy and paste this link into your browser:</p>
+        <p><a href="${link}">${link}</a></p>
+        <p>If you did not request this, please ignore this email.</p>
+      </div>
+    `,
+  };
+
+  await transporter.sendMail(mailOptions);
+  return { message: "Reset link sent successfully to your email." };
+};
+
+const resetPassword = async (id, token, newPassword) => {
+  const user = await prisma.user.findUnique({ where: { id: parseInt(id) } });
+  if (!user) {
+    const error = new Error("Invalid reset link.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const secret = process.env.JWT_SECRET + user.password;
+  try {
+    jwt.verify(token, secret);
+  } catch (err) {
+    const error = new Error("Reset link has expired or is invalid. Please request a new one.");
+    error.statusCode = 400;
+    throw error;
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+  await prisma.user.update({
+    where: { id: parseInt(id) },
+    data: { password: hashedPassword },
+  });
+
+  return { message: "Password updated successfully" };
+};
+
 module.exports = {
   registerUser,
   loginUser,
   getCurrentUser,
+  forgotPassword,
+  resetPassword,
 };

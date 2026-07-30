@@ -2,6 +2,8 @@ const {
   registerUser,
   loginUser,
   getCurrentUser,
+  forgotPassword: forgotPasswordService,
+  resetPassword: resetPasswordService,
 } = require("./auth.service");
 
 const register = async (req, res) => {
@@ -149,10 +151,40 @@ const updateProfile = async (req, res) => {
   }
 };
 
+const forgotPassword = async (req, res) => {
+  try {
+    const { email } = req.body;
+    if (!email) {
+      return res.status(400).json({ success: false, message: "Email is required" });
+    }
+    const result = await forgotPasswordService(email);
+    res.status(200).json({ success: true, message: result.message });
+  } catch (error) {
+    const statusCode = error.statusCode || 400;
+    res.status(statusCode).json({ success: false, message: error.message });
+  }
+};
+
+const resetPassword = async (req, res) => {
+  try {
+    const { id, token, newPassword } = req.body;
+    if (!id || !token || !newPassword) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+    const result = await resetPasswordService(id, token, newPassword);
+    res.status(200).json({ success: true, message: result.message });
+  } catch (error) {
+    const statusCode = error.statusCode || 400;
+    res.status(statusCode).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
   logout,
   me,
   updateProfile,
+  forgotPassword,
+  resetPassword,
 };
