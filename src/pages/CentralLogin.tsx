@@ -90,7 +90,12 @@ export default function CentralLogin() {
       navigate('/workspace');
       return;
     } catch (backendErr: any) {
-      // 2. Fallback to local developer user roles if backend is unauthenticated
+      if (backendErr.message && backendErr.message !== 'Failed to fetch' && !backendErr.message.includes('Network')) {
+        setError(backendErr.message);
+        setLoading(false);
+        return;
+      }
+      // 2. Fallback to local developer user roles if backend is offline
       const storedUsers = localStorage.getItem('users');
       let users = storedUsers ? JSON.parse(storedUsers) : null;
       if (!users || users.length === 0) {

@@ -189,6 +189,11 @@ export default function LoginPage() {
       }, 400);
       return;
     } catch (backendErr: any) {
+      if (backendErr.message && backendErr.message !== 'Failed to fetch' && !backendErr.message.includes('Network')) {
+        setPasswordErr(backendErr.message);
+        setLoading(false);
+        return;
+      }
       console.warn("Backend auth failed or offline, falling back to local auth:", backendErr);
     }
 
