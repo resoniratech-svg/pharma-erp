@@ -10,30 +10,7 @@ export default function CentralLogin() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [successMsg, setSuccessMsg] = useState('');
   const [loading, setLoading] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
-
-  const handleForgotPassword = async (e: React.MouseEvent) => {
-    e.preventDefault();
-    setError('');
-    setSuccessMsg('');
-
-    if (!email) {
-      setError('Please enter your registered email address above and click Forgot Password again.');
-      return;
-    }
-
-    setResetLoading(true);
-    try {
-      const response = await authService.forgotPassword(email);
-      setSuccessMsg(response.message || 'Reset link sent successfully to your email.');
-    } catch (err: any) {
-      setError(err.message || 'Failed to send reset link.');
-    } finally {
-      setResetLoading(false);
-    }
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,25 +24,54 @@ export default function CentralLogin() {
     setLoading(true);
 
     try {
-      // 1. Try real backend database authentication
-      const loggedUser = await authService.login(email, password);
-      setLoading(false);
-      
-      const roleName = loggedUser.roleId || loggedUser.role;
-      const authPayload = {
-        role: roleName || 'SUPER_ADMIN',
-        tenantId: loggedUser.companyId || null,
-        purchasedModules: loggedUser.purchasedModules || [],
-        user: loggedUser
-      };
-      localStorage.setItem('centralAuthSession', JSON.stringify(authPayload));
-      localStorage.setItem('activeRole', authPayload.role || 'SUPER_ADMIN');
-      navigate('/workspace');
-      return;
-    } catch (backendErr: any) {
-      setError(backendErr.message || "Failed to connect to backend server.");
-      setLoading(false);
-      return;
+      const { user, mappedRoleId } = await authService.localLogin(email, password);
+
+      let authPayload: any = null;
+      if (mappedRoleId === 'SUPER_ADMIN') {
+        authPayload = {
+          role: 'SUPER_ADMIN',
+          tenantId: null,
+          purchasedModules: [],
+          user
+        };
+      } else if (mappedRoleId === 'COMPANY_ADMIN') {
+        authPayload = {
+          role: 'COMPANY_ADMIN',
+          tenantId: user.tenantId,
+          purchasedModules: user.purchasedModules || [],
+          user: {
+            id: user.id,
+            email: user.email,
+            fullName: user.name,
+            role: 'COMPANY_ADMIN'
+          }
+        };
+      } else {
+        authPayload = {
+          role: user.role, // This will be mapped later to actual system role
+          tenantId: user.tenantId,
+          purchasedModules: user.purchasedModules || [],
+          user
+        };
+      }
+
+      setTimeout(() => {
+        setLoading(false);
+        localStorage.setItem('centralAuthSession', JSON.stringify(authPayload));
+        navigate('/workspace');
+      }, 500);
+
+    } catch (err: any) {
+      setTimeout(() => {
+        setLoading(false);
+        setError(err.message || 'Invalid email or password.');
+        activityLogService.addLog({
+          userName: email || 'Unknown',
+          module: 'Authentication',
+          action: 'Failed Login Attempt',
+          status: 'Failed'
+        });
+      }, 500);
     }
   };
 
@@ -137,12 +143,6 @@ export default function CentralLogin() {
             </p>
           )}
 
-          {successMsg && (
-            <p className="text-sm text-green-600 font-medium text-center bg-green-50 p-2 rounded-md">
-              {successMsg}
-            </p>
-          )}
-
           {/* Remember Me & Forgot Password */}
           <div className="flex items-center justify-between">
             <div className="flex items-center">
@@ -158,9 +158,9 @@ export default function CentralLogin() {
             </div>
 
             <div className="text-sm">
-              <button type="button" onClick={handleForgotPassword} disabled={resetLoading} className="font-semibold text-[#163c78] hover:text-[#102b5c] transition-colors disabled:opacity-50">
-                {resetLoading ? 'Sending...' : 'Forgot Password?'}
-              </button>
+              <a href="#" className="font-semibold text-[#163c78] hover:text-[#102b5c] transition-colors" onClick={(e) => e.preventDefault()}>
+                Forgot Password?
+              </a>
             </div>
           </div>
 

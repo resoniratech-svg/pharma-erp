@@ -112,28 +112,6 @@ export default function LoginPage() {
   const [success,      setSuccess]      = useState(false);
   const [emailErr,     setEmailErr]     = useState('');
   const [passwordErr,  setPasswordErr]  = useState('');
-  const [resetLoading, setResetLoading] = useState(false);
-  const [successMsg,   setSuccessMsg]   = useState('');
-
-  const handleForgotPassword = async () => {
-    setEmailErr('');
-    setSuccessMsg('');
-    
-    if (!email) {
-      setEmailErr('Please enter your registered email address above and click Forgot Password again.');
-      return;
-    }
-    
-    setResetLoading(true);
-    try {
-      const response = await authService.forgotPassword(email);
-      setSuccessMsg(response.message || 'Reset link sent successfully to your email.');
-    } catch (err: any) {
-      setEmailErr(err.message || 'Failed to send reset link.');
-    } finally {
-      setResetLoading(false);
-    }
-  };
 
   useEffect(() => {
     try {
@@ -193,37 +171,80 @@ export default function LoginPage() {
     return ok;
   };
 
-  /* Submit — authenticate against Backend API, with fallback to LocalStorage */
+  /* Submit — authenticate against authService */
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
 
     setLoading(true);
 
-    // 1. Try real backend authentication first
     try {
-      const userRecord = await authService.login(email, password);
-      localStorage.setItem('workspaceRole', role.id);
-      permissionService.initialize(userRecord.roleId);
+      const { user, mappedRoleId } = await authService.localLogin(email, password);
 
-      activityLogService.addLog({
-        userId: String(userRecord.id),
-        userName: userRecord.fullName,
-        action: "Login",
-        module: "Authentication",
-      });
+      // Verify role match if card role is specified (allowing fallback if navigating directly)
+      if (role.id && role.id !== 'SUPER_ADMIN' && mappedRoleId !== role.id) {
+        setTimeout(() => {
+          setLoading(false);
+          setEmailErr(`Invalid credentials for ${role.title} workspace.`);
+          setPasswordErr('');
+        }, 500);
+        return;
+      }
 
-      setLoading(false);
-      setSuccess(true);
-
+      // Authentication successful
       setTimeout(() => {
-        navigate("/workspace/dashboard");
-      }, 400);
-      return;
-    } catch (backendErr: any) {
-      setPasswordErr(backendErr.message || "Failed to connect to backend server.");
-      setLoading(false);
-      return;
+        setLoading(false);
+        setSuccess(true);
+      
+        const authToken = 'token-' + user.id + '-' + Date.now();
+        
+        // Create session object matching the expected format
+        const authUser = {
+          id: user.id,
+          email: user.email,
+          fullName: user.name,
+          roleId: mappedRoleId,
+          employeeCode: user.id, // Using UM id as employee code
+          department: 'Management'
+        };
+
+        // Set standard session keys
+        localStorage.setItem('authToken', authToken);
+        localStorage.setItem('authUser', JSON.stringify(authUser));
+        localStorage.setItem('activeRole', mappedRoleId);
+        localStorage.setItem('workspaceRole', role.id);
+        localStorage.setItem('userId', String(user.id));
+        
+        // Initialize permission service
+        permissionService.initialize(mappedRoleId);
+        
+        activityLogService.addLog({
+          userId: String(user.id),
+          userName: user.name,
+          action: "Login",
+          module: "Authentication",
+        });
+
+        if (mappedRoleId === 'NATIONAL_SALES_HEAD') {
+          navigate("/workspace/national-sales-head");
+        } else if (mappedRoleId === 'ZONAL_SALES_MANAGER') {
+          navigate("/workspace/zonal-sales-manager");
+        } else if (mappedRoleId === 'REGIONAL_SALES_MANAGER') {
+          navigate("/workspace/regional-sales-manager");
+        } else if (mappedRoleId === 'AREA_SALES_MANAGER') {
+          navigate("/workspace/area-sales-manager");
+        } else if (mappedRoleId === 'MEDICAL_REPRESENTATIVE') {
+          navigate("/workspace/medical-representative");
+        } else {
+          navigate("/workspace/dashboard");
+        }
+      }, 500);
+    } catch (err: any) {
+      setTimeout(() => {
+        setLoading(false);
+        setEmailErr(err.message || 'Invalid email or password.');
+        setPasswordErr(err.message === 'Your account is not active.' ? '' : 'Invalid email or password.');
+      }, 500);
     }
   };
 
@@ -405,14 +426,6 @@ export default function LoginPage() {
                 }
               />
 
-              {successMsg && (
-                <div className="pt-2">
-                  <p className="text-sm text-green-600 font-medium text-center bg-green-50 p-2 rounded-md">
-                    {successMsg}
-                  </p>
-                </div>
-              )}
-
               {/* Remember Me & Forgot Password */}
               <div className="flex items-center justify-between pt-1">
                 <label className="flex items-center gap-2 cursor-pointer group">
@@ -424,11 +437,9 @@ export default function LoginPage() {
                 </label>
                 <button
                   type="button"
-                  onClick={handleForgotPassword}
-                  disabled={resetLoading}
-                  className="text-sm font-semibold text-brand-primary hover:text-brand-secondary hover:underline transition-colors disabled:opacity-50"
+                  className="text-sm font-semibold text-brand-primary hover:text-brand-secondary hover:underline transition-colors"
                 >
-                  {resetLoading ? 'Sending...' : 'Forgot Password?'}
+                  Forgot Password?
                 </button>
               </div>
 

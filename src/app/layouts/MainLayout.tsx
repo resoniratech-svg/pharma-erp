@@ -65,8 +65,6 @@ const NavModules = {
       { label: 'Live Stock Monitoring', path: '/workspace/super-admin/live-stock-monitoring' },
       { label: 'Pending Payment Tracking', path: '/workspace/super-admin/pending-payment-tracking' },
       { label: 'Dispatch Monitoring', path: '/workspace/super-admin/dispatch-monitoring' },
-      // { label: 'Franchise Monitoring', path: '/workspace/super-admin/franchise-monitoring' },
-      // { label: 'Notification Center', path: '/workspace/super-admin/notification-center' },
       { label: 'Export Order Monitoring', path: '/workspace/super-admin/export-order-monitoring' },
       { label: 'User Activity Logs', path: '/workspace/super-admin/user-activity-logs' },
     ],
@@ -551,22 +549,13 @@ export function MainLayout() {
     });
   }, [location.pathname]);
 
+  const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
+  const activeRoleData = ROLES.find(r => r.id === activeRole) || ROLES[0];
   const authUserString = localStorage.getItem('centralAuthSession'); // read from central session
   const authUserSession = authUserString ? JSON.parse(authUserString) : null;
-  const authUser = authUserSession?.user || (localStorage.getItem('authUser') ? JSON.parse(localStorage.getItem('authUser')!) : null);
-
-  // Determine if active user session is a Company Admin account
-  const isCompanyAdmin = authUserSession?.role === 'COMPANY_ADMIN' || authUser?.role === 'COMPANY_ADMIN' || authUser?.roleId === 'COMPANY_ADMIN';
-  const effectiveRole = isCompanyAdmin ? 'COMPANY_ADMIN' : (localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN);
-  const activeRole = effectiveRole;
-
-  const activeRoleData = ROLES.find(r => r.id === effectiveRole) || ({
-    id: 'COMPANY_ADMIN',
-    title: authUser?.companyName ? `${authUser.companyName} Admin` : 'Company Admin',
-    userName: authUser?.fullName || authUser?.adminName || 'Company Admin',
-    userEmail: authUser?.email || 'admin@company.com'
-  } as any);
-
+  const localUserString = localStorage.getItem('authUser');
+  const authUser = localUserString ? JSON.parse(localUserString) : authUserSession?.user;
+  
   const getRoleTitle = (roleIdOrName?: string) => {
     if (!roleIdOrName) return activeRoleData.title;
     const foundById = ROLES.find(r => r.id === roleIdOrName);
@@ -595,8 +584,8 @@ export function MainLayout() {
     if (item.label === 'Dashboard') return true;
 
     if (activeRole === 'COMPANY_ADMIN') {
-      if (item.label === 'Super Admin' || item.label === 'Company Admin') return false; 
-      if (item.label === 'Settings') return true;
+      if (item.label === 'Super Admin') return false; 
+      if (item.label === 'Settings' || item.label === 'Company Admin') return true;
       return purchasedModules.includes(item.label);
     }
     

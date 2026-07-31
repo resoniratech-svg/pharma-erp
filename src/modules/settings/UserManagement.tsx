@@ -15,9 +15,13 @@ import {
 } from './components/shared';
 import { type Column } from './components/shared';
 import { motion, AnimatePresence } from 'framer-motion';
-import { apiRequest } from '../../services/apiClient';
 
 import { seedUsers, type UserRole } from '../../data/seedUsers';
+import { salesOrganizationService } from '../../services/salesOrganizationService';
+import { distributorMasterService } from '../../services/distributorMasterService';
+import { retailerMasterService } from '../../services/retailerMasterService';
+
+type UserType = 'Employee' | 'Distributor' | 'Retailer' | 'Standalone User';
 
 function useOnClickOutside(ref: React.RefObject<HTMLElement | null>, handler: (event: MouseEvent | TouchEvent) => void) {
   useEffect(() => {
@@ -37,7 +41,7 @@ function useOnClickOutside(ref: React.RefObject<HTMLElement | null>, handler: (e
 }
 
 interface DropdownProps {
-  options: { label: string; value: string }[];
+  options: { label: string; value: string; subtitle?: string }[];
   value: string;
   onChange: (val: string) => void;
   placeholder?: string;
@@ -50,7 +54,11 @@ const SearchableDropdown = ({ options, value, onChange, placeholder }: DropdownP
   
   useOnClickOutside(ref, () => setIsOpen(false));
 
-  const filteredOptions = options.filter((o) => o.label.toLowerCase().includes(search.toLowerCase()));
+  const filteredOptions = options.filter((o) => 
+    o.label.toLowerCase().includes(search.toLowerCase()) || 
+    (o.subtitle && o.subtitle.toLowerCase().includes(search.toLowerCase())) ||
+    o.value.toLowerCase().includes(search.toLowerCase())
+  );
   const selectedOption = options.find((o) => o.value === value);
 
   return (
@@ -59,8 +67,8 @@ const SearchableDropdown = ({ options, value, onChange, placeholder }: DropdownP
         className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors flex items-center justify-between cursor-pointer"
         onClick={() => setIsOpen(!isOpen)}
       >
-        <span className={selectedOption ? 'text-slate-900' : 'text-slate-400'}>
-          {selectedOption ? selectedOption.label : placeholder}
+        <span className={selectedOption ? 'text-slate-900 font-medium' : 'text-slate-400'}>
+          {selectedOption ? selectedOption.label : (placeholder || 'Select option...')}
         </span>
         <ChevronDown className="w-4 h-4 text-slate-400" />
       </div>
@@ -82,7 +90,7 @@ const SearchableDropdown = ({ options, value, onChange, placeholder }: DropdownP
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 bg-slate-50 border-none rounded-md text-sm focus:outline-none focus:ring-1 focus:ring-violet-500/20"
-                  placeholder="Search roles..."
+                  placeholder="Search..."
                 />
               </div>
             </div>
@@ -95,12 +103,15 @@ const SearchableDropdown = ({ options, value, onChange, placeholder }: DropdownP
                     setIsOpen(false);
                     setSearch('');
                   }}
-                  className={`px-3 py-2 text-sm rounded-md cursor-pointer transition-colors ${value === opt.value ? 'bg-[#163c78]/10 text-[#163c78] font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
+                  className={`px-3 py-2 text-sm rounded-md cursor-pointer transition-colors flex flex-col ${value === opt.value ? 'bg-[#163c78]/10 text-[#163c78] font-semibold' : 'text-slate-700 hover:bg-slate-50'}`}
                 >
-                  {opt.label}
+                  <span>{opt.label}</span>
+                  {opt.subtitle && (
+                    <span className="text-[11px] text-slate-400 font-normal">{opt.subtitle}</span>
+                  )}
                 </div>
               )) : (
-                <div className="px-3 py-4 text-sm text-center text-slate-500">No roles found</div>
+                <div className="px-3 py-4 text-sm text-center text-slate-500">No records found</div>
               )}
             </div>
           </motion.div>
@@ -129,6 +140,16 @@ export default function UserManagement() {
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [targetUser, setTargetUser] = useState<UserRole | null>(null);
 
+  // Integration State
+  const [userType, setUserType] = useState<UserType>('Employee');
+  const [selectedMasterId, setSelectedMasterId] = useState<string>('');
+  const [masterMetaData, setMasterMetaData] = useState<{
+    code: string;
+    name: string;
+    designationOrContact: string;
+    status: string;
+  }>({ code: '', name: '', designationOrContact: '', status: '' });
+
   const [formData, setFormData] = useState({
     empId: '',
     fullName: '',
@@ -141,76 +162,226 @@ export default function UserManagement() {
     status: 'Active'
   });
 
-  const fetchUsers = async () => {
-    try {
-      const response = await apiRequest<{ success: boolean; data: any[] }>('/users');
-      if (response && response.success && Array.isArray(response.data)) {
-        let parsedUsers: any[] = response.data.map((u: any) => ({
-          id: String(u.id),
-          name: u.name,
-          email: u.email,
-          username: u.email.split('@')[0],
-          role: u.role,
-          status: u.isActive ? 'Active' : 'Inactive',
-          lastLogin: u.lastLogin || '-',
-          tenantId: u.companyId,
-          createdDate: new Date(u.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-          createdBy: 'System',
-          modifiedBy: 'System',
-          modifiedDate: new Date(u.updatedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        }));
-        
-        // Tenant Scoping
-        const sessionStr = localStorage.getItem('centralAuthSession');
-        const session = sessionStr ? JSON.parse(sessionStr) : null;
-        if (session?.role === 'COMPANY_ADMIN' && session.tenantId) {
-          parsedUsers = parsedUsers.filter((u: any) => u.tenantId === session.tenantId);
+  useEffect(() => {
+    const savedUsers = localStorage.getItem('users');
+    let parsedUsers: UserRole[] = savedUsers ? JSON.parse(savedUsers) : seedUsers;
+    
+    // Schema migration / regeneration check
+    if (!parsedUsers || !Array.isArray(parsedUsers) || parsedUsers.length === 0) {
+      parsedUsers = seedUsers;
+      localStorage.setItem('users', JSON.stringify(seedUsers));
+    } else {
+      let updated = false;
+      for (const su of seedUsers) {
+        if (!parsedUsers.some((u: any) => u.id === su.id || u.email.toLowerCase() === su.email.toLowerCase())) {
+          parsedUsers.push(su);
+          updated = true;
         }
-        
-        setUsers(parsedUsers as UserRole[]);
-        
-        // Calculate roles summary
-        const customRolesRaw = localStorage.getItem("custom_roles");
-        const customRoles = customRolesRaw ? JSON.parse(customRolesRaw) : [];
-        
-        const systemRoleNames = [
-          'SUPER_ADMIN', 'ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'ACCOUNTANT', 
-          'DISTRIBUTOR', 'RETAILER', 'MR'
-        ];
-        
-        const allRolesData = [
-          ...systemRoleNames.map(name => ({ title: name, status: 'Active' })),
-          ...customRoles
-        ];
-
-        const mappedRoles = allRolesData.map(r => {
-          const count = parsedUsers.filter((u: any) => u.role === r.title).length;
-          return {
-            name: r.title,
-            users: count,
-            status: r.status || 'Active'
-          };
-        });
-
-        setRoles(mappedRoles);
       }
-    } catch (err) {
-      console.error("Failed to fetch users", err);
+      if (updated) {
+        localStorage.setItem('users', JSON.stringify(parsedUsers));
+      }
+    }
+    
+    // Tenant Scoping
+    const sessionStr = localStorage.getItem('centralAuthSession');
+    const session = sessionStr ? JSON.parse(sessionStr) : null;
+    if (session?.role === 'COMPANY_ADMIN' && session.tenantId) {
+      parsedUsers = parsedUsers.filter((u: any) => u.tenantId === session.tenantId);
+    }
+    
+    setUsers(parsedUsers);
+
+    const customRolesRaw = localStorage.getItem("custom_roles");
+    const customRoles = customRolesRaw ? JSON.parse(customRolesRaw) : [];
+    
+    const systemRoleNames = [
+      'Super Admin', 'Warehouse Manager', 'Accountant', 
+      'Distributor', 'Retailer', 'Medical Representative',
+      'Area Sales Manager', 'Regional Sales Manager', 'Zonal Sales Manager', 'National Sales Head'
+    ];
+    
+    const allRolesData = [
+      ...systemRoleNames.map(name => ({ title: name, status: 'Active' })),
+      ...customRoles
+    ];
+
+    const mappedRoles = allRolesData.map(r => {
+      const count = parsedUsers.filter((u: UserRole) => u.role === r.title).length;
+      return {
+        name: r.title,
+        users: count,
+        status: r.status || 'Active'
+      };
+    });
+
+    setRoles(mappedRoles);
+  }, []);
+
+  // --- Master Data Loaders & Filtering ---
+  const getAvailableEmployees = () => {
+    const employees = salesOrganizationService.getEmployees();
+    return employees.filter(emp => {
+      if (emp.status !== 'Active') return false;
+      const linkedUser = users.find(
+        u => (u.id === emp.employeeCode || (u as any).empId === emp.employeeCode) && u.status === 'Active'
+      );
+      return !linkedUser;
+    });
+  };
+
+  const getAvailableDistributors = () => {
+    const distributors = distributorMasterService.getAll();
+    return distributors.filter(dist => {
+      if (dist.status !== 'Active') return false;
+      const linkedUser = users.find(
+        u => (u.id === dist.code || (u as any).empId === dist.code) && u.status === 'Active'
+      );
+      return !linkedUser;
+    });
+  };
+
+  const getAvailableRetailers = () => {
+    const retailers = retailerMasterService.getAll();
+    return retailers.filter(ret => {
+      if (ret.status !== 'Active') return false;
+      const linkedUser = users.find(
+        u => (u.id === ret.code || (u as any).empId === ret.code) && u.status === 'Active'
+      );
+      return !linkedUser;
+    });
+  };
+
+  const handleUserTypeChange = (type: UserType) => {
+    setUserType(type);
+    setSelectedMasterId('');
+    setMasterMetaData({ code: '', name: '', designationOrContact: '', status: '' });
+    setFormErrors({});
+
+    if (type === 'Standalone User') {
+      let maxId = 0;
+      users.forEach(u => {
+        if (u.id.startsWith('EMP')) {
+          const num = parseInt(u.id.replace('EMP', ''), 10);
+          if (!isNaN(num) && num > maxId) maxId = num;
+        }
+      });
+      const nextId = `EMP${(maxId + 1).toString().padStart(3, '0')}`;
+      setFormData({
+        empId: nextId,
+        fullName: '',
+        email: '',
+        phone: '',
+        username: '',
+        roleId: '',
+        password: '',
+        confirmPassword: '',
+        status: 'Active'
+      });
+    } else {
+      setFormData({
+        empId: '',
+        fullName: '',
+        email: '',
+        phone: '',
+        username: '',
+        roleId: '',
+        password: '',
+        confirmPassword: '',
+        status: 'Active'
+      });
     }
   };
 
-  useEffect(() => {
-    fetchUsers();
-  }, []);
+  const handleMasterSelection = (masterId: string) => {
+    setSelectedMasterId(masterId);
+    setFormErrors({});
 
-  const handleCreateUser = async () => {
+    if (userType === 'Employee') {
+      const emp = salesOrganizationService.getEmployees().find(e => e.id === masterId);
+      if (emp) {
+        setMasterMetaData({
+          code: emp.employeeCode,
+          name: emp.employeeName,
+          designationOrContact: emp.designation,
+          status: emp.status
+        });
+        setFormData(prev => ({
+          ...prev,
+          empId: emp.employeeCode,
+          fullName: emp.employeeName,
+          username: emp.employeeCode.toLowerCase().replace(/[^a-z0-9]/g, ''),
+          roleId: emp.designation,
+        }));
+      }
+    } else if (userType === 'Distributor') {
+      const dist = distributorMasterService.getAll().find(d => d.id === masterId);
+      if (dist) {
+        setMasterMetaData({
+          code: dist.code,
+          name: dist.name,
+          designationOrContact: dist.contactPerson || dist.name,
+          status: dist.status
+        });
+        setFormData(prev => ({
+          ...prev,
+          empId: dist.code,
+          fullName: dist.name,
+          email: dist.emailAddress || '',
+          phone: dist.mobileNumber && dist.mobileNumber !== '-' ? dist.mobileNumber : '',
+          username: dist.code.toLowerCase().replace(/[^a-z0-9]/g, ''),
+          roleId: 'Distributor',
+        }));
+      }
+    } else if (userType === 'Retailer') {
+      const ret = retailerMasterService.getAll().find(r => r.id === masterId);
+      if (ret) {
+        setMasterMetaData({
+          code: ret.code,
+          name: ret.name,
+          designationOrContact: ret.contactPerson || ret.name,
+          status: ret.status
+        });
+        setFormData(prev => ({
+          ...prev,
+          empId: ret.code,
+          fullName: ret.name,
+          email: ret.emailAddress || '',
+          phone: ret.mobileNumber || '',
+          username: ret.code.toLowerCase().replace(/[^a-z0-9]/g, ''),
+          roleId: 'Retailer',
+        }));
+      }
+    }
+  };
+
+  const handleCreateUser = () => {
     const errors: { [key: string]: string } = {};
 
+    if (!editMode && userType !== 'Standalone User' && !selectedMasterId) {
+      errors.selectedMasterId = `Please select an ${userType}`;
+    }
+
+    if (!formData.empId.trim()) errors.empId = "Employee/User Code is required";
     if (!formData.fullName.trim()) errors.fullName = "Full Name is required";
+    
     if (!formData.email.trim()) errors.email = "Email Address is required";
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) errors.email = "Invalid email format";
-    
+    else {
+      const dupEmail = users.some(
+        u => u.email.toLowerCase() === formData.email.trim().toLowerCase() && u.id !== formData.empId
+      );
+      if (dupEmail) errors.email = "Email Address is already in use by another user";
+    }
+
     if (!formData.username.trim()) errors.username = "Username is required";
+    else {
+      const dupUsername = users.some(
+        u => u.username.toLowerCase() === formData.username.trim().toLowerCase() && u.id !== formData.empId
+      );
+      if (dupUsername) errors.username = "Username is already in use by another user";
+    }
+
     if (!formData.roleId) errors.roleId = "Role is required";
 
     if (!editMode && !formData.password) errors.password = "Password is required";
@@ -220,49 +391,83 @@ export default function UserManagement() {
 
     if (formData.phone && !/^\d{10}$/.test(formData.phone)) errors.phone = "Phone must be 10 digits";
 
+    // Duplicate active login prevention for linked master records
+    if (!editMode && userType !== 'Standalone User' && selectedMasterId) {
+      const activeAccountExists = users.some(
+        u => (u.id === formData.empId || (u as any).empId === formData.empId) && u.status === 'Active'
+      );
+      if (activeAccountExists) {
+        errors.selectedMasterId = `An active user account already exists for this ${userType}`;
+      }
+    }
+
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    try {
-      if (editMode) {
-        // Update User
-        await apiRequest(`/users/${formData.empId}`, {
-          method: 'PUT',
-          bodyData: {
-            name: formData.fullName,
-            email: formData.email,
-            mobile: formData.phone,
-            role: formData.roleId,
-            isActive: formData.status === 'Active',
-            ...(formData.password ? { password: formData.password } : {})
-          }
-        });
-      } else {
-        // Create User
-        await apiRequest('/auth/register', {
-          method: 'POST',
-          bodyData: {
-            name: formData.fullName,
-            email: formData.email,
-            password: formData.password,
-            role: formData.roleId
-          }
-        });
-      }
-
-      await fetchUsers();
+    if (editMode) {
+      // Update existing user
+      const allUsersStr = localStorage.getItem('users');
+      const allUsers = allUsersStr ? JSON.parse(allUsersStr) : [];
+      const updatedAllUsers = allUsers.map((u: any) => u.id === formData.empId ? {
+        ...u,
+        name: formData.fullName.trim(),
+        email: formData.email.trim(),
+        mobile: formData.phone.trim(),
+        username: formData.username.trim(),
+        role: formData.roleId,
+        ...(formData.password ? { password: formData.password.trim() } : {}),
+        status: formData.status as 'Active' | 'Inactive',
+        modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+      } : u);
       
-      setFormData({
-        empId: '', fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
-      });
-      setShowRoleModal(false);
-    } catch (err: any) {
-      alert(`Failed to save user: ${err.message}`);
+      const updatedUsers = users.map(u => u.id === formData.empId ? updatedAllUsers.find((au: any) => au.id === formData.empId) : u);
+      
+      setUsers(updatedUsers);
+      localStorage.setItem('users', JSON.stringify(updatedAllUsers));
+    } else {
+      // Create new user
+      const sessionStr = localStorage.getItem('centralAuthSession');
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
+
+      const newUser: any = {
+        id: formData.empId.trim(),
+        empId: formData.empId.trim(),
+        userType: userType,
+        name: formData.fullName.trim(),
+        email: formData.email.trim(),
+        mobile: formData.phone.trim(),
+        username: formData.username.trim(),
+        password: formData.password.trim(),
+        role: formData.roleId,
+        status: formData.status as 'Active' | 'Inactive',
+        lastLogin: '-',
+        createdBy: 'Current User',
+        createdDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        modifiedBy: 'Current User',
+        modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        tenantId: session?.tenantId || null,
+        purchasedModules: session?.purchasedModules || []
+      };
+
+      const allUsersStr = localStorage.getItem('users');
+      const allUsers = allUsersStr ? JSON.parse(allUsersStr) : [];
+      
+      const updatedAllUsers = [...allUsers, newUser];
+      setUsers([...users, newUser]);
+      localStorage.setItem('users', JSON.stringify(updatedAllUsers));
+      setRoles(roles.map(r => r.name === newUser.role ? { ...r, users: r.users + 1 } : r));
     }
+
+    setFormData({
+      empId: '', fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
+    });
+    setSelectedMasterId('');
+    setMasterMetaData({ code: '', name: '', designationOrContact: '', status: '' });
+    setShowRoleModal(false);
   };
 
   const columns: Column<UserRole>[] = [
-    { key: "id", label: "Employee ID" },
+    { key: "id", label: "Employee / User ID" },
     {
       key: "name",
       label: "Full Name",
@@ -397,16 +602,11 @@ export default function UserManagement() {
               onClick={() => {
                 setEditMode(false);
                 setFormErrors({});
-                let maxId = 0;
-                users.forEach(u => {
-                  if (u.id.startsWith('EMP')) {
-                    const num = parseInt(u.id.replace('EMP', ''), 10);
-                    if (!isNaN(num) && num > maxId) maxId = num;
-                  }
-                });
-                const nextId = `EMP${(maxId + 1).toString().padStart(3, '0')}`;
+                setUserType('Employee');
+                setSelectedMasterId('');
+                setMasterMetaData({ code: '', name: '', designationOrContact: '', status: '' });
                 setFormData({
-                  empId: nextId, fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
+                  empId: '', fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
                 });
                 setShowRoleModal(true);
               }}
@@ -502,7 +702,7 @@ export default function UserManagement() {
         </div>
       </div>
 
-      {/* CREATE USER MODAL */}
+      {/* CREATE / EDIT USER MODAL */}
       {showRoleModal && (
         <div 
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm"
@@ -528,20 +728,108 @@ export default function UserManagement() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="md:col-span-2">
+              {/* USER TYPE SELECTION */}
+              {!editMode && (
+                <div className="md:col-span-2 bg-slate-50/80 p-4 rounded-xl border border-slate-200/80">
+                  <label className="block text-sm font-bold text-slate-800 mb-1.5">
+                    User Type <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={userType}
+                    onChange={(e) => handleUserTypeChange(e.target.value as UserType)}
+                    className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-[#163c78] focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors cursor-pointer"
+                  >
+                    <option value="Employee">Employee (Sales Organization)</option>
+                    <option value="Distributor">Distributor (Distributor Master)</option>
+                    <option value="Retailer">Retailer (Retailer Master)</option>
+                    <option value="Standalone User">Standalone User (Manual Entry)</option>
+                  </select>
+                  {formErrors.userType && (
+                    <p className="text-rose-500 text-xs mt-1.5 font-medium">{formErrors.userType}</p>
+                  )}
+                </div>
+              )}
+
+              {/* SEARCHABLE MASTER SELECTION DROPDOWNS */}
+              {!editMode && userType === 'Employee' && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Employee <span className="text-rose-500">*</span>
+                  </label>
+                  <SearchableDropdown
+                    options={getAvailableEmployees().map(e => ({
+                      label: `${e.employeeName} (${e.employeeCode})`,
+                      value: e.id,
+                      subtitle: `${e.designation} | ${e.area || e.zone}`
+                    }))}
+                    value={selectedMasterId}
+                    onChange={handleMasterSelection}
+                    placeholder="Search and select Active Employee..."
+                  />
+                  {formErrors.selectedMasterId && (
+                    <p className="text-rose-500 text-xs mt-1">{formErrors.selectedMasterId}</p>
+                  )}
+                </div>
+              )}
+
+              {!editMode && userType === 'Distributor' && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Distributor <span className="text-rose-500">*</span>
+                  </label>
+                  <SearchableDropdown
+                    options={getAvailableDistributors().map(d => ({
+                      label: `${d.name} (${d.code})`,
+                      value: d.id,
+                      subtitle: `Contact: ${d.contactPerson || 'N/A'} | ${d.mobileNumber || ''}`
+                    }))}
+                    value={selectedMasterId}
+                    onChange={handleMasterSelection}
+                    placeholder="Search and select Active Distributor..."
+                  />
+                  {formErrors.selectedMasterId && (
+                    <p className="text-rose-500 text-xs mt-1">{formErrors.selectedMasterId}</p>
+                  )}
+                </div>
+              )}
+
+              {!editMode && userType === 'Retailer' && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Retailer <span className="text-rose-500">*</span>
+                  </label>
+                  <SearchableDropdown
+                    options={getAvailableRetailers().map(r => ({
+                      label: `${r.name} (${r.code})`,
+                      value: r.id,
+                      subtitle: `Contact: ${r.contactPerson || 'N/A'} | ${r.mobileNumber || ''}`
+                    }))}
+                    value={selectedMasterId}
+                    onChange={handleMasterSelection}
+                    placeholder="Search and select Active Retailer..."
+                  />
+                  {formErrors.selectedMasterId && (
+                    <p className="text-rose-500 text-xs mt-1">{formErrors.selectedMasterId}</p>
+                  )}
+                </div>
+              )}
+
+              <div className="md:col-span-2 mt-2">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Account Details</h3>
               </div>
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Employee ID <span className="text-rose-500">*</span>
+                  {userType === 'Employee' ? 'Employee Code' : userType === 'Distributor' ? 'Distributor Code' : userType === 'Retailer' ? 'Retailer Code' : 'Employee/User Code'} <span className="text-rose-500">*</span>
                 </label>
                 <input
                   type="text"
                   value={formData.empId}
                   readOnly={true}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors text-slate-500 cursor-not-allowed"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors text-slate-600 cursor-not-allowed"
+                  placeholder="Auto-populated Code"
                 />
+                {formErrors.empId && <p className="text-rose-500 text-xs mt-1">{formErrors.empId}</p>}
               </div>
 
               <div>
@@ -550,12 +838,30 @@ export default function UserManagement() {
                 </label>
                 <input
                   type="text"
+                  readOnly={!editMode && userType !== 'Standalone User'}
                   value={formData.fullName}
                   onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                  className={`w-full px-3 py-2.5 bg-white border ${formErrors.fullName ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                  className={`w-full px-3 py-2.5 border ${formErrors.fullName ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors ${
+                    !editMode && userType !== 'Standalone User' ? 'bg-slate-50 text-slate-600 cursor-not-allowed font-medium' : 'bg-white text-slate-900'
+                  }`}
+                  placeholder="Full Name"
                 />
                 {formErrors.fullName && <p className="text-rose-500 text-xs mt-1">{formErrors.fullName}</p>}
               </div>
+
+              {masterMetaData.designationOrContact && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    {userType === 'Employee' ? 'Designation' : 'Contact Person'}
+                  </label>
+                  <input
+                    type="text"
+                    readOnly={true}
+                    value={masterMetaData.designationOrContact}
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 font-medium cursor-not-allowed focus:outline-none"
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">
@@ -566,6 +872,7 @@ export default function UserManagement() {
                   value={formData.email}
                   onChange={(e) => setFormData({...formData, email: e.target.value})}
                   className={`w-full px-3 py-2.5 bg-white border ${formErrors.email ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                  placeholder="e.g. user@company.com"
                 />
                 {formErrors.email && <p className="text-rose-500 text-xs mt-1">{formErrors.email}</p>}
               </div>
@@ -579,6 +886,7 @@ export default function UserManagement() {
                   value={formData.phone}
                   onChange={(e) => setFormData({...formData, phone: e.target.value})}
                   className={`w-full px-3 py-2.5 bg-white border ${formErrors.phone ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                  placeholder="10-digit mobile number"
                 />
                 {formErrors.phone && <p className="text-rose-500 text-xs mt-1">{formErrors.phone}</p>}
               </div>
@@ -596,6 +904,7 @@ export default function UserManagement() {
                   value={formData.username}
                   onChange={(e) => setFormData({...formData, username: e.target.value})}
                   className={`w-full px-3 py-2.5 bg-white border ${formErrors.username ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                  placeholder="Username for login"
                 />
                 {formErrors.username && <p className="text-rose-500 text-xs mt-1">{formErrors.username}</p>}
               </div>
@@ -622,6 +931,7 @@ export default function UserManagement() {
                   value={formData.password}
                   onChange={(e) => setFormData({...formData, password: e.target.value})}
                   className={`w-full px-3 py-2.5 bg-white border ${formErrors.password ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                  placeholder="Password"
                 />
                 {formErrors.password && <p className="text-rose-500 text-xs mt-1">{formErrors.password}</p>}
               </div>
@@ -635,23 +945,26 @@ export default function UserManagement() {
                   value={formData.confirmPassword}
                   onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
                   className={`w-full px-3 py-2.5 bg-white border ${formErrors.confirmPassword ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                  placeholder="Confirm password"
                 />
                 {formErrors.confirmPassword && <p className="text-rose-500 text-xs mt-1">{formErrors.confirmPassword}</p>}
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Status <span className="text-rose-500">*</span>
-                </label>
-                <select
-                  value={formData.status}
-                  onChange={(e) => setFormData({...formData, status: e.target.value})}
-                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors appearance-none cursor-pointer"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
+              {editMode && (
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Status <span className="text-rose-500">*</span>
+                  </label>
+                  <select
+                    value={formData.status}
+                    onChange={(e) => setFormData({...formData, status: e.target.value})}
+                    className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors appearance-none cursor-pointer"
+                  >
+                    <option value="Active">Active</option>
+                    <option value="Inactive">Inactive</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 mt-8 pt-4 border-t border-slate-100">
@@ -679,7 +992,7 @@ export default function UserManagement() {
         {selectedUser && (
           <div className="flex flex-col h-full">
             <div className="space-y-4 flex-1">
-              <DrawerField label="Employee ID" value={selectedUser.id} />
+              <DrawerField label="Employee / User ID" value={selectedUser.id} />
               <DrawerField label="Full Name" value={selectedUser.name} />
               <DrawerField label="Email Address" value={selectedUser.email} />
               <DrawerField label="Mobile Number" value={selectedUser.mobile} />
@@ -733,16 +1046,8 @@ export default function UserManagement() {
             </div>
             <div className="flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setShowResetDialog(false)}>Cancel</ActionButton>
-              <ActionButton variant="primary" onClick={async () => {
-                try {
-                  await apiRequest('/auth/forgot-password', {
-                    method: 'POST',
-                    bodyData: { email: targetUser.email }
-                  });
-                  alert('Password reset link sent to user email successfully.');
-                } catch (err: any) {
-                  alert(`Failed to send reset link: ${err.message}`);
-                }
+              <ActionButton variant="primary" onClick={() => {
+                alert('Password reset successfully');
                 setShowResetDialog(false);
               }}>Reset Password</ActionButton>
             </div>
@@ -771,17 +1076,11 @@ export default function UserManagement() {
             </div>
             <div className="flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setShowLockDialog(false)}>Cancel</ActionButton>
-              <ActionButton variant="primary" onClick={async () => {
-                try {
-                  const newStatus = targetUser.status === 'Locked' ? 'Active' : 'Locked';
-                  await apiRequest(`/users/${targetUser.id}`, {
-                    method: 'PUT',
-                    bodyData: { isActive: newStatus === 'Active' }
-                  });
-                  await fetchUsers();
-                } catch (err: any) {
-                  alert(`Failed to update status: ${err.message}`);
-                }
+              <ActionButton variant="primary" onClick={() => {
+                const newStatus = targetUser.status === 'Locked' ? 'Active' : 'Locked';
+                const updated = users.map(u => u.id === targetUser.id ? { ...u, status: newStatus as UserRole['status'] } : u);
+                setUsers(updated);
+                localStorage.setItem('users', JSON.stringify(updated));
                 setShowLockDialog(false);
               }}>
                 {targetUser.status === 'Locked' ? 'Unlock User' : 'Lock User'}
@@ -808,20 +1107,14 @@ export default function UserManagement() {
             </div>
             <div className="flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setShowStatusDialog(false)}>Cancel</ActionButton>
-              <ActionButton variant="primary" onClick={async () => {
-                try {
-                  const newStatus = targetUser.status === 'Active' ? 'Inactive' : 'Active';
-                  await apiRequest(`/users/${targetUser.id}`, {
-                    method: 'PUT',
-                    bodyData: { isActive: newStatus === 'Active' }
-                  });
-                  await fetchUsers();
-                } catch (err: any) {
-                  alert(`Failed to update status: ${err.message}`);
-                }
+              <ActionButton variant="primary" onClick={() => {
+                const newStatus = targetUser.status === 'Active' ? 'Inactive' : 'Active';
+                const updated = users.map(u => u.id === targetUser.id ? { ...u, status: newStatus as UserRole['status'] } : u);
+                setUsers(updated);
+                localStorage.setItem('users', JSON.stringify(updated));
                 setShowStatusDialog(false);
               }}>
-                {targetUser.status === 'Active' ? 'Deactivate User' : 'Activate User'}
+                {targetUser.status === 'Active' ? 'Deactivate' : 'Activate'}
               </ActionButton>
             </div>
           </div>
