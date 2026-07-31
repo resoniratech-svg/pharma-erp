@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react';
-import { Search, Download } from 'lucide-react';
+import { Search, X } from 'lucide-react';
+import { AnimatePresence, motion } from 'framer-motion';
 
 export type BadgeVariant = 'success' | 'warning' | 'danger' | 'info' | 'neutral' | 'purple';
 
@@ -115,26 +116,42 @@ export function DataTable<T extends { id: string | number }>({ columns, data, on
   );
 }
 
-export function PageHeader({ title, subtitle, breadcrumb = [], actions }: { title: string; subtitle?: string; breadcrumb?: { label: string; path?: string }[]; actions?: ReactNode; }) {
+export function Drawer({ open, onClose, title, children }: { open: boolean; onClose: () => void; title: string; children: ReactNode; }) {
   return (
-    <div className="mb-6">
-      {breadcrumb.length > 0 && (
-        <nav className="flex text-sm text-slate-500 mb-2">
-          {breadcrumb.map((item, index) => (
-            <span key={item.label} className="flex items-center">
-              {item.path ? <a href={item.path} className="hover:text-[#163c78] transition-colors">{item.label}</a> : <span className="text-slate-700 font-medium">{item.label}</span>}
-              {index < breadcrumb.length - 1 && <span className="mx-2">/</span>}
-            </span>
-          ))}
-        </nav>
+    <AnimatePresence>
+      {open && (
+        <>
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="fixed inset-0 bg-slate-900/30 backdrop-blur-[2px] z-50" onClick={onClose} />
+          <motion.div initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', damping: 28, stiffness: 300 }} className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
+              <h2 className="text-base font-bold text-slate-800">{title}</h2>
+              <button onClick={onClose} className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"><X className="w-5 h-5" /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
+          </motion.div>
+        </>
       )}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{title}</h1>
-          {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
-        </div>
-        {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
+    </AnimatePresence>
+  );
+}
+
+export function DrawerField({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="py-3 border-b border-slate-100 last:border-0">
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{label}</p>
+      <div className="text-sm font-medium text-slate-800">{value ?? '—'}</div>
+    </div>
+  );
+}
+
+export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: string; actions?: ReactNode; }) {
+  return (
+    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+      <div>
+        <h1 className="text-2xl font-bold text-slate-900 tracking-tight">{title}</h1>
+        {subtitle && <p className="text-sm text-slate-500 mt-0.5">{subtitle}</p>}
       </div>
+      {actions && <div className="flex items-center gap-2 flex-wrap">{actions}</div>}
     </div>
   );
 }
@@ -147,24 +164,9 @@ export function TableCard({ children }: { children: ReactNode }) {
   return <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">{children}</div>;
 }
 
-import { GlowCard } from '../../../components/ui/GlowCard';
-
-const getGlowProps = (colorClass: string) => {
-  if (colorClass.includes('emerald')) return { glowColor: 'rgba(16, 185, 129, 0.55)', glowColorIdle: 'rgba(16, 185, 129, 0.25)', borderGradient: 'linear-gradient(135deg, #10b981 0%, #34d399 50%, #6ee7b7 100%)' };
-  if (colorClass.includes('violet')) return { glowColor: 'rgba(124, 58, 237, 0.55)', glowColorIdle: 'rgba(124, 58, 237, 0.22)', borderGradient: 'linear-gradient(135deg, #7c3aed 0%, #a78bfa 50%, #ddd6fe 100%)' };
-  if (colorClass.includes('blue') || colorClass.includes('cyan')) return { glowColor: 'rgba(59, 130, 246, 0.55)', glowColorIdle: 'rgba(59, 130, 246, 0.22)', borderGradient: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #bfdbfe 100%)' };
-  if (colorClass.includes('rose') || colorClass.includes('amber')) return { glowColor: 'rgba(244, 63, 94, 0.50)', glowColorIdle: 'rgba(244, 63, 94, 0.20)', borderGradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fecdd3 100%)' };
-  return { glowColor: 'rgba(148, 163, 184, 0.50)', glowColorIdle: 'rgba(148, 163, 184, 0.20)', borderGradient: 'linear-gradient(135deg, #94a3b8 0%, #cbd5e1 50%, #f1f5f9 100%)' };
-};
-
 export function SummaryCard({ title, value, subtitle, icon, colorClass, bgClass }: { title: string; value: string; subtitle?: string; icon: ReactNode; colorClass: string; bgClass: string; }) {
-  const glowProps = getGlowProps(colorClass);
   return (
-    <GlowCard
-      borderGradient={glowProps.borderGradient}
-      glowColor={glowProps.glowColor}
-      glowColorIdle={glowProps.glowColorIdle}
-    >
+    <div className="bg-white p-6 rounded-[24px] border border-slate-100 shadow-sm hover:shadow-lg transition-all duration-300">
       <div className="flex items-center justify-between mb-4">
         <div className={`w-12 h-12 rounded-full flex items-center justify-center ${bgClass}`}>
           <div className={colorClass}>{icon}</div>
@@ -175,83 +177,6 @@ export function SummaryCard({ title, value, subtitle, icon, colorClass, bgClass 
         <p className="text-3xl font-bold text-slate-900">{value}</p>
         {subtitle && <p className="text-xs font-medium mt-2 text-slate-400">{subtitle}</p>}
       </div>
-    </GlowCard>
-  );
-}
-
-export function ExportButton({ onClick }: { onClick?: () => void }) {
-  return (
-    <ActionButton
-      variant="secondary"
-      icon={<Download className="w-4 h-4" />}
-      onClick={onClick}
-    >
-      Export CSV
-    </ActionButton>
-  );
-}
-
-/* ── Drawer ─────────────────────────────────────────────────────── */
-import { X } from 'lucide-react';
-import { AnimatePresence, motion } from 'framer-motion';
-
-export function Drawer({
-  open,
-  onClose,
-  title,
-  children,
-}: {
-  open: boolean;
-  onClose: () => void;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <AnimatePresence>
-      {open && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            className="fixed inset-0 bg-slate-900/30 backdrop-blur-[2px] z-50"
-            onClick={onClose}
-          />
-          {/* Panel */}
-          <motion.div
-            initial={{ x: '100%' }}
-            animate={{ x: 0 }}
-            exit={{ x: '100%' }}
-            transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-            className="fixed inset-y-0 right-0 z-50 w-full max-w-md bg-white shadow-2xl flex flex-col"
-          >
-            {/* Header */}
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 flex-shrink-0">
-              <h2 className="text-base font-bold text-slate-800">{title}</h2>
-              <button
-                onClick={onClose}
-                className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-            {/* Body */}
-            <div className="flex-1 overflow-y-auto px-6 py-5">{children}</div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
-  );
-}
-
-/* ── DrawerField ────────────────────────────────────────────────── */
-export function DrawerField({ label, value }: { label: string; value: ReactNode }) {
-  return (
-    <div className="py-3 border-b border-slate-100 last:border-0">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">{label}</p>
-      <div className="text-sm font-medium text-slate-800">{value ?? '—'}</div>
     </div>
   );
 }

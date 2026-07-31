@@ -145,7 +145,7 @@ export default function UserManagement() {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/users');
       if (response && response.success && Array.isArray(response.data)) {
-        let parsedUsers = response.data.map(u => ({
+        let parsedUsers: any[] = response.data.map((u: any) => ({
           id: String(u.id),
           name: u.name,
           email: u.email,
@@ -167,7 +167,7 @@ export default function UserManagement() {
           parsedUsers = parsedUsers.filter((u: any) => u.tenantId === session.tenantId);
         }
         
-        setUsers(parsedUsers);
+        setUsers(parsedUsers as UserRole[]);
         
         // Calculate roles summary
         const customRolesRaw = localStorage.getItem("custom_roles");
@@ -184,7 +184,7 @@ export default function UserManagement() {
         ];
 
         const mappedRoles = allRolesData.map(r => {
-          const count = parsedUsers.filter((u: UserRole) => u.role === r.title).length;
+          const count = parsedUsers.filter((u: any) => u.role === r.title).length;
           return {
             name: r.title,
             users: count,

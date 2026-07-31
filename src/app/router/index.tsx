@@ -6,6 +6,37 @@ import WorkspaceSelection from '../../pages/WorkspaceSelection';
 import LoginPage from '../../pages/LoginPage';
 import CentralLogin from '../../pages/CentralLogin';
 
+// Sales Hierarchy Modules
+import NationalSalesHeadDashboard from '../../modules/national-sales-head/Dashboard';
+import NSMSalesOrganization from '../../modules/national-sales-head/SalesOrganization';
+import NSMTargetAllocation from '../../modules/national-sales-head/TargetAllocation';
+import NSMTeamPerformance from '../../modules/national-sales-head/TeamPerformance';
+import NSMAnalytics from '../../modules/national-sales-head/NationalSalesAnalytics';
+import NSMReports from '../../modules/national-sales-head/NationalSalesReports';
+
+import ZonalSalesManagerDashboard from '../../modules/zonal-sales-manager/Dashboard';
+import ZSMSalesOrganization from '../../modules/zonal-sales-manager/SalesOrganization';
+import ZSMTargetAllocation from '../../modules/zonal-sales-manager/TargetAllocation';
+import ZSMTeamPerformance from '../../modules/zonal-sales-manager/TeamPerformance';
+import ZSMZoneAnalytics from '../../modules/zonal-sales-manager/ZoneAnalytics';
+import ZSMZoneReports from '../../modules/zonal-sales-manager/ZoneReports';
+
+import RegionalSalesManagerDashboard from '../../modules/regional-sales-manager/Dashboard';
+import RSMSalesOrganization from '../../modules/regional-sales-manager/SalesOrganization';
+import RSMTargetAllocation from '../../modules/regional-sales-manager/TargetAllocation';
+import RSMTeamPerformance from '../../modules/regional-sales-manager/TeamPerformance';
+import RSMRegionalAnalytics from '../../modules/regional-sales-manager/RegionalAnalytics';
+import RSMRegionalReports from '../../modules/regional-sales-manager/RegionalReports';
+
+import AreaSalesManagerDashboard from '../../modules/area-sales-manager/Dashboard';
+import ASMSalesOrganization from '../../modules/area-sales-manager/SalesOrganization';
+import ASMTargetAllocation from '../../modules/area-sales-manager/TargetAllocation';
+import ASMTeamPerformance from '../../modules/area-sales-manager/TeamPerformance';
+import ASMAreaAnalytics from '../../modules/area-sales-manager/AreaAnalytics';
+import ASMTourPlanReview from '../../modules/area-sales-manager/TourPlanReview';
+import ASMDCRReview from '../../modules/area-sales-manager/DCRReview';
+import ASMAttendanceMonitoring from '../../modules/area-sales-manager/AttendanceMonitoring';
+import ASMAreaReports from '../../modules/area-sales-manager/AreaReports';
 // Products Module
 import ProductMaster from '../../modules/products/ProductMaster';
 import HSNMaster from '../../modules/products/HSNMaster';
@@ -77,6 +108,8 @@ import SalesReturns from '../../modules/billing/SalesReturns';
 import ExpiryReturns from '../../modules/billing/ExpiryReturns';
 
 // MR Module
+import MRDashboard from '../../modules/mr/MRDashboard';
+import MyTargets from '../../modules/mr/MyTargets';
 import DoctorVisits from '../../modules/mr/DoctorVisits';
 import ChemistVisits from '../../modules/mr/ChemistVisits';
 import OrderBooking from '../../modules/mr/OrderBooking';
@@ -143,6 +176,7 @@ import SystemSettings from '../../modules/settings/SystemSettings';
 // Super Admin Module
 import RoleBasedAccess from '../../modules/super-admin/RoleBasedAccess';
 import AdminManagement from '../../modules/super-admin/AdminManagement';
+import SalesOrganization from '../../modules/super-admin/sales-organization/SalesOrganization';
 import AllIndiaSales from '../../modules/super-admin/AllIndiaSales';
 import StatePerformance from '../../modules/super-admin/StatePerformance';
 import ProductProfitability from '../../modules/super-admin/ProductProfitability';
@@ -187,6 +221,148 @@ export const router = createBrowserRouter([
     ],
   },
   {
+    path: '/workspace/national-sales-head',
+    element: <MainLayout />,
+    children: [
+      {
+        index: true,
+        element: <NationalSalesHeadDashboard />,
+      },
+      {
+        path: 'sales-organization',
+        element: <NSMSalesOrganization />,
+      },
+      {
+        path: 'target-allocation',
+        element: <NSMTargetAllocation />,
+      },
+      {
+        path: 'team-performance',
+        element: <NSMTeamPerformance />,
+      },
+      {
+        path: 'analytics',
+        element: <NSMAnalytics />,
+      },
+      {
+        path: 'reports',
+        element: <NSMReports />,
+      },
+    ],
+  },
+  {
+    path: '/workspace/zonal-sales-manager',
+    element: <MainLayout />,
+    children: [
+      {
+        index: true,
+        element: <ZonalSalesManagerDashboard />,
+      },
+      {
+        path: 'sales-organization',
+        element: <ZSMSalesOrganization />,
+      },
+      {
+        path: 'target-allocation',
+        element: <ZSMTargetAllocation />,
+      },
+      {
+        path: 'team-performance',
+        element: <ZSMTeamPerformance />,
+      },
+      {
+        path: 'zone-analytics',
+        element: <ZSMZoneAnalytics />,
+      },
+      {
+        path: 'zone-reports',
+        element: <ZSMZoneReports />,
+      },
+    ],
+  },
+  {
+    path: '/workspace/regional-sales-manager',
+    element: <MainLayout />,
+    children: [
+      {
+        index: true,
+        element: <RegionalSalesManagerDashboard />,
+      },
+      {
+        path: 'sales-organization',
+        element: <RSMSalesOrganization />,
+      },
+      {
+        path: 'target-allocation',
+        element: <RSMTargetAllocation />,
+      },
+      {
+        path: 'team-performance',
+        element: <RSMTeamPerformance />,
+      },
+      {
+        path: 'regional-analytics',
+        element: <RSMRegionalAnalytics />,
+      },
+      {
+        path: 'regional-reports',
+        element: <RSMRegionalReports />,
+      },
+    ],
+  },
+  {
+    path: '/workspace/area-sales-manager',
+    element: <MainLayout />,
+    children: [
+      {
+        index: true,
+        element: <AreaSalesManagerDashboard />,
+      },
+      {
+        path: 'sales-organization',
+        element: <ASMSalesOrganization />,
+      },
+      {
+        path: 'target-allocation',
+        element: <ASMTargetAllocation />,
+      },
+      {
+        path: 'team-performance',
+        element: <ASMTeamPerformance />,
+      },
+      {
+        path: 'area-analytics',
+        element: <ASMAreaAnalytics />,
+      },
+      {
+        path: 'tour-plan-review',
+        element: <ASMTourPlanReview />,
+      },
+      {
+        path: 'dcr-review',
+        element: <ASMDCRReview />,
+      },
+      {
+        path: 'attendance-monitoring',
+        element: <ASMAttendanceMonitoring />,
+      },
+      {
+        path: 'area-reports',
+        element: <ASMAreaReports />,
+      },
+    ],
+  },
+  {
+    path: '/workspace/medical-representative',
+    element: <MainLayout />,
+    children: [
+      {
+        index: true,
+        element: <MRDashboard />,
+      },
+    ],
+  },
+  {
     path: '/workspace/super-admin',
     element: <MainLayout />,
     children: [
@@ -195,6 +371,7 @@ export const router = createBrowserRouter([
         children: [
           { path: 'role-based-access', element: <RoleBasedAccess /> },
           { path: 'admin-management', element: <AdminManagement /> },
+          { path: 'sales-organization', element: <SalesOrganization /> },
           { path: 'all-india-sales', element: <AllIndiaSales /> },
           { path: 'state-performance', element: <StatePerformance /> },
           { path: 'product-profitability', element: <ProductProfitability /> },
@@ -339,6 +516,7 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute moduleLabel="MR (Medical Representative)" />,
         children: [
+          { path: 'my-targets', element: <MyTargets /> },
           { path: 'doctors', element: <DoctorVisits /> },
           { path: 'chemists', element: <ChemistVisits /> },
           { path: 'orders', element: <OrderBooking /> },

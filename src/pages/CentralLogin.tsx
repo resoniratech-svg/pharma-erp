@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Mail, Lock, Eye, EyeOff, ShieldCheck } from 'lucide-react';
-import { seedUsers } from '../data/seedUsers';
 import activityLogService from '../services/activityLogService';
 import authService from '../services/authService';
 

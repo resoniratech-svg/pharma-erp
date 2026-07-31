@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -135,16 +135,48 @@ export default function LoginPage() {
     }
   };
 
-  /* Validation helpers */
-  const isValidEmail = (v: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);
+  useEffect(() => {
+    try {
+      const storedUsers = localStorage.getItem('users');
+      let users = storedUsers ? JSON.parse(storedUsers) : [];
+      let updated = false;
 
+      if (!Array.isArray(users) || users.length === 0) {
+        users = [...seedUsers];
+        updated = true;
+      } else {
+        for (const su of seedUsers) {
+          const existingIndex = users.findIndex(
+            (u: any) => u && u.email && u.email.toLowerCase() === su.email.toLowerCase()
+          );
+          if (existingIndex !== -1) {
+            // Update existing user if id or name drifted from seed
+            const existing = users[existingIndex];
+            if (existing.id !== su.id || existing.name !== su.name) {
+              users[existingIndex] = { ...existing, id: su.id, name: su.name };
+              updated = true;
+            }
+          } else {
+            users.push(su);
+            updated = true;
+          }
+        }
+      }
+
+      if (updated) {
+        localStorage.setItem('users', JSON.stringify(users));
+      }
+    } catch (e) {
+      console.error('Error syncing seed users:', e);
+      localStorage.setItem('users', JSON.stringify(seedUsers));
+    }
+  }, []);
+
+  /* Validation helpers */
   const validate = () => {
     let ok = true;
-    if (!email) {
-      setEmailErr('Email address is required.');
-      ok = false;
-    } else if (!isValidEmail(email)) {
-      setEmailErr('Enter a valid email address.');
+    if (!email || !email.trim()) {
+      setEmailErr('Email address or Username is required.');
       ok = false;
     } else {
       setEmailErr('');

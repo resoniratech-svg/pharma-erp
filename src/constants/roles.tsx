@@ -5,6 +5,10 @@ import {
   Truck,
   ShoppingBag,
   UserCheck,
+  TrendingUp,
+  Compass,
+  MapPin,
+  Briefcase
 } from 'lucide-react';
 
 export const ROLE_SUPER_ADMIN = 'SUPER_ADMIN';
@@ -13,8 +17,13 @@ export const ROLE_WAREHOUSE_MANAGER = 'WAREHOUSE_MANAGER';
 export const ROLE_ACCOUNTANT = 'ACCOUNTANT';
 export const ROLE_DISTRIBUTOR = 'DISTRIBUTOR';
 export const ROLE_RETAILER = 'RETAILER';
+export const ROLE_NATIONAL_SALES_HEAD = 'NATIONAL_SALES_HEAD';
+export const ROLE_ZONAL_SALES_MANAGER = 'ZONAL_SALES_MANAGER';
+export const ROLE_REGIONAL_SALES_MANAGER = 'REGIONAL_SALES_MANAGER';
+export const ROLE_AREA_SALES_MANAGER = 'AREA_SALES_MANAGER';
 export const ROLE_MEDICAL_REPRESENTATIVE = 'MEDICAL_REPRESENTATIVE';
 export const ROLE_TRANSPORT_STAFF = 'TRANSPORT_STAFF';
+
 export interface Role {
   id: string;
   title: string;
@@ -67,6 +76,82 @@ export const ROLES: Role[] = [
       'User Management',
       'Subscription Details',
       'Module Settings',
+    ],
+  },
+  {
+    id: ROLE_NATIONAL_SALES_HEAD,
+    title: 'National Sales Head',
+    description: 'All-India sales targets, NSM strategy & team analytics.',
+    Icon: TrendingUp,
+    gradFrom: '#1D4ED8',
+    gradTo: '#1E40AF',
+    accentHex: '#1D4ED8',
+    skeletonBar: 'bg-blue-100',
+    skeletonBarLight: 'bg-blue-50',
+    userName: 'Rajesh Varma',
+    userEmail: 'nsm@pharmaerp.com',
+    capabilities: [
+      'All India Sales',
+      'Zonal Performance',
+      'National Target Setting',
+      'Sales Strategy',
+    ],
+  },
+  {
+    id: ROLE_ZONAL_SALES_MANAGER,
+    title: 'Zonal Sales Manager',
+    description: 'Zonal target tracking, RSM supervision & regional performance.',
+    Icon: Compass,
+    gradFrom: '#0284C7',
+    gradTo: '#0369A1',
+    accentHex: '#0284C7',
+    skeletonBar: 'bg-[#163c78]/10',
+    skeletonBarLight: 'bg-[#163c78]/10',
+    userName: 'Suresh Nair',
+    userEmail: 'zsm@pharmaerp.com',
+    capabilities: [
+      'Zonal Targets',
+      'RSM Monitoring',
+      'Territory Coverage',
+      'Performance Analytics',
+    ],
+  },
+  {
+    id: ROLE_REGIONAL_SALES_MANAGER,
+    title: 'Regional Sales Manager',
+    description: 'Region-wide targets, ASM management & state analytics.',
+    Icon: MapPin,
+    gradFrom: '#0D9488',
+    gradTo: '#0F766E',
+    accentHex: '#0D9488',
+    skeletonBar: 'bg-teal-100',
+    skeletonBarLight: 'bg-teal-50',
+    userName: 'Vikram Deshmukh',
+    userEmail: 'rsm@pharmaerp.com',
+    capabilities: [
+      'Regional Sales',
+      'ASM Supervision',
+      'Chemist Network',
+      'Doctor Coverage',
+    ],
+  },
+  {
+    id: ROLE_AREA_SALES_MANAGER,
+    title: 'Area Sales Manager',
+    description: 'Area target allocation, MR tracking & daily doctor visit logs.',
+    Icon: Briefcase,
+    gradFrom: '#7C3AED',
+    gradTo: '#6D28D9',
+    accentHex: '#7C3AED',
+    skeletonBar: 'bg-purple-100',
+    skeletonBarLight: 'bg-purple-50',
+    userName: 'Anil Kapoor',
+    userEmail: 'asm@pharmaerp.com',
+    capabilities: [
+      'Area Targets',
+      'MR Tour Planning',
+      'Chemist Visits',
+      'Stockist Relations',
     ],
   },
   {

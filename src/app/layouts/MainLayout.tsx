@@ -25,9 +25,14 @@ import {
   Navigation,
   HeartHandshake,
   Shield,
+  TrendingUp,
+  Compass,
+  MapPin,
+  CheckSquare,
+  Target,
 } from 'lucide-react';
 import { hasPermission } from '../../constants/permissions';
-import { normalizePurchasedModules, isModulePurchased } from '../../config/tenantConfig';
+import { normalizePurchasedModules } from '../../config/tenantConfig';
 import NotificationDropdown from '../../components/NotificationDropdown';
 import { ROLE_SUPER_ADMIN, ROLE_WAREHOUSE_MANAGER, ROLE_ACCOUNTANT, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_MEDICAL_REPRESENTATIVE, ROLE_TRANSPORT_STAFF, ROLES } from '../../constants/roles';
 import mjLogo from '../../assets/logo/pharmaLOGO.png';
@@ -44,17 +49,16 @@ export type NavItem = {
   label: string;
   path?: string;
   icon: React.ElementType;
-  subItems?: { label: string; path: string }[];
+  subItems?: { label: string; path: string; icon?: React.ElementType }[];
 };
 
-const NAV_ITEMS: NavItem[] = [
-  { label: 'Dashboard', path: '/workspace/dashboard', icon: LayoutDashboard },
-  {
+const NavModules = {
+  SuperAdmin: {
     label: 'Super Admin',
     icon: Shield,
     subItems: [
-      // { label: 'Role Based Access', path: '/workspace/super-admin/role-based-access' },
       { label: 'Admin Management', path: '/workspace/super-admin/admin-management' },
+      { label: 'Sales Organization', path: '/workspace/super-admin/sales-organization' },
       { label: 'All India Sales Dashboard', path: '/workspace/super-admin/all-india-sales' },
       { label: 'State Performance Reports', path: '/workspace/super-admin/state-performance' },
       { label: 'Product Profitability Reports', path: '/workspace/super-admin/product-profitability' },
@@ -63,31 +67,31 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Dispatch Monitoring', path: '/workspace/super-admin/dispatch-monitoring' },
       // { label: 'Franchise Monitoring', path: '/workspace/super-admin/franchise-monitoring' },
       // { label: 'Notification Center', path: '/workspace/super-admin/notification-center' },
+      { label: 'Export Order Monitoring', path: '/workspace/super-admin/export-order-monitoring' },
       { label: 'User Activity Logs', path: '/workspace/super-admin/user-activity-logs' },
     ],
   },
-  {
+  ProductManagement: {
     label: 'Product Management',
     icon: Package,
     subItems: [
       { label: 'HSN Master', path: '/workspace/products/hsn-master' },
-{ label: 'GST Management', path: '/workspace/products/gst' },
-{ label: 'Composition Management', path: '/workspace/products/compositions' },
-{ label: 'Packing Type Management', path: '/workspace/products/packing-types' },
-{ label: 'Scheme Management', path: '/workspace/products/schemes' },
-{ label: 'Product Master Management', path: '/workspace/products/master' },
-{ label: 'MRP Management', path: '/workspace/products/mrp-management' },
-{ label: 'PTR / PTS / PTD Pricing', path: '/workspace/products/pricing' },
-{ label: 'Barcode Management', path: '/workspace/products/barcodes' },
-{ label: 'Batch Management', path: '/workspace/products/batches' },
-{ label: 'Expiry Tracking', path: '/workspace/products/expiry-tracking' },
+      { label: 'GST Management', path: '/workspace/products/gst' },
+      { label: 'Composition Management', path: '/workspace/products/compositions' },
+      { label: 'Packing Type Management', path: '/workspace/products/packing-types' },
+      { label: 'Scheme Management', path: '/workspace/products/schemes' },
+      { label: 'Product Master Management', path: '/workspace/products/master' },
+      { label: 'MRP Management', path: '/workspace/products/mrp-management' },
+      { label: 'PTR / PTS / PTD Pricing', path: '/workspace/products/pricing' },
+      { label: 'Barcode Management', path: '/workspace/products/barcodes' },
+      { label: 'Batch Management', path: '/workspace/products/batches' },
+      { label: 'Expiry Tracking', path: '/workspace/products/expiry-tracking' },
     ],
   },
-  {
+  Inventory: {
     label: 'Inventory & Warehouse Management',
     icon: ClipboardList,
     subItems: [
-      // { label: 'Inventory Overview', path: '/workspace/inventory/overview' },
       { label: 'Warehouse Master', path: '/workspace/inventory/warehouse-master' },
       { label: 'Multi-Location Inventory Management', path: '/workspace/inventory/multi-location' },
       { label: 'Batch-wise Stock Tracking', path: '/workspace/inventory/batch-wise-stock-tracking' },
@@ -100,7 +104,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Low Stock Alerts', path: '/workspace/inventory/alerts' },
     ],
   },
-  {
+  CFManagement: {
     label: 'C&F Management',
     icon: Box,
     subItems: [
@@ -112,7 +116,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Dispatch Reports', path: '/workspace/warehouse/reports' },
     ],
   },
-  {
+  DistributorPortal: {
     label: 'Distributor/Stockist Portal',
     icon: Users,
     subItems: [
@@ -130,9 +134,9 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Dispatch Tracking', path: '/workspace/distributors/dispatch-tracking' },
     ],
   },
-  {
+  RetailerSystem: {
     label: 'Retailer Ordering System',
-    icon: ShoppingCart, // Changed icon to represent retail better
+    icon: ShoppingCart,
     subItems: [
       { label: 'Retailer Master', path: '/workspace/retailers/master' },
       { label: 'Product Browsing', path: '/workspace/retailers/catalog' },
@@ -144,10 +148,11 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Payment Tracking', path: '/workspace/retailers/payments' },
     ],
   },
-  {
+  MR: {
     label: 'MR (Medical Representative)',
     icon: Users,
     subItems: [
+      { label: 'My Targets', path: '/workspace/mr/my-targets', icon: Target },
       { label: 'Doctor Visit Entry', path: '/workspace/mr/doctors' },
       { label: 'Chemist Visit Entry', path: '/workspace/mr/chemists' },
       { label: 'Order Booking', path: '/workspace/mr/orders' },
@@ -158,7 +163,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Activity Tracking', path: '/workspace/mr/activity-tracking' },
     ],
   },
-  {
+  GPS: {
     label: 'GPS & Location Tracking',
     icon: Navigation,
     subItems: [
@@ -173,7 +178,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Meeting/Event Location Tracking', path: '/workspace/gps/meeting-location-tracking' },
     ],
   },
-  {
+  CRM: {
     label: 'Pre-Sales CRM',
     icon: HeartHandshake,
     subItems: [
@@ -189,7 +194,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Sales Activity Monitoring', path: '/workspace/crm/pipeline' },
     ],
   },
-  {
+  Accounting: {
     label: 'Accounting & Finance',
     icon: Calculator,
     subItems: [
@@ -204,7 +209,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Bank Reconciliation', path: '/workspace/finance/bank-reco' },
     ],
   },
-  {
+  Billing: {
     label: 'Wholesale Billing System',
     icon: Receipt,
     subItems: [
@@ -217,7 +222,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Multi Rate Billing', path: '/workspace/billing/multi-rate-billing' },
     ],
   },
-  {
+  Alerts: {
     label: 'Alerts & Notifications',
     icon: Bell,
     subItems: [
@@ -230,7 +235,7 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Activity Notifications', path: '/workspace/notifications/activity' },
     ],
   },
-  {
+  Settings: {
     label: 'Settings',
     icon: Settings,
     subItems: [
@@ -239,7 +244,184 @@ const NAV_ITEMS: NavItem[] = [
       { label: 'Roles & Permissions', path: '/workspace/settings/roles' },
     ],
   },
-];
+};
+
+const ROLE_NAV_MAP: Record<string, NavItem[]> = {
+  SUPER_ADMIN: [
+    NavModules.SuperAdmin,
+    NavModules.ProductManagement,
+    NavModules.Inventory,
+    NavModules.CFManagement,
+    NavModules.DistributorPortal,
+    NavModules.RetailerSystem,
+    NavModules.MR,
+    NavModules.GPS,
+    NavModules.CRM,
+    NavModules.Accounting,
+    NavModules.Billing,
+    NavModules.Alerts,
+    NavModules.Settings,
+  ],
+  NATIONAL_SALES_HEAD: [
+    { 
+      label: 'Sales Operations', 
+      icon: TrendingUp, 
+      subItems: [
+        { label: 'Sales Organization', path: '/workspace/national-sales-head/sales-organization' },
+        { label: 'Target Allocation', path: '/workspace/national-sales-head/target-allocation' },
+        { label: 'Team Performance', path: '/workspace/national-sales-head/team-performance' },
+        { label: 'National Sales Analytics', path: '/workspace/national-sales-head/analytics' }
+      ]
+    },
+    {
+      label: 'Reports',
+      icon: ClipboardList,
+      subItems: [
+        { label: 'National Sales Reports', path: '/workspace/national-sales-head/reports' }
+      ]
+    },
+    NavModules.Alerts,
+    {
+      label: 'Settings',
+      icon: Settings,
+      subItems: [
+        { label: 'Profile Settings', path: '/workspace/settings/profile' }
+      ]
+    }
+  ],
+  ZONAL_SALES_MANAGER: [
+    { 
+      label: 'Sales Operations', 
+      icon: TrendingUp, 
+      subItems: [
+        { label: 'Sales Organization', path: '/workspace/zonal-sales-manager/sales-organization' },
+        { label: 'Target Allocation', path: '/workspace/zonal-sales-manager/target-allocation' },
+        { label: 'Team Performance', path: '/workspace/zonal-sales-manager/team-performance' },
+        { label: 'Zone Analytics', path: '/workspace/zonal-sales-manager/zone-analytics' }
+      ]
+    },
+    {
+      label: 'Reports',
+      icon: ClipboardList,
+      subItems: [
+        { label: 'Zone Reports', path: '/workspace/zonal-sales-manager/zone-reports' }
+      ]
+    },
+    {
+      label: 'Settings',
+      icon: Settings,
+      subItems: [
+        { label: 'Profile Settings', path: '/workspace/settings/profile' }
+      ]
+    }
+  ],
+  REGIONAL_SALES_MANAGER: [
+    { 
+      label: 'Sales Operations', 
+      icon: TrendingUp, 
+      subItems: [
+        { label: 'Sales Organization', path: '/workspace/regional-sales-manager/sales-organization' },
+        { label: 'Target Allocation', path: '/workspace/regional-sales-manager/target-allocation' },
+        { label: 'Team Performance', path: '/workspace/regional-sales-manager/team-performance' },
+        { label: 'Regional Analytics', path: '/workspace/regional-sales-manager/regional-analytics' }
+      ]
+    },
+    {
+      label: 'Reports',
+      icon: ClipboardList,
+      subItems: [
+        { label: 'Regional Reports', path: '/workspace/regional-sales-manager/regional-reports' }
+      ]
+    },
+    {
+      label: 'Settings',
+      icon: Settings,
+      subItems: [
+        { label: 'Profile Settings', path: '/workspace/settings/profile' }
+      ]
+    }
+  ],
+  AREA_SALES_MANAGER: [
+    { 
+      label: 'Sales Operations', 
+      icon: TrendingUp, 
+      subItems: [
+        { label: 'Sales Organization', path: '/workspace/area-sales-manager/sales-organization' },
+        { label: 'Target Allocation', path: '/workspace/area-sales-manager/target-allocation' },
+        { label: 'Team Performance', path: '/workspace/area-sales-manager/team-performance' },
+        { label: 'Area Analytics', path: '/workspace/area-sales-manager/area-analytics' }
+      ]
+    },
+    {
+      label: 'Approvals & Monitoring',
+      icon: CheckSquare,
+      subItems: [
+        { label: 'Tour Plan Review', path: '/workspace/area-sales-manager/tour-plan-review' },
+        { label: 'Daily Call Reports', path: '/workspace/area-sales-manager/dcr-review' },
+        { label: 'Attendance Monitoring', path: '/workspace/area-sales-manager/attendance-monitoring' }
+      ]
+    },
+    {
+      label: 'Reports',
+      icon: ClipboardList,
+      subItems: [
+        { label: 'Area Reports', path: '/workspace/area-sales-manager/area-reports' }
+      ]
+    },
+    {
+      label: 'Settings',
+      icon: Settings,
+      subItems: [
+        { label: 'Profile Settings', path: '/workspace/settings/profile' }
+      ]
+    }
+  ],
+  WAREHOUSE_MANAGER: [
+    NavModules.Inventory,
+    NavModules.CFManagement,
+    NavModules.Alerts,
+    NavModules.Settings
+  ],
+  ACCOUNTANT: [
+    NavModules.Billing,
+    NavModules.Accounting,
+    NavModules.Alerts,
+    NavModules.Settings
+  ],
+  DISTRIBUTOR: [
+    NavModules.DistributorPortal,
+    NavModules.Alerts,
+    NavModules.Settings
+  ],
+  RETAILER: [
+    NavModules.RetailerSystem,
+    NavModules.Alerts,
+    NavModules.Settings
+  ],
+  MEDICAL_REPRESENTATIVE: [
+    NavModules.MR,
+    NavModules.GPS,
+    NavModules.CRM,
+    NavModules.Alerts,
+    NavModules.Settings
+  ]
+};
+
+const getDashboardRoute = (roleId: string) => {
+  switch (roleId) {
+    case 'SUPER_ADMIN': return '/workspace/dashboard';
+    case 'NATIONAL_SALES_HEAD': return '/workspace/national-sales-head';
+    case 'ZONAL_SALES_MANAGER': return '/workspace/zonal-sales-manager';
+    case 'REGIONAL_SALES_MANAGER': return '/workspace/regional-sales-manager';
+    case 'AREA_SALES_MANAGER': return '/workspace/area-sales-manager';
+    case 'WAREHOUSE_MANAGER': return '/workspace/dashboard';
+    case 'ACCOUNTANT': return '/workspace/dashboard';
+    case 'DISTRIBUTOR': return '/workspace/dashboard';
+    case 'RETAILER': return '/workspace/dashboard';
+    case 'MEDICAL_REPRESENTATIVE': return '/workspace/dashboard';
+    default: return '/workspace/dashboard';
+  }
+};
 
 /* ── Components ──────────────────────────────────────────────────── */
 
@@ -250,8 +432,18 @@ const Breadcrumbs = () => {
 
   let matchedLabel = '';
   let matchedParentLabel = '';
+  const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
+  const dashboardRoute = getDashboardRoute(activeRole);
   
-  NAV_ITEMS.forEach(item => {
+  const dashboardNavItem: NavItem = { 
+    label: 'Dashboard', 
+    path: dashboardRoute, 
+    icon: LayoutDashboard 
+  };
+  const rawRoleNavItems = ROLE_NAV_MAP[activeRole] || ROLE_NAV_MAP.SUPER_ADMIN;
+  const currentNavItems = [dashboardNavItem, ...rawRoleNavItems];
+
+  currentNavItems.forEach(item => {
     if (item.subItems) {
       const match = item.subItems.find(sub => location.pathname === sub.path || location.pathname.startsWith(sub.path + '/'));
       if (match) {
@@ -266,7 +458,7 @@ const Breadcrumbs = () => {
   return (
     <nav className="flex items-center space-x-2 text-sm text-slate-500 mb-6">
       <Link
-        to="/workspace/dashboard"
+        to={dashboardRoute}
         className="hover:text-primary transition-colors duration-200"
         style={{ color: 'inherit' }}
         onMouseEnter={(e) => (e.currentTarget.style.color = PRIMARY_HEX)}
@@ -346,7 +538,13 @@ export function MainLayout() {
 
   // Auto-expand the active menu when the route changes
   useEffect(() => {
-    NAV_ITEMS.forEach(item => {
+    const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
+    const dashboardRoute = getDashboardRoute(activeRole);
+    const dashboardNavItem: NavItem = { label: 'Dashboard', path: dashboardRoute, icon: LayoutDashboard };
+    const rawRoleNavItems = ROLE_NAV_MAP[activeRole] || ROLE_NAV_MAP.SUPER_ADMIN;
+    const currentNavItems = [dashboardNavItem, ...rawRoleNavItems];
+
+    currentNavItems.forEach(item => {
       if (item.subItems?.some(sub => location.pathname.startsWith(sub.path))) {
         setExpandedMenus(prev => prev.includes(item.label) ? prev : [...prev, item.label]);
       }
@@ -369,24 +567,43 @@ export function MainLayout() {
     userEmail: authUser?.email || 'admin@company.com'
   } as any);
 
-  const displayName = authUser ? (authUser.fullName || authUser.adminName || authUser.name) : activeRoleData.userName;
-  const displayEmail = authUser ? authUser.email : activeRoleData.userEmail;
+  const getRoleTitle = (roleIdOrName?: string) => {
+    if (!roleIdOrName) return activeRoleData.title;
+    const foundById = ROLES.find(r => r.id === roleIdOrName);
+    if (foundById) return foundById.title;
+    const foundByTitle = ROLES.find(r => r.title.toLowerCase() === roleIdOrName.toLowerCase());
+    if (foundByTitle) return foundByTitle.title;
+    return roleIdOrName
+      .replace(/_/g, ' ')
+      .toLowerCase()
+      .replace(/\b\w/g, c => c.toUpperCase());
+  };
 
+  const displayName = authUser ? (authUser.fullName || authUser.name || authUser.adminName) : activeRoleData.userName;
+  const displayRole = authUser ? (authUser.roleId ? getRoleTitle(authUser.roleId) : (authUser.role ? getRoleTitle(authUser.role) : activeRoleData.title)) : activeRoleData.title;
+  const displayEmail = authUser ? authUser.email : activeRoleData.userEmail;
+  const profileImage = authUser ? (authUser.profileImage || authUser.avatarUrl) : null;
+  
   const purchasedModules = authUserSession ? normalizePurchasedModules(authUserSession.purchasedModules) : [];
 
-  const filteredNavItems = NAV_ITEMS.filter(item => {
-    if (effectiveRole === ROLE_SUPER_ADMIN) {
-      return item.label !== 'Company Admin'; 
+  const dashboardRoute = getDashboardRoute(activeRole);
+  const dashboardNavItem: NavItem = { label: 'Dashboard', path: dashboardRoute, icon: LayoutDashboard };
+  const rawRoleNavItems = ROLE_NAV_MAP[activeRole] || ROLE_NAV_MAP.SUPER_ADMIN;
+  const currentNavItems = [dashboardNavItem, ...rawRoleNavItems];
+
+  const filteredNavItems = currentNavItems.filter(item => {
+    if (item.label === 'Dashboard') return true;
+
+    if (activeRole === 'COMPANY_ADMIN') {
+      if (item.label === 'Super Admin' || item.label === 'Company Admin') return false; 
+      if (item.label === 'Settings') return true;
+      return purchasedModules.includes(item.label);
     }
-    if (effectiveRole === 'COMPANY_ADMIN') {
-      if (item.label === 'Super Admin' || item.label === 'Company Admin') return false; // Hide platform super admin section
-      // Always show Dashboard and Settings
-      if (item.label === 'Dashboard' || item.label === 'Settings') return true;
-      // Filter the rest by purchased modules
-      return isModulePurchased(item.label, purchasedModules);
-    }
-    // Tenant user uses role-based permissions
-    return hasPermission(effectiveRole, item.label);
+    
+    // For specific roles like Tenant users we can still check permissions,
+    // but for our built-in internal ERP roles, the mapped configuration dictates visibility
+    // so we return true. This isolates the configuration.
+    return true;
   });
 
   // Close sidebar on route change for mobile
@@ -398,7 +615,13 @@ export function MainLayout() {
   // This runs on mount and whenever the path changes, but does NOT collapse
   // other already-open menus – preserving independent multi-expand behavior.
   useEffect(() => {
-    const activeParent = NAV_ITEMS.find(
+    const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
+    const dashboardRoute = getDashboardRoute(activeRole);
+    const dashboardNavItem: NavItem = { label: 'Dashboard', path: dashboardRoute, icon: LayoutDashboard };
+    const rawRoleNavItems = ROLE_NAV_MAP[activeRole] || ROLE_NAV_MAP.SUPER_ADMIN;
+    const currentNavItems = [dashboardNavItem, ...rawRoleNavItems];
+
+    const activeParent = currentNavItems.find(
       (item) =>
         item.subItems &&
         item.subItems.some((sub) => location.pathname.startsWith(sub.path))
@@ -429,7 +652,7 @@ export function MainLayout() {
   {/* Sidebar Header */}
   <div className="h-[90px] flex items-center justify-center border-b border-slate-100 flex-shrink-0 overflow-hidden relative">
     <Link
-      to="/workspace/dashboard"
+      to={getDashboardRoute(localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN)}
       className="flex items-center justify-center w-full outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded"
     >
       <img
@@ -675,12 +898,13 @@ const activeStyle =
                           key={sub.path}
                           to={sub.path}
                           style={isSubActive ? { color: PRIMARY_HEX } : {}}
-                          className={`block py-2 text-sm font-medium transition-colors ${
+                          className={`flex items-center gap-2 py-2 text-sm font-medium transition-colors ${
                             isSubActive
                               ? 'text-primary font-semibold'
                               : 'text-slate-500 hover:text-slate-900'
                           }`}
                         >
+                          {sub.icon && <sub.icon className="w-4 h-4 flex-shrink-0" />}
                           {sub.label}
                         </Link>
                       );
@@ -697,8 +921,8 @@ const activeStyle =
           <button className={`w-full flex items-center p-2 rounded-lg hover:bg-slate-50 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary text-left group ${sidebarCollapsed ? 'justify-center' : 'gap-3'}`}>
             
             <div className="w-9 h-9 rounded-full bg-brand-light text-brand-primary flex items-center justify-center border border-brand-primary/20 flex-shrink-0 overflow-hidden">
-               {authUser?.profileImage ? (
-    <img src={authUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
+               {profileImage ? (
+    <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
   ) : (
               <User className="w-4 h-4" />
   )}
@@ -709,7 +933,7 @@ const activeStyle =
                   {displayName}
                 </p>
                 <p className="text-xs text-slate-500 truncate mt-0.5">
-                  {activeRoleData.title}
+                  {displayRole}
                 </p>
               </div>
             )}
@@ -755,19 +979,16 @@ const activeStyle =
                 onClick={() => setProfileOpen(!profileOpen)}
                 className="flex items-center gap-3 p-1 pr-3 rounded-full hover:bg-slate-100 transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary"
               >
-                {/* <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0 overflow-hidden">
-                  <User className="w-4 h-4" />
-                </div> */}
                          <div className="w-8 h-8 rounded-full bg-brand-light text-brand-primary flex items-center justify-center border border-brand-primary/20 flex-shrink-0 overflow-hidden">
-                  {authUser?.profileImage ? (
-                    <img src={authUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
+                  {profileImage ? (
+                    <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
                   ) : (
                     <User className="w-4 h-4" />
                   )}
                 </div>
                 <div className="hidden md:block text-left">
                   <p className="text-sm font-semibold text-slate-700 leading-none mb-1">{displayName}</p>
-                  <p className="text-xs text-slate-500 leading-none">{activeRoleData.title}</p>
+                  <p className="text-xs text-slate-500 leading-none">{displayRole}</p>
                 </div>
               </button>
 
@@ -787,20 +1008,17 @@ const activeStyle =
                     >
                       {/* Dropdown Header */}
                       <div className="p-4 border-b border-slate-100 flex items-center gap-3 bg-slate-50/50">
-                        {/* <div className="w-12 h-12 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center border border-indigo-200 flex-shrink-0">
-                          <User className="w-6 h-6" />
-                        </div> */}
 
                         <div className="w-12 h-12 rounded-full bg-brand-light text-brand-primary flex items-center justify-center border border-brand-primary/20 flex-shrink-0 overflow-hidden">
-                          {authUser?.profileImage ? (
-                            <img src={authUser.profileImage} alt="Profile" className="w-full h-full object-cover" />
+                          {profileImage ? (
+                            <img src={profileImage} alt="Profile" className="w-full h-full object-cover" />
                           ) : (
                             <User className="w-6 h-6" />
                           )}
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-slate-900 truncate">{displayName}</p>
-                          <p className="text-xs font-medium text-primary truncate mb-0.5">{activeRoleData.title}</p>
+                          <p className="text-xs font-medium text-primary truncate mb-0.5">{displayRole}</p>
                           <p className="text-xs text-slate-500 truncate">{displayEmail}</p>
                         </div>
                       </div>
