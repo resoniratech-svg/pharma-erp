@@ -593,6 +593,7 @@ model DoctorVisit {
   samplesGiven      Int?
   latitude          Float?
   longitude         Float?
+  nextFollowUpDate  DateTime?
   createdAt         DateTime @default(now())
   doctor            Doctor   @relation(fields: [doctorId], references: [id])
   mr                MR       @relation(fields: [mrId], references: [id])
@@ -608,6 +609,7 @@ model ChemistVisit {
   orderValue        Float?
   latitude          Float?
   longitude         Float?
+  nextFollowUpDate  DateTime?
   createdAt         DateTime @default(now())
   chemist           Chemist  @relation(fields: [chemistId], references: [id])
   mr                MR       @relation(fields: [mrId], references: [id])
@@ -731,7 +733,10 @@ model FollowUp {
   doctorId     Int?
   chemistId    Int?
   meetingId    Int?
+  leadId       Int?
   title        String
+  type         String?
+  method       String?
   remarks      String?
   followUpDate DateTime
   status       String   @default("PENDING")
@@ -739,6 +744,7 @@ model FollowUp {
   chemist      Chemist? @relation(fields: [chemistId], references: [id])
   doctor       Doctor?  @relation(fields: [doctorId], references: [id])
   meeting      Meeting? @relation(fields: [meetingId], references: [id])
+  lead         Lead?    @relation(fields: [leadId], references: [id])
   mr           MR       @relation(fields: [mrId], references: [id])
 }
 
@@ -766,8 +772,9 @@ model Lead {
   source       String?
   status       String   @default("NEW")
   assignedMrId Int?
-  createdAt    DateTime @default(now())
-  assignedMr   MR?      @relation(fields: [assignedMrId], references: [id])
+  createdAt    DateTime   @default(now())
+  assignedMr   MR?        @relation(fields: [assignedMrId], references: [id])
+  followUps    FollowUp[]
 }
 
 model LeaveRequest {
@@ -1037,6 +1044,20 @@ model CreditNoteItem {
   batch        Batch      @relation(fields: [batchId], references: [id])
   creditNote   CreditNote @relation(fields: [creditNoteId], references: [id], onDelete: Cascade)
   product      Product    @relation(fields: [productId], references: [id])
+}
+
+model Composition {
+  id               Int      @id @default(autoincrement())
+  genericName      String
+  strength         String?
+  dosageForm       String?
+  therapeuticClass String?
+  schedule         String?
+  description      String?
+  status           String   @default("Active")
+  createdBy        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt @default(now())
 }
 
 enum Role {

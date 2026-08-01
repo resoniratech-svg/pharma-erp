@@ -29,6 +29,21 @@ const registerUser = async (data) => {
     },
   });
 
+  if (user.role === "MEDICAL_REPRESENTATIVE") {
+    // Automatically create the MR record and link it to the newly created user
+    await prisma.mR.create({
+      data: {
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        mrCode: `MR-${user.id}`, // Generate a basic code, can be updated later
+        territory: "General",
+        mobile: data.mobile || "",
+        status: "Active"
+      }
+    });
+  }
+
   return user;
 };
 

@@ -7,7 +7,10 @@ const createFollowUpRepo = async (data) => {
       doctorId: data.doctorId,
       chemistId: data.chemistId,
       meetingId: data.meetingId,
+      leadId: data.leadId,
       title: data.title,
+      type: data.type,
+      method: data.method,
       remarks: data.remarks,
       followUpDate: new Date(data.followUpDate),
     },
@@ -17,6 +20,7 @@ const createFollowUpRepo = async (data) => {
       doctor: true,
       chemist: true,
       meeting: true,
+      lead: true,
     },
   });
 };

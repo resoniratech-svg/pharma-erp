@@ -1,3 +1,4 @@
+const bcrypt = require("bcrypt");
 const {
   getAllUsers,
   getSingleUser,
@@ -41,9 +42,14 @@ const getUserById = async (req, res) => {
 
 const updateUser = async (req, res) => {
   try {
+    const updateData = { ...req.body };
+    if (updateData.password) {
+      updateData.password = await bcrypt.hash(updateData.password, 10);
+    }
+    
     const user = await updateSingleUser(
       req.params.id,
-      req.body
+      updateData
     );
 
     res.status(200).json({
