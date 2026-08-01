@@ -29,6 +29,34 @@ const LoginScreen = () => {
       alert('Please enter both Email and Password.');
       return;
     }
+      // ✅ Put the Local Demo Check HERE (BEFORE API call)
+    const userLower = username.trim().toLowerCase();
+    // 🏛️ Local Demo Login for NSM (National Sales Head)
+    if (userLower === 'nsm001' || userLower === 'nsm@pharmaerp.com') {
+      await AsyncStorage.setItem('@user_name', 'Ravi Kumar');
+      await AsyncStorage.setItem('@employee_id', 'NSM001');
+      await AsyncStorage.setItem('@designation', 'National Sales Head');
+      navigation.replace('App', { screen: 'NSMDashboard' });
+      return;
+    }
+    // 🗺️ Local Demo Login for RSM (Regional Sales Manager)
+    if (userLower === 'rsm001' || userLower === 'rsm@pharmaerp.com') {
+      await AsyncStorage.setItem('@user_name', 'Rajesh Kumar');
+      await AsyncStorage.setItem('@employee_id', 'RSM001');
+      await AsyncStorage.setItem('@designation', 'Regional Sales Manager');
+      navigation.replace('App', { screen: 'RSMDashboard' });
+      return;
+    }
+    // 🚗 Local Demo Login for ASM (Area Sales Manager)
+    if (userLower === 'asm001' || userLower === 'asm@pharmaerp.com') {
+      await AsyncStorage.setItem('@user_name', 'Suresh');
+      await AsyncStorage.setItem('@employee_id', 'ASM001');
+      await AsyncStorage.setItem('@designation', 'Area Sales Manager');
+      navigation.replace('App', { screen: 'ASMDashboard' });
+      return;
+    }
+    // ── Live Backend API Call for MRs ──
+   
     
     setIsSubmitting(true);
     try {
@@ -78,6 +106,8 @@ const LoginScreen = () => {
         'Login failed'
       );
     }
+    
+    
   };
 
   return (

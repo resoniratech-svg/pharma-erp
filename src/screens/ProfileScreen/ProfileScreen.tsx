@@ -1,6 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import Constants from 'expo-constants';
+import * as ImagePicker from 'expo-image-picker';
 import React, { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
@@ -102,6 +103,32 @@ const ProfileScreen = () => {
   const [userName, setUserName] = useState('MR User');
   const [designation, setDesignation] = useState('Medical Representative');
   const [employeeId, setEmployeeId] = useState('EMP-XXXX');
+  const [profilePhoto, setProfilePhoto] = useState<string | null>(null);
+
+  const handlePickProfilePhoto = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permissionResult.granted) {
+        showAlert('Permission Required', 'Permission to access your photo gallery is required to change profile picture.');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.7,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        const photoUri = result.assets[0].uri;
+        setProfilePhoto(photoUri);
+        showAlert('✅ Selected', 'Profile photo selected for preview. (Upload API needed for server storage)');
+      }
+    } catch (e) {
+      console.log('Failed to pick profile photo:', e);
+    }
+  };
 
   // UI States
   const [loading, setLoading] = useState(true);
@@ -731,25 +758,31 @@ const ProfileScreen = () => {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 30 }}>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 40 }}>
 
-      {/* ── Header ── */}
+      {/* ── Compact Header ── */}
       <View style={styles.header}>
-        <Image
-          source={require('../../../assets/images/logo.png')}
-          style={styles.profileLogo}
-          resizeMode="contain"
-        />
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{initials}</Text>
-        </View>
+        <TouchableOpacity style={styles.avatar} onPress={handlePickProfilePhoto} activeOpacity={0.8}>
+          {profilePhoto ? (
+            <Image source={{ uri: profilePhoto }} style={styles.avatarImage} />
+          ) : (
+            <Text style={styles.avatarText}>{initials}</Text>
+          )}
+          <View style={styles.cameraBadge}>
+            <Text style={{ fontSize: 10 }}>📷</Text>
+          </View>
+        </TouchableOpacity>
+        <Text style={styles.changePhotoText}>Tap avatar to change photo</Text>
         <Text style={styles.name}>{userName}</Text>
         <Text style={styles.designation}>{designation}</Text>
-        <View style={styles.statusBadge}>
-          <View style={styles.statusDot} />
-          <Text style={styles.statusText}>Active Employee</Text>
+        
+        <View style={styles.headerMetaRow}>
+          <View style={styles.statusBadge}>
+            <View style={styles.statusDot} />
+            <Text style={styles.statusText}>Active Employee</Text>
+          </View>
+          <Text style={styles.empIdBadge}>ID: {employeeId}</Text>
         </View>
-        <Text style={styles.empId}>Employee ID: {employeeId}</Text>
       </View>
 
       {/* ── Employee Details ── */}
@@ -768,7 +801,7 @@ const ProfileScreen = () => {
         <View style={styles.cardHeaderRow}>
           <Text style={styles.cardTitle}>📞 Contact Information</Text>
           <TouchableOpacity onPress={handleOpenEditModal} disabled={loading}>
-            <Text style={styles.editLinkText}>✏️ Edit</Text>
+            <Text style={styles.editLinkText}>✏️ Edit Profile</Text>
           </TouchableOpacity>
         </View>
         <InfoRow label="📱 Mobile"     value={mobile} />
@@ -777,57 +810,71 @@ const ProfileScreen = () => {
         <InfoRow label="🕒 Last Login" value={lastLoginTime} />
       </View>
 
-      {/* ── Attendance Summary ── */}
+      {/* ── Attendance Summary Grid ── */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>📋 Attendance Summary</Text>
-        <InfoRow label="✅ Present Days"  value={presentDays.toString()} />
-        <InfoRow label="❌ Absent Days"   value={absentDays.toString()} />
-        <InfoRow label="🏖️ Approved Leaves" value={leavesCount.toString()} />
-        <InfoRow label="📆 Working Days"  value={workingDays.toString()} />
+        <View style={styles.kpiGrid}>
+          <View style={[styles.kpiBox, { backgroundColor: '#ECFDF5' }]}>
+            <Text style={[styles.kpiVal, { color: '#059669' }]}>{presentDays}</Text>
+            <Text style={styles.kpiSub}>Present</Text>
+          </View>
+          <View style={[styles.kpiBox, { backgroundColor: '#FEF2F2' }]}>
+            <Text style={[styles.kpiVal, { color: '#DC2626' }]}>{absentDays}</Text>
+            <Text style={styles.kpiSub}>Absent</Text>
+          </View>
+          <View style={[styles.kpiBox, { backgroundColor: '#EFF6FF' }]}>
+            <Text style={[styles.kpiVal, { color: '#2563EB' }]}>{leavesCount}</Text>
+            <Text style={styles.kpiSub}>Leaves</Text>
+          </View>
+          <View style={[styles.kpiBox, { backgroundColor: '#F8FAFC' }]}>
+            <Text style={[styles.kpiVal, { color: '#475569' }]}>{workingDays}</Text>
+            <Text style={styles.kpiSub}>Working</Text>
+          </View>
+        </View>
       </View>
 
       {/* ── Today's Summary ── */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>📊 Today's Summary</Text>
+        <Text style={styles.cardTitle}>📊 Today's Activity Summary</Text>
         <View style={styles.statsRow}>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{docCount}</Text>
-            <Text style={styles.statLabel}>Doctor{'\n'}Visits</Text>
+          <View style={[styles.statBox, { backgroundColor: '#EEF2FF', borderColor: '#C7D2FE', borderWidth: 1 }]}>
+            <Text style={[styles.statNumber, { color: '#4F46E5' }]}>{docCount}</Text>
+            <Text style={styles.statLabel}>Doctor Visits</Text>
           </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{chemistCount}</Text>
-            <Text style={styles.statLabel}>Chemist{'\n'}Visits</Text>
+          <View style={[styles.statBox, { backgroundColor: '#FEF3C7', borderColor: '#FDE68A', borderWidth: 1 }]}>
+            <Text style={[styles.statNumber, { color: '#D97706' }]}>{chemistCount}</Text>
+            <Text style={styles.statLabel}>Chemist Visits</Text>
           </View>
-          <View style={styles.statBox}>
-            <Text style={styles.statNumber}>{totalOrdersCount}</Text>
-            <Text style={styles.statLabel}>Orders{'\n'}Booked</Text>
+          <View style={[styles.statBox, { backgroundColor: '#ECFDF5', borderColor: '#A7F3D0', borderWidth: 1 }]}>
+            <Text style={[styles.statNumber, { color: '#059669' }]}>{totalOrdersCount}</Text>
+            <Text style={styles.statLabel}>Orders Booked</Text>
           </View>
         </View>
       </View>
 
       {/* ── Monthly Performance ── */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>🎯 Monthly Performance</Text>
+        <Text style={styles.cardTitle}>🎯 Monthly Performance Progress</Text>
         <ProgressCard
           label="💰 Sales Target"
           target={`₹${targets.sales.toLocaleString()}`}
           achieved={`₹${totalRevenue.toLocaleString()}`}
           percent={`${salesProgress}%`}
-          color="#1E88E5"
+          color="#4F46E5"
         />
         <ProgressCard
           label="👨‍⚕️ Doctor Visits"
           target={targets.doctors.toString()}
           achieved={`${monthlyDocCount} visits`}
           percent={`${doctorProgress}%`}
-          color="#43A047"
+          color="#10B981"
         />
         <ProgressCard
           label="💊 Chemist Visits"
           target={targets.chemists.toString()}
           achieved={`${monthlyChemistCount} visits`}
           percent={`${chemistProgress}%`}
-          color="#FB8C00"
+          color="#F59E0B"
         />
         <View style={styles.gradeContainer}>
           <Text style={styles.gradeLabel}>🏆 Performance Grade</Text>
@@ -839,7 +886,7 @@ const ProfileScreen = () => {
 
       {/* ── Settings ── */}
       <View style={styles.card}>
-        <Text style={styles.cardTitle}>⚙️ Settings</Text>
+        <Text style={styles.cardTitle}>⚙️ Account & Security Settings</Text>
 
         <TouchableOpacity
           style={styles.settingRow}
@@ -855,36 +902,34 @@ const ProfileScreen = () => {
           onPress={handleSyncData}
           disabled={loading}
         >
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.settingText, loading && { color: '#94A3B8' }]}>
-              {loading ? '🔄 Syncing...' : '🔄 Sync Data'}
+              {loading ? '🔄 Syncing Server Data...' : '🔄 Sync Data'}
             </Text>
-            <Text style={styles.syncSubText}>Last Sync: {lastSyncTime.split(' ').slice(1).join(' ') || 'Never'}</Text>
+            <Text style={styles.syncSubText}>Last Sync: {lastSyncTime}</Text>
           </View>
-          {loading ? <ActivityIndicator size="small" color="#1E88E5" /> : <Text style={styles.arrow}>›</Text>}
+          {loading ? <ActivityIndicator size="small" color="#4F46E5" /> : <Text style={styles.arrow}>›</Text>}
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.settingRow} onPress={() => setIsPrivacyModalOpen(true)}>
-          <Text style={styles.settingText}>📄 Privacy Policy</Text>
+          <Text style={styles.settingText}>📄 Privacy Policy & Compliance</Text>
           <Text style={styles.arrow}>›</Text>
         </TouchableOpacity>
 
-        <View style={styles.settingRow}>
-          <Text style={styles.settingText}>📱 App Version</Text>
+        <View style={[styles.settingRow, { borderBottomWidth: 0 }]}>
+          <Text style={styles.settingText}>📱 Mobile App Version</Text>
           <Text style={styles.versionText}>v{Constants.expoConfig?.version || Constants.manifest?.version || '1.0.0'}</Text>
         </View>
       </View>
 
-      {/* ── Logout ── */}
+      {/* ── Logout Button ── */}
       <TouchableOpacity
         style={[styles.logoutButton, loading && styles.disabledButton]}
         onPress={handleLogout}
         disabled={loading}
       >
-        <Text style={styles.logoutText}>🚪 Logout</Text>
+        <Text style={styles.logoutText}>🚪 Logout Session</Text>
       </TouchableOpacity>
-
-      <Text style={styles.syncFooterText}>Last Synced: {lastSyncTime}</Text>
 
       {/* ── Edit Contact Modal ── */}
       <Modal
@@ -1068,65 +1113,129 @@ const ProfileScreen = () => {
 export default ProfileScreen;
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F5F7FA' },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F7FA' },
-  loadingText: { marginTop: 12, fontSize: 14, color: '#666', fontWeight: '500' },
-  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F5F7FA', padding: 20 },
-  errorText: { fontSize: 16, color: '#E53935', fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
-  retryButton: { backgroundColor: '#1E88E5', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, elevation: 2 },
+  container: { flex: 1, backgroundColor: '#F8FAFC' },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC' },
+  loadingText: { marginTop: 12, fontSize: 14, color: '#4F46E5', fontWeight: '600' },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F8FAFC', padding: 20 },
+  errorText: { fontSize: 16, color: '#DC2626', fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
+  retryButton: { backgroundColor: '#4F46E5', paddingHorizontal: 24, paddingVertical: 12, borderRadius: 8, elevation: 2 },
   retryButtonText: { color: '#fff', fontWeight: 'bold', fontSize: 15 },
-  header: { backgroundColor: '#1E88E5', alignItems: 'center', paddingVertical: 25, paddingTop: 50 },
-  profileLogo: { width: 150, height: 50, marginBottom: 15, alignSelf: 'center' },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: '#fff', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
-  avatarText: { fontSize: 32, fontWeight: 'bold', color: '#1E88E5' },
-  name: { fontSize: 22, fontWeight: 'bold', color: '#fff', marginTop: 5 },
-  designation: { color: '#cce5ff', marginTop: 4, fontSize: 14 },
-  statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, marginTop: 6 },
-  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#4ADE80', marginRight: 6 },
-  statusText: { color: '#FFF', fontSize: 11, fontWeight: 'bold' },
-  empId: { color: '#cce5ff', marginTop: 8, fontSize: 12 },
-  card: { backgroundColor: '#fff', margin: 15, marginBottom: 0, borderRadius: 12, padding: 15, elevation: 2 },
-  cardTitle: { fontSize: 16, fontWeight: 'bold', color: '#333', marginBottom: 12 },
+  
+  // Compact Enterprise Header
+  header: {
+    backgroundColor: '#4F46E5',
+    alignItems: 'center',
+    paddingTop: 52,
+    paddingBottom: 22,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+  },
+  avatar: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    backgroundColor: '#FFFFFF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  avatarText: { fontSize: 26, fontWeight: 'bold', color: '#4F46E5' },
+  avatarImage: {
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+  },
+  cameraBadge: {
+    position: 'absolute',
+    bottom: -2,
+    right: -2,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 10,
+    width: 22,
+    height: 22,
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: '#4F46E5',
+    elevation: 3,
+  },
+  changePhotoText: {
+    fontSize: 10,
+    color: '#E0E7FF',
+    marginTop: 2,
+    fontStyle: 'italic',
+  },
+  name: { fontSize: 20, fontWeight: 'bold', color: '#FFFFFF', marginTop: 2 },
+  designation: { color: '#E0E7FF', marginTop: 2, fontSize: 13, fontWeight: '500' },
+  headerMetaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 8 },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12 },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#34D399', marginRight: 5 },
+  statusText: { color: '#FFFFFF', fontSize: 10, fontWeight: 'bold' },
+  empIdBadge: { color: '#EEF2FF', fontSize: 11, fontWeight: '600', backgroundColor: 'rgba(255,255,255,0.15)', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 12, overflow: 'hidden' },
+  
+  // Cards & Rows
+  card: { backgroundColor: '#FFFFFF', marginHorizontal: 16, marginTop: 14, borderRadius: 16, padding: 16, shadowColor: '#000', shadowOffset: { width: 0, height: 1 }, shadowOpacity: 0.05, shadowRadius: 3, elevation: 2 },
+  cardTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 12 },
   cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  editLinkText: { color: '#1E88E5', fontWeight: 'bold', fontSize: 14 },
-  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
-  label: { color: '#666', fontSize: 14 },
-  value: { fontWeight: '600', color: '#333', fontSize: 14 },
-  statsRow: { flexDirection: 'row', justifyContent: 'space-between' },
-  statBox: { flex: 1, alignItems: 'center', padding: 12, backgroundColor: '#F5F7FA', borderRadius: 8, marginHorizontal: 4 },
-  statNumber: { fontSize: 18, fontWeight: 'bold', color: '#1E88E5' },
-  statLabel: { fontSize: 11, color: '#666', marginTop: 4, textAlign: 'center' },
-  progressCard: { marginBottom: 15 },
-  progressTopRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
-  progressLabel: { fontSize: 14, color: '#555' },
-  progressTarget: { fontSize: 14, fontWeight: 'bold', color: '#333' },
-  progressBar: { height: 10, backgroundColor: '#eee', borderRadius: 5, overflow: 'hidden' },
-  progressFill: { height: 10, borderRadius: 5 },
-  progressText: { fontSize: 12, color: '#888', marginTop: 4 },
-  gradeContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 15, paddingTop: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
-  gradeLabel: { fontSize: 13, fontWeight: '600', color: '#475569' },
-  gradeBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 8 },
-  gradeText: { color: '#FFF', fontWeight: 'bold', fontSize: 13 },
-  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f5f5f5' },
-  settingText: { fontSize: 14, color: '#333' },
-  syncSubText: { fontSize: 11, color: '#94A3B8', marginTop: 2 },
-  arrow: { fontSize: 20, color: '#999' },
-  versionText: { fontSize: 13, color: '#999' },
-  logoutButton: { backgroundColor: '#E53935', margin: 15, marginTop: 20, borderRadius: 12, padding: 16, alignItems: 'center' },
-  logoutText: { color: '#fff', fontWeight: 'bold', fontSize: 16 },
+  editLinkText: { color: '#4F46E5', fontWeight: 'bold', fontSize: 13 },
+  row: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  label: { color: '#64748B', fontSize: 13 },
+  value: { fontWeight: '600', color: '#1E293B', fontSize: 13 },
+  
+  // Attendance KPI Grid
+  kpiGrid: { flexDirection: 'row', gap: 8 },
+  kpiBox: { flex: 1, paddingVertical: 10, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  kpiVal: { fontSize: 18, fontWeight: 'bold' },
+  kpiSub: { fontSize: 10, fontWeight: '600', color: '#64748B', marginTop: 2 },
+
+  // Stats Row
+  statsRow: { flexDirection: 'row', gap: 8 },
+  statBox: { flex: 1, alignItems: 'center', paddingVertical: 12, paddingHorizontal: 6, borderRadius: 10 },
+  statNumber: { fontSize: 18, fontWeight: 'bold' },
+  statLabel: { fontSize: 11, color: '#475569', marginTop: 3, textAlign: 'center', fontWeight: '500' },
+  
+  // Performance Progress
+  progressCard: { marginBottom: 12 },
+  progressTopRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 },
+  progressLabel: { fontSize: 13, color: '#475569', fontWeight: '500' },
+  progressTarget: { fontSize: 13, fontWeight: 'bold', color: '#1E293B' },
+  progressBar: { height: 8, backgroundColor: '#F1F5F9', borderRadius: 4, overflow: 'hidden' },
+  progressFill: { height: 8, borderRadius: 4 },
+  progressText: { fontSize: 11, color: '#64748B', marginTop: 3 },
+  gradeContainer: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#F1F5F9' },
+  gradeLabel: { fontSize: 13, fontWeight: '600', color: '#334155' },
+  gradeBadge: { paddingHorizontal: 12, paddingVertical: 3, borderRadius: 8 },
+  gradeText: { color: '#FFFFFF', fontWeight: 'bold', fontSize: 12 },
+  
+  // Settings & Logout
+  settingRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  settingText: { fontSize: 13, color: '#334155', fontWeight: '500' },
+  syncSubText: { fontSize: 10, color: '#94A3B8', marginTop: 2 },
+  arrow: { fontSize: 18, color: '#94A3B8' },
+  versionText: { fontSize: 12, color: '#64748B', fontWeight: '500' },
+  
+  logoutButton: { backgroundColor: '#FFF1F2', borderColor: '#FECDD3', borderWidth: 1, marginHorizontal: 16, marginTop: 18, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  logoutText: { color: '#E11D48', fontWeight: 'bold', fontSize: 14 },
   disabledButton: { opacity: 0.5 },
-  syncFooterText: { textAlign: 'center', fontSize: 12, color: '#94A3B8', marginTop: 5, fontStyle: 'italic' },
+  
+  // Modal styles
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(15,23,42,0.4)', justifyContent: 'center', alignItems: 'center' },
-  modalContainer: { width: '85%', backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
-  modalTitle: { fontSize: 18, fontWeight: 'bold', color: '#1E293B', marginBottom: 16, textAlign: 'center' },
+  modalContainer: { width: '88%', maxWidth: 400, backgroundColor: '#FFFFFF', borderRadius: 16, padding: 20, shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.1, shadowRadius: 10, elevation: 5 },
+  modalTitle: { fontSize: 17, fontWeight: 'bold', color: '#1E293B', marginBottom: 16, textAlign: 'center' },
   inputGroup: { marginBottom: 12 },
   inputLabel: { fontSize: 12, fontWeight: '600', color: '#64748B', marginBottom: 4 },
-  textInput: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: '#0F172A', backgroundColor: '#F8FAFC' },
+  textInput: { borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 10, fontSize: 13, color: '#0F172A', backgroundColor: '#F8FAFC' },
   passwordHint: { fontSize: 11, color: '#94A3B8', fontStyle: 'italic', marginBottom: 8 },
-  modalActionRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 12, marginTop: 20 },
-  modalCancelButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: '#E2E8F0' },
-  modalCancelText: { fontSize: 14, color: '#475569', fontWeight: 'bold' },
-  modalSaveButton: { paddingHorizontal: 16, paddingVertical: 10, borderRadius: 8, backgroundColor: '#1E88E5', minWidth: 100, alignItems: 'center' },
-  modalSaveText: { fontSize: 14, color: '#FFFFFF', fontWeight: 'bold' },
-  policyText: { fontSize: 13, color: '#475569', lineHeight: 18 },
+  modalActionRow: { flexDirection: 'row', justifyContent: 'flex-end', gap: 10, marginTop: 18 },
+  modalCancelButton: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 8, backgroundColor: '#F1F5F9' },
+  modalCancelText: { fontSize: 13, color: '#64748B', fontWeight: 'bold' },
+  modalSaveButton: { paddingHorizontal: 16, paddingVertical: 9, borderRadius: 8, backgroundColor: '#4F46E5', minWidth: 100, alignItems: 'center' },
+  modalSaveText: { fontSize: 13, color: '#FFFFFF', fontWeight: 'bold' },
+  policyText: { fontSize: 12, color: '#475569', lineHeight: 18 },
 });
