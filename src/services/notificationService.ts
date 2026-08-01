@@ -25,6 +25,55 @@ const notifyUI = () => {
 };
 
 export const NotificationService = {
+  loadNotificationsFromApi: async () => {
+    try {
+      const { apiRequest } = await import('./apiClient');
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/notifications');
+      if (response && response.success && Array.isArray(response.data)) {
+        const customNotifs = JSON.parse(localStorage.getItem('custom_notifications') || '[]');
+        
+        // Merge backend notifications into customNotifs if they don't already exist
+        let changed = false;
+        response.data.forEach(n => {
+          const id = String(n.id);
+          if (!customNotifs.some((cn: any) => String(cn.id) === id)) {
+            customNotifs.push({
+              id,
+              title: n.title,
+              message: n.message,
+              type: n.type || 'system',
+              priority: n.priority || 'info',
+              module: n.module || 'System',
+              isActionRequired: n.isActionRequired || false,
+              createdAt: n.createdAt ? new Date(n.createdAt).toISOString() : new Date().toISOString(),
+              actionUrl: n.actionUrl || ''
+            });
+            changed = true;
+          }
+        });
+        
+        if (changed) {
+          localStorage.setItem('custom_notifications', JSON.stringify(customNotifs));
+          notifyUI();
+        }
+      }
+
+      // Restore meeting notifications by fetching them and putting them into localStorage
+      try {
+        const { meetingService } = await import('./meetingService');
+        const mrId = Number(localStorage.getItem('mrId') || '1');
+        const meetings = await meetingService.loadMeetings(mrId);
+        localStorage.setItem(STORAGE_KEYS.MEETINGS, JSON.stringify(meetings));
+        notifyUI();
+      } catch (e) {
+        console.warn("Failed to load meetings for notifications", e);
+      }
+
+    } catch (e) {
+      console.warn("Failed to load notifications from API", e);
+    }
+  },
+
   getNotifications: (): Notification[] => {
     const notifications: Notification[] = [];
     const readStatus = JSON.parse(localStorage.getItem(STORAGE_KEYS.READ_STATUS) || '[]');

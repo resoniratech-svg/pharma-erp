@@ -20,11 +20,7 @@
 //   type: 'Email' | 'Call' | 'Meeting' | 'Note';
 // }
 
-// const mockData: ActivityLog[] = [
-//   { id: '1', date: '24-Oct-2026 10:30 AM', user: 'Rahul Verma', action: 'Sent Proposal', entity: 'Metro Distributors', type: 'Email' },
-//   { id: '2', date: '24-Oct-2026 11:15 AM', user: 'Amit Singh', action: 'Logged Call', entity: 'Dr. Ramesh Sharma', type: 'Call' },
-//   { id: '3', date: '23-Oct-2026 04:00 PM', user: 'Rahul Verma', action: 'Added Note', entity: 'Wellness Pharmacy', type: 'Note' },
-// ];
+// const mockData: any[] = [];
 
 // export default function Activities() {
 //   const [search, setSearch] = useState('');
@@ -401,6 +397,7 @@ import {
   Badge,
 } from './components/shared'; 
 import { type Column } from './components/shared';
+import { crmService } from '../../services/crmService';
 
 interface UnifiedActivity {
   id: string;
@@ -418,7 +415,16 @@ export default function ActivityTracking() {
   const [filterType, setFilterType] = useState('All');
 
   useEffect(() => {
-    compileActivityLogs();
+    // Load localStorage data immediately
+    compileActivityLogs([]);
+
+    // Then fetch backend API data and merge
+    Promise.all([
+      crmService.getActivities(),
+      crmService.getFollowUps(),
+    ]).then(([apiActivities, apiFollowUps]) => {
+      compileActivityLogs([], apiActivities, apiFollowUps);
+    }).catch((err) => console.error('Failed to load backend activities:', err));
   }, []);
   
     
@@ -449,9 +455,38 @@ export default function ActivityTracking() {
     }
   };
 
-  const compileActivityLogs = () => {
+  const compileActivityLogs = (_unused: any[] = [], apiActivities: any[] = [], apiFollowUps: any[] = []) => {
     const compiled: UnifiedActivity[] = [];
     const todayStr = new Date().toISOString().split('T')[0];
+
+    // --- Backend API Activities ---
+    apiActivities.forEach((a) => {
+      const dateStr = a.activityDate ? new Date(a.activityDate).toLocaleDateString('en-GB') : todayStr;
+      const timeStr = a.activityDate ? new Date(a.activityDate).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '09:00 AM';
+      compiled.push({
+        id: `api-act-${a.id}`,
+        type: 'crm',
+        title: `${a.activityType}: ${a.title}`,
+        subtitle: a.description || `Status: ${a.status}`,
+        date: dateStr,
+        time: timeStr,
+        timestamp: new Date(a.activityDate || Date.now()).getTime(),
+      });
+    });
+
+    // --- Backend API Follow-Ups ---
+    apiFollowUps.forEach((f) => {
+      const dateStr = f.followUpDate ? new Date(f.followUpDate).toLocaleDateString('en-GB') : todayStr;
+      compiled.push({
+        id: `api-fu-${f.id}`,
+        type: 'followup',
+        title: f.title,
+        subtitle: f.remarks || `Status: ${f.status}`,
+        date: dateStr,
+        time: '09:00 AM',
+        timestamp: new Date(f.followUpDate || Date.now()).getTime(),
+      });
+    });
 
     // 1. Fetch Doctor Visits
     const docsList = safeJsonParse(localStorage.getItem('mr_doctor_visits'), []);

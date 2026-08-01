@@ -30,13 +30,7 @@ interface Composition {
   createdDate: string;
 }
 
-const initialMockData: Composition[] = [
-  { id: '1', genericName: 'Amoxicillin Trihydrate', strength: '500mg', dosageForm: 'Capsule', therapeuticClass: 'Antibiotic', schedule: 'Schedule H', description: 'Broad-spectrum antibiotic used to treat bacterial infections.', associatedProducts: 12, status: 'Active', createdBy: 'Admin User', createdDate: '2026-06-01' },
-  { id: '2', genericName: 'Paracetamol', strength: '650mg', dosageForm: 'Tablet', therapeuticClass: 'Analgesic', schedule: 'OTC', description: 'Used for fever reduction and pain relief.', associatedProducts: 45, status: 'Active', createdBy: 'System', createdDate: '2026-05-15' },
-  { id: '3', genericName: 'Ibuprofen', strength: '400mg', dosageForm: 'Tablet', therapeuticClass: 'NSAID', schedule: 'OTC', description: 'Nonsteroidal anti-inflammatory drug used for reducing fever and treating pain.', associatedProducts: 28, status: 'Active', createdBy: 'Admin User', createdDate: '2026-04-20' },
-  { id: '4', genericName: 'Cetirizine Hydrochloride', strength: '10mg', dosageForm: 'Tablet', therapeuticClass: 'Antihistamine', schedule: 'Schedule H', description: 'Used to relieve allergy symptoms such as watery eyes, runny nose, itching eyes/nose, and sneezing.', associatedProducts: 8, status: 'Inactive', createdBy: 'Admin User', createdDate: '2025-12-05' },
-  { id: '5', genericName: 'Vitamin C (Ascorbic Acid)', strength: '1000mg', dosageForm: 'Tablet', therapeuticClass: 'Vitamin Supplement', schedule: 'OTC', description: 'Vitamin supplement for immune system support.', associatedProducts: 15, status: 'Active', createdBy: 'System', createdDate: '2026-06-10' },
-];
+
 
 const formatDate = (dateString?: string) => {
   if (!dateString) return "N/A";
@@ -51,15 +45,23 @@ const formatDate = (dateString?: string) => {
 export default function CompositionManagement() {
   const [data, setData] = useState<Composition[]>([]);
 
-  // Initialize data safely
-  useEffect(() => {
-    const savedData = compositionService.getAll();
-    if (savedData && savedData.length > 0) {
-      setData(savedData);
-    } else {
-      setData(initialMockData);
-      compositionService.saveAll(initialMockData);
+  const [loading, setLoading] = useState(false);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const compositions = await compositionService.getAll();
+      setData(compositions);
+    } catch (err) {
+      console.error('Failed to load compositions', err);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  // Initialize data from database
+  useEffect(() => {
+    loadData();
   }, []);
 
   const [search, setSearch] = useState('');
@@ -208,7 +210,7 @@ export default function CompositionManagement() {
     setShowModal(true);
   };
 
-  const handleSaveComposition = () => {
+  const handleSaveComposition = async () => {
     const trimmedGenericName = newComp.genericName.trim();
     const trimmedStrength = newComp.strength.trim();
     const trimmedTherapeuticClass = newComp.therapeuticClass.trim();
@@ -238,55 +240,50 @@ export default function CompositionManagement() {
     let updatedData: Composition[] = [];
 
     if (isEditingModal && newComp.id) {
-      const updatedRecord: Composition = {
-        id: newComp.id,
-        genericName: trimmedGenericName,
-        strength: trimmedStrength,
-        dosageForm: newComp.dosageForm,
-        therapeuticClass: trimmedTherapeuticClass,
-        schedule: newComp.schedule,
-        description: trimmedDescription,
-        associatedProducts: selectedComp?.associatedProducts || 0,
-        status: newComp.status as 'Active' | 'Inactive',
-        createdBy: selectedComp?.createdBy || 'Admin User',
-        createdDate: selectedComp?.createdDate || new Date().toISOString().split('T')[0]
-      };
-      
-      updatedData = data.map(item => item.id === updatedRecord.id ? updatedRecord : item);
-      activityLogService.addLog({
-        action: "Composition Updated",
-        module: "Composition Management",
-      });
-      if (selectedComp && selectedComp.id === updatedRecord.id) {
-        setSelectedComp(updatedRecord);
+      try {
+        const updated = await compositionService.update(newComp.id, {
+          genericName: trimmedGenericName,
+          strength: trimmedStrength,
+          dosageForm: newComp.dosageForm,
+          therapeuticClass: trimmedTherapeuticClass,
+          schedule: newComp.schedule,
+          description: trimmedDescription,
+          status: newComp.status as 'Active' | 'Inactive',
+        });
+        updatedData = data.map(item => item.id === updated.id ? { ...updated, associatedProducts: selectedComp?.associatedProducts || 0 } : item);
+        activityLogService.addLog({ action: "Composition Updated", module: "Composition Management" });
+        if (selectedComp && selectedComp.id === updated.id) {
+          setSelectedComp({ ...updated, associatedProducts: selectedComp.associatedProducts || 0 });
+        }
+        setData(updatedData);
+      } catch (err: any) {
+        alert(err.message || 'Failed to update composition');
+        return;
       }
     } else {
-      const record: Composition = {
-        id: Date.now().toString(),
-        genericName: trimmedGenericName,
-        strength: trimmedStrength,
-        dosageForm: newComp.dosageForm,
-        therapeuticClass: trimmedTherapeuticClass,
-        schedule: newComp.schedule,
-        description: trimmedDescription,
-        associatedProducts: 0,
-        status: newComp.status as 'Active' | 'Inactive',
-        createdBy: 'Admin User',
-        createdDate: new Date().toISOString().split('T')[0]
-      };
-      updatedData = [record, ...data];
-      activityLogService.addLog({
-        action: "Composition Created",
-        module: "Composition Management",
-      });
+      try {
+        const created = await compositionService.add({
+          genericName: trimmedGenericName,
+          strength: trimmedStrength,
+          dosageForm: newComp.dosageForm,
+          therapeuticClass: trimmedTherapeuticClass,
+          schedule: newComp.schedule,
+          description: trimmedDescription,
+          status: newComp.status as 'Active' | 'Inactive',
+          createdBy: 'Admin User',
+        });
+        updatedData = [created, ...data];
+        setData(updatedData);
+        activityLogService.addLog({ action: "Composition Created", module: "Composition Management" });
+      } catch (err: any) {
+        alert(err.message || 'Failed to create composition');
+        return;
+      }
     }
-    
-    setData(updatedData);
-    compositionService.saveAll(updatedData);
     setShowModal(false);
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (itemToDelete) {
       if (itemToDelete.associatedProducts > 0) {
         alert("This composition is currently in use by one or more products and cannot be deleted. You may change its status to Inactive instead.");
@@ -294,14 +291,14 @@ export default function CompositionManagement() {
         return;
       }
 
-      const updatedData = data.filter(item => item.id !== itemToDelete.id);
-      setData(updatedData);
-      compositionService.saveAll(updatedData);
-      
-      activityLogService.addLog({
-        action: "Composition Deleted",
-        module: "Composition Management",
-      });
+      try {
+        await compositionService.delete(itemToDelete.id);
+        const updatedData = data.filter(item => item.id !== itemToDelete.id);
+        setData(updatedData);
+        activityLogService.addLog({ action: "Composition Deleted", module: "Composition Management" });
+      } catch (err: any) {
+        alert(err.message || 'Failed to delete composition');
+      }
       setItemToDelete(null);
     }
   };

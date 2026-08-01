@@ -17,7 +17,31 @@ export interface Payment {
 const STORAGE_KEY = 'pharma_erp_payments';
 
 export const paymentService = {
-  getAll: (): Payment[] => {
+  getAll: async (): Promise<Payment[]> => {
+    try {
+      const { apiRequest } = await import('./apiClient');
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/payment-collections');
+      if (response && response.success && Array.isArray(response.data) && response.data.length > 0) {
+        const mapped = response.data.map(p => ({
+          id: String(p.id),
+          invoiceNo: p.invoice?.invoiceNo || p.invoiceNo || 'N/A',
+          amount: Number(p.amount),
+          paymentDate: p.paymentDate ? p.paymentDate.split('T')[0] : new Date().toISOString().split('T')[0],
+          paymentMethod: p.paymentMode || p.paymentMethod || 'Bank Transfer',
+          transactionRef: p.referenceNumber || p.transactionRef || 'N/A',
+          status: p.status || 'Completed',
+          notes: p.remarks || p.notes || '',
+          retailerId: String(p.retailerId || ''),
+          retailerCode: p.retailer?.code || '',
+          retailerName: p.retailer?.name || ''
+        }));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+        return mapped as Payment[];
+      }
+    } catch (e) {
+      console.warn("Failed to fetch payments from API, using fallback", e);
+    }
+    
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
       try {
@@ -62,14 +86,43 @@ export const paymentService = {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(payments));
   },
 
-  create: (payment: Omit<Payment, 'id'>): Payment => {
-    const payments = paymentService.getAll();
+  create: async (payment: Omit<Payment, 'id'>): Promise<Payment> => {
     const newPayment: Payment = {
       ...payment,
       id: `pay-${Date.now()}`
     };
-    payments.unshift(newPayment);
-    paymentService.saveAll(payments);
+    
+    try {
+      const { apiRequest } = await import('./apiClient');
+      const response = await apiRequest<{ success: boolean; data: any }>('/payment-collections', {
+        method: 'POST',
+        bodyData: {
+          invoiceId: 1, // Fallback placeholder if missing
+          retailerId: payment.retailerId ? Number(payment.retailerId) : undefined,
+          amount: payment.amount,
+          paymentDate: payment.paymentDate ? new Date(payment.paymentDate).toISOString() : new Date().toISOString(),
+          paymentMode: payment.paymentMethod,
+          referenceNumber: payment.transactionRef,
+          remarks: payment.notes,
+          status: payment.status
+        }
+      });
+      if (response && response.success && response.data) {
+        newPayment.id = String(response.data.id);
+      }
+    } catch (e) {
+      console.warn("Failed to create payment on API", e);
+    }
+
+    try {
+      // It's possible getAll() is still executing asynchronously in another context, 
+      // but let's grab the local cache to quickly update the UI
+      const stored = localStorage.getItem(STORAGE_KEY);
+      const payments = stored ? JSON.parse(stored) : [];
+      payments.unshift(newPayment);
+      paymentService.saveAll(payments);
+    } catch (e) {}
+
     return newPayment;
   }
 };

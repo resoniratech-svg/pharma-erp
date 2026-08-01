@@ -12,6 +12,8 @@ import {
   Drawer,
 } from './components/shared';
 import { type Column } from './components/shared';
+import { followUpService } from '../../services/followUpService';
+import { leadService } from '../../services/leadService';
 
 interface Lead {
   id: string;
@@ -63,88 +65,33 @@ export default function FollowUps() {
     loadData();
   }, []);
 
-  const loadData = () => {
+  const loadData = async () => {
     try {
-      const storedLeads = localStorage.getItem('crm_leads');
-      let parsedLeads: Lead[] = storedLeads ? JSON.parse(storedLeads) : [];
-      if (!storedLeads || parsedLeads.length === 0) {
-        parsedLeads = [
-          { id: 'LD-0001', name: 'dr. sai', contact: '9765567893443' },
-          { id: 'LD-0002', name: 'srinadh', contact: '43454323432' },
-          { id: 'LD-0003', name: 'mmmm', contact: '5434565435' },
-          { id: 'LD-0004', name: 'sssss', contact: '234432123' },
-        ];
-      }
-      setLeads(parsedLeads);
+      // Load real leads from DB
+      const apiLeads = await leadService.getAll();
+      setLeads(apiLeads.map((l) => ({
+        id: l.id,
+        name: l.name,
+        contact: l.mobile || l.email || '',
+      })));
 
-      const storedFollowUps = localStorage.getItem('crm_followups');
-      let parsedFollowUps: FollowUp[] = storedFollowUps ? JSON.parse(storedFollowUps) : [];
-
-      // Clean invalid records or seed defaults if empty/missing fields
-      if (parsedFollowUps.length === 0 || parsedFollowUps.some(f => !f.contactName || f.contactName === '—' || !f.type)) {
-        parsedFollowUps = [
-          {
-            id: 'FU-0001',
-            leadId: parsedLeads[0]?.id || 'LD-0001',
-            contactName: parsedLeads[0]?.name || 'dr. sai',
-            type: 'Product Presentation',
-            method: 'In-Person Visit',
-            date: '2026-07-22',
-            notes: 'Follow up on cardio product samples',
-            status: 'Pending'
-          },
-          {
-            id: 'FU-0002',
-            leadId: parsedLeads[1]?.id || 'LD-0002',
-            contactName: parsedLeads[1]?.name || 'srinadh',
-            type: 'Lead Check-in',
-            method: 'Phone Call',
-            date: '2026-07-20',
-            notes: 'Checked on sample delivery status',
-            status: 'Completed',
-            completedBy: 'Admin',
-            completedDate: '20-Jul-2026 11:30'
-          },
-          {
-            id: 'FU-0003',
-            leadId: parsedLeads[2]?.id || 'LD-0003',
-            contactName: parsedLeads[2]?.name || 'mmmm',
-            type: 'Contract Discussion',
-            method: 'Email',
-            date: '2026-07-21',
-            notes: 'Sent updated rate list and scheme sheet',
-            status: 'Completed',
-            completedBy: 'Admin',
-            completedDate: '21-Jul-2026 14:15'
-          }
-        ];
-        localStorage.setItem('crm_followups', JSON.stringify(parsedFollowUps));
-      }
-
+      // Load real follow-ups from DB
+      const apiFollowUps = await followUpService.getAll();
       const todayStr = new Date().toISOString().split('T')[0];
-      let needsSave = false;
-
-      parsedFollowUps = parsedFollowUps.map(f => {
-        if ((!f.contactName || f.contactName === '—') && f.leadId) {
-          const matchLead = parsedLeads.find(l => l.id === f.leadId);
-          if (matchLead) {
-            f.contactName = matchLead.name;
-            needsSave = true;
-          }
-        }
-        if (f.status === 'Pending' && f.date < todayStr) {
-          needsSave = true;
-          return { ...f, status: 'Overdue' as const };
-        }
-        return f;
-      });
-
-      setFollowUps(parsedFollowUps);
-      if (needsSave) {
-        localStorage.setItem('crm_followups', JSON.stringify(parsedFollowUps));
-      }
+      const mapped: FollowUp[] = apiFollowUps.map((f) => ({
+        id: String(f.id),
+        leadId: f.leadId?.toString() || '',
+        contactName: f.title || f.contactName || '—',
+        type: f.type || '—',
+        method: f.method || '—',
+        date: f.followUpDate || '',
+        notes: f.remarks || '',
+        status: f.status === 'COMPLETED' ? 'Completed' :
+          (f.followUpDate < todayStr && f.status === 'PENDING') ? 'Overdue' : 'Pending',
+      }));
+      setFollowUps(mapped);
     } catch (error) {
-      console.error("Failed to load follow-up data:", error);
+      console.error('Failed to load follow-up data:', error);
     }
   };
 
@@ -171,90 +118,62 @@ export default function FollowUps() {
     }
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.leadId || !formData.date) {
-      alert("Please select a lead and a due date.");
+      alert('Please select a lead and a due date.');
       return;
     }
-
-    const selectedLead = leads.find(l => l.id === formData.leadId);
+    const selectedLead = leads.find((l) => l.id === formData.leadId);
     if (!selectedLead) return;
 
-    // ✅ Duplicate check
-    const isDuplicate = followUps.some(f =>
-      f.leadId === selectedLead.id &&
-      f.date === formData.date &&
-      f.type === formData.type
-    );
-    if (isDuplicate) {
-      alert(`A ${formData.type} is already scheduled for ${selectedLead.name} on this date!`);
-      return;
-    }
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    const computedStatus: FollowUp['status'] = formData.date < todayStr ? 'Overdue' : 'Pending';
-
-    const newRecord: FollowUp = {
-      id: generateFollowUpId(followUps),
-      leadId: selectedLead.id,
-      contactName: selectedLead.name,
-      type: formData.type || 'Lead Check-in',
-      method: formData.method || 'Phone Call',
-      date: formData.date,
-      notes: formData.notes?.trim() || '',
-      status: computedStatus
-    };
-
-    const updated = [newRecord, ...followUps];
-    setFollowUps(updated);
-    localStorage.setItem('crm_followups', JSON.stringify(updated));
-
-    // ✅ Auto-update lead status to 'Contacted' if it was New or Assigned
     try {
-      const storedLeads = JSON.parse(localStorage.getItem('crm_leads') || '[]');
-      const updatedLeads = storedLeads.map((l: any) => {
-        if (l.id === selectedLead.id && (l.status === 'New' || l.status === 'Assigned')) {
-          return { ...l, status: 'Contacted' };
-        }
-        return l;
+      const mrId = Number(localStorage.getItem('mrId') || '1');
+      await followUpService.create({
+        mrId: mrId,
+        leadId: Number(selectedLead.id),
+        type: formData.type || 'Lead Check-in',
+        method: formData.method || 'Phone Call',
+        title: selectedLead.name,
+        remarks: formData.notes?.trim() || '',
+        followUpDate: formData.date,
       });
-      localStorage.setItem('crm_leads', JSON.stringify(updatedLeads));
-    } catch (e) {
-      console.error("Pipeline update failed", e);
+
+      const todayStr = new Date().toISOString().split('T')[0];
+      const computedStatus: FollowUp['status'] = formData.date < todayStr ? 'Overdue' : 'Pending';
+      const newRecord: FollowUp = {
+        id: generateFollowUpId(followUps),
+        leadId: selectedLead.id,
+        contactName: selectedLead.name,
+        type: formData.type || 'Lead Check-in',
+        method: formData.method || 'Phone Call',
+        date: formData.date,
+        notes: formData.notes?.trim() || '',
+        status: computedStatus,
+      };
+      setFollowUps((prev) => [newRecord, ...prev]);
+      closeDrawer();
+    } catch (err: any) {
+      alert(err.message || 'Failed to save follow-up');
     }
-
-    logActivity('Follow-Up Scheduled', `Scheduled a ${newRecord.type} (${newRecord.method}) for ${newRecord.contactName} on ${newRecord.date}`);
-
-    closeDrawer();
   };
 
-  const markAsCompleted = (id: string) => {
-    const targetFollowUp = followUps.find(f => f.id === id);
+  const markAsCompleted = async (id: string) => {
+    const targetFollowUp = followUps.find((f) => f.id === id);
     if (!targetFollowUp) return;
-
-    const managerName = getManagerName();
+    try {
+      await followUpService.update(id, { status: 'COMPLETED' } as any);
+    } catch (err) {
+      console.error('Failed to mark follow-up as completed:', err);
+    }
     const completedDateStr = new Date().toLocaleString('en-GB', {
-      day: '2-digit', month: 'short', year: 'numeric',
-      hour: '2-digit', minute: '2-digit'
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
     });
-
-    const updated = followUps.map(f => {
-      if (f.id === id) {
-        return {
-          ...f,
-          status: 'Completed' as const,
-          completedDate: completedDateStr,
-          completedBy: managerName
-        };
-      }
-      return f;
-    });
-
-    setFollowUps(updated);
-    localStorage.setItem('crm_followups', JSON.stringify(updated));
-
-    logActivity('Follow-Up Completed', `Completed follow-up for ${targetFollowUp.contactName}`);
+    setFollowUps((prev) =>
+      prev.map((f) =>
+        f.id === id ? { ...f, status: 'Completed' as const, completedDate: completedDateStr } : f
+      )
+    );
   };
 
   const closeDrawer = () => {

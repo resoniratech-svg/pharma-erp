@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from 'react';
 import { Download, ChevronDown, FileText, TrendingUp, DollarSign, Percent, BarChart3, Info } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { generateProfitLossPdf } from '../../documents/generators/pdfGenerator';
+import { financeService } from '../../services/financeService';
 
 import {
   PageHeader,
@@ -33,58 +34,8 @@ interface DrillDownTxn {
   amount: number;
 }
 
-// --- Mock Data ---
-const drItems: PLItem[] = [
-  { id: 'd1', name: 'To Opening Stock', current: 1550000, previous: 1400000 },
-  { id: 'd2', name: 'To Purchases', current: 14520000, previous: 13000000, isDrilldown: true },
-  { id: 'd3', name: 'Less: Purchase Returns', current: -120000, previous: -80000 },
-  { id: 'd4', name: 'To Direct Expenses', current: 840000, previous: 750000, isDrilldown: true },
-  { id: 'd5', name: 'Gross Profit c/d', current: 6510000, previous: 5230000, isTotal: true },
-  
-  { id: 'd_space', name: '', current: 0, previous: 0, isHeading: true },
-  
-  { id: 'd6', name: 'To Salaries & Wages', current: 2400000, previous: 2100000, isDrilldown: true },
-  { id: 'd7', name: 'To Rent & Utilities', current: 650000, previous: 600000 },
-  { id: 'd8', name: 'To MR Commissions', current: 820000, previous: 680000, isDrilldown: true },
-  { id: 'd9', name: 'To Marketing Expenses', current: 500000, previous: 420000, isDrilldown: true },
-  { id: 'd10', name: 'To Depreciation', current: 310000, previous: 280000 },
-  { id: 'd11', name: 'Net Profit', current: 1830000, previous: 1210000, isTotal: true },
-];
-
-const crItems: PLItem[] = [
-  { id: 'c1', name: 'By Sales', current: 22050000, previous: 19000000, isDrilldown: true },
-  { id: 'c2', name: 'Less: Sales Returns', current: -350000, previous: -250000 },
-  { id: 'c3', name: 'By Closing Stock', current: 1600000, previous: 1550000 },
-  { id: 'c4', name: '', current: 23300000, previous: 20300000, isTotal: true },
-  
-  { id: 'c_space', name: '', current: 0, previous: 0, isHeading: true },
-  
-  { id: 'c5', name: 'By Gross Profit b/d', current: 6510000, previous: 5230000, isTotal: true },
-  { id: 'c6', name: 'By Discount Received', current: 450000, previous: 38000 },
-  { id: 'c7', name: 'By Interest Income', current: 55000, previous: 22000, isDrilldown: true },
-];
-
-const mockDrilldownData: Record<string, DrillDownTxn[]> = {
-  'By Sales': [
-    { id: '1', date: '2026-10-01', voucherNo: 'INV-2026-001', particulars: 'Sales to Apollo Pharmacy', amount: 450000 },
-    { id: '2', date: '2026-10-05', voucherNo: 'INV-2026-002', particulars: 'Sales to Apex Distributors', amount: 1200000 },
-    { id: '3', date: '2026-10-12', voucherNo: 'INV-2026-003', particulars: 'Sales to Global Pharma', amount: 850000 },
-  ],
-  'To Purchases': [
-    { id: '1', date: '2026-10-02', voucherNo: 'PUR-2026-001', particulars: 'Raw Materials from Cipla', amount: 800000 },
-    { id: '2', date: '2026-10-08', voucherNo: 'PUR-2026-002', particulars: 'Packaging from Sun Pack', amount: 150000 },
-  ],
-  'To MR Commissions': [
-    { id: '1', date: '2026-10-07', voucherNo: 'PMT-2026-041', particulars: 'Commission - Rahul Verma', amount: 21125 },
-    { id: '2', date: '2026-10-07', voucherNo: 'PMT-2026-042', particulars: 'Commission - Amit Singh', amount: 36000 },
-  ]
-};
-
-// Default empty fallback for items without specific drilldown mock data
-const defaultDrilldown: DrillDownTxn[] = [
-  { id: '1', date: '2026-10-01', voucherNo: 'JV-2026-001', particulars: 'Opening Balance', amount: 150000 },
-  { id: '2', date: '2026-10-15', voucherNo: 'JV-2026-045', particulars: 'Period Transactions', amount: 350000 },
-];
+const mockDrilldownData: Record<string, DrillDownTxn[]> = {};
+const defaultDrilldown: DrillDownTxn[] = [];
 
 export default function ProfitLoss() {
   // Filter State
@@ -101,6 +52,61 @@ export default function ProfitLoss() {
   
   // Drill-down State
   const [drilldownItem, setDrilldownItem] = useState<PLItem | null>(null);
+
+  const [drItems, setDrItems] = useState<PLItem[]>([]);
+  const [crItems, setCrItems] = useState<PLItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const data = await financeService.getProfitLossData();
+        
+        const mapToPlItems = (items: any[], isDebit: boolean): PLItem[] => {
+          const plItems: PLItem[] = [];
+          const grouped = items.reduce((acc, curr) => {
+            if (!acc[curr.category]) acc[curr.category] = [];
+            acc[curr.category].push(curr);
+            return acc;
+          }, {} as Record<string, any[]>);
+          
+          let idCounter = 1;
+          for (const [category, catItems] of Object.entries(grouped)) {
+            plItems.push({ id: `cat-${idCounter++}`, name: category, current: 0, previous: 0, isHeading: true });
+            let catTotal = 0;
+            catItems.forEach(item => {
+              plItems.push({ 
+                id: `item-${idCounter++}`, 
+                name: (isDebit ? 'To ' : 'By ') + item.item, 
+                current: item.amount, 
+                previous: item.amount * 0.9, // mock previous 
+                isDrilldown: true 
+              });
+              catTotal += item.amount;
+            });
+            plItems.push({ 
+              id: `tot-${idCounter++}`, 
+              name: `Total ${category}`, 
+              current: catTotal, 
+              previous: catTotal * 0.9, 
+              isTotal: true 
+            });
+            plItems.push({ id: `sp-${idCounter++}`, name: '', current: 0, previous: 0, isHeading: true }); // Spacer
+          }
+          return plItems;
+        };
+
+        setCrItems(mapToPlItems(data.incomeData, false));
+        setDrItems(mapToPlItems(data.expenseData, true));
+      } catch (err) {
+        console.error("Failed to load profit and loss data", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [fy, periodType, fromDate, toDate]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -328,8 +334,8 @@ export default function ProfitLoss() {
                       <div className="w-[15%] text-right">Var (₹)</div>
                       <div className="w-[10%] text-right">Var %</div>
                   </div>
-                  <div className="flex flex-col">
-                      {drItems.map(renderPLRow)}
+                   <div className="flex flex-col">
+                      {isLoading ? <div className="p-4 text-center text-slate-500">Loading...</div> : drItems.map(renderPLRow)}
                   </div>
                </div>
                
@@ -342,8 +348,8 @@ export default function ProfitLoss() {
                       <div className="w-[15%] text-right">Var (₹)</div>
                       <div className="w-[10%] text-right">Var %</div>
                   </div>
-                  <div className="flex flex-col">
-                      {crItems.map(renderPLRow)}
+                   <div className="flex flex-col">
+                      {isLoading ? <div className="p-4 text-center text-slate-500">Loading...</div> : crItems.map(renderPLRow)}
                   </div>
                </div>
            </div>

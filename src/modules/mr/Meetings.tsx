@@ -19,11 +19,7 @@
 //   status: 'Scheduled' | 'Completed';
 // }
 
-// const mockData: Meeting[] = [
-//   { id: '1', title: 'Q3 Cycle Meeting & Product Launch', date: '25-Oct-2026', type: 'Cycle Meeting', status: 'Scheduled' },
-//   { id: '2', title: 'Monthly Sales Review', date: '30-Oct-2026', type: 'Review', status: 'Scheduled' },
-//   { id: '3', title: 'New Product Detailing Training', date: '05-Oct-2026', type: 'Training', status: 'Completed' },
-// ];
+// const mockData: any[] = [];
 
 // export default function Meetings() {
 //   const [search, setSearch] = useState('');
@@ -249,8 +245,8 @@ export default function MrMeetings() {
       return;
     }
 
-    if (!title.trim() || !location.trim() || !organizer.trim() || !participants.trim()) {
-      alert('Please fill in all required fields (Title, Location, Organizer, Participants).');
+    if (!title.trim() || !location.trim() || !organizer.trim()) {
+      alert('Please fill in all required fields (Title, Location, Organizer).');
       return;
     }
 
@@ -347,11 +343,9 @@ export default function MrMeetings() {
 
   const columns: Column<MRMeeting>[] = [
     { key: 'title', label: 'Meeting Title', render: (row) => <span className="font-semibold text-slate-900">{row.title}</span> },
-    { key: 'type', label: 'Type' },
     { key: 'organizer', label: 'Organizer', render: (row) => <span className="text-slate-600 font-medium">{row.organizer}</span> },
     { key: 'date', label: 'Date', render: (row) => <span className="text-slate-600 font-medium">{row.date}</span> },
     { key: 'time', label: 'Time', render: (row) => <span className="text-slate-600 font-medium">{row.time}</span> },
-    { key: 'attendees', label: 'Attendees', render: (row) => <span className="text-slate-600 font-medium">{row.attendeesCount || 0}</span> },
     { 
       key: 'status',
       label: 'Status',
@@ -465,17 +459,7 @@ export default function MrMeetings() {
                   <input placeholder="e.g. Q3 Cycle Meeting" className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={title} onChange={(e)=>setTitle(e.target.value)} />
                 </div>
                 
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Meeting Type *</label>
-                  <select className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 bg-white" value={type} onChange={(e)=>setType(e.target.value)}>
-                    <option value="Doctor Group Meeting">Doctor Group Meeting</option>
-                    <option value="Chemist Meeting">Chemist Meeting</option>
-                    <option value="Hospital Meeting">Hospital Meeting</option>
-                    <option value="Stockist Review">Stockist Review</option>
-                    <option value="Clinical Presentation">Clinical Presentation</option>
-                    <option value="Team Meeting">Team Meeting</option>
-                  </select>
-                </div>
+
 
                 <div className="col-span-2 sm:col-span-1">
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Organizer *</label>
@@ -527,10 +511,7 @@ export default function MrMeetings() {
                   </select>
                 </div>
 
-                <div className="col-span-2 sm:col-span-1">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">Participants *</label>
-                  <input placeholder="e.g. Dr. Sharma, Chemist Sunil" className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={participants} onChange={(e)=>setParticipants(e.target.value)} />
-                </div>
+
 
                 <div className="col-span-2 sm:col-span-1">
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Follow-Up Date</label>
@@ -563,7 +544,6 @@ export default function MrMeetings() {
               <div className="flex justify-between items-start">
                 <div>
                   <h3 className="text-xl font-bold text-slate-900">{viewMeeting.title}</h3>
-                  <p className="text-sm text-indigo-600 font-semibold mt-1">{viewMeeting.type}</p>
                 </div>
                 <Badge variant={viewMeeting.status === 'Completed' ? 'success' : viewMeeting.status === 'Scheduled' ? 'info' : 'neutral'}>
                   {viewMeeting.status}
@@ -612,14 +592,8 @@ export default function MrMeetings() {
                   </div>
                 </div>
               )}
+
               <div className="pt-4 border-t border-slate-100">
-                <div className="flex items-start gap-3">
-                  <Users className="w-5 h-5 text-slate-400 mt-0.5" />
-                  <div className="flex-1">
-                    <p className="text-xs font-bold text-slate-500 uppercase">Participants ({viewMeeting.attendeesCount || 0})</p>
-                    <p className="text-sm text-slate-700 mt-1 whitespace-pre-wrap">{viewMeeting.participants || 'None listed'}</p>
-                  </div>
-                </div>
                 {viewMeeting.followUpDate && (
                   <div className="flex items-start gap-3 mt-4">
                     <Calendar className="w-5 h-5 text-slate-400 mt-0.5" />

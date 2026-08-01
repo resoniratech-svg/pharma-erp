@@ -37,14 +37,7 @@ interface StateSales {
   status: 'High' | 'Medium' | 'Low';
 }
 
-const mockStateSales: StateSales[] = [
-  { id: '1', state: 'Maharashtra', revenue: '₹ 45.2 Cr', revenueVal: 45.2, orders: 12500, activeCustomers: 1205, outstanding: '₹ 4.1 Cr', growth: '+12.5%', status: 'High' },
-  { id: '2', state: 'Gujarat', revenue: '₹ 32.1 Cr', revenueVal: 32.1, orders: 9800, activeCustomers: 850, outstanding: '₹ 3.2 Cr', growth: '+8.2%', status: 'High' },
-  { id: '3', state: 'Karnataka', revenue: '₹ 28.4 Cr', revenueVal: 28.4, orders: 8500, activeCustomers: 720, outstanding: '₹ 2.8 Cr', growth: '+5.4%', status: 'Medium' },
-  { id: '4', state: 'Tamil Nadu', revenue: '₹ 24.5 Cr', revenueVal: 24.5, orders: 7200, activeCustomers: 640, outstanding: '₹ 2.1 Cr', growth: '+4.1%', status: 'Medium' },
-  { id: '5', state: 'Delhi NCR', revenue: '₹ 15.2 Cr', revenueVal: 15.2, orders: 4200, activeCustomers: 410, outstanding: '₹ 1.5 Cr', growth: '-2.1%', status: 'Low' },
-  { id: '6', state: 'Uttar Pradesh', revenue: '₹ 12.8 Cr', revenueVal: 12.8, orders: 3800, activeCustomers: 350, outstanding: '₹ 2.2 Cr', growth: '-4.5%', status: 'Low' },
-];
+const mockStateSales: any[] = [];
 
 const mockTrendData = [
   { month: 'Apr', target: 20, revenue: 22 },

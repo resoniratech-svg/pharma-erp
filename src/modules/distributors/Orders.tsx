@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable';
 import { generatePurchaseOrderPdf } from '../../documents/generators/pdfGenerator';
 import { inventoryService } from '../../services/inventoryService';
 import { orderService } from '../../services/orderService';
+import { productService } from '../../services/productService';
 
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
@@ -197,20 +198,20 @@ export default function Orders() {
   }, [isCreateOpen]);
 
   useEffect(() => {
-    const sharedData = localStorage.getItem("pharma_erp_products");
-    if (sharedData) {
+    const loadProducts = async () => {
       try {
-        const parsedProducts = JSON.parse(sharedData);
-        const mappedProducts = parsedProducts.map((p: any) => {
+        const dbProducts = await productService.loadProducts();
+        const allInventory = await inventoryService.loadInventory();
+        const mappedProducts = dbProducts.map((p: any) => {
           const productCode = p.code || p.productCode;
-          const inventoryRecords = inventoryService.getByProduct(productCode);
+          const inventoryRecords = allInventory.filter((inv) => inv.productCode === productCode);
           const actualStock = inventoryRecords.reduce((sum, record) => sum + (record.availableQty || 0), 0);
 
           return {
             productCode: productCode,
             productName: p.name || p.productName,
             manufacturer: p.manufacturer || p.company || 'Unknown',
-            composition: p.composition || p.ingredients || '',
+            composition: p.composition || '',
             packType: p.packingType || p.packType || "Standard Pack",
             mrp: Number(p.mrp) || 0,
             ptr: Number(p.ptr) || 0,
@@ -220,22 +221,10 @@ export default function Orders() {
         });
         setProducts(mappedProducts);
       } catch (e) {
-        console.error("Failed to sync shared product catalog master", e);
+        console.error("Failed to load products from backend", e);
       }
-    } else {
-      const defaultProducts = [
-        { productCode: 'PRD-001', productName: 'Amoxicillin 500mg', manufacturer: 'PharmaCorp', composition: 'Amoxicillin', packType: '10x10 Tablets', mrp: 150.00, ptr: 110.00, availableStock: 0, schemeAvailable: '10+1 Free' },
-        { productCode: 'PRD-002', productName: 'Paracetamol 650mg', manufacturer: 'HealthPlus', composition: 'Paracetamol', packType: '15x10 Tablets', mrp: 60.00, ptr: 45.00, availableStock: 0, schemeAvailable: 'No Scheme' },
-        { productCode: 'PRD-003', productName: 'Vitamin C 1000mg', manufacturer: 'VitaLife', composition: 'Ascorbic Acid', packType: '20 Tablets Tube', mrp: 250.00, ptr: 180.00, availableStock: 0, schemeAvailable: '5% Off' },
-        { productCode: 'PRD-005', productName: 'Ibuprofen 400mg', manufacturer: 'MediCare', composition: 'Ibuprofen', packType: '10x10 Tablets', mrp: 95.00, ptr: 75.00, availableStock: 0, schemeAvailable: 'No Scheme' },
-      ];
-      
-      setProducts(defaultProducts.map(p => {
-        const inventoryRecords = inventoryService.getByProduct(p.productCode);
-        const actualStock = inventoryRecords.reduce((sum, record) => sum + (record.availableQty || 0), 0);
-        return { ...p, availableStock: actualStock };
-      }));
-    }
+    };
+    loadProducts();
   }, [isCreateOpen]);
 
   // Helper function to calculate invoice aging

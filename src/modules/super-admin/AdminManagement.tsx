@@ -75,32 +75,7 @@ const erpModules = [
   'Settings'
 ];
 
-const mockAdmins: CompanyAdmin[] = [
-  {
-    id: 'ADM-001',
-    adminName: 'Rahul Sharma',
-    companyName: 'PharmaCorp Pvt Ltd',
-    email: 'rahul.s@pharmacorp.in',
-    passwordHash: 'Pharma@2024!',
-    subscription: { plan: 'Professional', status: 'Active', billingCycle: 'Yearly', subscriptionAmount: 120000, currency: 'INR', gstPercentage: 18, discount: 5000, finalAmount: 136600, paymentStatus: 'Paid', paymentDate: '2026-01-05', startDate: '2026-01-01', endDate: '2026-12-31', renewalDate: '2027-01-01', autoRenewal: true, maxUsers: 50, activeUsers: 12, storageLimit: '100GB', deviceLimit: 'Unlimited', apiAccessLimit: '10000/day', purchasedModules: ['Product Management', 'Inventory & Warehouse Management', 'Settings'], remarks: 'Key enterprise client.', lastUpdated: '2026-01-01', updatedBy: 'System' }
-  },
-  {
-    id: 'ADM-002',
-    adminName: 'Priya Desai',
-    companyName: 'HealthPlus Labs',
-    email: 'priya.d@healthplus.com',
-    passwordHash: 'Health#123',
-    subscription: { plan: 'Starter', status: 'Trial', billingCycle: 'Monthly', subscriptionAmount: 5000, currency: 'INR', gstPercentage: 18, discount: 0, finalAmount: 5900, paymentStatus: 'Pending', paymentDate: '', startDate: '2026-07-01', endDate: '2026-07-31', renewalDate: '2026-08-01', autoRenewal: false, maxUsers: 10, activeUsers: 3, storageLimit: '10GB', deviceLimit: '5', apiAccessLimit: '1000/day', purchasedModules: ['CRM', 'Orders', 'Billing', 'Accounting & Finance', 'Reports & Analytics'], remarks: 'Trial ends soon.', lastUpdated: '2026-07-01', updatedBy: 'System' }
-  },
-  {
-    id: 'ADM-003',
-    adminName: 'Amit Patel',
-    companyName: 'MediCare Pharma',
-    email: 'amit.p@medicare.in',
-    passwordHash: 'Admin@MediCare1',
-    subscription: { plan: 'Enterprise', status: 'Active', billingCycle: 'Yearly', subscriptionAmount: 250000, currency: 'INR', gstPercentage: 18, discount: 10000, finalAmount: 283200, paymentStatus: 'Paid', paymentDate: '2026-03-10', startDate: '2026-03-15', endDate: '2027-03-14', renewalDate: '2027-03-15', autoRenewal: true, maxUsers: 100, activeUsers: 45, storageLimit: '500GB', deviceLimit: 'Unlimited', apiAccessLimit: '50000/day', purchasedModules: ['Product Management', 'Inventory & Warehouse Management', 'C&F Management', 'Distributor Portal', 'Retailer Ordering System'], remarks: 'Growing fast.', lastUpdated: '2026-03-10', updatedBy: 'System' }
-  }
-];
+const mockAdmins: any[] = [];
 
 const defaultCompanies = [
   'PharmaCorp Pvt Ltd',

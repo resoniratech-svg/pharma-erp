@@ -67,50 +67,7 @@ const getFormattedDate = () => {
 };
 
 // --- Mock Data ---
-const mockData: PartyRecord[] = [
-  {
-    id: 'apollo',
-    partyName: 'Apollo Pharmacy',
-    partyType: 'Customer',
-    creditDays: 30,
-    lastPaymentDate: '2026-10-18',
-    invoices: [
-      { id: 'INV-001', invoiceNo: 'INV/26/001', date: '2026-09-01', dueDate: '2026-10-01', amount: 50400, paidAmount: 0 },
-      { id: 'INV-002', invoiceNo: 'INV/26/045', date: '2026-10-25', dueDate: '2026-11-24', amount: 12000, paidAmount: 5000 },
-    ]
-  },
-  {
-    id: 'sun',
-    partyName: 'Sun Pharma',
-    partyType: 'Supplier',
-    creditDays: 60,
-    lastPaymentDate: '2026-09-10',
-    invoices: [
-      { id: 'PUR-001', invoiceNo: 'PUR/26/001', date: '2026-08-01', dueDate: '2026-09-30', amount: 150000, paidAmount: 100000 },
-      { id: 'PUR-002', invoiceNo: 'PUR/26/089', date: '2026-09-05', dueDate: '2026-11-04', amount: 350000, paidAmount: 0 },
-    ]
-  },
-  {
-    id: 'metro',
-    partyName: 'Metro Distributors',
-    partyType: 'Distributor',
-    creditDays: 45,
-    lastPaymentDate: '2026-10-28',
-    invoices: [
-      { id: 'INV-101', invoiceNo: 'INV/26/101', date: '2026-10-20', dueDate: '2026-12-04', amount: 32000, paidAmount: 0 },
-    ]
-  },
-  {
-    id: 'global',
-    partyName: 'Global Health',
-    partyType: 'Customer',
-    creditDays: 15,
-    lastPaymentDate: '-',
-    invoices: [
-      { id: 'INV-088', invoiceNo: 'INV/26/088', date: '2026-08-10', dueDate: '2026-08-25', amount: 85000, paidAmount: 0 },
-    ]
-  }
-];
+const mockData: any[] = [];
 
 export default function Outstanding() {
   const navigate = useNavigate();

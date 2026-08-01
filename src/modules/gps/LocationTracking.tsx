@@ -107,10 +107,25 @@ export default function LocationTracking() {
     };
   };
 
-  const loadActiveReps = () => {
+  const loadActiveReps = async () => {
     let attendanceData = [];
     let storedDocs = [];
     let storedChemists = [];
+
+    // --- NEW: Try fetching from backend trackingService ---
+    try {
+      const { trackingService } = await import('../../services/trackingService');
+      const now = new Date();
+      const isoDate = now.toISOString().split('T')[0];
+      // For demo we assume search corresponds to MR ID, or '1'
+      const activeRep = await trackingService.getDailyMovement(search || '1', isoDate);
+      if (activeRep) {
+         setActiveReps([activeRep]);
+         return;
+      }
+    } catch(e) {
+      console.warn("Backend /daily-movement failed, fallback to local data");
+    }
 
     try {
       attendanceData = JSON.parse(localStorage.getItem('web_attendance_records') || '[]');
@@ -286,14 +301,21 @@ export default function LocationTracking() {
       let zoom = 5;
 
       const selectedRep = activeReps.find(r => r.id === selectedRepId);
-      if (selectedRep) {
+      if (selectedRep && selectedRep.lat !== undefined && selectedRep.lng !== undefined) {
         centerLat = selectedRep.lat;
         centerLng = selectedRep.lng;
         zoom = 13;
-      } else if (activeReps.length > 0) {
+      } else if (activeReps.length > 0 && activeReps[0].lat !== undefined && activeReps[0].lng !== undefined) {
         centerLat = activeReps[0].lat;
         centerLng = activeReps[0].lng;
         zoom = 11;
+      }
+
+      // Ultimate safety guard just in case lat/lng are null
+      if (centerLat === undefined || centerLng === undefined || centerLat === null || centerLng === null) {
+        centerLat = 19.0760;
+        centerLng = 72.8777;
+        zoom = 5;
       }
 
       const map = L.map('leaflet-live-rep-map').setView([centerLat, centerLng], zoom);
@@ -304,6 +326,8 @@ export default function LocationTracking() {
 
       // Plot markers for each active representative
       activeReps.forEach(rep => {
+        if (rep.lat === undefined || rep.lng === undefined || rep.lat === null || rep.lng === null) return;
+        
         const isSelected = rep.id === selectedRepId;
         const color = isSelected ? '#10b981' : rep.isCheckedOut ? '#94a3b8' : '#6366f1';
 
@@ -381,8 +405,8 @@ export default function LocationTracking() {
 
   // ✅ Search by both Representative Name and Location (Area/City)
   const filteredReps = activeReps.filter(rep =>
-    rep.repName.toLowerCase().includes(search.toLowerCase()) ||
-    rep.location.toLowerCase().includes(search.toLowerCase())
+    (rep.repName?.toLowerCase() || '').includes(search.toLowerCase()) ||
+    (rep.location?.toLowerCase() || '').includes(search.toLowerCase())
   );
 
   return (

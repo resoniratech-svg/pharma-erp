@@ -26,12 +26,7 @@
 //   status: 'Draft' | 'Generated' | 'Approved' | 'Cancelled';
 // }
 
-// const mockInvoices: InvoiceItem[] = [
-//   { id: '1', invoiceNo: 'INV-2024-001', customerName: 'Apollo Pharmacy', productCount: 15, taxableAmount: '₹ 45,000', gstRate: 'Mixed (5%, 12%)', gstAmount: '₹ 4,500', netAmount: '₹ 49,500', invoiceDate: '24-Oct-2024', status: 'Approved' },
-//   { id: '2', invoiceNo: 'INV-2024-002', customerName: 'Care Hospitals', productCount: 8, taxableAmount: '₹ 12,500', gstRate: 'Mixed (12%, 18%)', gstAmount: '₹ 1,875', netAmount: '₹ 14,375', invoiceDate: '25-Oct-2024', status: 'Generated' },
-//   { id: '3', invoiceNo: 'INV-2024-003', customerName: 'MedPlus Store', productCount: 30, taxableAmount: '₹ 1,20,000', gstRate: '18%', gstAmount: '₹ 21,600', netAmount: '₹ 1,41,600', invoiceDate: '26-Oct-2024', status: 'Draft' },
-//   { id: '4', invoiceNo: 'INV-2024-004', customerName: 'City Clinic', productCount: 3, taxableAmount: '₹ 3,400', gstRate: '5%', gstAmount: '₹ 170', netAmount: '₹ 3,570', invoiceDate: '27-Oct-2024', status: 'Cancelled' },
-// ];
+// const mockInvoices: any[] = [];
 
 // interface GstSummaryItem {
 //   id: string;
@@ -41,13 +36,7 @@
 //   taxCollected: string;
 // }
 
-// const mockGstSummary: GstSummaryItem[] = [
-//   { id: '1', slab: '0% (Exempt)', productsCount: 45, billingValue: '₹ 1.2 L', taxCollected: '₹ 0' },
-//   { id: '2', slab: '5%', productsCount: 120, billingValue: '₹ 4.5 L', taxCollected: '₹ 22.5 K' },
-//   { id: '3', slab: '12%', productsCount: 340, billingValue: '₹ 12.8 L', taxCollected: '₹ 1.53 L' },
-//   { id: '4', slab: '18%', productsCount: 210, billingValue: '₹ 8.4 L', taxCollected: '₹ 1.51 L' },
-//   { id: '5', slab: '28%', productsCount: 15, billingValue: '₹ 1.5 L', taxCollected: '₹ 42.0 K' },
-// ];
+// const mockGstSummary: any[] = [];
 
 // interface ProductRateItem {
 //   id: string;
@@ -60,11 +49,7 @@
 //   effectiveRate: string;
 // }
 
-// const mockProductRates: ProductRateItem[] = [
-//   { id: '1', productCode: 'PRD-001', productName: 'Amoxicillin 500mg', mrp: '₹ 150.00', ptr: '₹ 110.00', gstRate: '12%', billingRate: '₹ 115.00', effectiveRate: '₹ 128.80' },
-//   { id: '2', productCode: 'PRD-002', productName: 'Paracetamol 650mg', mrp: '₹ 60.00', ptr: '₹ 45.00', gstRate: '12%', billingRate: '₹ 48.00', effectiveRate: '₹ 53.76' },
-//   { id: '3', productCode: 'PRD-003', productName: 'Vitamin C 1000mg', mrp: '₹ 250.00', ptr: '₹ 180.00', gstRate: '18%', billingRate: '₹ 190.00', effectiveRate: '₹ 224.20' },
-// ];
+// const mockProductRates: any[] = [];
 
 // export default function MultiRateBilling() {
 //   const [search, setSearch] = useState('');
@@ -282,12 +267,7 @@
 //   status: 'Draft' | 'Generated' | 'Approved' | 'Cancelled';
 // }
 // 
-// const mockInvoices: InvoiceItem[] = [
-//   { id: '1', invoiceNo: 'INV-2024-001', customerName: 'Apollo Pharmacy', productCount: 15, taxableAmount: '₹ 45,000', gstRate: 'Mixed (5%, 12%)', gstAmount: '₹ 4,500', netAmount: '₹ 49,500', invoiceDate: '24-Oct-2024', status: 'Approved' },
-//   { id: '2', invoiceNo: 'INV-2024-002', customerName: 'Care Hospitals', productCount: 8, taxableAmount: '₹ 12,500', gstRate: 'Mixed (12%, 18%)', gstAmount: '₹ 1,875', netAmount: '₹ 14,375', invoiceDate: '25-Oct-2024', status: 'Generated' },
-//   { id: '3', invoiceNo: 'INV-2024-003', customerName: 'MedPlus Store', productCount: 30, taxableAmount: '₹ 1,20,000', gstRate: '18%', gstAmount: '₹ 21,600', netAmount: '₹ 1,41,600', invoiceDate: '26-Oct-2024', status: 'Draft' },
-//   { id: '4', invoiceNo: 'INV-2024-004', customerName: 'City Clinic', productCount: 3, taxableAmount: '₹ 3,400', gstRate: '5%', gstAmount: '₹ 170', netAmount: '₹ 3,570', invoiceDate: '27-Oct-2024', status: 'Cancelled' },
-// ];
+// const mockInvoices: any[] = [];
 // 
 // interface GstSummaryItem {
 //   id: string;
@@ -297,13 +277,7 @@
 //   taxCollected: string;
 // }
 // 
-// const mockGstSummary: GstSummaryItem[] = [
-//   { id: '1', slab: '0% (Exempt)', productsCount: 45, billingValue: '₹ 1.2 L', taxCollected: '₹ 0' },
-//   { id: '2', slab: '5%', productsCount: 120, billingValue: '₹ 4.5 L', taxCollected: '₹ 22.5 K' },
-//   { id: '3', slab: '12%', productsCount: 340, billingValue: '₹ 12.8 L', taxCollected: '₹ 1.53 L' },
-//   { id: '4', slab: '18%', productsCount: 210, billingValue: '₹ 8.4 L', taxCollected: '₹ 1.51 L' },
-//   { id: '5', slab: '28%', productsCount: 15, billingValue: '₹ 1.5 L', taxCollected: '₹ 42.0 K' },
-// ];
+// const mockGstSummary: any[] = [];
 // 
 // interface ProductRateItem {
 //   id: string;
@@ -316,11 +290,7 @@
 //   effectiveRate: string;
 // }
 // 
-// const mockProductRates: ProductRateItem[] = [
-//   { id: '1', productCode: 'PRD-001', productName: 'Amoxicillin 500mg', mrp: '₹ 150.00', ptr: '₹ 110.00', gstRate: '12%', billingRate: '₹ 115.00', effectiveRate: '₹ 128.80' },
-//   { id: '2', productCode: 'PRD-002', productName: 'Paracetamol 650mg', mrp: '₹ 60.00', ptr: '₹ 45.00', gstRate: '12%', billingRate: '₹ 48.00', effectiveRate: '₹ 53.76' },
-//   { id: '3', productCode: 'PRD-003', productName: 'Vitamin C 1000mg', mrp: '₹ 250.00', ptr: '₹ 180.00', gstRate: '18%', billingRate: '₹ 190.00', effectiveRate: '₹ 224.20' },
-// ];
+// const mockProductRates: any[] = [];
 // 
 // export default function MultiRateBilling() {
 //   const [search, setSearch] = useState('');

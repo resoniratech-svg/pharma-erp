@@ -25,12 +25,7 @@
 //   gpsStatus: 'Verified' | 'Pending' | 'Flagged';
 // }
 
-// const mockData: MeetingLocation[] = [
-//   { id: '1', eventId: 'EVT-001', eventName: 'Q3 Regional Sales Meet', location: 'Hotel Taj, Mumbai', organizer: 'Regional Manager', startTime: '10:00 AM', endTime: '04:00 PM', attendees: 45, gpsStatus: 'Verified' },
-//   { id: '2', eventId: 'EVT-002', eventName: 'New Product Launch', location: 'Grand Hyatt, Delhi', organizer: 'Marketing Head', startTime: '11:00 AM', endTime: '02:00 PM', attendees: 120, gpsStatus: 'Verified' },
-//   { id: '3', eventId: 'EVT-003', eventName: 'Weekly Review', location: 'Branch Office, Pune', organizer: 'Area Sales Manager', startTime: '09:00 AM', endTime: '10:30 AM', attendees: 12, gpsStatus: 'Pending' },
-//   { id: '4', eventId: 'EVT-004', eventName: 'Distributor Conference', location: 'ITC Grand, Chennai', organizer: 'Zonal Manager', startTime: '09:30 AM', endTime: '05:30 PM', attendees: 85, gpsStatus: 'Flagged' },
-// ];
+// const mockData: any[] = [];
 
 // export default function MeetingLocationTracking() {
 //   const [search, setSearch] = useState('');

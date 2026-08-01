@@ -22,11 +22,7 @@
 //   status: 'Booked' | 'Forwarded' | 'Fulfilled';
 // }
 
-// const mockData: POB[] = [
-//   { id: '1', orderNo: 'POB-26-001', chemist: 'Apollo Pharmacy', date: '15-Oct-2026', amount: '₹ 15,000', distributor: 'Metro Pharma', status: 'Booked' },
-//   { id: '2', orderNo: 'POB-26-002', chemist: 'MedPlus Store', date: '14-Oct-2026', amount: '₹ 8,500', distributor: 'Global Health', status: 'Forwarded' },
-//   { id: '3', orderNo: 'POB-26-003', chemist: 'Wellness Medicos', date: '10-Oct-2026', amount: '₹ 22,000', distributor: 'Carewell Agencies', status: 'Fulfilled' },
-// ];
+// const mockData: any[] = [];
 
 // export default function OrderBooking() {
 //   const [search, setSearch] = useState('');

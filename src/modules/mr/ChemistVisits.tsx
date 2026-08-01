@@ -547,7 +547,7 @@ export default function ChemistVisits() {
           pobAmount: Number(v.orderValue) || 0,
           medicine: v.productsDiscussed,
           quantity: '',
-          nextFollowUp: '',
+          nextFollowUp: v.nextFollowUp || '',
           remarks: v.remarks,
           status: 'Completed' as const,
         }));
@@ -655,6 +655,7 @@ export default function ChemistVisits() {
         orderValue: newPobAmount,
         latitude: visitLat,
         longitude: visitLng,
+        nextFollowUp: newNextFollowUp,
       });
 
       const activeRole = localStorage.getItem('activeRole')?.toLowerCase();
@@ -677,7 +678,7 @@ export default function ChemistVisits() {
         pobAmount: Number(v.orderValue) || 0,
         medicine: v.productsDiscussed,
         quantity: '',
-        nextFollowUp: '',
+        nextFollowUp: v.nextFollowUp || '',
         remarks: v.remarks,
         status: 'Completed' as const,
       })));

@@ -21,11 +21,7 @@ interface Franchise {
   status: 'Active' | 'Warning' | 'Inactive';
 }
 
-const mockData: Franchise[] = [
-  { id: '1', name: 'PharmaPlus (South)', location: 'Chennai', revenue: '₹ 12,50,000', growth: '+15%', status: 'Active' },
-  { id: '2', name: 'HealthCare Hub', location: 'Hyderabad', revenue: '₹ 8,20,000', growth: '+5%', status: 'Active' },
-  { id: '3', name: 'MedLife Franchise', location: 'Kolkata', revenue: '₹ 4,10,000', growth: '-2%', status: 'Warning' },
-];
+const mockData: any[] = [];
 
 export default function FranchiseMonitoring() {
   const [search, setSearch] = useState('');

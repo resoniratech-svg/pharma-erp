@@ -3,6 +3,7 @@ import { Download, ChevronDown, Printer, FileText, Wallet, BarChart3, TrendingUp
 import * as XLSX from 'xlsx';
 import { generateBalanceSheetPdf } from '../../documents/generators/pdfGenerator';
 import { generateBalanceSheetPrint } from '../../documents/generators/printGenerator';
+import { financeService } from '../../services/financeService';
 
 import {
   PageHeader,
@@ -33,83 +34,8 @@ interface DrillDownTxn {
   amount: number;
 }
 
-// --- Mock Data ---
-const liabilitiesItems: BSItem[] = [
-  { id: 'l_cap_head', name: 'Capital Account', amount: 0, isHeading: true },
-  { id: 'l1', name: 'Opening Capital', amount: 5000000 },
-  { id: 'l2', name: 'Add: Net Profit', amount: 1830000 },
-  { id: 'l3', name: 'Less: Drawings', amount: -500000 },
-  { id: 'l_cap_tot', name: 'Closing Capital', amount: 6330000, isTotal: true },
-
-  { id: 'l_loan_head', name: 'Loans', amount: 0, isHeading: true },
-  { id: 'l4', name: 'Bank Loans', amount: 2500000, isDrilldown: true },
-  { id: 'l5', name: 'Working Capital Loans', amount: 800000 },
-  { id: 'l6', name: 'Vehicle Loans', amount: 450000 },
-  { id: 'l7', name: 'Term Loans', amount: 1200000, isDrilldown: true },
-  { id: 'l_loan_tot', name: 'Total Loans', amount: 4950000, isTotal: true },
-
-  { id: 'l_cur_head', name: 'Current Liabilities', amount: 0, isHeading: true },
-  { id: 'l8', name: 'Trade Creditors', amount: 1450000, isDrilldown: true },
-  { id: 'l9', name: 'Outstanding Expenses', amount: 120000 },
-  { id: 'l10', name: 'GST Payable', amount: 250000, isDrilldown: true },
-  { id: 'l11', name: 'TDS Payable', amount: 85000 },
-  { id: 'l12', name: 'Salary Payable', amount: 350000 },
-  { id: 'l13', name: 'Customer Advances', amount: 150000 },
-  { id: 'l_cur_tot', name: 'Total Current Liabilities', amount: 2405000, isTotal: true },
-  
-  { id: 'l_space', name: '', amount: 0, isHeading: true },
-  { id: 'l_grand_tot', name: 'Total Liabilities', amount: 13685000, isTotal: true },
-];
-
-const assetsItems: BSItem[] = [
-  { id: 'a_fix_head', name: 'Fixed Assets', amount: 0, isHeading: true },
-  { id: 'a1', name: 'Plant & Machinery', amount: 4500000 },
-  { id: 'a2', name: 'Manufacturing Equipment', amount: 1200000 },
-  { id: 'a3', name: 'Laboratory Equipment', amount: 750000 },
-  { id: 'a4', name: 'Furniture & Fixtures', amount: 550000 },
-  { id: 'a5', name: 'Computers & IT Equipment', amount: 300000 },
-  { id: 'a6', name: 'Vehicles', amount: 850000 },
-  { id: 'a_fix_tot', name: 'Total Fixed Assets', amount: 8150000, isTotal: true },
-
-  { id: 'a_cur_head', name: 'Current Assets', amount: 0, isHeading: true },
-  { id: 'a7', name: 'Inventory', amount: 1600000, isDrilldown: true },
-  { id: 'a8', name: 'Trade Debtors', amount: 2850000, isDrilldown: true },
-  { id: 'a9', name: 'Cash In Hand', amount: 150000 },
-  { id: 'a10', name: 'Bank Accounts', amount: 450000, isDrilldown: true },
-  { id: 'a11', name: 'GST Receivable', amount: 85000, isDrilldown: true },
-  { id: 'a12', name: 'Advances To Suppliers', amount: 200000 },
-  { id: 'a13', name: 'Security Deposits', amount: 200000 },
-  { id: 'a_cur_tot', name: 'Total Current Assets', amount: 5535000, isTotal: true },
-
-  { id: 'a_space', name: '', amount: 0, isHeading: true },
-  { id: 'a_grand_tot', name: 'Total Assets', amount: 13685000, isTotal: true },
-];
-
-const mockDrilldownData: Record<string, DrillDownTxn[]> = {
-  'Inventory': [
-    { id: '1', date: '2026-10-31', voucherNo: 'STK-001', particulars: 'Warehouse-wise Stock', amount: 800000 },
-    { id: '2', date: '2026-10-31', voucherNo: 'STK-002', particulars: 'Product-wise Stock', amount: 500000 },
-    { id: '3', date: '2026-10-31', voucherNo: 'STK-003', particulars: 'Batch-wise Stock', amount: 300000 },
-  ],
-  'Trade Debtors': [
-    { id: '1', date: '2026-10-31', voucherNo: 'BAL-001', particulars: 'Customer Outstanding - Apollo', amount: 1200000 },
-    { id: '2', date: '2026-10-31', voucherNo: 'BAL-002', particulars: 'Customer Outstanding - MedPlus', amount: 850000 },
-    { id: '3', date: '2026-10-31', voucherNo: 'BAL-003', particulars: 'Customer Outstanding - Local', amount: 800000 },
-  ],
-  'Trade Creditors': [
-    { id: '1', date: '2026-10-31', voucherNo: 'BAL-101', particulars: 'Supplier Outstanding - Cipla', amount: 850000 },
-    { id: '2', date: '2026-10-31', voucherNo: 'BAL-102', particulars: 'Supplier Outstanding - Sun', amount: 600000 },
-  ],
-  'Bank Accounts': [
-    { id: '1', date: '2026-10-31', voucherNo: 'BNK-001', particulars: 'Bank Ledger Summary - HDFC', amount: 350000 },
-    { id: '2', date: '2026-10-31', voucherNo: 'BNK-002', particulars: 'Bank Ledger Summary - SBI', amount: 100000 },
-  ]
-};
-
-const defaultDrilldown: DrillDownTxn[] = [
-  { id: '1', date: '2026-10-01', voucherNo: 'JV-001', particulars: 'Opening Balance', amount: 100000 },
-  { id: '2', date: '2026-10-31', voucherNo: 'JV-045', particulars: 'Period Transactions', amount: 150000 },
-];
+const mockDrilldownData: Record<string, DrillDownTxn[]> = {};
+const defaultDrilldown: DrillDownTxn[] = [];
 
 export default function BalanceSheet() {
   // Filter State
@@ -124,6 +50,49 @@ export default function BalanceSheet() {
   
   // Drill-down State
   const [drilldownItem, setDrilldownItem] = useState<BSItem | null>(null);
+
+  const [liabilitiesItems, setLiabilitiesItems] = useState<BSItem[]>([]);
+  const [assetsItems, setAssetsItems] = useState<BSItem[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const data = await financeService.getBalanceSheetData();
+        
+        const mapToBsItems = (items: any[]): BSItem[] => {
+          const bsItems: BSItem[] = [];
+          const grouped = items.reduce((acc, curr) => {
+            if (!acc[curr.category]) acc[curr.category] = [];
+            acc[curr.category].push(curr);
+            return acc;
+          }, {} as Record<string, any[]>);
+          
+          let idCounter = 1;
+          for (const [category, catItems] of Object.entries(grouped)) {
+            bsItems.push({ id: `cat-${idCounter++}`, name: category, amount: 0, isHeading: true });
+            let catTotal = 0;
+            catItems.forEach(item => {
+              bsItems.push({ id: `item-${idCounter++}`, name: item.item, amount: item.amount, isDrilldown: true });
+              catTotal += item.amount;
+            });
+            bsItems.push({ id: `tot-${idCounter++}`, name: `Total ${category}`, amount: catTotal, isTotal: true });
+            bsItems.push({ id: `sp-${idCounter++}`, name: '', amount: 0, isHeading: true }); // Spacer
+          }
+          return bsItems;
+        };
+
+        setAssetsItems(mapToBsItems(data.assets));
+        setLiabilitiesItems(mapToBsItems(data.liabilities));
+      } catch (err) {
+        console.error("Failed to load balance sheet data", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, [fy, asOnDate]);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -337,7 +306,7 @@ export default function BalanceSheet() {
                       <span>Amount (₹)</span>
                   </div>
                   <div className="flex flex-col">
-                      {liabilitiesItems.map(renderBSRow)}
+                      {isLoading ? <div className="p-4 text-center text-slate-500">Loading...</div> : liabilitiesItems.map(renderBSRow)}
                   </div>
                </div>
                
@@ -348,7 +317,7 @@ export default function BalanceSheet() {
                       <span>Amount (₹)</span>
                   </div>
                   <div className="flex flex-col">
-                      {assetsItems.map(renderBSRow)}
+                      {isLoading ? <div className="p-4 text-center text-slate-500">Loading...</div> : assetsItems.map(renderBSRow)}
                   </div>
                </div>
            </div>

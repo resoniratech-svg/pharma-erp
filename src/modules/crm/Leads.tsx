@@ -21,11 +21,7 @@
 //   status: 'New' | 'Contacted' | 'Qualified' | 'Lost';
 // }
 
-// const mockData: Lead[] = [
-//   { id: '1', name: 'Dr. Ramesh Sharma', type: 'Doctor', source: 'Medical Camp', contact: '+91 9876543210', status: 'New' },
-//   { id: '2', name: 'Metro Distributors', type: 'Distributor', source: 'Referral', contact: 'metro@example.com', status: 'Qualified' },
-//   { id: '3', name: 'Wellness Pharmacy', type: 'Retailer', source: 'Website', contact: '+91 9988776655', status: 'Contacted' },
-// ];
+// const mockData: any[] = [];
 
 // export default function Leads() {
 //   const [search, setSearch] = useState('');
@@ -120,6 +116,7 @@ import {
   Drawer,
 } from './components/shared';
 import { type Column } from './components/shared';
+import { leadService } from '../../services/leadService';
 
 const generateLeadId = (currentLeads: Lead[]) => {
   if (currentLeads.length === 0) return 'LD-0001';
@@ -165,61 +162,63 @@ export default function Leads() {
   });
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem('crm_leads');
-      if (stored) {
-        setLeads(JSON.parse(stored));
-      } else {
-        setLeads([]);
-      }
-    } catch (error) {
-      console.error("Failed to load leads:", error);
-      setLeads([]);
-    }
+    leadService.getAll().then((apiLeads) => {
+      const mapped = apiLeads.map((l) => ({
+        id: l.leadCode || l.id,
+        name: l.name,
+        type: l.type,
+        source: l.source || 'Direct',
+        contact: l.mobile || l.email || '',
+        territory: l.territory || '',
+        createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-GB') : '',
+        createdBy: '',
+        status: (l.status === 'NEW' ? 'New' : l.status === 'CONTACTED' ? 'Contacted' :
+          l.status === 'QUALIFIED' ? 'Qualified' : l.status === 'CONVERTED' ? 'Qualified' :
+          l.status === 'ASSIGNED' ? 'Assigned' : l.status === 'LOST' ? 'Lost' : 'New') as Lead['status'],
+        dealValue: 0,
+        _dbId: l.id, // keep real DB id for operations
+      }));
+      setLeads(mapped as any);
+    }).catch((err) => console.error('Failed to load leads:', err));
   }, []);
 
-  const handleSaveLead = (e: React.FormEvent) => {
+  const handleSaveLead = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!formData.name || !formData.contact || !formData.territory) {
-      alert("Name, Contact, and Territory are required!");
-      return;
-    }
-    
-    // ✅ ChatGPT Polish 2: Duplicate Check with Trim & Lowercase
-    const checkContact = formData.contact.trim().toLowerCase();
-    const isDuplicate = leads.some(l => l.contact.trim().toLowerCase() === checkContact);
-    
-    if (isDuplicate) {
-      alert("A lead with this contact already exists!");
+      alert('Name, Contact, and Territory are required!');
       return;
     }
 
-    const todayStr = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    const authUserStr = localStorage.getItem('authUser');
-    const authUser = authUserStr ? JSON.parse(authUserStr) : null;
-    const creatorName = authUser ? authUser.fullName : 'Admin';
+    try {
+      const isPhone = /^[\d\s+\-()]+$/.test(formData.contact!.trim());
+      const created = await leadService.create({
+        name: formData.name!.trim(),
+        type: formData.type || 'Doctor',
+        source: formData.source || 'Direct',
+        mobile: isPhone ? formData.contact!.trim() : undefined,
+        email: !isPhone ? formData.contact!.trim() : undefined,
+        territory: formData.territory!.trim(),
+      });
 
-    const newLead: Lead = {
-      id: generateLeadId(leads),
-      // ✅ ChatGPT Polish 1: Trim all inputs before saving
-      name: formData.name.trim(),
-      type: formData.type || 'Doctor',
-      source: formData.source || 'Direct',
-      contact: formData.contact.trim(),
-      territory: formData.territory.trim(),
-      createdBy: creatorName,
-      createdAt: todayStr,
-      status: formData.status as Lead['status'] || 'New',
-      dealValue: formData.dealValue ? parseFloat(formData.dealValue.toString()) : 0,
-    };
+      const uiLead: Lead = {
+        id: created.leadCode,
+        name: created.name,
+        type: created.type,
+        source: created.source,
+        contact: created.mobile || created.email || '',
+        territory: created.territory || '',
+        createdAt: new Date(created.createdAt).toLocaleDateString('en-GB'),
+        status: 'New',
+        dealValue: formData.dealValue || 0,
+      } as any;
 
-    const updatedLeads = [newLead, ...leads];
-    setLeads(updatedLeads);
-    localStorage.setItem('crm_leads', JSON.stringify(updatedLeads));
-    
-    setFormData({ name: '', type: 'Doctor', source: 'Direct', contact: '', territory: '', status: 'New', dealValue: undefined });
-    setIsDrawerOpen(false);
+      setLeads((prev) => [uiLead, ...prev]);
+      setFormData({ name: '', type: 'Doctor', source: 'Direct', contact: '', territory: '', status: 'New', dealValue: undefined });
+      setIsDrawerOpen(false);
+    } catch (err: any) {
+      alert(err.message || 'Failed to save lead');
+    }
   };
 
   const handleExportLeads = () => {

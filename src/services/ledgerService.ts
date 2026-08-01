@@ -1,4 +1,4 @@
-// src/services/ledgerService.ts
+import { apiRequest } from './apiClient';
 
 export interface LedgerEntry {
   id: string;
@@ -7,7 +7,7 @@ export interface LedgerEntry {
   distributorCode: string;
   contactPerson: string;
   refNo: string;
-  type: 'Invoice' | 'Payment' | 'Credit Note' | 'Debit Note';
+  type: 'Invoice' | 'Payment' | 'Credit Note' | 'Debit Note' | string;
   debitAmount: number;
   creditAmount: number;
   balanceAmount: number;
@@ -20,8 +20,36 @@ const fallbackMockData: LedgerEntry[] = [
   { id: '3', date: '10-Oct-2026', distributor: 'Global Health Supply', distributorCode: 'DIST-002', contactPerson: 'Amit Patel', refNo: 'CN-2026-04', type: 'Credit Note', debitAmount: 0, creditAmount: 12000, balanceAmount: 43000, balanceType: 'Dr' },
 ];
 
+function formatDate(dateObj: string | Date): string {
+  const d = new Date(dateObj);
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+}
+
 export const ledgerService = {
-  getAll: (): LedgerEntry[] => {
+  getAll: async (): Promise<LedgerEntry[]> => {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/ledgers');
+      
+      if (response && response.success && Array.isArray(response.data) && response.data.length > 0) {
+        return response.data.map(item => ({
+          id: String(item.id),
+          date: formatDate(item.createdAt || item.date || new Date()),
+          distributor: item.retailer?.name || item.distributor || 'Unknown Party',
+          distributorCode: item.retailer?.code || item.distributorCode || 'Unknown',
+          contactPerson: item.retailer?.contactPerson || item.contactPerson || 'N/A',
+          refNo: item.referenceNumber || item.refNo || 'N/A',
+          type: item.transactionType || item.type || 'Invoice',
+          debitAmount: Number(item.debit) || 0,
+          creditAmount: Number(item.credit) || 0,
+          balanceAmount: Math.abs(Number(item.balance)) || 0,
+          balanceType: (Number(item.balance) || 0) >= 0 ? 'Dr' : 'Cr'
+        }));
+      }
+    } catch (error) {
+      console.warn("Failed to fetch ledger entries from backend", error);
+    }
+
+    // Fallback to local storage if API fails or is empty
     const data = localStorage.getItem('erp_ledger_entries');
     if (!data) {
       localStorage.setItem('erp_ledger_entries', JSON.stringify(fallbackMockData));
@@ -30,12 +58,49 @@ export const ledgerService = {
     return JSON.parse(data);
   },
 
-  saveAll: (data: LedgerEntry[]) => {
-    localStorage.setItem('erp_ledger_entries', JSON.stringify(data));
-  },
+  addTransaction: async (entry: Omit<LedgerEntry, 'id' | 'balanceAmount' | 'balanceType'>): Promise<LedgerEntry> => {
+    // Attempt backend save first
+    try {
+       // We only mock the retailer ID or find it if we can in a real app,
+       // but for now we pass standard structure hoping backend accepts or ignores
+       const payload = {
+         retailerId: 1, // hardcoded for test if not provided
+         transactionType: entry.type,
+         referenceNumber: entry.refNo,
+         debit: entry.debitAmount,
+         credit: entry.creditAmount,
+         balance: entry.debitAmount - entry.creditAmount, // Simplified balance logic for backend payload
+         remarks: entry.distributor + ' ' + entry.distributorCode,
+       };
+       
+       const response = await apiRequest<{ success: boolean; data: any }>('/ledgers', {
+         method: 'POST',
+         bodyData: payload
+       });
 
-  addTransaction: (entry: Omit<LedgerEntry, 'id' | 'balanceAmount' | 'balanceType'>) => {
-    const currentEntries = ledgerService.getAll();
+       if (response && response.success && response.data) {
+          const item = response.data;
+          return {
+             id: String(item.id),
+             date: formatDate(item.createdAt || new Date()),
+             distributor: entry.distributor,
+             distributorCode: entry.distributorCode,
+             contactPerson: entry.contactPerson,
+             refNo: item.referenceNumber,
+             type: item.transactionType,
+             debitAmount: Number(item.debit),
+             creditAmount: Number(item.credit),
+             balanceAmount: Math.abs(Number(item.balance)),
+             balanceType: Number(item.balance) >= 0 ? 'Dr' : 'Cr'
+          };
+       }
+    } catch(err) {
+      console.warn('Failed to save ledger to backend, saving to local', err);
+    }
+
+    // Local fallback
+    const currentEntriesRaw = localStorage.getItem('erp_ledger_entries');
+    let currentEntries: LedgerEntry[] = currentEntriesRaw ? JSON.parse(currentEntriesRaw) : fallbackMockData;
     
     // Clean out mock data items if they exist to prevent mixing dummy values with real data
     const filteredEntries = currentEntries.filter(

@@ -20,11 +20,7 @@ interface Branch {
   status: 'Active' | 'Inactive';
 }
 
-const mockData: Branch[] = [
-  { id: '1', code: 'HQ-MUM', name: 'Head Office', city: 'Mumbai', manager: 'Rajesh Kumar', status: 'Active' },
-  { id: '2', code: 'BR-PUN', name: 'Pune Warehouse', city: 'Pune', manager: 'Amit Shah', status: 'Active' },
-  { id: '3', code: 'BR-DEL', name: 'Delhi NCR Depot', city: 'Delhi', manager: 'Vikram Singh', status: 'Inactive' },
-];
+const mockData: any[] = [];
 
 export default function BranchSettings() {
   const [search, setSearch] = useState('');

@@ -65,6 +65,7 @@ export default function ProductCatalog() {
 
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [assignedDistributors, setAssignedDistributors] = useState<{ code: string; name: string }[]>([]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -76,57 +77,52 @@ export default function ProductCatalog() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Fetch logged-in retailer's assigned distributors with robust fallback matches for all roles
-  const assignedDistributors = useMemo(() => {
-    const user = authService.getCurrentUser();
-    if (!user) return [];
-
-    const retailerMasterList = retailerMasterService.getAll();
-    const retailerRecord = retailerMasterList.find(r => 
-      r.id === user.id || 
-      r.code === user.id ||
-      r.code === user.employeeCode ||
-      r.emailAddress === user.email ||
-      r.name.toLowerCase() === user.fullName.toLowerCase() ||
-      (user as any).username === r.code
-    );
-    
-    if (retailerRecord) {
-      return retailerRecord.assignedDistributors || [];
-    }
-
-    // Fallback if user has direct distributor link
-    const distCode = user.linkedDistributorCode || (user as any).distributorCode;
-    if (distCode) {
-      return [{ code: distCode, name: 'Assigned Distributor' }];
-    }
-
-    const roleIdUpper = String(user.roleId || '').toUpperCase();
-    if (roleIdUpper === 'RETAILER') {
-      return [{ code: 'DIST-001', name: 'Metro Pharma Distributors' }];
-    }
-
-    // Fallback for Admin, Super Admin, Distributor, MR roles to avoid blank screens
-    if (roleIdUpper === 'SUPER_ADMIN' || roleIdUpper === 'ADMIN' || roleIdUpper === 'DISTRIBUTOR' || roleIdUpper === 'MR') {
-      const allInventory = inventoryService.getAll();
-      const uniqueDistCodes = Array.from(new Set(allInventory.map(inv => inv.warehouseCode || inv.warehouseId)));
-      return uniqueDistCodes.map(code => ({ code, name: `Distributor ${code}` }));
-    }
-
-    return [];
-  }, []);
-
   // Sync real Distributor Inventory (Current Stock) rows with Catalog View
   useEffect(() => {
     const fetchCatalogData = async () => {
       try {
         setIsLoading(true);
-        
-        const assignedCodes = assignedDistributors.map(d => d.code);
 
-        // 2. Fetch products and active inventory records
-        const rawProducts = await productService.getProducts();
-        const allInventory = inventoryService.getAll();
+        // 1. Resolve assigned distributors for this retailer from backend
+        const user = authService.getCurrentUser();
+        let resolvedDistributors: { code: string; name: string }[] = [];
+        
+        if (user) {
+          const retailerMasterList = await retailerMasterService.fetchFromApi();
+          const retailerRecord = retailerMasterList.find(r => 
+            r.id === user.id || 
+            r.code === user.id ||
+            r.code === user.employeeCode ||
+            r.emailAddress === user.email ||
+            r.name.toLowerCase() === user.fullName.toLowerCase() ||
+            (user as any).username === r.code
+          );
+          
+          if (retailerRecord) {
+            resolvedDistributors = retailerRecord.assignedDistributors || [];
+          } else {
+            // Fallback if user has direct distributor link
+            const distCode = user.linkedDistributorCode || (user as any).distributorCode;
+            if (distCode) {
+              resolvedDistributors = [{ code: distCode, name: 'Assigned Distributor' }];
+            } else {
+              const roleIdUpper = String(user.roleId || '').toUpperCase();
+              // Fallback for Admin, Super Admin, Distributor, MR roles to avoid blank screens
+              if (roleIdUpper === 'SUPER_ADMIN' || roleIdUpper === 'ADMIN' || roleIdUpper === 'DISTRIBUTOR' || roleIdUpper === 'MR' || roleIdUpper === 'RETAILER') {
+                const allInv = await inventoryService.loadInventory();
+                const uniqueDistCodes = Array.from(new Set(allInv.map(inv => inv.warehouseCode || inv.warehouseId)));
+                resolvedDistributors = uniqueDistCodes.map(code => ({ code, name: `Distributor ${code}` }));
+              }
+            }
+          }
+        }
+        
+        setAssignedDistributors(resolvedDistributors);
+        const assignedCodes = resolvedDistributors.map(d => d.code);
+
+        // 2. Fetch products and active inventory records from backend DB
+        const rawProducts = await productService.loadProducts();
+        const allInventory = await inventoryService.loadInventory();
         
         let schemes: any[] = [];
         try {
@@ -197,7 +193,7 @@ export default function ProductCatalog() {
             computedStatus = 'Low Stock';
           }
 
-          const distInfo = assignedDistributors.find((d: any) => d.code === recordDistCode);
+          const distInfo = resolvedDistributors.find((d: any) => d.code === recordDistCode);
           const distributorName = distInfo ? distInfo.name : inv.warehouseName || 'Unknown Distributor';
 
           mappedProducts.push({
@@ -253,7 +249,7 @@ export default function ProductCatalog() {
     };
 
     fetchCatalogData();
-  }, [assignedDistributors]);
+  }, []);
 
   const dynamicCategories = useMemo(() => {
     const unique = new Set(products.map(p => p.category).filter(Boolean));

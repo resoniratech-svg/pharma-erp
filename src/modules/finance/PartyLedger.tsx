@@ -4,6 +4,7 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
 import { useLocation } from 'react-router';
+import { ledgerService } from '../../services/ledgerService';
 
 import {
   PageHeader,
@@ -73,41 +74,17 @@ const getFormattedDate = () => {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 };
 
-// -- MOCK DATA --
-// Assuming positive is Debit (Customer balance)
-const mockTransactions: Transaction[] = [
-  // Apollo Pharmacy (Customer)
-  { id: '1', date: '2026-10-01', particulars: 'Opening Balance', vchType: 'Opening Balance', vchNo: 'OB-2026/01', referenceNo: 'OB-REF-101', debit: 45000, credit: 0, partyId: 'apollo', partyType: 'Customer' },
-  { id: '2', date: '2026-10-15', particulars: 'Sales (Apollo Pharmacy)', vchType: 'Sales Invoice', vchNo: 'INV/26/001', referenceNo: 'PO-1029', debit: 50400, credit: 0, partyId: 'apollo', partyType: 'Customer' },
-  { id: '3', date: '2026-10-18', particulars: 'Bank Receipt (NEFT)', vchType: 'Receipt', vchNo: 'RCT/26/105', referenceNo: 'INV/26/001', debit: 0, credit: 45000, partyId: 'apollo', partyType: 'Customer' },
-  { id: '4', date: '2026-10-20', particulars: 'Sales Return', vchType: 'Credit Note', vchNo: 'CN/26/012', referenceNo: 'INV/26/001', debit: 0, credit: 5400, partyId: 'apollo', partyType: 'Customer' },
-  { id: '5', date: '2026-10-25', particulars: 'Sales (Apollo Pharmacy)', vchType: 'Sales Invoice', vchNo: 'INV/26/045', referenceNo: 'PO-1088', debit: 12000, credit: 0, partyId: 'apollo', partyType: 'Customer' },
-  { id: '6', date: '2026-10-28', particulars: 'Bank Receipt (Cheque)', vchType: 'Receipt', vchNo: 'RCT/26/112', referenceNo: 'INV/26/045', debit: 0, credit: 12000, partyId: 'apollo', partyType: 'Customer' },
-  
-  // Metro Distributors (Distributor)
-  { id: '7', date: '2026-10-01', particulars: 'Opening Balance', vchType: 'Opening Balance', vchNo: 'OB-2026/02', referenceNo: 'OB-REF-102', debit: 12000, credit: 0, partyId: 'metro', partyType: 'Distributor' },
-  { id: '8', date: '2026-10-10', particulars: 'Sales (Metro)', vchType: 'Sales Invoice', vchNo: 'INV/26/045', referenceNo: 'PO-1088', debit: 32000, credit: 0, partyId: 'metro', partyType: 'Distributor' },
-  { id: '9', date: '2026-10-28', particulars: 'Bank Receipt (RTGS)', vchType: 'Receipt', vchNo: 'RCT/26/112', referenceNo: 'INV/26/045', debit: 0, credit: 20000, partyId: 'metro', partyType: 'Distributor' },
-
-  // Global Health (Hospital)
-  { id: '10', date: '2026-10-05', particulars: 'Sales (Global Health)', vchType: 'Sales Invoice', vchNo: 'INV/26/018', referenceNo: 'PO-GH-001', debit: 85000, credit: 0, partyId: 'global', partyType: 'Hospital' },
-  { id: '11', date: '2026-10-12', particulars: 'Bank Receipt (NEFT)', vchType: 'Receipt', vchNo: 'RCT/26/089', referenceNo: 'INV/26/018', debit: 0, credit: 50000, partyId: 'global', partyType: 'Hospital' },
-  { id: '12', date: '2026-10-15', particulars: 'Sales Return', vchType: 'Credit Note', vchNo: 'CN/26/020', referenceNo: 'INV/26/018', debit: 0, credit: 5000, partyId: 'global', partyType: 'Hospital' },
-  
-  // Sun Pharma (Supplier)
-  { id: '13', date: '2026-10-02', particulars: 'Purchase (Sun Pharma)', vchType: 'Purchase Invoice', vchNo: 'PUR/26/001', referenceNo: 'BILL-882', debit: 0, credit: 150000, partyId: 'sun', partyType: 'Supplier' },
-  { id: '14', date: '2026-10-10', particulars: 'Bank Payment (RTGS)', vchType: 'Payment', vchNo: 'PMT/26/001', referenceNo: 'PUR/26/001', debit: 100000, credit: 0, partyId: 'sun', partyType: 'Supplier' },
-  { id: '15', date: '2026-10-15', particulars: 'Purchase Return', vchType: 'Debit Note', vchNo: 'DN/26/001', referenceNo: 'PUR/26/001', debit: 15000, credit: 0, partyId: 'sun', partyType: 'Supplier' },
-];
-
+// No mock data - fetching from API
 export default function PartyLedger() {
   const location = useLocation();
   const [search, setSearch] = useState('');
-  const [party, setParty] = useState(location.state?.partyId || 'apollo');
-  const [partyType, setPartyType] = useState(location.state?.partyType || 'Customer');
+  const [party, setParty] = useState(location.state?.partyId || '');
+  const [partyType, setPartyType] = useState(location.state?.partyType || '');
   const [vchTypeFilter, setVchTypeFilter] = useState('');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
@@ -119,6 +96,33 @@ export default function PartyLedger() {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
+    
+    // Fetch Data
+    const fetchLedgers = async () => {
+      setIsLoading(true);
+      try {
+        const rawLedgers = await ledgerService.getAll();
+        const mapped: Transaction[] = rawLedgers.map(l => ({
+          id: l.id,
+          date: l.date,
+          particulars: l.distributor || 'General Ledger Entry',
+          vchType: l.type,
+          vchNo: l.id.toString(), // or an actual invoice number
+          referenceNo: l.refNo,
+          debit: l.debitAmount,
+          credit: l.creditAmount,
+          partyId: l.distributorCode,
+          partyType: 'Distributor' // We might infer this from a proper type field if we had one
+        }));
+        setTransactions(mapped);
+      } catch (err) {
+        console.error("Error fetching ledgers:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchLedgers();
+
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
@@ -126,8 +130,8 @@ export default function PartyLedger() {
   
   // 1. Sort transactions chronologically
   const sortedTransactions = useMemo(() => {
-    return [...mockTransactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-  }, []);
+    return [...transactions].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [transactions]);
 
   // 2. Compute opening balance based on From Date
   const { openingBalance, filteredTransactions } = useMemo(() => {
@@ -420,11 +424,15 @@ export default function PartyLedger() {
         
         <TableCard>
           <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
-            <DataTable
-              columns={columns}
-              data={ledgerRows}
-              emptyMessage="No ledger entries found for the selected filters."
-            />
+            {isLoading ? (
+              <div className="p-8 text-center text-slate-500">Loading ledger data...</div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={ledgerRows}
+                emptyMessage="No ledger entries found for the selected filters."
+              />
+            )}
           </div>
         </TableCard>
       </div>

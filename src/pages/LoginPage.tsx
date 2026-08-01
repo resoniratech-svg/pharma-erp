@@ -179,10 +179,10 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      const { user, mappedRoleId } = await authService.localLogin(email, password);
+      const userRecord = await authService.login(email, password);
 
       // Verify role match if card role is specified (allowing fallback if navigating directly)
-      if (role.id && role.id !== 'SUPER_ADMIN' && mappedRoleId !== role.id) {
+      if (role.id && role.id !== 'SUPER_ADMIN' && userRecord.roleId !== role.id) {
         setTimeout(() => {
           setLoading(false);
           setEmailErr(`Invalid credentials for ${role.title} workspace.`);
@@ -196,44 +196,28 @@ export default function LoginPage() {
         setLoading(false);
         setSuccess(true);
       
-        const authToken = 'token-' + user.id + '-' + Date.now();
-        
-        // Create session object matching the expected format
-        const authUser = {
-          id: user.id,
-          email: user.email,
-          fullName: user.name,
-          roleId: mappedRoleId,
-          employeeCode: user.id, // Using UM id as employee code
-          department: 'Management'
-        };
-
-        // Set standard session keys
-        localStorage.setItem('authToken', authToken);
-        localStorage.setItem('authUser', JSON.stringify(authUser));
-        localStorage.setItem('activeRole', mappedRoleId);
+        // Set workspace role explicitly
         localStorage.setItem('workspaceRole', role.id);
-        localStorage.setItem('userId', String(user.id));
         
         // Initialize permission service
-        permissionService.initialize(mappedRoleId);
+        permissionService.initialize(userRecord.roleId);
         
         activityLogService.addLog({
-          userId: String(user.id),
-          userName: user.name,
+          userId: userRecord.id,
+          userName: userRecord.fullName,
           action: "Login",
           module: "Authentication",
         });
 
-        if (mappedRoleId === 'NATIONAL_SALES_HEAD') {
+        if (userRecord.roleId === 'NATIONAL_SALES_HEAD') {
           navigate("/workspace/national-sales-head");
-        } else if (mappedRoleId === 'ZONAL_SALES_MANAGER') {
+        } else if (userRecord.roleId === 'ZONAL_SALES_MANAGER') {
           navigate("/workspace/zonal-sales-manager");
-        } else if (mappedRoleId === 'REGIONAL_SALES_MANAGER') {
+        } else if (userRecord.roleId === 'REGIONAL_SALES_MANAGER') {
           navigate("/workspace/regional-sales-manager");
-        } else if (mappedRoleId === 'AREA_SALES_MANAGER') {
+        } else if (userRecord.roleId === 'AREA_SALES_MANAGER') {
           navigate("/workspace/area-sales-manager");
-        } else if (mappedRoleId === 'MEDICAL_REPRESENTATIVE') {
+        } else if (userRecord.roleId === 'MEDICAL_REPRESENTATIVE') {
           navigate("/workspace/medical-representative");
         } else {
           navigate("/workspace/dashboard");

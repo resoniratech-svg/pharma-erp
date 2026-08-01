@@ -93,11 +93,7 @@ export default function CheckOut() {
     const fetchRecords = async () => {
       try {
         const rawMrId = localStorage.getItem('mrId');
-        if (!rawMrId) {
-          setRecords([]);
-          return;
-        }
-        const mrId = Number(rawMrId);
+        const mrId = rawMrId ? Number(rawMrId) : 1; // Fallback to 1 for admins testing
         const data = await attendanceService.loadAttendance(mrId);
         setRecords(data);
       } catch (e) {

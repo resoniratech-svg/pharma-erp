@@ -20,11 +20,7 @@
 // //   status: 'Scheduled' | 'Completed' | 'Cancelled';
 // // }
 
-// // const mockData: CRMMeeting[] = [
-// //   { id: '1', title: 'Product Demo', client: 'Apollo Hospitals', date: '25-Oct-2026', time: '10:00 AM', status: 'Scheduled' },
-// //   { id: '2', title: 'Quarterly Review', client: 'Metro Distributors', date: '26-Oct-2026', time: '02:30 PM', status: 'Scheduled' },
-// //   { id: '3', title: 'Initial Consultation', client: 'Dr. Ramesh Sharma', date: '20-Oct-2026', time: '11:00 AM', status: 'Completed' },
-// // ];
+// // const mockData: any[] = [];
 
 // // export default function Meetings() {
 // //   const [search, setSearch] = useState('');
@@ -440,6 +436,8 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './components/shared';
+import { meetingService } from '../../services/meetingService';
+import { leadService } from '../../services/leadService';
 
 const generateMeetingId = (history: CRMMeeting[]) => {
   if (history.length === 0) return 'MT-0001';
@@ -505,14 +503,29 @@ export default function CrmMeetings() {
   const [agenda, setAgenda] = useState('');
 
   useEffect(() => {
-    try {
-      const storedLeads = localStorage.getItem('crm_leads');
-      if (storedLeads) setLeads(JSON.parse(storedLeads));
+    // Load leads from DB for the dropdown
+    leadService.getAll().then((apiLeads) => {
+      setLeads(apiLeads.map((l) => ({ id: l.leadCode || l.id, name: l.name })));
+    }).catch(console.error);
 
-      const storedMeetings = localStorage.getItem('crm_meetings');
-      if (storedMeetings) setMeetings(JSON.parse(storedMeetings));
-    } catch (e) {
-      console.error('Failed to parse data', e);
+    // Load meetings from DB
+    meetingService.getAll().forEach(() => {});
+    const cached = meetingService.getAll();
+    if (cached.length > 0) {
+      setMeetings(cached.map((m) => ({
+        id: m.id,
+        leadId: '',
+        title: m.title,
+        meetingType: m.type || 'Doctor Group Meet',
+        client: m.organizer,
+        participants: m.participants,
+        venue: m.location,
+        date: m.date,
+        time: m.time,
+        rawTime: m.rawTime,
+        status: m.status,
+        agenda: m.agenda,
+      })));
     }
   }, []);
 
@@ -542,12 +555,13 @@ export default function CrmMeetings() {
   const handleUpdateStatus = (id: string, newStatus: 'Completed' | 'Cancelled') => {
     const targetMeeting = meetings.find(m => m.id === id);
     if (!targetMeeting) return;
-
+    if (newStatus === 'Completed') {
+      meetingService.completeMeeting(id).catch(console.error);
+    } else {
+      meetingService.cancelMeeting(id).catch(console.error);
+    }
     const updated = meetings.map(m => m.id === id ? { ...m, status: newStatus } : m);
     setMeetings(updated);
-    localStorage.setItem('crm_meetings', JSON.stringify(updated));
-    
-    logActivity(`Meeting ${newStatus}`, `Marked meeting "${targetMeeting.title}" with ${targetMeeting.client} as ${newStatus}`);
   };
 
   const openNewMeetingForm = () => {
@@ -638,29 +652,19 @@ export default function CrmMeetings() {
       updatedMeetings = meetings.map(m => m.id === editMeetingId ? newMeetingData : m);
     } else {
       updatedMeetings = [newMeetingData, ...meetings];
+      // Save to DB via meetingService
+      meetingService.addMeeting(0, {
+        title: newMeetingData.title,
+        agenda: newMeetingData.agenda,
+        date: newMeetingData.date,
+        time: newMeetingData.rawTime,
+        location: newMeetingData.venue,
+        participants: newMeetingData.participants,
+        type: newMeetingData.meetingType,
+      }).catch(console.error);
     }
 
     setMeetings(updatedMeetings);
-    localStorage.setItem('crm_meetings', JSON.stringify(updatedMeetings));
-
-    if (editMeetingId) {
-       logActivity('Meeting Updated', `Updated meeting details for "${newMeetingData.title}" with ${newMeetingData.client}`);
-    } else {
-       logActivity('Meeting Scheduled', `Scheduled a ${newMeetingData.meetingType} with ${newMeetingData.client} on ${newMeetingData.date}`);
-       
-       try {
-           const storedLeads = JSON.parse(localStorage.getItem('crm_leads') || '[]');
-           const updatedLeads = storedLeads.map((l: any) => {
-               if (l.id === selectedLead.id && (l.status === 'New' || l.status === 'Assigned' || l.status === 'Contacted')) {
-                   return { ...l, status: 'Qualified' };
-               }
-               return l;
-           });
-           localStorage.setItem('crm_leads', JSON.stringify(updatedLeads));
-           setLeads(updatedLeads); // ✅ Enhancement 1: Sync state
-       } catch (e) { console.error("Pipeline update failed", e); }
-    }
-
     setIsFormOpen(false);
   };
 

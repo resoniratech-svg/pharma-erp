@@ -40,6 +40,7 @@ import mjLogo from '../../assets/logo/pharmaLOGO.png';
 import { productService } from '../../services/productService';
 import { warehouseService } from '../../services/warehouseService';
 import { inventoryService } from '../../services/inventoryService';
+import authService from '../../services/authService';
 import { batchService } from '../../services/batchService';
 
 const PRIMARY_HEX = 'var(--color-brand-primary)';
@@ -1060,11 +1061,10 @@ const activeStyle =
 
                       <div className="p-2">
                         <button 
-                          onClick={() => {
+                          onClick={async () => {
                             setProfileOpen(false);
-                            const currentRole = localStorage.getItem('activeRole');
-                            localStorage.removeItem('activeRole');
-                            navigate('/login', { state: { roleId: currentRole } });
+                            await authService.logout();
+                            navigate('/workspace');
                           }}
                           className="w-full flex items-center gap-3 px-3 py-2 text-sm font-bold text-rose-600 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors outline-none focus-visible:ring-2 focus-visible:ring-rose-500"
                         >

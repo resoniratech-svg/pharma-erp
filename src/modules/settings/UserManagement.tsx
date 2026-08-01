@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Users, Shield, Lock, Search, ChevronDown, Plus, Ban, Eye, CheckCircle } from 'lucide-react';
+import { Users, Shield, Lock, Search, ChevronDown, Plus, Ban, Eye, EyeOff, CheckCircle } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -20,6 +20,7 @@ import { seedUsers, type UserRole } from '../../data/seedUsers';
 import { salesOrganizationService } from '../../services/salesOrganizationService';
 import { distributorMasterService } from '../../services/distributorMasterService';
 import { retailerMasterService } from '../../services/retailerMasterService';
+import { userService, BackendUserRecord } from '../../services/userService';
 
 type UserType = 'Employee' | 'Distributor' | 'Retailer' | 'Standalone User';
 
@@ -121,6 +122,11 @@ const SearchableDropdown = ({ options, value, onChange, placeholder }: DropdownP
   );
 };
 
+const formatRoleName = (role: string) => {
+  if (!role) return '';
+  return role.split('_').map(word => word.charAt(0) + word.slice(1).toLowerCase()).join(' ');
+};
+
 export default function UserManagement() {
   const [roles, setRoles] = useState<{name: string, users: number, status: string}[]>([]);
   const [users, setUsers] = useState<UserRole[]>([]);
@@ -139,6 +145,7 @@ export default function UserManagement() {
   const [showLockDialog, setShowLockDialog] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [targetUser, setTargetUser] = useState<UserRole | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Integration State
   const [userType, setUserType] = useState<UserType>('Employee');
@@ -162,60 +169,65 @@ export default function UserManagement() {
     status: 'Active'
   });
 
+  const fetchUsers = async () => {
+    try {
+      const backendUsers = await userService.getUsers();
+      
+      // Map to UserRole expected format
+      let parsedUsers: any[] = backendUsers.map(bu => ({
+        id: String(bu.id),
+        empId: String(bu.id), // Fallback, could map to employeeCode if returned
+        userType: 'Employee',
+        name: bu.name,
+        email: bu.email,
+        mobile: bu.mobile || '-',
+        username: bu.email,
+        role: bu.role,
+        status: bu.isActive ? 'Active' : 'Inactive',
+        lastLogin: '-',
+        tenantId: null // or parse from bu if available
+      }));
+      
+      // Tenant Scoping
+      const sessionStr = localStorage.getItem('centralAuthSession');
+      const session = sessionStr ? JSON.parse(sessionStr) : null;
+      if (session?.role === 'COMPANY_ADMIN' && session.tenantId) {
+        parsedUsers = parsedUsers.filter((u: any) => u.tenantId === session.tenantId);
+      }
+      
+      setUsers(parsedUsers);
+      
+      // Calculate roles summary
+      const customRolesRaw = localStorage.getItem("custom_roles");
+      const customRoles = customRolesRaw ? JSON.parse(customRolesRaw) : [];
+      
+      const systemRoleNames = [
+        'SUPER_ADMIN', 'ADMIN', 'COMPANY_ADMIN', 'WAREHOUSE_MANAGER', 'ACCOUNTANT', 
+        'DISTRIBUTOR', 'RETAILER', 'MEDICAL_REPRESENTATIVE'
+      ];
+      
+      const allRolesData = [
+        ...systemRoleNames.map(name => ({ title: name, status: 'Active' })),
+        ...customRoles
+      ];
+
+      const mappedRoles = allRolesData.map(r => {
+        const count = parsedUsers.filter((u: any) => u.role === r.title).length;
+        return {
+          name: r.title,
+          users: count,
+          status: r.status || 'Active'
+        };
+      });
+
+      setRoles(mappedRoles);
+    } catch (e) {
+      console.error("Failed to load users:", e);
+    }
+  };
+
   useEffect(() => {
-    const savedUsers = localStorage.getItem('users');
-    let parsedUsers: UserRole[] = savedUsers ? JSON.parse(savedUsers) : seedUsers;
-    
-    // Schema migration / regeneration check
-    if (!parsedUsers || !Array.isArray(parsedUsers) || parsedUsers.length === 0) {
-      parsedUsers = seedUsers;
-      localStorage.setItem('users', JSON.stringify(seedUsers));
-    } else {
-      let updated = false;
-      for (const su of seedUsers) {
-        if (!parsedUsers.some((u: any) => u.id === su.id || u.email.toLowerCase() === su.email.toLowerCase())) {
-          parsedUsers.push(su);
-          updated = true;
-        }
-      }
-      if (updated) {
-        localStorage.setItem('users', JSON.stringify(parsedUsers));
-      }
-    }
-    
-    // Tenant Scoping
-    const sessionStr = localStorage.getItem('centralAuthSession');
-    const session = sessionStr ? JSON.parse(sessionStr) : null;
-    if (session?.role === 'COMPANY_ADMIN' && session.tenantId) {
-      parsedUsers = parsedUsers.filter((u: any) => u.tenantId === session.tenantId);
-    }
-    
-    setUsers(parsedUsers);
-
-    const customRolesRaw = localStorage.getItem("custom_roles");
-    const customRoles = customRolesRaw ? JSON.parse(customRolesRaw) : [];
-    
-    const systemRoleNames = [
-      'Super Admin', 'Warehouse Manager', 'Accountant', 
-      'Distributor', 'Retailer', 'Medical Representative',
-      'Area Sales Manager', 'Regional Sales Manager', 'Zonal Sales Manager', 'National Sales Head'
-    ];
-    
-    const allRolesData = [
-      ...systemRoleNames.map(name => ({ title: name, status: 'Active' })),
-      ...customRoles
-    ];
-
-    const mappedRoles = allRolesData.map(r => {
-      const count = parsedUsers.filter((u: UserRole) => u.role === r.title).length;
-      return {
-        name: r.title,
-        users: count,
-        status: r.status || 'Active'
-      };
-    });
-
-    setRoles(mappedRoles);
+    fetchUsers();
   }, []);
 
   // --- Master Data Loaders & Filtering ---
@@ -355,7 +367,7 @@ export default function UserManagement() {
     }
   };
 
-  const handleCreateUser = () => {
+  const handleCreateUser = async () => {
     const errors: { [key: string]: string } = {};
 
     if (!editMode && userType !== 'Standalone User' && !selectedMasterId) {
@@ -381,7 +393,6 @@ export default function UserManagement() {
       );
       if (dupUsername) errors.username = "Username is already in use by another user";
     }
-
     if (!formData.roleId) errors.roleId = "Role is required";
 
     if (!editMode && !formData.password) errors.password = "Password is required";
@@ -404,66 +415,41 @@ export default function UserManagement() {
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
-    if (editMode) {
-      // Update existing user
-      const allUsersStr = localStorage.getItem('users');
-      const allUsers = allUsersStr ? JSON.parse(allUsersStr) : [];
-      const updatedAllUsers = allUsers.map((u: any) => u.id === formData.empId ? {
-        ...u,
-        name: formData.fullName.trim(),
-        email: formData.email.trim(),
-        mobile: formData.phone.trim(),
-        username: formData.username.trim(),
-        role: formData.roleId,
-        ...(formData.password ? { password: formData.password.trim() } : {}),
-        status: formData.status as 'Active' | 'Inactive',
-        modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
-      } : u);
-      
-      const updatedUsers = users.map(u => u.id === formData.empId ? updatedAllUsers.find((au: any) => au.id === formData.empId) : u);
-      
-      setUsers(updatedUsers);
-      localStorage.setItem('users', JSON.stringify(updatedAllUsers));
-    } else {
-      // Create new user
-      const sessionStr = localStorage.getItem('centralAuthSession');
-      const session = sessionStr ? JSON.parse(sessionStr) : null;
+    try {
+      if (editMode) {
+        // Update existing user
+        await userService.updateUser(Number(formData.empId), {
+          name: formData.fullName.trim(),
+          email: formData.email.trim(),
+          mobile: formData.phone.trim(),
+          username: formData.username.trim(),
+          role: formData.roleId,
+          ...(formData.password ? { password: formData.password.trim() } : {}),
+          isActive: formData.status === 'Active',
+        });
+      } else {
+        // Create new user
+        await userService.createUser({
+          name: formData.fullName.trim(),
+          email: formData.email.trim(),
+          password: formData.password.trim(),
+          role: formData.roleId,
+          mobile: formData.phone.trim(),
+        });
+      }
 
-      const newUser: any = {
-        id: formData.empId.trim(),
-        empId: formData.empId.trim(),
-        userType: userType,
-        name: formData.fullName.trim(),
-        email: formData.email.trim(),
-        mobile: formData.phone.trim(),
-        username: formData.username.trim(),
-        password: formData.password.trim(),
-        role: formData.roleId,
-        status: formData.status as 'Active' | 'Inactive',
-        lastLogin: '-',
-        createdBy: 'Current User',
-        createdDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        modifiedBy: 'Current User',
-        modifiedDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        tenantId: session?.tenantId || null,
-        purchasedModules: session?.purchasedModules || []
-      };
+      // Re-fetch users from backend after create/update
+      await fetchUsers();
 
-      const allUsersStr = localStorage.getItem('users');
-      const allUsers = allUsersStr ? JSON.parse(allUsersStr) : [];
-      
-      const updatedAllUsers = [...allUsers, newUser];
-      setUsers([...users, newUser]);
-      localStorage.setItem('users', JSON.stringify(updatedAllUsers));
-      setRoles(roles.map(r => r.name === newUser.role ? { ...r, users: r.users + 1 } : r));
+      setFormData({
+        empId: '', fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
+      });
+      setSelectedMasterId('');
+      setMasterMetaData({ code: '', name: '', designationOrContact: '', status: '' });
+      setShowRoleModal(false);
+    } catch (err: any) {
+      alert(`Failed to save user: ${err.message}`);
     }
-
-    setFormData({
-      empId: '', fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
-    });
-    setSelectedMasterId('');
-    setMasterMetaData({ code: '', name: '', designationOrContact: '', status: '' });
-    setShowRoleModal(false);
   };
 
   const columns: Column<UserRole>[] = [
@@ -475,12 +461,11 @@ export default function UserManagement() {
         <span className="font-semibold text-slate-900">{row.name}</span>
       ),
     },
-    { key: "username", label: "Username" },
     { key: "email", label: "Email" },
     {
       key: "role",
       label: "Assigned Role",
-      render: (row) => <Badge variant="purple">{row.role}</Badge>,
+      render: (row) => <Badge variant="purple">{formatRoleName(row.role)}</Badge>,
     },
     {
       key: "status",
@@ -551,7 +536,7 @@ export default function UserManagement() {
 
   const activeRolesOptions = roles
     .filter(r => r.status === 'Active')
-    .map(r => ({ label: r.name, value: r.name }));
+    .map(r => ({ label: formatRoleName(r.name), value: r.name }));
 
   return (
     <div className="animate-in fade-in duration-500">
@@ -667,7 +652,7 @@ export default function UserManagement() {
               }`}
             >
               <div className="flex justify-between items-center">
-                <span>{role.name}</span>
+                <span>{formatRoleName(role.name)}</span>
 
                 <span className="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-600">
                   {role.users}
@@ -689,7 +674,7 @@ export default function UserManagement() {
               value={roleFilter}
               onChange={setRoleFilter}
               options={roles.map((role) => ({
-                label: role.name,
+                label: formatRoleName(role.name),
                 value: role.name,
               }))}
               placeholder="All Roles"
@@ -926,13 +911,22 @@ export default function UserManagement() {
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   Password {!editMode && <span className="text-rose-500">*</span>}
                 </label>
-                <input
-                  type="password"
-                  value={formData.password}
-                  onChange={(e) => setFormData({...formData, password: e.target.value})}
-                  className={`w-full px-3 py-2.5 bg-white border ${formErrors.password ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
-                  placeholder="Password"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={formData.password}
+                    onChange={(e) => setFormData({...formData, password: e.target.value})}
+                    className={`w-full px-3 py-2.5 bg-white border ${formErrors.password ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors pr-10`}
+                    placeholder="Password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-violet-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
                 {formErrors.password && <p className="text-rose-500 text-xs mt-1">{formErrors.password}</p>}
               </div>
 
@@ -940,13 +934,22 @@ export default function UserManagement() {
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">
                   Confirm Password {!editMode && <span className="text-rose-500">*</span>}
                 </label>
-                <input
-                  type="password"
-                  value={formData.confirmPassword}
-                  onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
-                  className={`w-full px-3 py-2.5 bg-white border ${formErrors.confirmPassword ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
-                  placeholder="Confirm password"
-                />
+                <div className="relative">
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    value={formData.confirmPassword}
+                    onChange={(e) => setFormData({...formData, confirmPassword: e.target.value})}
+                    className={`w-full px-3 py-2.5 bg-white border ${formErrors.confirmPassword ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors pr-10`}
+                    placeholder="Confirm password"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-violet-600 transition-colors"
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
                 {formErrors.confirmPassword && <p className="text-rose-500 text-xs mt-1">{formErrors.confirmPassword}</p>}
               </div>
 
@@ -996,7 +999,6 @@ export default function UserManagement() {
               <DrawerField label="Full Name" value={selectedUser.name} />
               <DrawerField label="Email Address" value={selectedUser.email} />
               <DrawerField label="Mobile Number" value={selectedUser.mobile} />
-              <DrawerField label="Username" value={selectedUser.username} />
               <DrawerField label="Assigned Role" value={selectedUser.role} />
               <DrawerField label="Account Status" value={selectedUser.status} />
               <DrawerField label="Last Login" value={selectedUser.lastLogin} />
@@ -1076,12 +1078,16 @@ export default function UserManagement() {
             </div>
             <div className="flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setShowLockDialog(false)}>Cancel</ActionButton>
-              <ActionButton variant="primary" onClick={() => {
+              <ActionButton variant="primary" onClick={async () => {
                 const newStatus = targetUser.status === 'Locked' ? 'Active' : 'Locked';
-                const updated = users.map(u => u.id === targetUser.id ? { ...u, status: newStatus as UserRole['status'] } : u);
-                setUsers(updated);
-                localStorage.setItem('users', JSON.stringify(updated));
-                setShowLockDialog(false);
+                try {
+                  await userService.updateUser(Number(targetUser.id), { isActive: newStatus === 'Active' });
+                  const updated = users.map(u => u.id === targetUser.id ? { ...u, status: newStatus as UserRole['status'] } : u);
+                  setUsers(updated);
+                  setShowLockDialog(false);
+                } catch (e) {
+                  alert('Failed to update status');
+                }
               }}>
                 {targetUser.status === 'Locked' ? 'Unlock User' : 'Lock User'}
               </ActionButton>
@@ -1107,12 +1113,16 @@ export default function UserManagement() {
             </div>
             <div className="flex justify-end gap-3">
               <ActionButton variant="secondary" onClick={() => setShowStatusDialog(false)}>Cancel</ActionButton>
-              <ActionButton variant="primary" onClick={() => {
+              <ActionButton variant="primary" onClick={async () => {
                 const newStatus = targetUser.status === 'Active' ? 'Inactive' : 'Active';
-                const updated = users.map(u => u.id === targetUser.id ? { ...u, status: newStatus as UserRole['status'] } : u);
-                setUsers(updated);
-                localStorage.setItem('users', JSON.stringify(updated));
-                setShowStatusDialog(false);
+                try {
+                  await userService.updateUser(Number(targetUser.id), { isActive: newStatus === 'Active' });
+                  const updated = users.map(u => u.id === targetUser.id ? { ...u, status: newStatus as UserRole['status'] } : u);
+                  setUsers(updated);
+                  setShowStatusDialog(false);
+                } catch(e) {
+                  alert('Failed to update status');
+                }
               }}>
                 {targetUser.status === 'Active' ? 'Deactivate' : 'Activate'}
               </ActionButton>

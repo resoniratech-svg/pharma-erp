@@ -24,12 +24,7 @@
 //   conversionStatus: 'Converted' | 'Pending' | 'Lost';
 // }
 
-// const mockData: LeadConversion[] = [
-//   { id: '1', leadId: 'LD-1001', leadName: 'City Hospital', conversionDate: '24-Oct-2024', assignedEmployee: 'Rahul Sharma', territory: 'South Mumbai', revenueValue: '₹ 1,50,000', conversionStatus: 'Converted' },
-//   { id: '2', leadId: 'LD-1002', leadName: 'Dr. A.K. Singh', conversionDate: '-', assignedEmployee: 'Unassigned', territory: 'Andheri West', revenueValue: '-', conversionStatus: 'Pending' },
-//   { id: '3', leadId: 'LD-1003', leadName: 'Apollo Pharmacy', conversionDate: '22-Oct-2024', assignedEmployee: 'Amit Kumar', territory: 'South Mumbai', revenueValue: '₹ 45,000', conversionStatus: 'Converted' },
-//   { id: '4', leadId: 'LD-1004', leadName: 'Wellness Medicals', conversionDate: '-', assignedEmployee: 'Sanjay Patel', territory: 'Thane', revenueValue: '₹ 0', conversionStatus: 'Lost' },
-// ];
+// const mockData: any[] = [];
 
 // export default function LeadConversionTracking() {
 //   const [search, setSearch] = useState('');

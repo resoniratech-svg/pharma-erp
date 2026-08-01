@@ -22,12 +22,7 @@ interface StockItem {
   status: 'In Stock' | 'Low Stock' | 'Out of Stock';
 }
 
-const mockData: StockItem[] = [
-  { id: '1', productName: 'Amoxicillin 500mg', category: 'Antibiotics', qty: 15400, value: '₹ 15,40,000', status: 'In Stock' },
-  { id: '2', productName: 'Paracetamol 650mg', category: 'Analgesics', qty: 850, value: '₹ 42,500', status: 'Low Stock' },
-  { id: '3', productName: 'Cough Syrup 100ml', category: 'Respiratory', qty: 0, value: '₹ 0', status: 'Out of Stock' },
-  { id: '4', productName: 'Vitamin C 1000mg', category: 'Vitamins', qty: 5200, value: '₹ 6,24,000', status: 'In Stock' },
-];
+const mockData: any[] = [];
 
 export default function InventoryOverview() {
   const [search, setSearch] = useState('');

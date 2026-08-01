@@ -29,13 +29,7 @@ interface ProductProfit {
   trend: 'Up' | 'Down' | 'Stable';
 }
 
-const mockData: ProductProfit[] = [
-  { id: '1', productCode: 'PRD-001', productName: 'Paracetamol 500mg (Strip)', category: 'Analgesics', division: 'Pharma', branch: 'Mumbai Central', quantitySold: 125000, revenue: '₹ 15,00,000', avgCogs: '₹ 8.50', avgSellingPrice: '₹ 12.00', grossMargin: '41.1%', profitAmount: '₹ 4,37,500', trend: 'Up' },
-  { id: '2', productCode: 'PRD-002', productName: 'Amoxicillin 250mg', category: 'Antibiotics', division: 'Pharma', branch: 'Delhi North', quantitySold: 85000, revenue: '₹ 38,25,000', avgCogs: '₹ 22.00', avgSellingPrice: '₹ 45.00', grossMargin: '51.1%', profitAmount: '₹ 19,55,000', trend: 'Up' },
-  { id: '3', productCode: 'PRD-003', productName: 'Cough Syrup 100ml', category: 'Syrups', division: 'OTC', branch: 'Pune East', quantitySold: 42000, revenue: '₹ 18,90,000', avgCogs: '₹ 35.00', avgSellingPrice: '₹ 45.00', grossMargin: '22.2%', profitAmount: '₹ 4,20,000', trend: 'Down' },
-  { id: '4', productCode: 'PRD-004', productName: 'Vitamin C Tablets', category: 'Supplements', division: 'OTC', branch: 'Mumbai Central', quantitySold: 65000, revenue: '₹ 16,25,000', avgCogs: '₹ 15.00', avgSellingPrice: '₹ 25.00', grossMargin: '40.0%', profitAmount: '₹ 6,50,000', trend: 'Stable' },
-  { id: '5', productCode: 'PRD-005', productName: 'Surgical Masks (Box)', category: 'Consumables', division: 'Surgical', branch: 'Chennai South', quantitySold: 150000, revenue: '₹ 30,00,000', avgCogs: '₹ 18.00', avgSellingPrice: '₹ 20.00', grossMargin: '10.0%', profitAmount: '₹ 3,00,000', trend: 'Down' },
-];
+const mockData: any[] = [];
 
 export default function ProductProfitability() {
   const [search, setSearch] = useState('');

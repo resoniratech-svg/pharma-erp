@@ -21,11 +21,7 @@
 //   status: 'Active' | 'Inactive';
 // }
 
-// const mockData: DistributorProfile[] = [
-//   { id: '1', name: 'Metro Distributors', region: 'North', tier: 'Tier 1', ytdSales: '₹ 2.5 Cr', status: 'Active' },
-//   { id: '2', name: 'Global Health Agencies', region: 'South', tier: 'Tier 2', ytdSales: '₹ 85 L', status: 'Active' },
-//   { id: '3', name: 'Carewell Pharma', region: 'East', tier: 'Tier 3', ytdSales: '₹ 15 L', status: 'Inactive' },
-// ];
+// const mockData: any[] = [];
 
 // export default function DistributorCRM() {
 //   const [search, setSearch] = useState('');

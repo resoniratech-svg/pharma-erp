@@ -19,8 +19,10 @@ import autoTable from 'jspdf-autotable';
 import { generateLRPdf } from '../../documents/generators/generateLRPdf';
 import { generatePODPdf } from '../../documents/generators/generatePODPdf';
 import { dispatchService } from '../../services/dispatchService';
-import authService from '../../services/authService';
 import { salesInvoiceService } from '../../services/salesInvoiceService';
+import { inventoryService } from '../../services/inventoryService';
+import { batchService } from '../../services/batchService';
+import authService from '../../services/authService';
 
 interface Milestone {
   status: string;
@@ -179,12 +181,12 @@ export default function DispatchTracking() {
   }, []);
 
   // --- Data Loading ---
-  const loadOutboundData = () => {
+  const loadOutboundData = async () => {
     try {
-      const orders = JSON.parse(localStorage.getItem('pharma_erp_retailer_orders') || '[]');
-      const dispatches = JSON.parse(localStorage.getItem('pharma_erp_outbound_dispatches') || '[]');
-      const inventory = JSON.parse(localStorage.getItem('pharma_erp_distributor_inventory') || '[]');
-      const batches = JSON.parse(localStorage.getItem('pharma_erp_batches') || '[]');
+      const orders = await dispatchService.getRetailerOrders();
+      const dispatches = await dispatchService.getOutboundDispatches();
+      const inventory = await inventoryService.loadInventory();
+      const batches = await batchService.getAll();
       
       setRetailerOrders(orders);
       setOutboundDispatches(dispatches);
@@ -287,6 +289,13 @@ export default function DispatchTracking() {
     fetchInboundDispatches();
     loadOutboundData();
   }, []);
+
+  // Initialize Outbound Data
+  useEffect(() => {
+    if (activeTab === 'outbound') {
+      loadOutboundData();
+    }
+  }, [activeTab]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {

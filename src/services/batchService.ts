@@ -79,15 +79,7 @@ function mapToUi(b: any): BatchRecord {
   };
 }
 
-// Load initial batches from localStorage on initialization as a fallback
-try {
-  const data = localStorage.getItem("batchRecords");
-  if (data) {
-    batchCache = JSON.parse(data);
-  }
-} catch (err) {
-  console.error("Failed to parse cached batches:", err);
-}
+
 
 export const batchService = {
   // Synchronous method for backward compatibility
@@ -101,10 +93,10 @@ export const batchService = {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/batches');
       if (response.success && Array.isArray(response.data)) {
         batchCache = response.data.map(mapToUi);
-        localStorage.setItem("batchRecords", JSON.stringify(batchCache));
       }
     } catch (err) {
-      console.error("Failed to fetch batches from backend, using cache:", err);
+      console.error("Failed to fetch batches from backend:", err);
+      throw err;
     }
     return batchCache;
   },
@@ -131,7 +123,6 @@ export const batchService = {
     }
     const created = mapToUi(response.data);
     batchCache = [created, ...batchCache];
-    localStorage.setItem("batchRecords", JSON.stringify(batchCache));
     return created;
   },
 
@@ -151,7 +142,6 @@ export const batchService = {
     }
     const updated = mapToUi(response.data);
     batchCache = batchCache.map(b => b.id === id ? updated : b);
-    localStorage.setItem("batchRecords", JSON.stringify(batchCache));
     return updated;
   },
 
@@ -161,14 +151,12 @@ export const batchService = {
     });
     if (response.success) {
       batchCache = batchCache.filter(b => b.id !== id);
-      localStorage.setItem("batchRecords", JSON.stringify(batchCache));
     }
     return response.success;
   },
 
   saveAll(records: BatchRecord[]) {
     batchCache = records;
-    localStorage.setItem("batchRecords", JSON.stringify(records));
   },
 
   generateNextBatchNumber(): string {

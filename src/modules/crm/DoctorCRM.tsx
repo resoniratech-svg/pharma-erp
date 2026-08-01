@@ -21,10 +21,7 @@
 //   lastVisit: string;
 // }
 
-// const mockData: DoctorProfile[] = [
-//   { id: '1', name: 'Dr. Arvind Rao', specialty: 'Cardiology', class: 'Class A', hospital: 'Apollo Hospitals', lastVisit: '20-Oct-2026' },
-//   { id: '2', name: 'Dr. Sunita Sharma', specialty: 'Pediatrics', class: 'Class B', hospital: 'Kids Clinic', lastVisit: '15-Oct-2026' },
-// ];
+// const mockData: any[] = [];
 
 // export default function DoctorCRM() {
 //   const [search, setSearch] = useState('');
@@ -160,42 +157,24 @@ export default function DoctorCRM() {
     loadData();
   }, []);
 
-  const loadData = () => {
+  const loadData = async () => {
     try {
-      const storedDoctors: DoctorProfile[] = JSON.parse(localStorage.getItem('crm_doctors') || '[]');
-      const mrVisits: MRDoctorVisit[] = JSON.parse(localStorage.getItem('mr_doctor_visits') || '[]');
-
-      // Enrich doctors with 'lastVisit' data from the MR field mobile app
-      const enrichedDoctors: DoctorProfile[] = storedDoctors.map((doc) => {
-        const docVisits = mrVisits.filter((v) => 
-          v.doctorId === doc.id || 
-          v.doctorName.toLowerCase() === doc.name.toLowerCase() ||
-          v.doctorName.toLowerCase().includes(doc.name.toLowerCase()) ||
-          doc.name.toLowerCase().includes(v.doctorName.toLowerCase())
-        );
-        
-        let lastVisitStr = '-';
-        if (docVisits.length > 0) {
-          docVisits.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-          lastVisitStr = docVisits[0].date; 
-        }
-
-        return { 
-          ...doc, 
-          lastVisit: doc.lastVisit && doc.lastVisit !== '-' ? doc.lastVisit : lastVisitStr 
-        };
-      });
-
-      // Sorted by createdAt timestamp (more robust than ID sorting)
-      enrichedDoctors.sort((a, b) => {
-        const dateA = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-        const dateB = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-        return dateB - dateA;
-      });
-      
-      setDoctors(enrichedDoctors);
+      const { doctorService } = await import('../../services/doctorService');
+      const apiDoctors = await doctorService.getDoctors();
+      const enriched: DoctorProfile[] = apiDoctors.map((d: any) => ({
+        id: String(d.id),
+        name: d.name,
+        specialty: d.specialization || '',
+        class: (d.doctorClass as 'Class A' | 'Class B' | 'Class C') || 'Class C',
+        hospital: d.hospital || '-',
+        phone: d.mobile || '',
+        email: d.email || '',
+        lastVisit: '-',
+        createdAt: d.createdAt,
+      }));
+      setDoctors(enriched);
     } catch (e) {
-      console.error('Failed to load doctors', e);
+      console.error('Failed to load doctors from DB', e);
     }
   };
 
@@ -217,84 +196,43 @@ export default function DoctorCRM() {
     return authUser?.fullName || authUser?.name || authUser?.username || 'Admin';
   };
 
-  const handleAddDoctor = (e: React.FormEvent) => {
+  const handleAddDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
-
     try {
-      const existingDoctors: DoctorProfile[] = JSON.parse(localStorage.getItem('crm_doctors') || '[]');
-      
-      // Auto-Trim inputs to prevent spacing bugs
+      const { doctorService } = await import('../../services/doctorService');
+
       const trimmedName = formData.name.trim();
       const trimmedPhone = formData.phone.trim();
       const trimmedEmail = formData.email.trim();
-      
-      // ✅ Case-insensitive check for "Dr." prefix using Regex
+
       const hasPrefix = /^dr\./i.test(trimmedName);
       const finalName = hasPrefix ? trimmedName : `Dr. ${trimmedName}`;
 
-      // Duplicate Doctor Check
-      const nameExists = existingDoctors.some(
-        (doc) => doc.name.toLowerCase() === finalName.toLowerCase()
-      );
-      if (nameExists) {
-        alert(`A profile for ${finalName} already exists in the CRM.`);
-        return;
-      }
-
-      // Duplicate Email Check
-      if (trimmedEmail) {
-        const emailExists = existingDoctors.some(
-          (doc) => doc.email?.toLowerCase() === trimmedEmail.toLowerCase()
-        );
-        if (emailExists) {
-          alert(`The email ${trimmedEmail} is already registered to another doctor.`);
-          return;
-        }
-      }
-
-      // Strict Phone Validation (Exactly 10 digits)
+      // Phone validation
       if (trimmedPhone) {
         const digitCount = trimmedPhone.replace(/\D/g, '').length;
         if (digitCount !== 10) {
-          alert("Please enter exactly 10 digits for the phone number.");
+          alert('Please enter exactly 10 digits for the phone number.');
           return;
         }
       }
 
-      const newDoctor: DoctorProfile = {
-        id: generateDoctorId(existingDoctors),
+      await doctorService.addDoctor({
         name: finalName,
-        specialty: formData.specialty.trim(),
-        class: formData.docClass,
+        specialization: formData.specialty.trim(),
         hospital: formData.hospital.trim(),
-        phone: trimmedPhone,
+        mobile: trimmedPhone,
         email: trimmedEmail,
-        createdAt: new Date().toISOString(),
-        lastVisit: '-'
-      };
+        territory: '',
+        address: '',
+      });
 
-      const updatedDoctors = [newDoctor, ...existingDoctors];
-      localStorage.setItem('crm_doctors', JSON.stringify(updatedDoctors));
-
-      // Log to Master CRM Activities using proper Interface
-      const managerName = getManagerName();
-      const existingActivities: CRMActivity[] = JSON.parse(localStorage.getItem('crm_activities') || '[]');
-      const newActivity: CRMActivity = {
-        id: `ACT-${Date.now()}`,
-        type: 'Doctor Added',
-        description: `Added new KOL profile: ${newDoctor.name} (${newDoctor.specialty})`,
-        date: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
-        user: managerName
-      };
-      localStorage.setItem('crm_activities', JSON.stringify([newActivity, ...existingActivities]));
-
-      // Reset & Reload
       setFormData({ name: '', specialty: '', docClass: 'Class A', hospital: '', phone: '', email: '' });
       setIsAddDrawerOpen(false);
-      loadData();
-    } catch (error) {
-      console.error("Failed to add doctor", error);
-      alert("Failed to add doctor profile.");
+      await loadData();
+    } catch (error: any) {
+      console.error('Failed to add doctor', error);
+      alert(error.message || 'Failed to add doctor profile.');
     }
   };
 

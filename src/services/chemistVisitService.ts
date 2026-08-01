@@ -16,6 +16,7 @@ export interface ChemistVisit {
   latitude?: string;
   longitude?: string;
   distanceVerified?: string;
+  nextFollowUp?: string;
 }
 
 let visitsCache: ChemistVisit[] = [];
@@ -53,6 +54,7 @@ export const chemistVisitService = {
           status: 'Completed',
           latitude: v.latitude ? String(v.latitude) : undefined,
           longitude: v.longitude ? String(v.longitude) : undefined,
+          nextFollowUp: v.nextFollowUpDate ? v.nextFollowUpDate.split('T')[0] : "",
         }));
         localStorage.setItem("chemist_visits", JSON.stringify(visitsCache));
       }
@@ -81,6 +83,7 @@ export const chemistVisitService = {
           status: 'Completed',
           latitude: v.latitude ? String(v.latitude) : undefined,
           longitude: v.longitude ? String(v.longitude) : undefined,
+          nextFollowUp: v.nextFollowUpDate ? v.nextFollowUpDate.split('T')[0] : "",
         }));
         localStorage.setItem("chemist_visits", JSON.stringify(visitsCache));
       }
@@ -99,6 +102,7 @@ export const chemistVisitService = {
       orderValue: visit.orderValue ? Number(visit.orderValue) : 0,
       latitude: visit.latitude ? Number(visit.latitude) : null,
       longitude: visit.longitude ? Number(visit.longitude) : null,
+      nextFollowUpDate: visit.nextFollowUp ? new Date(visit.nextFollowUp).toISOString() : null,
       visitDate: new Date().toISOString(),
     };
 

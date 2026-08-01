@@ -81,15 +81,7 @@ function mapToDb(w: any): any {
   };
 }
 
-// Load initial warehouses from localStorage on initialization as a fallback
-try {
-  const data = localStorage.getItem("warehouseRecords");
-  if (data) {
-    warehousesCache = JSON.parse(data);
-  }
-} catch (err) {
-  console.error("Failed to parse cached warehouses:", err);
-}
+
 
 export const warehouseService = {
   // Synchronous method for backward compatibility
@@ -103,10 +95,10 @@ export const warehouseService = {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/warehouses');
       if (response.success && Array.isArray(response.data)) {
         warehousesCache = response.data.map(mapToUi);
-        localStorage.setItem("warehouseRecords", JSON.stringify(warehousesCache));
       }
     } catch (err) {
-      console.error("Failed to fetch warehouses from backend, using cache:", err);
+      console.error("Failed to fetch warehouses from backend:", err);
+      throw err;
     }
     return warehousesCache;
   },
@@ -122,7 +114,6 @@ export const warehouseService = {
     }
     const created = mapToUi(response.data);
     warehousesCache = [created, ...warehousesCache];
-    localStorage.setItem("warehouseRecords", JSON.stringify(warehousesCache));
     return created;
   },
 
@@ -137,7 +128,6 @@ export const warehouseService = {
     }
     const updated = mapToUi(response.data);
     warehousesCache = warehousesCache.map(w => w.id === id ? updated : w);
-    localStorage.setItem("warehouseRecords", JSON.stringify(warehousesCache));
     return updated;
   },
 
@@ -147,13 +137,11 @@ export const warehouseService = {
     });
     if (response.success) {
       warehousesCache = warehousesCache.filter(w => w.id !== id);
-      localStorage.setItem("warehouseRecords", JSON.stringify(warehousesCache));
     }
     return response.success;
   },
 
   saveAll(records: WarehouseRecord[]): void {
     warehousesCache = records;
-    localStorage.setItem("warehouseRecords", JSON.stringify(records));
   }
 };

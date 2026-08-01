@@ -56,9 +56,9 @@ export default function CurrentStock() {
     const email = user?.email || '';
     return { role, code, name, email };
   }, []);
-
   useEffect(() => {
-    orderService.loadOrders().then(allOrders => {
+    const fetchData = async () => {
+      const allOrders = await orderService.loadOrders();
       const approvedStatuses = ['Approved', 'Partially Paid', 'Processing', 'Partially Fulfilled', 'Fulfilled'];
 
       const approvedOrders = allOrders.filter(o => {
@@ -106,8 +106,8 @@ export default function CurrentStock() {
         });
       });
 
-      // Merge with default inventory records if present
-      const defaultInventory = inventoryService.getAll();
+      // Merge with live backend inventory records if present
+      const defaultInventory = await inventoryService.loadInventory();
       defaultInventory.forEach(inv => {
         if (!stockMap.has(inv.productCode) && inv.availableQty > 0) {
           stockMap.set(inv.productCode, {
@@ -126,7 +126,9 @@ export default function CurrentStock() {
       });
       
       setRawInventory(Array.from(stockMap.values()));
-    });
+    };
+    
+    fetchData();
   }, [loggedInDistributorInfo]);
 
   const handleToggleRetailAvailability = (id: string) => {

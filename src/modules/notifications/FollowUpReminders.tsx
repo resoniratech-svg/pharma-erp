@@ -25,12 +25,7 @@
 // //   status: 'Pending' | 'Completed' | 'Overdue';
 // // }
 
-// // const mockData: FollowUpReminder[] = [
-// //   { id: '1', followUpId: 'FU-001', customerName: 'City Hospital', followUpType: 'Lead Nurturing', assignedTo: 'Rahul Sharma', dueDate: '25-Oct-2024', priority: 'High', reminderStatus: 'Sent', status: 'Pending' },
-// //   { id: '2', followUpId: 'FU-002', customerName: 'Dr. A.K. Singh', followUpType: 'Post-Visit Check', assignedTo: 'Amit Kumar', dueDate: '24-Oct-2024', priority: 'Medium', reminderStatus: 'Sent', status: 'Completed' },
-// //   { id: '3', followUpId: 'FU-003', customerName: 'Apollo Pharmacy', followUpType: 'Payment Collection', assignedTo: 'Sanjay Patel', dueDate: '20-Oct-2024', priority: 'High', reminderStatus: 'Sent', status: 'Overdue' },
-// //   { id: '4', followUpId: 'FU-004', customerName: 'Wellness Medicals', followUpType: 'Order Confirmation', assignedTo: 'Neha Gupta', dueDate: '26-Oct-2024', priority: 'Low', reminderStatus: 'Pending', status: 'Pending' },
-// // ];
+// // const mockData: any[] = [];
 
 // // export default function FollowUpReminders() {
 // //   const [search, setSearch] = useState('');
@@ -613,6 +608,7 @@ import {
   SummaryCard,
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
+import { followUpService } from '../../services/followUpService';
 
 interface FollowUpReminder {
   id: string;
@@ -634,6 +630,39 @@ export default function FollowUpReminders() {
   // 1. Load Data on Component Mount
   useEffect(() => {
     loadFollowUps();
+
+    // Also merge backend API follow-ups
+    followUpService.getAll().then((apiFollowUps) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const apiMapped: FollowUpReminder[] = apiFollowUps.map((f) => {
+        const d = new Date(f.followUpDate);
+        let computedStatus: FollowUpReminder['status'] = 'Pending';
+        if (!isNaN(d.getTime())) {
+          d.setHours(0, 0, 0, 0);
+          computedStatus = d < today ? 'Overdue' : f.status === 'COMPLETED' ? 'Completed' : 'Pending';
+        }
+        return {
+          id: `api-fu-${f.id}`,
+          followUpId: `FU-${String(f.id).padStart(4, '0')}`,
+          customerName: f.doctorId ? `Doctor #${f.doctorId}` : f.chemistId ? `Chemist #${f.chemistId}` : 'General',
+          followUpType: f.doctorId ? 'Doctor Follow-Up' : f.chemistId ? 'Chemist Follow-Up' : 'General Follow-Up',
+          assignedTo: `MR #${f.mrId}`,
+          dueDate: f.followUpDate,
+          priority: 'Medium' as const,
+          reminderStatus: 'Sent' as const,
+          status: computedStatus,
+        };
+      });
+
+      setFollowUps((prev) => {
+        // Merge: dedupe by id prefix to avoid duplicates on re-render
+        const existingIds = new Set(prev.map((p) => p.id));
+        const newOnes = apiMapped.filter((a) => !existingIds.has(a.id));
+        return [...newOnes, ...prev];
+      });
+    }).catch((err) => console.error('Failed to load backend follow-ups:', err));
   }, []);
 
 

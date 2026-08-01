@@ -29,7 +29,7 @@ export const distributorDispatchService = {
     return allOrders.filter((o: any) => o.status === 'Approved' || o.status === 'Pending' || o.status === 'Submitted');
   },
 
-  processDispatch(dispatchData: any, currentUser: any) {
+  async processDispatch(dispatchData: any, currentUser: any) {
     const {
       dispatchId,
       date,
@@ -52,6 +52,33 @@ export const distributorDispatchService = {
       orderData, // The raw order object passed from UI
       expectedDeliveryDate
     } = dispatchData;
+
+    try {
+      const { apiRequest } = await import('./apiClient');
+      await apiRequest('/dispatches', {
+        method: 'POST',
+        bodyData: {
+          dispatchId,
+          orderId: orderData?.id ? Number(orderData.id) : undefined,
+          warehouseId: 1, // default or lookup if possible
+          distributorId: distributorId ? Number(distributorId) : undefined,
+          transporterName: transporter,
+          vehicleNo: vehicleNumber,
+          driverName,
+          driverMobile,
+          lrNumber,
+          expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate).toISOString() : new Date().toISOString(),
+          remarks,
+          dispatchItems: products.map((p: any) => ({
+            productId: p.productId ? Number(p.productId) : 1,
+            batchId: p.batchId ? Number(p.batchId) : undefined,
+            quantity: Number(p.dispatchQty)
+          }))
+        }
+      });
+    } catch (e) {
+      console.warn("Backend API dispatch creation failed, falling back to local storage:", e);
+    }
 
     const newDispatch: any = {
       id: Date.now().toString(),

@@ -22,11 +22,7 @@
 //   status: 'Expired' | 'Near Expiry' | 'Safe';
 // }
 
-// const mockData: ExpiryAlert[] = [
-//   { id: '1', productName: 'Paracetamol 500mg', batchNo: 'B-1024', expiryDate: '15-Nov-2026', daysToExpiry: 12, stockQty: 500, status: 'Near Expiry' },
-//   { id: '2', productName: 'Azithromycin 250mg', batchNo: 'AZ-405', expiryDate: '01-Nov-2026', daysToExpiry: -2, stockQty: 150, status: 'Expired' },
-//   { id: '3', productName: 'Vitamin C Syrup', batchNo: 'VC-88', expiryDate: '30-Dec-2026', daysToExpiry: 57, stockQty: 1200, status: 'Safe' },
-// ];
+// const mockData: any[] = [];
 
 // export default function ExpiryAlerts() {
 //   const [search, setSearch] = useState('');
@@ -133,11 +129,7 @@ interface ExpiryAlert {
   status: 'Expired' | 'Near Expiry' | 'Safe';
 }
 
-const mockData: ExpiryAlert[] = [
-  { id: '1', productName: 'Paracetamol 500mg', batchNo: 'B-1024', warehouse: 'Main Warehouse', expiryDate: '15-Nov-2026', daysToExpiry: -2, stockQty: 150, status: 'Expired' },
-  { id: '2', productName: 'Azithromycin 250mg', batchNo: 'AZ-405', warehouse: 'Hyderabad Hub', expiryDate: '01-Nov-2026', daysToExpiry: 12, stockQty: 500, status: 'Near Expiry' },
-  { id: '3', productName: 'Vitamin C Syrup', batchNo: 'VC-88', warehouse: 'Main Warehouse', expiryDate: '30-Dec-2026', daysToExpiry: 57, stockQty: 1200, status: 'Safe' },
-];
+const mockData: any[] = [];
 
 export default function ExpiryAlerts() {
   const [search, setSearch] = useState('');

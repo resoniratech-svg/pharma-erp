@@ -1,28 +1,97 @@
-const STORAGE_KEY = "compositions";
+import { apiRequest } from './apiClient';
 
-const defaultCompositions = [
-  { id: '1', genericName: 'Amoxicillin Trihydrate', strength: '500mg', dosageForm: 'Capsule', therapeuticClass: 'Antibiotic', schedule: 'Schedule H', description: 'Broad-spectrum antibiotic used to treat bacterial infections.', associatedProducts: 12, status: 'Active', createdBy: 'Admin User', createdDate: '2026-06-01' },
-  { id: '2', genericName: 'Paracetamol', strength: '650mg', dosageForm: 'Tablet', therapeuticClass: 'Analgesic', schedule: 'OTC', description: 'Used for fever reduction and pain relief.', associatedProducts: 45, status: 'Active', createdBy: 'System', createdDate: '2026-05-15' },
-  { id: '3', genericName: 'Ibuprofen', strength: '400mg', dosageForm: 'Tablet', therapeuticClass: 'NSAID', schedule: 'OTC', description: 'Nonsteroidal anti-inflammatory drug used for reducing fever and treating pain.', associatedProducts: 28, status: 'Active', createdBy: 'Admin User', createdDate: '2026-04-20' },
-  { id: '4', genericName: 'Cetirizine Hydrochloride', strength: '10mg', dosageForm: 'Tablet', therapeuticClass: 'Antihistamine', schedule: 'Schedule H', description: 'Used to relieve allergy symptoms such as watery eyes, runny nose, itching eyes/nose, and sneezing.', associatedProducts: 8, status: 'Inactive', createdBy: 'Admin User', createdDate: '2025-12-05' },
-  { id: '5', genericName: 'Vitamin C (Ascorbic Acid)', strength: '1000mg', dosageForm: 'Tablet', therapeuticClass: 'Vitamin Supplement', schedule: 'OTC', description: 'Vitamin supplement for immune system support.', associatedProducts: 15, status: 'Active', createdBy: 'System', createdDate: '2026-06-10' },
-];
+export interface CompositionRecord {
+  id: string;
+  genericName: string;
+  strength: string;
+  dosageForm: string;
+  therapeuticClass: string;
+  schedule: string;
+  description: string;
+  associatedProducts: number;
+  status: 'Active' | 'Inactive';
+  createdBy: string;
+  createdDate: string;
+}
+
+function mapToUi(c: any): CompositionRecord {
+  return {
+    id: String(c.id),
+    genericName: c.genericName || '',
+    strength: c.strength || '',
+    dosageForm: c.dosageForm || '',
+    therapeuticClass: c.therapeuticClass || '',
+    schedule: c.schedule || '',
+    description: c.description || '',
+    associatedProducts: 0, // Will be populated when products are linked
+    status: c.status === 'Inactive' ? 'Inactive' : 'Active',
+    createdBy: c.createdBy || 'System',
+    createdDate: c.createdAt ? c.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
+  };
+}
 
 export const compositionService = {
-  getAll() {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (data) {
-      return JSON.parse(data);
+  async getAll(): Promise<CompositionRecord[]> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/compositions');
+      if (response.success && Array.isArray(response.data)) {
+        return response.data.map(mapToUi);
+      }
+      return [];
+    } catch (err) {
+      console.error('Failed to load compositions:', err);
+      return [];
     }
-    // Set default compositions if empty
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(defaultCompositions));
-    return defaultCompositions;
   },
 
-  saveAll(compositions: any[]) {
-    localStorage.setItem(
-      STORAGE_KEY,
-      JSON.stringify(compositions)
-    );
+  async add(record: Omit<CompositionRecord, 'id' | 'associatedProducts' | 'createdDate'>): Promise<CompositionRecord> {
+    const response = await apiRequest<{ success: boolean; data: any }>('/compositions', {
+      method: 'POST',
+      bodyData: {
+        genericName: record.genericName,
+        strength: record.strength,
+        dosageForm: record.dosageForm,
+        therapeuticClass: record.therapeuticClass,
+        schedule: record.schedule,
+        description: record.description,
+        status: record.status,
+        createdBy: record.createdBy,
+      },
+    });
+    if (!response.success || !response.data) {
+      throw new Error('Failed to create composition');
+    }
+    return mapToUi(response.data);
+  },
+
+  async update(id: string, record: Partial<CompositionRecord>): Promise<CompositionRecord> {
+    const response = await apiRequest<{ success: boolean; data: any }>(`/compositions/${id}`, {
+      method: 'PUT',
+      bodyData: {
+        genericName: record.genericName,
+        strength: record.strength,
+        dosageForm: record.dosageForm,
+        therapeuticClass: record.therapeuticClass,
+        schedule: record.schedule,
+        description: record.description,
+        status: record.status,
+      },
+    });
+    if (!response.success || !response.data) {
+      throw new Error('Failed to update composition');
+    }
+    return mapToUi(response.data);
+  },
+
+  async delete(id: string): Promise<boolean> {
+    const response = await apiRequest<{ success: boolean }>(`/compositions/${id}`, {
+      method: 'DELETE',
+    });
+    return response.success;
+  },
+
+  // Keep for backward compat - now async wrapper
+  saveAll(_compositions: any[]) {
+    // No-op: data is saved via add/update directly to DB
   },
 };

@@ -57,7 +57,7 @@ export const doctorVisitService = {
           productsDiscussed: v.productsDiscussed || "",
           samplesGiven: String(v.samplesGiven || 0),
           prescriptionPotential: 'Medium',
-          nextFollowUp: '',
+          nextFollowUp: v.nextFollowUpDate ? v.nextFollowUpDate.split('T')[0] : "",
           remarks: v.remarks || "",
           status: (v.status || "Completed") as any,
           latitude: v.latitude,
@@ -90,7 +90,7 @@ export const doctorVisitService = {
           productsDiscussed: v.productsDiscussed || "",
           samplesGiven: String(v.samplesGiven || 0),
           prescriptionPotential: 'Medium',
-          nextFollowUp: '',
+          nextFollowUp: v.nextFollowUpDate ? v.nextFollowUpDate.split('T')[0] : "",
           remarks: v.remarks || "",
           status: 'Completed',
           latitude: v.latitude ? String(v.latitude) : undefined,
@@ -113,6 +113,7 @@ export const doctorVisitService = {
       samplesGiven: visit.samplesGiven ? Number(visit.samplesGiven) : 0,
       latitude: visit.latitude ? Number(visit.latitude) : null,
       longitude: visit.longitude ? Number(visit.longitude) : null,
+      nextFollowUpDate: visit.nextFollowUp ? new Date(visit.nextFollowUp).toISOString() : null,
       visitDate: new Date().toISOString(),
     };
 

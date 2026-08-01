@@ -41,50 +41,10 @@ interface EWayBillData {
   distance: string;
 }
 
-// --- Mock Data ---
-const mockData: EWayBillData[] = [
-  {
-    id: '1', invoiceNo: 'INV/26/001', customerName: 'Apollo Pharmacy', 
-    ewbNumber: '123456789012', transporter: 'VRL Logistics', vehicleNo: 'MH-04-AB-1234',
-    generatedDate: '15-Oct-2026', validFrom: '15-Oct-2026', validTill: '17-Oct-2026',
-    transportStatus: 'In Transit', status: 'Active',
-    invoiceDate: '15-Oct-2026', gstin: '29ABCDE1234F1Z5', invoiceAmount: 50400,
-    transporterGstin: '27VRLDE5678G2H4', transportMode: 'Road',
-    sourceLocation: 'Mumbai, Maharashtra', destinationLocation: 'Pune, Maharashtra', distance: '150 km'
-  },
-  {
-    id: '2', invoiceNo: 'INV/26/002', customerName: 'MedPlus Store', 
-    ewbNumber: '-', transporter: 'Delhivery', vehicleNo: '-',
-    generatedDate: '-', validFrom: '-', validTill: '-',
-    transportStatus: 'Pending', status: 'Pending',
-    invoiceDate: '16-Oct-2026', gstin: '27XYZDE5678G2H4', invoiceAmount: 13440,
-    transporterGstin: '07DELHI9999P1Z1', transportMode: 'Road',
-    sourceLocation: 'Mumbai, Maharashtra', destinationLocation: 'Surat, Gujarat', distance: '280 km'
-  },
-  {
-    id: '3', invoiceNo: 'INV/26/000', customerName: 'Wellness Medicos', 
-    ewbNumber: '987654321098', transporter: 'Gati Express', vehicleNo: 'DL-01-XY-9876',
-    generatedDate: '10-Oct-2026', validFrom: '10-Oct-2026', validTill: '12-Oct-2026',
-    transportStatus: 'Not Dispatched', status: 'Expired',
-    invoiceDate: '10-Oct-2026', gstin: '07DELHI9999P1Z1', invoiceAmount: 9520,
-    transporterGstin: '27GATI1234H1Z5', transportMode: 'Road',
-    sourceLocation: 'Mumbai, Maharashtra', destinationLocation: 'Delhi', distance: '1400 km'
-  },
-  {
-    id: '4', invoiceNo: 'INV/26/004', customerName: 'City Hospital', 
-    ewbNumber: '-', transporter: 'Blue Dart', vehicleNo: '-',
-    generatedDate: '-', validFrom: '-', validTill: '-',
-    transportStatus: 'Pending', status: 'Failed',
-    invoiceDate: '17-Oct-2026', gstin: '27CITYH5678G2H4', invoiceAmount: 45000,
-    transporterGstin: '27BLUE1234H1Z5', transportMode: 'Air',
-    sourceLocation: 'Mumbai, Maharashtra', destinationLocation: 'Bangalore, Karnataka', distance: '980 km'
-  }
-];
-
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function EWayBill() {
-  const [data, setData] = useState<EWayBillData[]>(mockData);
+  const [data, setData] = useState<EWayBillData[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [transportStatusFilter, setTransportStatusFilter] = useState('');

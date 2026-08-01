@@ -111,6 +111,21 @@ class PermissionService {
   }
 
   /**
+   * Save permissions to backend
+   */
+  public async savePermissionsToBackend(companyId: number, role: string, featureIds: number[]): Promise<void> {
+    try {
+      const { apiRequest } = await import('./apiClient');
+      await apiRequest('/role-permission/assign', {
+        method: 'POST',
+        bodyData: { companyId, role, featureIds }
+      });
+    } catch (error) {
+      console.error(`[PermissionService] Failed to save permissions to backend`, error);
+    }
+  }
+
+  /**
    * Gets the permissions for a specific module.
    * Uses memory cache if active, otherwise reads directly from source for backwards compatibility.
    */

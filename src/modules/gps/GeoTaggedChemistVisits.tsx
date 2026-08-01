@@ -26,12 +26,7 @@
 //   status: 'Verified' | 'Pending' | 'Rejected';
 // }
 
-// const mockData: GeoChemistVisit[] = [
-//   { id: '1', visitId: 'VC-2024-001', chemistName: 'Apollo Pharmacy', mrName: 'Rahul Sharma', territory: 'South Mumbai', visitTime: '10:45 AM', latitude: '18.9221° N', longitude: '72.8278° E', distanceVerified: 'Yes (< 20m)', status: 'Verified' },
-//   { id: '2', visitId: 'VC-2024-002', chemistName: 'Wellness Medical', mrName: 'Amit Kumar', territory: 'Andheri West', visitTime: '12:15 PM', latitude: '19.1130° N', longitude: '72.8690° E', distanceVerified: 'No (> 300m)', status: 'Rejected' },
-//   { id: '3', visitId: 'VC-2024-003', chemistName: 'Care Chemists', mrName: 'Rahul Sharma', territory: 'South Mumbai', visitTime: '01:30 PM', latitude: '18.9320° N', longitude: '72.8260° E', distanceVerified: 'Yes (< 40m)', status: 'Pending' },
-//   { id: '4', visitId: 'VC-2024-004', chemistName: 'City Medicos', mrName: 'Sanjay Patel', territory: 'Thane', visitTime: '10:30 AM', latitude: '19.2180° N', longitude: '72.9780° E', distanceVerified: 'Yes (< 15m)', status: 'Verified' },
-// ];
+// const mockData: any[] = [];
 
 // export default function GeoTaggedChemistVisits() {
 //   const [search, setSearch] = useState('');

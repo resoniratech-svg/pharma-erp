@@ -65,52 +65,9 @@ const getFormattedDate = () => {
   return `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, '0')}${String(d.getDate()).padStart(2, '0')}`;
 };
 
-// --- Mock Data ---
-const mockData: PartyRecord[] = [
-  {
-    id: 'apollo',
-    partyName: 'Apollo Pharmacy',
-    partyType: 'Customer',
-    creditDays: 30,
-    lastPaymentDate: '2026-10-18',
-    invoices: [
-      { id: 'INV-001', invoiceNo: 'INV/26/001', date: '2026-05-01', dueDate: '2026-06-01', amount: 50400, paidAmount: 5400 },
-      { id: 'INV-002', invoiceNo: 'INV/26/045', date: '2026-09-25', dueDate: '2026-10-25', amount: 50000, paidAmount: 0 },
-    ]
-  },
-  {
-    id: 'sun',
-    partyName: 'Sun Pharma',
-    partyType: 'Supplier',
-    creditDays: 60,
-    lastPaymentDate: '2026-09-10',
-    invoices: [
-      { id: 'PUR-001', invoiceNo: 'PUR/26/001', date: '2026-06-01', dueDate: '2026-07-31', amount: 150000, paidAmount: 0 },
-      { id: 'PUR-002', invoiceNo: 'PUR/26/089', date: '2026-08-05', dueDate: '2026-10-04', amount: 350000, paidAmount: 300000 },
-    ]
-  },
-  {
-    id: 'metro',
-    partyName: 'Metro Distributors',
-    partyType: 'Distributor',
-    creditDays: 45,
-    lastPaymentDate: '2026-10-28',
-    invoices: [
-      { id: 'INV-101', invoiceNo: 'INV/26/101', date: '2026-10-20', dueDate: '2026-12-04', amount: 32000, paidAmount: 0 },
-    ]
-  },
-  {
-    id: 'wellness',
-    partyName: 'Wellness Medicos',
-    partyType: 'Customer',
-    creditDays: 30,
-    lastPaymentDate: '-',
-    invoices: [
-      { id: 'INV-050', invoiceNo: 'INV/26/050', date: '2026-04-10', dueDate: '2026-05-10', amount: 85000, paidAmount: 0 },
-    ]
-  }
-];
+import { financeService } from '../../services/financeService';
 
+// (Mock data removed in favor of financeService)
 export default function AgingReports() {
   const navigate = useNavigate();
 
@@ -125,6 +82,9 @@ export default function AgingReports() {
 
   const [selectedParty, setSelectedParty] = useState<ComputedAgingRow | null>(null);
 
+  const [agingData, setAgingData] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
@@ -132,6 +92,21 @@ export default function AgingReports() {
       }
     };
     document.addEventListener('mousedown', handleClickOutside);
+    
+    // Fetch Data
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const data = await financeService.getAgingData();
+        setAgingData(data);
+      } catch(err) {
+        console.error('Failed to load aging data', err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+    
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
@@ -139,7 +114,7 @@ export default function AgingReports() {
   const today = new Date();
   
   const computedData: ComputedAgingRow[] = useMemo(() => {
-    return mockData.map(party => {
+    return agingData.map(party => {
       let currentAmt = 0;
       let days31_60 = 0;
       let days61_90 = 0;
@@ -183,7 +158,7 @@ export default function AgingReports() {
         status
       };
     });
-  }, [today]);
+  }, [today, agingData]);
 
   // --- Filtering ---
   const filteredData = useMemo(() => {
@@ -438,11 +413,15 @@ export default function AgingReports() {
       <div className="print:block print:w-full print:bg-white print:border-none">
         <TableCard>
           <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
-            <DataTable
-              columns={columns}
-              data={filteredData}
-              emptyMessage="No aging balances found."
-            />
+            {isLoading ? (
+              <div className="p-8 text-center text-slate-500">Loading aging data...</div>
+            ) : (
+              <DataTable
+                columns={columns}
+                data={filteredData}
+                emptyMessage="No aging balances found."
+              />
+            )}
           </div>
         </TableCard>
       </div>

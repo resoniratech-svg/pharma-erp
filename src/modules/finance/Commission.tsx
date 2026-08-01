@@ -45,40 +45,7 @@ interface CommissionEntry {
 }
 
 // --- Mock Data ---
-const mockData: CommissionEntry[] = [
-  {
-    id: '1', repCode: 'MR001', role: 'MR', repName: 'Rahul Verma', month: 'Oct 2026', 
-    salesAchieved: 845000, commissionRate: 2.5, commissionAmount: 21125, status: 'Calculated',
-    territory: 'Mumbai South', commissionFormula: 'Sales Achieved * 2.5%',
-    createdBy: 'System', createdDate: '2026-11-01 10:00 AM', lastUpdated: '2026-11-01 10:00 AM'
-  },
-  {
-    id: '2', repCode: 'AM002', role: 'Area Manager', repName: 'Amit Singh', month: 'Sep 2026', 
-    salesAchieved: 1200000, commissionRate: 3.0, commissionAmount: 36000, status: 'Paid',
-    territory: 'Pune East', commissionFormula: 'Sales Achieved * 3.0%',
-    approvedBy: 'Rohan Sharma', approvalDate: '2026-10-05 02:30 PM', paymentDate: '2026-10-07',
-    createdBy: 'System', createdDate: '2026-10-01 10:00 AM', lastUpdated: '2026-10-07 11:15 AM'
-  },
-  {
-    id: '3', repCode: 'RM003', role: 'Regional Manager', repName: 'Priya Desai', month: 'Oct 2026', 
-    salesAchieved: 1550000, commissionRate: 3.5, commissionAmount: 54250, status: 'Approved',
-    territory: 'Gujarat', commissionFormula: 'Sales Achieved * 3.5%',
-    createdBy: 'System', createdDate: '2026-11-01 10:00 AM', lastUpdated: '2026-11-02 09:45 AM'
-  },
-  {
-    id: '4', repCode: 'MR004', role: 'MR', repName: 'Sanjay Kumar', month: 'Sep 2026', 
-    salesAchieved: 450000, commissionRate: 2.0, commissionAmount: 9000, status: 'Approved',
-    territory: 'Navi Mumbai', commissionFormula: 'Sales Achieved * 2.0%',
-    approvedBy: 'Rohan Sharma', approvalDate: '2026-10-05 02:40 PM',
-    createdBy: 'System', createdDate: '2026-10-01 10:00 AM', lastUpdated: '2026-10-05 02:40 PM'
-  },
-  {
-    id: '5', repCode: 'DST001', role: 'Distributor', repName: 'Apex Distributors', month: 'Aug 2026', 
-    salesAchieved: 950000, commissionRate: 2.5, commissionAmount: 23750, status: 'Calculated',
-    territory: 'Ahmedabad', commissionFormula: 'Sales Achieved * 2.5%',
-    createdBy: 'System', createdDate: '2026-09-01 10:00 AM', lastUpdated: '2026-09-02 11:20 AM'
-  }
-];
+const mockData: any[] = [];
 
 // Reference Data for Dropdowns
 const roles = ['MR', 'Distributor', 'Stockist', 'Retailer', 'Sales Executive', 'Area Manager', 'Regional Manager'];

@@ -3,6 +3,7 @@ import { Download, Filter, PackageMinus, Eye, Trash2, FileText, Settings2, Chevr
 import * as XLSX from 'xlsx';
 import { jsPDF } from 'jspdf';
 import { applySalesReturnTemplate } from '../../documents/templates/SalesReturnTemplate';
+import { creditNoteService } from '../../services/creditNoteService';
 import {
   PageHeader,
   FilterBar,
@@ -59,53 +60,65 @@ interface ReturnEntry {
   products: ReturnProduct[];
 }
 
-const mockData: ReturnEntry[] = [
-  { 
-    id: '1', returnNo: 'SR-26-001', customerName: 'Apollo Pharmacy', customerType: 'Retailer', invoiceNo: 'INV/26/001', 
-    returnType: 'Damaged Transit', reason: 'Boxes crushed during delivery', remarks: 'Received via logistics partner', 
-    returnValue: 1500, gstReversal: 180, cnAmount: 1680, date: '15-Oct-2026', 
-    qcStatus: 'Passed', physicalCondition: 'Damaged packaging, strips intact', batchVerification: 'Matched', expiryVerification: 'Valid', qcRemarks: 'Approved for destruction', 
-    cnStatus: 'Generated', status: 'Approved', approvedBy: 'Admin', approvalRemarks: 'Processed for credit',
-    products: [{ id: 'p1', name: 'Paracetamol 500mg', batch: 'B001', soldQty: 100, returnQty: 10, unitPrice: 150 }]
-  },
-  { 
-    id: '2', returnNo: 'SR-26-002', customerName: 'MedPlus Store', customerType: 'Hospital', invoiceNo: 'INV/26/002', 
-    returnType: 'Order Cancelled', reason: 'Customer rejected delivery', remarks: 'Late delivery', 
-    returnValue: 4500, gstReversal: 540, cnAmount: 0, date: '16-Oct-2026', 
-    qcStatus: 'Pending QC', physicalCondition: 'Not checked', batchVerification: 'Pending', expiryVerification: 'Pending', qcRemarks: '', 
-    cnStatus: 'Not Generated', status: 'QC Pending', approvedBy: '', approvalRemarks: '',
-    products: [{ id: 'p2', name: 'Amoxicillin 250mg', batch: 'B002', soldQty: 50, returnQty: 50, unitPrice: 90 }]
-  },
-  { 
-    id: '3', returnNo: 'SR-26-003', customerName: 'City Clinic', customerType: 'Clinic', invoiceNo: 'INV/26/005', 
-    returnType: 'Wrong Item', reason: 'Dispatched 500mg instead of 250mg', remarks: 'Replace requested', 
-    returnValue: 1200, gstReversal: 144, cnAmount: 0, date: '18-Oct-2026', 
-    qcStatus: 'Pending QC', physicalCondition: '', batchVerification: '', expiryVerification: '', qcRemarks: '', 
-    cnStatus: 'Not Generated', status: 'Draft', approvedBy: '', approvalRemarks: '',
-    products: [{ id: 'p3', name: 'Ciprofloxacin 500mg', batch: 'B005', soldQty: 20, returnQty: 20, unitPrice: 60 }]
-  },
-  { 
-    id: '4', returnNo: 'SR-26-004', customerName: 'Wellness Medicos', customerType: 'Retailer', invoiceNo: 'INV/26/008', 
-    returnType: 'Expired Goods', reason: 'Near expiry items returned per policy', remarks: 'Authorized by Sales Rep', 
-    returnValue: 3400, gstReversal: 408, cnAmount: 3808, date: '19-Oct-2026', 
-    qcStatus: 'Passed', physicalCondition: 'Sealed', batchVerification: 'Matched', expiryVerification: 'Expired', qcRemarks: 'Send to expiry warehouse', 
-    cnStatus: 'Applied', status: 'Completed', approvedBy: 'Finance Manager', approvalRemarks: 'Credit adjusted against outstanding',
-    products: [{ id: 'p4', name: 'Azithromycin 500mg', batch: 'B008', soldQty: 200, returnQty: 50, unitPrice: 68 }]
-  },
-];
-
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export default function SalesReturns() {
-  const [data, setData] = useState<ReturnEntry[]>(mockData);
+  const [data, setData] = useState<ReturnEntry[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [qcFilter, setQcFilter] = useState('');
   const [cnFilter, setCnFilter] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
 
   // Export Menu State
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      setIsLoading(true);
+      try {
+        const cns = await creditNoteService.getCreditNotes();
+        const returnsData: ReturnEntry[] = cns.map((cn: any) => ({
+          id: cn.id,
+          returnNo: cn.cnNo || `RET-${cn.id}`,
+          customerName: cn.customerName || 'Unknown Customer',
+          customerType: cn.customerType || 'Retailer',
+          invoiceNo: cn.againstInvoiceNo || 'N/A',
+          returnType: cn.reason || 'Sales Return',
+          reason: cn.reason || 'Defective/Damaged',
+          remarks: cn.remarks || '',
+          returnValue: cn.totalAmount || 0,
+          gstReversal: cn.gstAmount || 0,
+          cnAmount: cn.totalAmount || 0,
+          date: cn.cnDate || new Date().toISOString().split('T')[0],
+          qcStatus: cn.status === 'PAID' ? 'Passed' : 'Pending QC',
+          physicalCondition: 'Good',
+          batchVerification: 'Matched Invoice',
+          expiryVerification: 'Valid',
+          qcRemarks: '',
+          cnStatus: cn.status === 'PAID' ? 'Generated' : 'Not Generated',
+          status: cn.status === 'PAID' ? 'Completed' : 'Draft',
+          approvedBy: 'System Admin',
+          approvalRemarks: '',
+          products: (cn.items || []).map((item: any) => ({
+             id: String(item.id || Math.random()),
+             name: item.product?.name || `Product ${item.productId}`,
+             batch: item.batch?.batchNumber || `Batch ${item.batchId}`,
+             soldQty: item.quantity || 1,
+             returnQty: item.quantity || 1,
+             unitPrice: item.rate || 0
+          }))
+        }));
+        setData(returnsData);
+      } catch (err) {
+        console.error("Failed to load sales returns:", err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -448,11 +461,15 @@ export default function SalesReturns() {
 
       <TableCard>
         <div className="[&>div::-webkit-scrollbar]:hidden [&>div]:[-ms-overflow-style:none] [&>div]:[scrollbar-width:none]">
-          <DataTable
-            columns={columns}
-            data={visibleData}
-            emptyMessage="No sales returns match the selected filters."
-          />
+          {isLoading ? (
+            <div className="p-8 text-center text-slate-500">Loading sales returns...</div>
+          ) : (
+            <DataTable
+              columns={columns}
+              data={visibleData}
+              emptyMessage="No sales returns match the selected filters."
+            />
+          )}
         </div>
       </TableCard>
 

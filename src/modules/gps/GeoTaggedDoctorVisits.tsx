@@ -27,12 +27,7 @@
 //   status: 'Verified' | 'Pending' | 'Rejected';
 // }
 
-// const mockData: GeoDocVisit[] = [
-//   { id: '1', visitId: 'VD-2024-001', doctorName: 'Dr. A.K. Singh', mrName: 'Rahul Sharma', territory: 'South Mumbai', checkIn: '10:00 AM', checkOut: '10:30 AM', latitude: '18.9220° N', longitude: '72.8277° E', distanceVerified: 'Yes (< 50m)', status: 'Verified' },
-//   { id: '2', visitId: 'VD-2024-002', doctorName: 'Dr. Neha Gupta', mrName: 'Amit Kumar', territory: 'Andheri West', checkIn: '11:15 AM', checkOut: '11:45 AM', latitude: '19.1136° N', longitude: '72.8697° E', distanceVerified: 'No (> 500m)', status: 'Rejected' },
-//   { id: '3', visitId: 'VD-2024-003', doctorName: 'Dr. Verma', mrName: 'Rahul Sharma', territory: 'South Mumbai', checkIn: '12:00 PM', checkOut: '-', latitude: '18.9322° N', longitude: '72.8264° E', distanceVerified: 'Yes (< 50m)', status: 'Pending' },
-//   { id: '4', visitId: 'VD-2024-004', doctorName: 'Dr. Batra', mrName: 'Sanjay Patel', territory: 'Thane', checkIn: '09:30 AM', checkOut: '09:45 AM', latitude: '19.2183° N', longitude: '72.9781° E', distanceVerified: 'Yes (< 50m)', status: 'Verified' },
-// ];
+// const mockData: any[] = [];
 
 // export default function GeoTaggedDoctorVisits() {
 //   const [search, setSearch] = useState('');

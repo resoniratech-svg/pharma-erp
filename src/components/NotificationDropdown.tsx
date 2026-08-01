@@ -32,6 +32,7 @@ export default function NotificationDropdown() {
     };
 
     loadNotifications();
+    NotificationService.loadNotificationsFromApi();
 
     window.addEventListener('notifications-updated', loadNotifications);
     return () => window.removeEventListener('notifications-updated', loadNotifications);

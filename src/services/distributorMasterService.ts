@@ -10,121 +10,107 @@ export interface DistributorMasterRecord {
   status: 'Active' | 'Inactive';
   createdDate: string;
   state?: string;
-  password?: string;
 }
 
-const STORAGE_KEY = 'pharma_erp_distributor_master';
+function mapToUi(d: any): DistributorMasterRecord {
+  return {
+    id: String(d.id),
+    code: d.code || `DIST-${String(d.id).padStart(3, '0')}`,
+    name: d.name,
+    contactPerson: d.contactPerson || d.name,
+    mobileNumber: d.mobile || d.mobileNumber || '-',
+    emailAddress: d.emailAddress || d.email || '',
+    state: d.state || '',
+    status: d.status === 'Inactive' ? 'Inactive' : 'Active',
+    createdDate: d.createdAt
+      ? new Date(d.createdAt).toISOString().split('T')[0]
+      : new Date().toISOString().split('T')[0],
+  };
+}
+
+// In-memory cache so synchronous getAll() still works
+let cache: DistributorMasterRecord[] = [];
 
 export const distributorMasterService = {
+  // Synchronous getter — returns in-memory cache (populated by load())
   getAll(): DistributorMasterRecord[] {
-    const data = localStorage.getItem(STORAGE_KEY);
-    return data ? JSON.parse(data) : [];
+    return cache;
   },
 
-  async fetchFromApi(): Promise<DistributorMasterRecord[]> {
+  // Load from DB into cache — call this on page mount
+  async load(): Promise<DistributorMasterRecord[]> {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/distributors');
       if (response && response.success && Array.isArray(response.data)) {
-        const mapped: DistributorMasterRecord[] = response.data.map(d => ({
-          id: String(d.id),
-          code: d.code || `DIST-${String(d.id).padStart(3, '0')}`,
-          name: d.name,
-          contactPerson: d.contactPerson || d.name,
-          mobileNumber: d.mobile || d.mobileNumber || '-',
-          emailAddress: d.emailAddress || d.email || '',
-          password: d.password || d.pass || '',
-          state: d.state || '',
-          status: d.status === 'Inactive' ? 'Inactive' : 'Active',
-          createdDate: d.createdAt ? new Date(d.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
-        }));
-        
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
-        return mapped;
+        cache = response.data.map(mapToUi);
       }
     } catch (err) {
-      console.warn("Failed to fetch distributors from API, using fallback:", err);
+      console.error('Failed to fetch distributors from API:', err);
     }
-    return this.getAll();
+    return cache;
+  },
+
+  // Alias used in some places
+  async fetchFromApi(): Promise<DistributorMasterRecord[]> {
+    return this.load();
   },
 
   getById(id: string): DistributorMasterRecord | undefined {
-    return this.getAll().find(d => d.id === id);
+    return cache.find((d) => d.id === id);
   },
 
-  generateCode(): string {
-    const records = this.getAll();
-    if (records.length === 0) return 'DIST-001';
-    
-    let maxNumber = 0;
-    for (const r of records) {
-      if (r.code && (r.code.startsWith('DIST-') || r.code.startsWith('DSP'))) {
-        const numStr = r.code.replace('DIST-', '').replace('DSP', '');
-        const num = parseInt(numStr, 10);
-        if (!isNaN(num) && num > maxNumber) {
-          maxNumber = num;
-        }
-      }
-    }
-    return `DIST-${String(maxNumber + 1).padStart(3, '0')}`;
-  },
-
-  create(record: Omit<DistributorMasterRecord, 'id' | 'code' | 'createdDate'>, password?: string): DistributorMasterRecord {
-    const records = this.getAll();
-    const generatedCode = this.generateCode();
-
-    const newRecord: DistributorMasterRecord = {
-      ...record,
-      password: password || record.password || '',
-      id: Date.now().toString(),
-      code: generatedCode,
-      createdDate: new Date().toISOString().split('T')[0]
-    };
-    
-    records.unshift(newRecord);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-
-    // Asynchronously send to PostgreSQL database via API
-    apiRequest('/distributors', {
+  async create(
+    record: Omit<DistributorMasterRecord, 'id' | 'code' | 'createdDate'>
+  ): Promise<DistributorMasterRecord> {
+    const response = await apiRequest<{ success: boolean; data: any }>('/distributors', {
       method: 'POST',
       bodyData: {
-        code: generatedCode,
         name: record.name,
         contactPerson: record.contactPerson,
-        mobileNumber: record.mobileNumber,
+        mobile: record.mobileNumber,
         emailAddress: record.emailAddress,
         state: record.state,
-        status: record.status
-      }
-    }).catch(err => {
-      console.warn("Backend API sync warning for distributor:", newRecord.name, err.message);
+        status: record.status,
+      },
     });
-
-    return newRecord;
+    if (!response.success || !response.data) {
+      throw new Error('Failed to create distributor');
+    }
+    const created = mapToUi(response.data);
+    cache = [created, ...cache];
+    return created;
   },
 
-  async update(id: string, updates: Partial<DistributorMasterRecord>): Promise<DistributorMasterRecord | null> {
-    const records = this.getAll();
-    const index = records.findIndex(r => r.id === id || r.code === id);
-    if (index !== -1) {
-      records[index] = { ...records[index], ...updates };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
-    }
-
+  async update(
+    id: string,
+    updates: Partial<DistributorMasterRecord>
+  ): Promise<DistributorMasterRecord | null> {
     const numId = parseInt(id, 10);
-    if (!isNaN(numId)) {
-      try {
-        await apiRequest(`/distributors/${numId}`, {
-          method: 'PUT',
-          bodyData: updates
-        });
-      } catch (err: any) {
-        console.warn("Backend API sync warning:", err.message);
+    if (isNaN(numId)) return null;
+    try {
+      const response = await apiRequest<{ success: boolean; data: any }>(`/distributors/${numId}`, {
+        method: 'PUT',
+        bodyData: {
+          name: updates.name,
+          contactPerson: updates.contactPerson,
+          mobile: updates.mobileNumber,
+          emailAddress: updates.emailAddress,
+          state: updates.state,
+          status: updates.status,
+        },
+      });
+      if (response.success && response.data) {
+        const updated = mapToUi(response.data);
+        cache = cache.map((d) => (d.id === id ? updated : d));
+        return updated;
       }
+    } catch (err: any) {
+      console.error('Failed to update distributor:', err.message);
     }
-    return index !== -1 ? records[index] : null;
+    return null;
   },
 
   updateStatus(id: string, status: 'Active' | 'Inactive'): void {
     this.update(id, { status });
-  }
+  },
 };

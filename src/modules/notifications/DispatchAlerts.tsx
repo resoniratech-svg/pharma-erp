@@ -21,11 +21,7 @@
 //   status: 'Delayed' | 'Out for Delivery' | 'Exception';
 // }
 
-// const mockData: DispatchAlert[] = [
-//   { id: '1', challanNo: 'CHL/26/105', distributor: 'Global Health Agencies', expectedDelivery: '02-Nov-2026', delay: '2 Days', status: 'Delayed' },
-//   { id: '2', challanNo: 'CHL/26/108', distributor: 'Metro Distributors', expectedDelivery: '03-Nov-2026', delay: '-', status: 'Out for Delivery' },
-//   { id: '3', challanNo: 'CHL/26/110', distributor: 'Carewell Pharma', expectedDelivery: '01-Nov-2026', delay: 'Transit Damage', status: 'Exception' },
-// ];
+// const mockData: any[] = [];
 
 // export default function DispatchAlerts() {
 //   const [search, setSearch] = useState('');
@@ -130,11 +126,7 @@ interface DispatchAlert {
   status: 'Delayed' | 'Out for Delivery' | 'Exception';
 }
 
-const mockData: DispatchAlert[] = [
-  { id: '1', challanNo: 'CHL/26/105', distributor: 'Global Health Agencies', expectedDelivery: '02-Nov-2026', delay: '2 Days', status: 'Delayed' },
-  { id: '2', challanNo: 'CHL/26/108', distributor: 'Metro Distributors', expectedDelivery: '03-Nov-2026', delay: '-', status: 'Out for Delivery' },
-  { id: '3', challanNo: 'CHL/26/110', distributor: 'Carewell Pharma', expectedDelivery: '01-Nov-2026', delay: 'Transit Damage', status: 'Exception' },
-];
+const mockData: any[] = [];
 
 export default function DispatchAlerts() {
   const [search, setSearch] = useState('');

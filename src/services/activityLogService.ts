@@ -45,7 +45,7 @@ export class ActivityLogService {
     return this.getLogs();
   }
 
-  addLog(log: {
+  async addLog(log: {
     userId?: string;
     userName?: string;
     action: string;
@@ -67,6 +67,22 @@ export class ActivityLogService {
       STORAGE_KEY,
       JSON.stringify(logs)
     );
+
+    try {
+      await apiRequest('/activity-logs', {
+        method: 'POST',
+        bodyData: {
+          action: log.action,
+          module: log.module,
+          userId: log.userId ? parseInt(log.userId, 10) : undefined,
+          userName: log.userName,
+          status: log.status || 'Success',
+          details: log.action
+        }
+      });
+    } catch (e) {
+      console.warn("Failed to sync activity log to backend", e);
+    }
   }
 
   clearLogs() {

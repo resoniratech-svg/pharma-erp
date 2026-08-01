@@ -233,12 +233,29 @@ export default function RouteHistory() {
   const [routeData, setRouteData] = useState<RouteWaypoint[]>([]);
   const [hasLoaded, setHasLoaded] = useState(false);
 
-  const handleLoadRoute = () => {
+  const handleLoadRoute = async () => {
+    setHasLoaded(false);
     const targetDate = new Date();
     if (date === 'yesterday') {
         targetDate.setDate(targetDate.getDate() - 1);
     }
     const targetDateStr = targetDate.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+    const isoDateStr = targetDate.toISOString().split('T')[0];
+
+    try {
+      const { trackingService } = await import('../../services/trackingService');
+      // For demo, we are searching for a specific MR, but if search is empty we might pass a generic 'all' or fallback.
+      // Since backend requires mrId, we might just use search string as mrId for now, or fallback to mock if API fails.
+      const waypoints = await trackingService.getRouteHistory(search || '1', isoDateStr);
+      
+      if (waypoints && waypoints.length > 0) {
+        setRouteData(waypoints.sort((a: RouteWaypoint, b: RouteWaypoint) => a.timestamp - b.timestamp));
+        setHasLoaded(true);
+        return;
+      }
+    } catch(e) {
+      console.warn("API failed, falling back to local storage", e);
+    }
 
     const waypoints: RouteWaypoint[] = [];
 

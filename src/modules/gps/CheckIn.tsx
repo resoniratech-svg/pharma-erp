@@ -208,7 +208,7 @@ export default function CheckIn() {
       try {
         const rawMrId = localStorage.getItem('mrId');
         if (!rawMrId) {
-          setRecords([]);
+          console.warn("No MR ID found for current user. Attendance cannot be loaded.");
           return;
         }
         const mrId = Number(rawMrId);
@@ -256,7 +256,7 @@ export default function CheckIn() {
     try {
       const rawMrId = localStorage.getItem('mrId');
       if (!rawMrId) {
-        alert('Your Medical Representative profile is not properly configured. Check-in is not allowed.');
+        alert('Your account is not linked to an MR profile. Please create an MR profile first.');
         return;
       }
       const mrId = Number(rawMrId);

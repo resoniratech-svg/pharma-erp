@@ -20,11 +20,7 @@
 //   status: 'Critical' | 'Low Stock';
 // }
 
-// const mockData: ReorderAlert[] = [
-//   { id: '1', productName: 'Amoxicillin 250mg', currentStock: 150, reorderLevel: 500, supplier: 'Sun Pharma', status: 'Critical' },
-//   { id: '2', productName: 'Cetirizine 10mg', currentStock: 450, reorderLevel: 600, supplier: 'Cipla Ltd.', status: 'Low Stock' },
-//   { id: '3', productName: 'Ibuprofen 400mg', currentStock: 200, reorderLevel: 300, supplier: 'Abbott Healthcare', status: 'Low Stock' },
-// ];
+// const mockData: any[] = [];
 
 // export default function ReorderAlerts() {
 //   const [search, setSearch] = useState('');
@@ -114,11 +110,7 @@ interface ReorderAlert {
   status: 'Critical' | 'Low Stock';
 }
 
-const mockData: ReorderAlert[] = [
-  { id: '1', productName: 'Amoxicillin 250mg', currentStock: 150, reorderLevel: 500, supplier: 'Sun Pharma', status: 'Critical' },
-  { id: '2', productName: 'Cetirizine 10mg', currentStock: 450, reorderLevel: 600, supplier: 'Cipla Ltd.', status: 'Low Stock' },
-  { id: '3', productName: 'Ibuprofen 400mg', currentStock: 200, reorderLevel: 300, supplier: 'Abbott Healthcare', status: 'Low Stock' },
-];
+const mockData: any[] = [];
 
 export default function ReorderAlerts() {
   const [search, setSearch] = useState('');

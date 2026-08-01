@@ -19,12 +19,7 @@
 //   type: 'Info' | 'Warning' | 'Critical';
 // }
 
-// const mockData: NotificationLog[] = [
-//   { id: '1', timestamp: 'Today, 10:30 AM', message: 'New order received from Apollo Pharmacy', module: 'Sales', type: 'Info' },
-//   { id: '2', timestamp: 'Today, 09:15 AM', message: 'System Backup completed successfully', module: 'System', type: 'Info' },
-//   { id: '3', timestamp: 'Yesterday, 04:00 PM', message: 'E-Way Bill Generation Failed for CHL-099', module: 'Billing', type: 'Critical' },
-//   { id: '4', timestamp: 'Yesterday, 02:20 PM', message: 'GST Filing Deadline approaching in 5 days', module: 'Finance', type: 'Warning' },
-// ];
+// const mockData: any[] = [];
 
 // export default function ActivityNotifications() {
 //   const [search, setSearch] = useState('');
@@ -112,12 +107,7 @@ interface NotificationLog {
   status: 'Unread' | 'Read'; 
 }
 
-const mockData: NotificationLog[] = [
-  { id: '1', timestamp: 'Today, 10:30 AM', message: 'New order received from Apollo Pharmacy', module: 'Sales', type: 'Info', status: 'Unread' },
-  { id: '2', timestamp: 'Today, 09:15 AM', message: 'System Backup completed successfully', module: 'System', type: 'Info', status: 'Read' },
-  { id: '3', timestamp: 'Yesterday, 04:00 PM', message: 'E-Way Bill Generation Failed for CHL-099', module: 'Billing', type: 'Critical', status: 'Unread' },
-  { id: '4', timestamp: 'Yesterday, 02:20 PM', message: 'GST Filing Deadline approaching in 5 days', module: 'Finance', type: 'Warning', status: 'Read' },
-];
+const mockData: any[] = [];
 
 export default function ActivityNotifications() {
   const [search, setSearch] = useState('');

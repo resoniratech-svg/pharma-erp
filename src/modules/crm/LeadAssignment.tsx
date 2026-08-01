@@ -25,12 +25,7 @@
 //   priority: 'High' | 'Medium' | 'Low';
 // }
 
-// const mockData: LeadAssign[] = [
-//   { id: '1', leadId: 'LD-1001', leadName: 'City Hospital', leadSource: 'Website', territory: 'South Mumbai', assignedTo: 'Rahul Sharma', assignedDate: '24-Oct-2024', status: 'Assigned', priority: 'High' },
-//   { id: '2', leadId: 'LD-1002', leadName: 'Dr. A.K. Singh', leadSource: 'Referral', territory: 'Andheri West', assignedTo: 'Unassigned', assignedDate: '-', status: 'New', priority: 'Medium' },
-//   { id: '3', leadId: 'LD-1003', leadName: 'Apollo Pharmacy', leadSource: 'Campaign', territory: 'South Mumbai', assignedTo: 'Amit Kumar', assignedDate: '22-Oct-2024', status: 'Contacted', priority: 'High' },
-//   { id: '4', leadId: 'LD-1004', leadName: 'Wellness Medicals', leadSource: 'Direct', territory: 'Thane', assignedTo: 'Sanjay Patel', assignedDate: '20-Oct-2024', status: 'Qualified', priority: 'Low' },
-// ];
+// const mockData: any[] = [];
 
 // export default function LeadAssignment() {
 //   const [search, setSearch] = useState('');

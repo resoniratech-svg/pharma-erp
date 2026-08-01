@@ -21,12 +21,7 @@
 //   status: 'Active' | 'Won' | 'Lost';
 // }
 
-// const mockData: LeadPipeline[] = [
-//   { id: '1', leadId: 'LD-1001', leadName: 'City Hospital', currentStage: 'Proposal Sent', assignedTo: 'Rahul Sharma', lastActivity: '2 hours ago', probability: '80%', status: 'Active' },
-//   { id: '2', leadId: 'LD-1002', leadName: 'Dr. A.K. Singh', currentStage: 'New Lead', assignedTo: 'Unassigned', lastActivity: '1 day ago', probability: '10%', status: 'Active' },
-//   { id: '3', leadId: 'LD-1003', leadName: 'Apollo Pharmacy', currentStage: 'Converted', assignedTo: 'Amit Kumar', lastActivity: '12-Oct-2024', probability: '100%', status: 'Won' },
-//   { id: '4', leadId: 'LD-1004', leadName: 'Wellness Medicals', currentStage: 'Lost', assignedTo: 'Sanjay Patel', lastActivity: '10-Oct-2024', probability: '0%', status: 'Lost' },
-// ];
+// const mockData: any[] = [];
 
 // const stages = ['New Lead', 'Contacted', 'Qualified', 'Proposal Sent', 'Negotiation', 'Converted', 'Lost'];
 

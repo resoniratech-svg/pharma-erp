@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Download, Filter } from 'lucide-react';
 import {
   PageHeader,
@@ -11,43 +11,46 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './components/shared';
-
-interface Distributor {
-  id: string;
-  name: string;
-  region: string;
-  contact: string;
-  creditLimit: string;
-  status: 'Active' | 'Inactive' | 'On Hold';
-}
-
-const mockData: Distributor[] = [
-  { id: '1', name: 'Metro Pharma Distributors', region: 'North Zone', contact: '+91 9876543210', creditLimit: '₹ 15,00,000', status: 'Active' },
-  { id: '2', name: 'Global Health Supply', region: 'South Zone', contact: '+91 9876543211', creditLimit: '₹ 8,50,000', status: 'Active' },
-  { id: '3', name: 'Carewell Agencies', region: 'East Zone', contact: '+91 9876543212', creditLimit: '₹ 5,00,000', status: 'On Hold' },
-];
+import { distributorMasterService, type DistributorMasterRecord } from '../../services/distributorMasterService';
 
 export default function DistributorList() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [distributors, setDistributors] = useState<DistributorMasterRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const columns: Column<Distributor>[] = [
+  useEffect(() => {
+    distributorMasterService.load().then((data) => {
+      setDistributors(data);
+    }).catch((err) => {
+      console.error('Failed to load distributors:', err);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const columns: Column<DistributorMasterRecord>[] = [
+    {
+      key: 'code',
+      label: 'Distributor Code',
+      render: (row) => <span className="font-mono text-xs text-slate-500">{row.code}</span>,
+    },
     { key: 'name', label: 'Distributor Name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
-    { key: 'region', label: 'Region' },
-    { key: 'contact', label: 'Contact' },
-    { key: 'creditLimit', label: 'Credit Limit', render: (row) => <span className="font-medium text-slate-800">{row.creditLimit}</span> },
+    { key: 'contactPerson', label: 'Contact Person' },
+    { key: 'mobileNumber', label: 'Mobile' },
+    { key: 'state', label: 'State', render: (row) => <span className="text-slate-600">{row.state || '—'}</span> },
     {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        const variant = row.status === 'Active' ? 'success' : row.status === 'On Hold' ? 'warning' : 'danger';
+        const variant = row.status === 'Active' ? 'success' : 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
   ];
 
-  const filteredData = mockData.filter((item) => {
-    const matchSearch = item.name.toLowerCase().includes(search.toLowerCase());
+  const filteredData = distributors.filter((item) => {
+    const matchSearch =
+      item.name.toLowerCase().includes(search.toLowerCase()) ||
+      item.code.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   });
@@ -66,7 +69,7 @@ export default function DistributorList() {
       />
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search distributor name..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search distributor name or code..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
@@ -77,7 +80,6 @@ export default function DistributorList() {
           onChange={setStatusFilter}
           options={[
             { label: 'Active', value: 'Active' },
-            { label: 'On Hold', value: 'On Hold' },
             { label: 'Inactive', value: 'Inactive' },
           ]}
           placeholder="All Status"
@@ -85,11 +87,15 @@ export default function DistributorList() {
       </FilterBar>
 
       <TableCard>
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          emptyMessage="No distributors found."
-        />
+        {loading ? (
+          <div className="text-center py-12 text-slate-400">Loading distributors...</div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            emptyMessage="No distributors found. Add a distributor to get started."
+          />
+        )}
       </TableCard>
     </div>
   );

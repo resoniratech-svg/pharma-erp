@@ -25,12 +25,7 @@
 //   status: 'Upcoming' | 'Completed' | 'Missed';
 // }
 
-// const mockData: MeetingReminder[] = [
-//   { id: '1', meetingId: 'MTG-001', meetingTitle: 'Product Launch Update', participant: 'Dr. A.K. Singh', meetingType: 'Doctor Meeting', date: '25-Oct-2024', time: '10:00 AM', reminderStatus: 'Sent', status: 'Upcoming' },
-//   { id: '2', meetingId: 'MTG-002', meetingTitle: 'Q3 Sales Review', participant: 'Regional Team', meetingType: 'Sales Meeting', date: '25-Oct-2024', time: '02:00 PM', reminderStatus: 'Pending', status: 'Upcoming' },
-//   { id: '3', meetingId: 'MTG-003', meetingTitle: 'Distributor Contract', participant: 'Apollo Pharmacy', meetingType: 'Distributor Meeting', date: '24-Oct-2024', time: '11:00 AM', reminderStatus: 'Sent', status: 'Completed' },
-//   { id: '4', meetingId: 'MTG-004', meetingTitle: 'Weekly Check-in', participant: 'Rahul Sharma', meetingType: 'Internal', date: '23-Oct-2024', time: '04:00 PM', reminderStatus: 'Sent', status: 'Missed' },
-// ];
+// const mockData: any[] = [];
 
 // export default function MeetingReminders() {
 //   const [search, setSearch] = useState('');
@@ -270,15 +265,13 @@ export default function MeetingReminders() {
   const [viewMeeting, setViewMeeting] = useState<MeetingReminder | null>(null);
   const [editMeeting, setEditMeeting] = useState<MeetingReminder | null>(null);
 
-  // ✅ 3. Clean, combined useEffect
   useEffect(() => {
     loadMeetings();
     const interval = setInterval(loadMeetings, 10000);
     return () => clearInterval(interval);
   }, []);
 
-  // ✅ 4. Unified loading function that fetches both!
-  const loadMeetings = () => {
+  const loadMeetings = async () => {
     let allMeetings: MeetingReminder[] = [];
 
     try {
@@ -286,9 +279,10 @@ export default function MeetingReminders() {
       const storedCRM = JSON.parse(localStorage.getItem('crm_meetings') || '[]');
       const crmWithSource = storedCRM.map((m: any) => ({ ...m, source: 'CRM' }));
 
-      // Fetch MR Meetings & tag them
-      const storedMR = JSON.parse(localStorage.getItem('@mr_meetings') || '[]');
-      const mrWithSource = storedMR.map((m: any) => ({ ...m, source: 'MR' }));
+      // Fetch MR Meetings from backend
+      const mrId = Number(localStorage.getItem('mrId') || '1');
+      const apiMeetings = await meetingService.loadMeetings(mrId);
+      const mrWithSource = apiMeetings.map((m: any) => ({ ...m, source: 'MR' }));
 
       allMeetings = [...crmWithSource, ...mrWithSource];
     } catch (e) {

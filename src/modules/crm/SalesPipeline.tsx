@@ -88,6 +88,7 @@ import {
   ActionButton,
   SummaryCard,
 } from './components/shared';
+import { leadService } from '../../services/leadService';
 
 export default function SalesPipeline() {
   const [metrics, setMetrics] = useState({
@@ -109,9 +110,9 @@ export default function SalesPipeline() {
     return () => clearInterval(interval);
   }, []);
 
-  const loadData = () => {
+  const loadData = async () => {
     try {
-      const storedLeads = JSON.parse(localStorage.getItem('crm_leads') || '[]');
+      const storedLeads = await leadService.getAll();
 
       let leadsCount = 0;
       let qualificationCount = 0;
@@ -130,16 +131,16 @@ export default function SalesPipeline() {
         const s = l.status || 'New';
         const val = getRawValue(l.revenue || l.dealValue || 0);
 
-        if (s === 'New' || s === 'Assigned' || s === 'Contacted') {
+        if (s === 'New' || s === 'Assigned' || s === 'Contacted' || s === 'NEW' || s === 'CONTACTED') {
           leadsCount++;
           totalWeightedValue += (val * 0.2); // 20% Probability
-        } else if (s === 'Qualified') {
+        } else if (s === 'Qualified' || s === 'QUALIFIED') {
           qualificationCount++;
           totalWeightedValue += (val * 0.6); // 60% Probability
-        } else if (s === 'Proposal Sent') {
+        } else if (s === 'Proposal Sent' || s === 'ASSIGNED') { // Mapping ASSIGNED to Negotiation here for metrics
           negotiationCount++;
           totalWeightedValue += (val * 0.8); // 80% Probability
-        } else if (s === 'Converted') {
+        } else if (s === 'Converted' || s === 'CONVERTED') {
           wonCount++;
           totalWeightedValue += val; // 100% Probability (Already Won)
         }

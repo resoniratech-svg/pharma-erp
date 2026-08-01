@@ -33,12 +33,7 @@ const initialRoles = [
   { name: 'Transport Staff', users: 3 },
 ];
 
-const mockUsers: UserRole[] = [
-  { id: '1', name: 'Ramesh Patel', email: 'ramesh@pharma.com', role: 'Super Admin', status: 'Active', lastLogin: 'Today, 09:15 AM' },
-  { id: '2', name: 'Suresh Kumar', email: 'suresh@pharma.com', role: 'Warehouse Manager', status: 'Active', lastLogin: 'Today, 10:30 AM' },
-  { id: '3', name: 'Amit Singh', email: 'amit@pharma.com', role: 'Accountant', status: 'Inactive', lastLogin: '12-Oct-2026' },
-  { id: '4', name: 'Priya Sharma', email: 'priya@pharma.com', role: 'Distributor', status: 'Active', lastLogin: 'Yesterday, 04:45 PM' },
-];
+const mockUsers: any[] = [];
 
 export default function RoleBasedAccess() {
   const [roles, setRoles] = useState(initialRoles);

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Download, Filter } from 'lucide-react';
 import {
   PageHeader,
@@ -11,43 +11,56 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './components/shared';
-
-interface Retailer {
-  id: string;
-  name: string;
-  location: string;
-  contact: string;
-  creditLimit: string;
-  status: 'Active' | 'Inactive' | 'On Hold';
-}
-
-const mockData: Retailer[] = [
-  { id: '1', name: 'Apollo Pharmacy', location: 'Downtown', contact: '+91 9876500001', creditLimit: '₹ 2,00,000', status: 'Active' },
-  { id: '2', name: 'MedPlus Store', location: 'Uptown', contact: '+91 9876500002', creditLimit: '₹ 1,50,000', status: 'Active' },
-  { id: '3', name: 'Wellness Medicos', location: 'Suburbs', contact: '+91 9876500003', creditLimit: '₹ 50,000', status: 'On Hold' },
-];
+import { retailerMasterService, type RetailerMasterRecord } from '../../services/retailerMasterService';
 
 export default function RetailerList() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [retailers, setRetailers] = useState<RetailerMasterRecord[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const columns: Column<Retailer>[] = [
+  useEffect(() => {
+    retailerMasterService.fetchFromApi().then((data) => {
+      setRetailers(data);
+    }).catch((err) => {
+      console.error('Failed to load retailers:', err);
+    }).finally(() => setLoading(false));
+  }, []);
+
+  const columns: Column<RetailerMasterRecord>[] = [
+    {
+      key: 'code',
+      label: 'Retailer Code',
+      render: (row) => <span className="font-mono text-xs text-slate-500">{row.code}</span>,
+    },
     { key: 'name', label: 'Retailer Name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
-    { key: 'location', label: 'Location' },
-    { key: 'contact', label: 'Contact' },
-    { key: 'creditLimit', label: 'Credit Limit', render: (row) => <span className="font-medium text-slate-800">{row.creditLimit}</span> },
+    { key: 'contactPerson', label: 'Contact Person' },
+    { key: 'mobileNumber', label: 'Mobile' },
+    {
+      key: 'assignedDistributors',
+      label: 'Distributor',
+      render: (row) => (
+        <span className="text-sm text-slate-600">
+          {row.assignedDistributors?.length > 0
+            ? row.assignedDistributors.map((d) => d.name).join(', ')
+            : '—'}
+        </span>
+      ),
+    },
     {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        const variant = row.status === 'Active' ? 'success' : row.status === 'On Hold' ? 'warning' : 'danger';
+        const variant = row.status === 'Active' ? 'success' : 'danger';
         return <Badge variant={variant}>{row.status}</Badge>;
       },
     },
   ];
 
-  const filteredData = mockData.filter((item) => {
-    const matchSearch = item.name.toLowerCase().includes(search.toLowerCase());
+  const filteredData = retailers.filter((item) => {
+    const matchSearch =
+      item.name.toLowerCase().includes(search.toLowerCase()) ||
+      item.code.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
   });
@@ -66,7 +79,7 @@ export default function RetailerList() {
       />
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search retailer name..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search retailer name or code..." />
         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
         <div className="flex items-center gap-2">
           <Filter className="w-4 h-4 text-slate-400" />
@@ -77,7 +90,6 @@ export default function RetailerList() {
           onChange={setStatusFilter}
           options={[
             { label: 'Active', value: 'Active' },
-            { label: 'On Hold', value: 'On Hold' },
             { label: 'Inactive', value: 'Inactive' },
           ]}
           placeholder="All Status"
@@ -85,12 +97,18 @@ export default function RetailerList() {
       </FilterBar>
 
       <TableCard>
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          emptyMessage="No retailers found."
-        />
+        {loading ? (
+          <div className="text-center py-12 text-slate-400">Loading retailers...</div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            emptyMessage="No retailers found. Add a retailer to get started."
+          />
+        )}
       </TableCard>
     </div>
   );
 }
+
+

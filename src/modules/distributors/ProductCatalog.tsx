@@ -22,6 +22,7 @@ import { type Column, type BadgeVariant } from './components/shared';
 import { inventoryService, type InventoryRecord } from '../../services/inventoryService';
 import { batchService, type BatchRecord } from '../../services/batchService';
 import { schemeService } from '../../services/schemeService';
+import { productService } from '../../services/productService';
 
 interface CatalogItem {
   id: string;
@@ -70,100 +71,93 @@ export default function ProductCatalog() {
   // Sync catalog dynamically with production integrations
   useEffect(() => {
     const fetchCatalog = async () => {
-      const rawProducts = localStorage.getItem("pharma_erp_products");
-      if (rawProducts) {
-        try {
-          const parsedProducts = JSON.parse(rawProducts);
-          
-          // Product Visibility: Filter out inactive, missing ID, or non-saleable products
-          const activeProducts = parsedProducts.filter((p: any) => 
-            p.id && (p.status === 'Active' || p.status === 'Published')
-          );
+      try {
+        // Fetch products from the backend database via productService
+        const dbProducts = await productService.loadProducts();
 
-          // Pre-fetch related production data using existing services and methods
-          const allInventory = inventoryService.getAll();
-          const allBatches = batchService.getAll();
-          const allSchemes = await schemeService.getAll();
+        // Product Visibility: Filter out inactive, missing ID, or non-saleable products
+        const activeProducts = dbProducts.filter((p: any) => 
+          p.id && (p.status === 'Active' || p.status === 'Published')
+        );
 
-          const mappedCatalog: CatalogItem[] = activeProducts.map((p: any) => {
-            // --- Inventory Integration ---
-            // Using InventoryRecord interface properties from inventoryService.ts
-            const productInventory = allInventory.filter((inv: InventoryRecord) => inv.productCode === p.code);
-            let availStock = 0;
-            let reservedStock = 0;
-            productInventory.forEach((inv: InventoryRecord) => {
-              availStock += (Number(inv.availableQty) || 0);
-              reservedStock += (Number(inv.reservedQty) || 0);
-            });
-            availStock = Math.max(0, availStock);
-            reservedStock = Math.max(0, reservedStock);
-            
-            // --- Batch Integration ---
-            // Using BatchRecord interface properties from batchService.ts
-            const productBatches = allBatches.filter((b: BatchRecord) => b.productCode === p.code && b.status === 'Active');
-            const validBatches = productBatches.filter((b: BatchRecord) => {
-               if (!b.expDate) return true;
-               return new Date(b.expDate) >= new Date();
-            });
-            const activeBatchesList = validBatches.map((b: BatchRecord) => b.batchNo);
-            const sortedBatches = validBatches
-              .filter((b: BatchRecord) => b.expDate)
-              .sort((a: BatchRecord, b: BatchRecord) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
-            const nextExpiry = sortedBatches.length > 0 ? sortedBatches[0].expDate : null;
-            
-            // --- Scheme Integration ---
-            // Based on Scheme interface structure mapped in the project
-            const productSchemes = allSchemes.filter((s: any) => {
-              if (s.applicableTo === 'Product' && typeof s.applicableSelection === 'string' && s.applicableSelection.includes(p.code)) return true;
-              if (s.applicableTo === 'Category' && typeof s.applicableSelection === 'string' && s.applicableSelection.includes(p.category)) return true;
-              if (s.applicableTo === 'All Products') return true;
-              return false;
-            });
-            const activeScheme = productSchemes.find((s: any) => s.status === 'Active');
+        // Pre-fetch related production data from the backend database
+        const allInventory = await inventoryService.loadInventory();
+        const allBatches = await batchService.loadBatches();
+        const allSchemes = await schemeService.getAll();
 
-            // Define Reorder Level from Product Master (fallback to 50 if missing)
-            const reorderLvl = p.reorderLevel ? Number(p.reorderLevel) : 50;
-
-            // Compute Product Status dynamically from actual Inventory Data
-            let derivedStatus: 'Available' | 'Low Stock' | 'Out Of Stock' = 'Available';
-            if (availStock <= 0) {
-              derivedStatus = 'Out Of Stock';
-            } else if (availStock <= reorderLvl) {
-              derivedStatus = 'Low Stock';
-            }
-
-            const validFromVal = activeScheme?.validFrom || activeScheme?.startDate || activeScheme?.createdAt || activeScheme?.createdDate;
-            const validToVal = activeScheme?.validTo || activeScheme?.endDate || activeScheme?.validTill;
-
-            return {
-              id: p.id,
-              productCode: p.code || 'N/A',
-              productName: p.name || 'Unnamed Product',
-              company: p.manufacturer || 'General Pharma',
-              category: p.category || 'General',
-              packType: p.packingType ? `${p.packingType} (${p.unitsPerPack || 1}s)` : 'Pack',
-              mrp: p.mrp ? Number(p.mrp) : 0,
-              ptr: p.ptr ? Number(p.ptr) : 0,
-              pts: p.pts ? Number(p.pts) : 0,
-              availableStock: availStock,
-              reservedStock: reservedStock,
-              reorderLevel: reorderLvl,
-              schemeAvailable: activeScheme ? (activeScheme.name || 'Scheme Available') : 'No Scheme',
-              schemeType: activeScheme ? (activeScheme.type || '-') : '-',
-              schemeValidFrom: validFromVal ? formatDate(validFromVal) : '-',
-              schemeValidTo: validToVal ? formatDate(validToVal) : (activeScheme ? 'Ongoing' : '-'),
-              schemeDescription: activeScheme ? (activeScheme.remarks || activeScheme.name) : '-',
-              status: derivedStatus,
-              _batchInfo: { activeBatches: activeBatchesList, nextExpiry }
-            };
+        const mappedCatalog: CatalogItem[] = activeProducts.map((p: any) => {
+          // --- Inventory Integration ---
+          const productInventory = allInventory.filter((inv: InventoryRecord) => inv.productCode === p.code);
+          let availStock = 0;
+          let reservedStock = 0;
+          productInventory.forEach((inv: InventoryRecord) => {
+            availStock += (Number(inv.availableQty) || 0);
+            reservedStock += (Number(inv.reservedQty) || 0);
           });
+          availStock = Math.max(0, availStock);
+          reservedStock = Math.max(0, reservedStock);
+          
+          // --- Batch Integration ---
+          const productBatches = allBatches.filter((b: BatchRecord) => b.productCode === p.code && b.status === 'Active');
+          const validBatches = productBatches.filter((b: BatchRecord) => {
+             if (!b.expDate) return true;
+             return new Date(b.expDate) >= new Date();
+          });
+          const activeBatchesList = validBatches.map((b: BatchRecord) => b.batchNo);
+          const sortedBatches = validBatches
+            .filter((b: BatchRecord) => b.expDate)
+            .sort((a: BatchRecord, b: BatchRecord) => new Date(a.expDate).getTime() - new Date(b.expDate).getTime());
+          const nextExpiry = sortedBatches.length > 0 ? sortedBatches[0].expDate : null;
+          
+          // --- Scheme Integration ---
+          const productSchemes = allSchemes.filter((s: any) => {
+            if (s.applicableTo === 'Product' && typeof s.applicableSelection === 'string' && s.applicableSelection.includes(p.code)) return true;
+            if (s.applicableTo === 'Category' && typeof s.applicableSelection === 'string' && s.applicableSelection.includes(p.category)) return true;
+            if (s.applicableTo === 'All Products') return true;
+            return false;
+          });
+          const activeScheme = productSchemes.find((s: any) => s.status === 'Active');
 
-          setData(mappedCatalog);
-        } catch (err) {
-          console.error("Failed to parse master product listings", err);
-          setData([]);
-        }
-      } else {
+          // Define Reorder Level from Product Master (fallback to 50 if missing)
+          const reorderLvl = p.reorderLevel ? Number(p.reorderLevel) : 50;
+
+          // Compute Product Status dynamically from actual Inventory Data
+          let derivedStatus: 'Available' | 'Low Stock' | 'Out Of Stock' = 'Available';
+          if (availStock <= 0) {
+            derivedStatus = 'Out Of Stock';
+          } else if (availStock <= reorderLvl) {
+            derivedStatus = 'Low Stock';
+          }
+
+          const validFromVal = activeScheme?.validFrom || activeScheme?.startDate || activeScheme?.createdAt || activeScheme?.createdDate;
+          const validToVal = activeScheme?.validTo || activeScheme?.endDate || activeScheme?.validTill;
+
+          return {
+            id: p.id,
+            productCode: p.code || 'N/A',
+            productName: p.name || 'Unnamed Product',
+            company: p.manufacturer || 'General Pharma',
+            category: p.category || 'General',
+            packType: p.packingType ? `${p.packingType} (${p.unitsPerPack || 1}s)` : 'Pack',
+            mrp: p.mrp ? Number(p.mrp) : 0,
+            ptr: p.ptr ? Number(p.ptr) : 0,
+            pts: p.pts ? Number(p.pts) : 0,
+            availableStock: availStock,
+            reservedStock: reservedStock,
+            reorderLevel: reorderLvl,
+            schemeAvailable: activeScheme ? (activeScheme.name || 'Scheme Available') : 'No Scheme',
+            schemeType: activeScheme ? (activeScheme.type || '-') : '-',
+            schemeValidFrom: validFromVal ? formatDate(validFromVal) : '-',
+            schemeValidTo: validToVal ? formatDate(validToVal) : (activeScheme ? 'Ongoing' : '-'),
+            schemeDescription: activeScheme ? (activeScheme.remarks || activeScheme.name) : '-',
+            status: derivedStatus,
+            _batchInfo: { activeBatches: activeBatchesList, nextExpiry }
+          };
+        });
+
+        setData(mappedCatalog);
+      } catch (err) {
+        console.error("Failed to load product catalog from backend", err);
         setData([]);
       }
     };

@@ -22,11 +22,7 @@
 //   location: string;
 // }
 
-// const mockData: AttendanceRecord[] = [
-//   { id: '1', date: '15-Oct-2026', repName: 'Rahul Verma', checkInTime: '09:05 AM', checkOutTime: '06:30 PM', status: 'Present', location: 'Andheri West' },
-//   { id: '2', date: '15-Oct-2026', repName: 'Amit Singh', checkInTime: '09:45 AM', checkOutTime: '02:15 PM', status: 'Half Day', location: 'Bandra' },
-//   { id: '3', date: '15-Oct-2026', repName: 'Sneha Patel', checkInTime: '-', checkOutTime: '-', status: 'Absent', location: '-' },
-// ];
+// const mockData: any[] = [];
 
 // export default function Attendance() {
 //   const [search, setSearch] = useState('');

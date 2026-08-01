@@ -67,15 +67,7 @@ function mapProduct(p: any): Product {
   };
 }
 
-// Load initial products from localStorage on initialization as a fallback
-try {
-  const saved = localStorage.getItem("pharma_erp_products");
-  if (saved) {
-    productsCache = JSON.parse(saved);
-  }
-} catch (err) {
-  console.error("Failed to parse cached products:", err);
-}
+
 
 export const productService = {
   // Synchronous method for backward compatibility
@@ -89,60 +81,10 @@ export const productService = {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/products');
       if (response.success && Array.isArray(response.data)) {
         productsCache = response.data.map(mapProduct);
-
-        // 1. Auto-heal mismatches between Active local MRP records and DB products
-        const mrpDataRaw = localStorage.getItem('pharma_erp_mrp_records');
-        if (mrpDataRaw) {
-          try {
-            const mrpRecords = JSON.parse(mrpDataRaw);
-            for (const p of productsCache) {
-              const activeMrp = mrpRecords.find((r: any) => r.productCode === p.code && r.status === 'Active');
-              if (activeMrp && String(activeMrp.currentMrp) !== String(p.mrp)) {
-                p.mrp = String(activeMrp.currentMrp);
-                // Fire update request asynchronously to fix database record
-                apiRequest(`/products/${p.id}`, {
-                  method: 'PUT',
-                  bodyData: p
-                }).catch(err => console.error(`Failed to auto-heal product ${p.code} MRP:`, err));
-              }
-            }
-          } catch (e) {
-            console.error("Auto-heal parsing failed", e);
-          }
-        }
-
-        // 2. Auto-heal mismatches between Active Pricing records and DB products
-        try {
-          const pricingRes = await apiRequest<any>('/pricing');
-          if (pricingRes?.data && Array.isArray(pricingRes.data)) {
-            for (const p of productsCache) {
-              const activePricing = pricingRes.data.find((r: any) => (r.productId === Number(p.id) || r.productCode === p.code) && r.status === 'Active');
-              if (activePricing) {
-                const activeMrp = activePricing.mrp ? String(activePricing.mrp) : p.mrp;
-                const activePtr = activePricing.ptr ? String(activePricing.ptr) : p.ptr;
-                const activePts = activePricing.pts ? String(activePricing.pts) : p.pts;
-                
-                if (activeMrp !== p.mrp || activePtr !== p.ptr || activePts !== p.pts) {
-                  p.mrp = activeMrp;
-                  p.ptr = activePtr;
-                  p.pts = activePts;
-                  
-                  apiRequest(`/products/${p.id}`, {
-                    method: 'PUT',
-                    bodyData: p
-                  }).catch(err => console.error(`Failed to auto-heal product ${p.code} Pricing:`, err));
-                }
-              }
-            }
-          }
-        } catch (err) {
-          console.error("Failed to auto-heal pricing revisions:", err);
-        }
-
-        localStorage.setItem("pharma_erp_products", JSON.stringify(productsCache));
       }
     } catch (err) {
-      console.error("Failed to fetch products from backend, using cache:", err);
+      console.error("Failed to fetch products from backend:", err);
+      throw err;
     }
     return productsCache;
   },
@@ -157,7 +99,6 @@ export const productService = {
     }
     const createdProduct = mapProduct(response.data);
     productsCache = [createdProduct, ...productsCache];
-    localStorage.setItem("pharma_erp_products", JSON.stringify(productsCache));
     return createdProduct;
   },
 
@@ -171,7 +112,6 @@ export const productService = {
     }
     const updated = mapProduct(response.data);
     productsCache = productsCache.map(p => p.id === productId ? updated : p);
-    localStorage.setItem("pharma_erp_products", JSON.stringify(productsCache));
     return updated;
   },
 
@@ -181,13 +121,11 @@ export const productService = {
     });
     if (response.success) {
       productsCache = productsCache.filter(p => p.id !== productId);
-      localStorage.setItem("pharma_erp_products", JSON.stringify(productsCache));
     }
     return response.success;
   },
 
   saveProducts(products: Product[]) {
     productsCache = products;
-    localStorage.setItem("pharma_erp_products", JSON.stringify(products));
   }
 };

@@ -24,34 +24,29 @@ export default function CentralLogin() {
     setLoading(true);
 
     try {
-      const { user, mappedRoleId } = await authService.localLogin(email, password);
+      const userRecord = await authService.login(email, password);
 
       let authPayload: any = null;
-      if (mappedRoleId === 'SUPER_ADMIN') {
+      if (userRecord.roleId === 'SUPER_ADMIN') {
         authPayload = {
           role: 'SUPER_ADMIN',
           tenantId: null,
           purchasedModules: [],
-          user
+          user: userRecord
         };
-      } else if (mappedRoleId === 'COMPANY_ADMIN') {
+      } else if (userRecord.roleId === 'COMPANY_ADMIN') {
         authPayload = {
           role: 'COMPANY_ADMIN',
-          tenantId: user.tenantId,
-          purchasedModules: user.purchasedModules || [],
-          user: {
-            id: user.id,
-            email: user.email,
-            fullName: user.name,
-            role: 'COMPANY_ADMIN'
-          }
+          tenantId: null, // Set if applicable
+          purchasedModules: [],
+          user: userRecord
         };
       } else {
         authPayload = {
-          role: user.role, // This will be mapped later to actual system role
-          tenantId: user.tenantId,
-          purchasedModules: user.purchasedModules || [],
-          user
+          role: userRecord.roleId,
+          tenantId: null,
+          purchasedModules: [],
+          user: userRecord
         };
       }
 

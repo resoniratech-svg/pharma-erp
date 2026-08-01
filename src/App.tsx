@@ -53,7 +53,9 @@ import {
 import { GlowCard } from './components/ui/GlowCard';
 import { useMemo, useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
-import { inventoryService } from './services/inventoryService';
+import { inventoryService, type InventoryItem } from './services/inventoryService';
+import { financeService } from './services/financeService';
+import { billingService } from './services/billingService';
 import { batchService } from './services/batchService';
 import { productService } from './services/productService';
 import { getExpiryStatus } from './utils/expiryUtils';
@@ -678,6 +680,37 @@ export default function Dashboard() {
     return { lowCount, nearCount, expCount };
   }, [isWarehouseManager, wmKpis]);
 
+  // ── Global Dashboard KPIs State ──
+  const [globalMetrics, setGlobalMetrics] = useState({
+    totalRevenue: 0,
+    outstandingReceivables: 0
+  });
+
+  useEffect(() => {
+    if (![ROLE_SUPER_ADMIN, 'Super Admin', 'System Administrator', ROLE_ACCOUNTANT].includes(activeRole)) return;
+    
+    const fetchGlobalMetrics = async () => {
+      try {
+        const invoices = await billingService.loadInvoices();
+        const salesTotal = invoices.reduce((sum, inv) => sum + (inv.grandTotal || 0), 0);
+        
+        // Using mock payments until payment endpoints are wired
+        const allPayments = JSON.parse(localStorage.getItem('pharma_erp_payments') || '[]');
+        const totalPaymentsReceived = allPayments.reduce((sum: number, pay: any) => sum + (pay.amount || 0), 0);
+        
+        const totalOut = Math.max(0, salesTotal - totalPaymentsReceived);
+        
+        setGlobalMetrics({
+          totalRevenue: salesTotal ?? 0,
+          outstandingReceivables: totalOut ?? 0
+        });
+      } catch (err) {
+        console.error("Failed to fetch global metrics for dashboard", err);
+      }
+    };
+    fetchGlobalMetrics();
+  }, [activeRole]);
+
   let displayPrimaryKpis = primaryKpiData;
   let displaySecondaryKpis = secondaryKpiData;
 
@@ -685,24 +718,16 @@ export default function Dashboard() {
   const globalKpis = useMemo(() => {
     if (![ROLE_SUPER_ADMIN, 'Super Admin', 'System Administrator', ROLE_ACCOUNTANT].includes(activeRole)) return primaryKpiData;
     
-    const allInvoices = JSON.parse(localStorage.getItem('pharma_erp_sales_invoices') || '[]');
-    const salesTotal = allInvoices.reduce((sum: number, inv: any) => sum + (inv.grandTotal || 0), 0);
-    
-    const allPayments = JSON.parse(localStorage.getItem('pharma_erp_payments') || '[]');
-    const totalPaymentsReceived = allPayments.reduce((sum: number, pay: any) => sum + (pay.amount || 0), 0);
-    
-    const totalOut = Math.max(0, salesTotal - totalPaymentsReceived);
-    
     return primaryKpiData.map(kpi => {
       if (kpi.title === 'Total Revenue') {
-        return { ...kpi, value: `₹${(salesTotal / 1000000).toFixed(1)}M` };
+        return { ...kpi, value: `₹${(globalMetrics.totalRevenue / 1000000).toFixed(1)}M` };
       }
       if (kpi.title === 'Outstanding Receivables') {
-        return { ...kpi, value: `₹${(totalOut / 1000000).toFixed(1)}M` };
+        return { ...kpi, value: `₹${(globalMetrics.outstandingReceivables / 1000000).toFixed(1)}M` };
       }
       return kpi;
     });
-  }, [activeRole]);
+  }, [activeRole, globalMetrics]);
 
   displayPrimaryKpis = globalKpis;
 
