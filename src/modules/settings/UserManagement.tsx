@@ -20,7 +20,7 @@ import { seedUsers, type UserRole } from '../../data/seedUsers';
 import { salesOrganizationService } from '../../services/salesOrganizationService';
 import { distributorMasterService } from '../../services/distributorMasterService';
 import { retailerMasterService } from '../../services/retailerMasterService';
-import { userService, BackendUserRecord } from '../../services/userService';
+import { userService, type BackendUserRecord } from '../../services/userService';
 
 type UserType = 'Employee' | 'Distributor' | 'Retailer' | 'Standalone User';
 
@@ -389,7 +389,7 @@ export default function UserManagement() {
     if (!formData.username.trim()) errors.username = "Username is required";
     else {
       const dupUsername = users.some(
-        u => u.username.toLowerCase() === formData.username.trim().toLowerCase() && u.id !== formData.empId
+        u => u.username?.toLowerCase() === formData.username.trim().toLowerCase() && u.id !== formData.empId
       );
       if (dupUsername) errors.username = "Username is already in use by another user";
     }
