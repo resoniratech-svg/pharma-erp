@@ -17,7 +17,10 @@ export default function Dashboard() {
   useEffect(() => {
     try {
       const liveKpis = rsmService.getDashboardKPIs();
-      setKpis(liveKpis);
+      setKpis({
+        ...liveKpis,
+        pendingActivities: 5 // Example data since no service provides this yet
+      } as any);
     } catch (e) {
       console.warn("Error fetching dashboard KPIs:", e);
     }
@@ -30,55 +33,54 @@ export default function Dashboard() {
         subtitle="Executive overview of regional performance and area metrics."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <SummaryCard 
           title="Assigned Target" 
           value={`₹${(kpis.assignedTarget / 100000).toFixed(2)} L`} 
+          subtitle="FY 2026-27"
           icon={<Target className="w-6 h-6" />} 
-          colorClass="text-[#163c78]" 
+          colorClass="text-blue-600" 
           bgClass="bg-blue-50" 
         />
         <SummaryCard 
-          title="Allocated to ASMs" 
-          value={`₹${(kpis.allocatedTarget / 100000).toFixed(2)} L`} 
-          icon={<IndianRupee className="w-6 h-6" />} 
+          title="Achieved Target" 
+          value={`₹${(kpis.targetAchievement / 100000).toFixed(2)} L`} 
+          subtitle={`${kpis.achievementPercentage.toFixed(1)}% Achievement`}
+          icon={<Activity className="w-6 h-6" />} 
           colorClass="text-emerald-600" 
           bgClass="bg-emerald-50" 
         />
         <SummaryCard 
-          title="Remaining Balance" 
+          title="Remaining Target" 
           value={`₹${(kpis.remainingTarget / 100000).toFixed(2)} L`} 
-          icon={<Activity className="w-6 h-6" />} 
-          colorClass="text-amber-600" 
-          bgClass="bg-amber-50" 
+          subtitle="Pending realization"
+          icon={<AlertCircle className="w-6 h-6" />} 
+          colorClass={kpis.remainingTarget > 0 ? "text-amber-600" : "text-emerald-600"} 
+          bgClass={kpis.remainingTarget > 0 ? "bg-amber-50" : "bg-emerald-50"} 
         />
         <SummaryCard 
           title="Active ASMs" 
           value={kpis.activeAsmCount.toString()} 
+          subtitle="Direct reports"
           icon={<Users className="w-6 h-6" />} 
           colorClass="text-indigo-600" 
           bgClass="bg-indigo-50" 
         />
         <SummaryCard 
-          title="Achievement" 
-          value={`₹${(kpis.targetAchievement / 100000).toFixed(2)} L`} 
-          icon={<Target className="w-6 h-6" />} 
-          colorClass="text-violet-600" 
-          bgClass="bg-violet-50" 
-        />
-        <SummaryCard 
           title="Achievement %" 
           value={`${kpis.achievementPercentage.toFixed(1)}%`} 
-          icon={<Activity className="w-6 h-6" />} 
+          subtitle="Overall performance"
+          icon={<Target className="w-6 h-6" />} 
           colorClass={kpis.achievementPercentage >= 90 ? "text-emerald-600" : "text-rose-600"} 
           bgClass={kpis.achievementPercentage >= 90 ? "bg-emerald-50" : "bg-rose-50"} 
         />
         <SummaryCard 
-          title="Allocation Status" 
-          value={kpis.allocationStatus} 
+          title="Pending Activities" 
+          value={(kpis as any).pendingActivities?.toString() || "0"} 
+          subtitle="Awaiting your review"
           icon={<AlertCircle className="w-6 h-6" />} 
-          colorClass={kpis.allocationStatus === 'Fully Allocated' ? 'text-emerald-600' : 'text-amber-600'} 
-          bgClass={kpis.allocationStatus === 'Fully Allocated' ? 'bg-emerald-50' : 'bg-amber-50'} 
+          colorClass="text-rose-600" 
+          bgClass="bg-rose-50" 
         />
       </div>
 

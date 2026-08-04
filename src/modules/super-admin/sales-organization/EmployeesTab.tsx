@@ -63,10 +63,6 @@ export default function EmployeesTab() {
           .map((e) => e.employeeName);
       case 'Regional Sales Manager':
         return allEmps
-          .filter((e) => e.designation === 'Zonal Sales Manager' && e.status === 'Active')
-          .map((e) => e.employeeName);
-      case 'Zonal Sales Manager':
-        return allEmps
           .filter((e) => e.designation === 'National Sales Head' && e.status === 'Active')
           .map((e) => e.employeeName);
       case 'National Sales Head':
@@ -139,7 +135,6 @@ export default function EmployeesTab() {
   // Designation Prefix Map
   const DESIGNATION_PREFIX: Record<Designation, string> = {
     'National Sales Head': 'EMP-NSM-',
-    'Zonal Sales Manager': 'EMP-ZSM-',
     'Regional Sales Manager': 'EMP-RSM-',
     'Area Sales Manager': 'EMP-ASM-',
     'Medical Representative': 'EMP-MR-',

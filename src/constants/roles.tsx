@@ -18,7 +18,7 @@ export const ROLE_ACCOUNTANT = 'ACCOUNTANT';
 export const ROLE_DISTRIBUTOR = 'DISTRIBUTOR';
 export const ROLE_RETAILER = 'RETAILER';
 export const ROLE_NATIONAL_SALES_HEAD = 'NATIONAL_SALES_HEAD';
-export const ROLE_ZONAL_SALES_MANAGER = 'ZONAL_SALES_MANAGER';
+
 export const ROLE_REGIONAL_SALES_MANAGER = 'REGIONAL_SALES_MANAGER';
 export const ROLE_AREA_SALES_MANAGER = 'AREA_SALES_MANAGER';
 export const ROLE_MEDICAL_REPRESENTATIVE = 'MEDICAL_REPRESENTATIVE';
@@ -97,25 +97,7 @@ export const ROLES: Role[] = [
       'Sales Strategy',
     ],
   },
-  {
-    id: ROLE_ZONAL_SALES_MANAGER,
-    title: 'Zonal Sales Manager',
-    description: 'Zonal target tracking, RSM supervision & regional performance.',
-    Icon: Compass,
-    gradFrom: '#0284C7',
-    gradTo: '#0369A1',
-    accentHex: '#0284C7',
-    skeletonBar: 'bg-[#163c78]/10',
-    skeletonBarLight: 'bg-[#163c78]/10',
-    userName: 'Suresh Nair',
-    userEmail: 'zsm@pharmaerp.com',
-    capabilities: [
-      'Zonal Targets',
-      'RSM Monitoring',
-      'Territory Coverage',
-      'Performance Analytics',
-    ],
-  },
+
   {
     id: ROLE_REGIONAL_SALES_MANAGER,
     title: 'Regional Sales Manager',

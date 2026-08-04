@@ -5,7 +5,7 @@ import {
   ROLE_DISTRIBUTOR,
   ROLE_RETAILER,
   ROLE_NATIONAL_SALES_HEAD,
-  ROLE_ZONAL_SALES_MANAGER,
+
   ROLE_REGIONAL_SALES_MANAGER,
   ROLE_AREA_SALES_MANAGER,
   ROLE_MEDICAL_REPRESENTATIVE,
@@ -39,14 +39,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'Alerts & Notifications',
     'Settings',
   ],
-  [ROLE_ZONAL_SALES_MANAGER]: [
-    'Dashboard',
-    'MR (Medical Representative)',
-    'GPS & Location Tracking',
-    'Pre-Sales CRM',
-    'Alerts & Notifications',
-    'Settings',
-  ],
+
   [ROLE_REGIONAL_SALES_MANAGER]: [
     'Dashboard',
     'MR (Medical Representative)',

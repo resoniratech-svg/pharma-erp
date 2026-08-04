@@ -11,7 +11,7 @@ export const DEMO_CREDENTIALS: Record<string, string> = {
   'retailer@pharmaerp.com': 'Retailer',
   'mr@pharmaerp.com': 'Medical Representative',
   'nsh@pharmaerp.com': 'National Sales Head',
-  'zsm@pharmaerp.com': 'Zonal Sales Manager',
+
   'rsm@pharmaerp.com': 'Regional Sales Manager',
   'asm@pharmaerp.com': 'Area Sales Manager',
 };
@@ -39,7 +39,7 @@ export class AuthService {
       'Distributor': 'DISTRIBUTOR',
       'Retailer': 'RETAILER',
       'National Sales Head': 'NATIONAL_SALES_HEAD',
-      'Zonal Sales Manager': 'ZONAL_SALES_MANAGER',
+
       'Regional Sales Manager': 'REGIONAL_SALES_MANAGER',
       'Area Sales Manager': 'AREA_SALES_MANAGER',
       'Medical Representative': 'MEDICAL_REPRESENTATIVE',

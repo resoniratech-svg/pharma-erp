@@ -5,9 +5,7 @@ const STORAGE_KEY = 'sales_org_employees';
 // Default seeded list (moved from salesOrganizationService)
 const SEED_EMPLOYEES: Employee[] = [
   { id: 'emp-nsm-1', employeeCode: 'EMP-NSM-001', employeeName: 'Rajesh Sharma', designation: 'National Sales Head', reportsTo: 'Owner / Super Admin', zone: 'All India', region: 'National', area: 'All India Headquarters', joiningDate: '2020-01-15', status: 'Active' },
-  { id: 'emp-zsm-1', employeeCode: 'EMP-ZSM-001', employeeName: 'Vikramaditya Rao', designation: 'Zonal Sales Manager', reportsTo: 'Rajesh Sharma', reportsToId: 'emp-nsm-1', zone: 'North-East Zone', region: 'North-East', area: 'Zonal Office Delhi', joiningDate: '2021-03-10', status: 'Active' },
-  { id: 'emp-zsm-2', employeeCode: 'EMP-ZSM-002', employeeName: 'Sanjay Deshmukh', designation: 'Zonal Sales Manager', reportsTo: 'Rajesh Sharma', reportsToId: 'emp-nsm-1', zone: 'South-West Zone', region: 'South-West', area: 'Zonal Office Mumbai', joiningDate: '2021-04-01', status: 'Active' },
-  { id: 'emp-rsm-1', employeeCode: 'EMP-RSM-001', employeeName: 'Amitabh Verma', designation: 'Regional Sales Manager', reportsTo: 'Vikramaditya Rao', reportsToId: 'emp-zsm-1', zone: 'North-East Zone', region: 'North Region', area: 'Delhi NCR', joiningDate: '2022-01-10', status: 'Active' },
+  { id: 'emp-rsm-1', employeeCode: 'EMP-RSM-001', employeeName: 'Amitabh Verma', designation: 'Regional Sales Manager', reportsTo: 'Rajesh Sharma', reportsToId: 'emp-nsm-1', zone: 'North-East Zone', region: 'North Region', area: 'Delhi NCR', joiningDate: '2022-01-10', status: 'Active' },
   { id: 'emp-asm-1', employeeCode: 'EMP-ASM-001', employeeName: 'Gaurav Kapoor', designation: 'Area Sales Manager', reportsTo: 'Amitabh Verma', reportsToId: 'emp-rsm-1', zone: 'North-East Zone', region: 'North Region', area: 'South Delhi & Gurugram', joiningDate: '2022-06-01', status: 'Active' },
   { id: 'emp-mr-1', employeeCode: 'EMP-MR-001', employeeName: 'Deepak Tyagi', designation: 'Medical Representative', reportsTo: 'Gaurav Kapoor', reportsToId: 'emp-asm-1', zone: 'North-East Zone', region: 'North Region', area: 'South Delhi & Gurugram', joiningDate: '2023-03-01', status: 'Active' },
 ];
@@ -15,10 +13,11 @@ const SEED_EMPLOYEES: Employee[] = [
 export const DESIGNATION_HIERARCHY: Record<Designation | 'Owner / Super Admin', number> = {
   'Owner / Super Admin': 6,
   'National Sales Head': 5,
-  'Zonal Sales Manager': 4,
-  'Regional Sales Manager': 3,
-  'Area Sales Manager': 2,
-  'Medical Representative': 1,
+  'Regional Sales Manager': 4,
+  'Area Sales Manager': 3,
+  'Medical Representative': 2,
+  'Owner / Super Admin': 6,
+  'National Sales Head': 5,
 };
 
 class EmployeeService {
@@ -44,7 +43,7 @@ class EmployeeService {
   generateNextEmployeeCode(designation: Designation): string {
     const prefixMap: Record<Designation, string> = {
       'National Sales Head': 'EMP-NSM-',
-      'Zonal Sales Manager': 'EMP-ZSM-',
+
       'Regional Sales Manager': 'EMP-RSM-',
       'Area Sales Manager': 'EMP-ASM-',
       'Medical Representative': 'EMP-MR-',

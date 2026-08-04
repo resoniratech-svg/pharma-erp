@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader, SummaryCard } from './components/shared';
-import { Target, TrendingUp, AlertCircle, Users, CheckCircle, MapPin, CheckSquare, BarChart2 } from 'lucide-react';
+import { Target, TrendingUp, AlertCircle, Users, CheckSquare, MapPin, Clock, Bell } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { nsmService } from '../../services/nsmService';
 
@@ -23,22 +23,13 @@ const productData = [
 
 export default function Dashboard() {
   const [kpis, setKpis] = useState({
-    nationalTarget: 0,
-    allocatedTarget: 0,
-    remainingTarget: 0,
-    targetAchievement: 0,
-    activeZSMCount: 0,
-    allocationStatus: 'Pending Allocation'
+    nationalTarget: 150000000,
+    achievedTarget: 0,
+    remainingTarget: 150000000,
+    activeRSMCount: 5,
+    stateCoverage: 85,
+    pendingApprovals: 12
   });
-
-  useEffect(() => {
-    try {
-      const liveKpis = nsmService.getDashboardKPIs();
-      setKpis(liveKpis);
-    } catch (e) {
-      console.warn("Failed to load NSM KPIs:", e);
-    }
-  }, []);
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -48,6 +39,8 @@ export default function Dashboard() {
     }).format(amount);
   };
 
+  const achievementPct = kpis.nationalTarget > 0 ? ((kpis.achievedTarget / kpis.nationalTarget) * 100).toFixed(1) : '0.0';
+
   return (
     <div className="p-6">
       <PageHeader 
@@ -55,20 +48,20 @@ export default function Dashboard() {
         subtitle="Executive overview of national sales performance and targets."
       />
 
-      {/* KPI Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 mb-8">
+      {/* KPI Cards (2 Rows of 3 Cards) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <SummaryCard
-          title="National Sales Target"
+          title="Assigned National Target"
           value={formatCurrency(kpis.nationalTarget)}
-          subtitle="Total Assigned Target"
+          subtitle="FY 2026-27"
           icon={<Target className="w-6 h-6" />}
           colorClass="text-blue-600"
           bgClass="bg-blue-50"
         />
         <SummaryCard
-          title="Allocated to ZSMs"
-          value={formatCurrency(kpis.allocatedTarget)}
-          subtitle="Distributed Target"
+          title="Achieved Target"
+          value={formatCurrency(kpis.achievedTarget)}
+          subtitle={`${achievementPct}% Achievement`}
           icon={<TrendingUp className="w-6 h-6" />}
           colorClass="text-emerald-600"
           bgClass="bg-emerald-50"
@@ -76,26 +69,34 @@ export default function Dashboard() {
         <SummaryCard
           title="Remaining Target"
           value={formatCurrency(kpis.remainingTarget)}
-          subtitle={kpis.allocationStatus}
+          subtitle="Pending realization"
           icon={<AlertCircle className="w-6 h-6" />}
           colorClass={kpis.remainingTarget > 0 ? "text-amber-600" : "text-emerald-600"}
           bgClass={kpis.remainingTarget > 0 ? "bg-amber-50" : "bg-emerald-50"}
         />
         <SummaryCard
-          title="Target Achievement"
-          value="0%"
-          subtitle="Awaiting transactions"
-          icon={<CheckSquare className="w-6 h-6" />}
-          colorClass="text-rose-600"
-          bgClass="bg-rose-50"
-        />
-        <SummaryCard
-          title="Active ZSMs"
-          value={kpis.activeZSMCount.toString()}
-          subtitle="Reporting directly to you"
+          title="Active RSMs"
+          value={kpis.activeRSMCount.toString()}
+          subtitle="Direct reports"
           icon={<Users className="w-6 h-6" />}
           colorClass="text-indigo-600"
           bgClass="bg-indigo-50"
+        />
+        <SummaryCard
+          title="State Coverage"
+          value={`${kpis.stateCoverage}%`}
+          subtitle="Of planned territories"
+          icon={<MapPin className="w-6 h-6" />}
+          colorClass="text-purple-600"
+          bgClass="bg-purple-50"
+        />
+        <SummaryCard
+          title="Pending Approvals"
+          value={kpis.pendingApprovals.toString()}
+          subtitle="Awaiting your review"
+          icon={<CheckSquare className="w-6 h-6" />}
+          colorClass="text-rose-600"
+          bgClass="bg-rose-50"
         />
       </div>
 
@@ -154,40 +155,6 @@ export default function Dashboard() {
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </div>
-      </div>
-
-      {/* Quick Actions */}
-      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm mb-8">
-        <h3 className="text-lg font-bold text-slate-800 mb-4">Quick Actions</h3>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <button className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-200 hover:border-[#163c78] hover:bg-slate-50 transition-colors group">
-            <div className="w-10 h-10 rounded-full bg-[#163c78]/10 flex items-center justify-center mb-3 group-hover:bg-[#163c78] transition-colors">
-              <Target className="w-5 h-5 text-[#163c78] group-hover:text-white transition-colors" />
-            </div>
-            <span className="text-sm font-semibold text-slate-700">Allocate Targets</span>
-          </button>
-          
-          <button className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-200 hover:border-[#163c78] hover:bg-slate-50 transition-colors group">
-            <div className="w-10 h-10 rounded-full bg-[#163c78]/10 flex items-center justify-center mb-3 group-hover:bg-[#163c78] transition-colors">
-              <Users className="w-5 h-5 text-[#163c78] group-hover:text-white transition-colors" />
-            </div>
-            <span className="text-sm font-semibold text-slate-700">Review ZSMs</span>
-          </button>
-
-          <button className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-200 hover:border-[#163c78] hover:bg-slate-50 transition-colors group">
-            <div className="w-10 h-10 rounded-full bg-[#163c78]/10 flex items-center justify-center mb-3 group-hover:bg-[#163c78] transition-colors">
-              <BarChart2 className="w-5 h-5 text-[#163c78] group-hover:text-white transition-colors" />
-            </div>
-            <span className="text-sm font-semibold text-slate-700">View Analytics</span>
-          </button>
-
-          <button className="flex flex-col items-center justify-center p-4 rounded-xl border border-slate-200 hover:border-emerald-600 hover:bg-emerald-50 transition-colors group">
-            <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center mb-3 group-hover:bg-emerald-600 transition-colors">
-              <CheckCircle className="w-5 h-5 text-emerald-600 group-hover:text-white transition-colors" />
-            </div>
-            <span className="text-sm font-semibold text-slate-700">Pending Approvals</span>
-          </button>
         </div>
       </div>
     </div>

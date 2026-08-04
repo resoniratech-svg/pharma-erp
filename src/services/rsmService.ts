@@ -49,7 +49,7 @@ class RSMService {
   }
 
   /**
-   * Retrieves all active allocations assigned to the current RSM by the ZSM.
+   * Retrieves all active allocations assigned to the current RSM by the NSM.
    * For the RSM, these are their "assigned targets".
    */
   getAssignedTargets(): TargetAllocationRecord[] {

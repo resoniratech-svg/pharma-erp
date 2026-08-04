@@ -8,25 +8,23 @@ import CentralLogin from '../../pages/CentralLogin';
 
 // Sales Hierarchy Modules
 import NationalSalesHeadDashboard from '../../modules/national-sales-head/Dashboard';
-import NSMSalesOrganization from '../../modules/national-sales-head/SalesOrganization';
-import NSMTargetAllocation from '../../modules/national-sales-head/TargetAllocation';
+import NSMRSMManagement from '../../modules/national-sales-head/RSMManagement';
+import NSMTargetPlanning from '../../modules/national-sales-head/TargetPlanning';
+import NSMStatePerformance from '../../modules/national-sales-head/StatePerformance';
 import NSMTeamPerformance from '../../modules/national-sales-head/TeamPerformance';
-import NSMAnalytics from '../../modules/national-sales-head/NationalSalesAnalytics';
-import NSMReports from '../../modules/national-sales-head/NationalSalesReports';
+import NSMTeamVisits from '../../modules/national-sales-head/TeamVisits';
+import NSMAttendance from '../../modules/national-sales-head/Attendance';
 
-import ZonalSalesManagerDashboard from '../../modules/zonal-sales-manager/Dashboard';
-import ZSMSalesOrganization from '../../modules/zonal-sales-manager/SalesOrganization';
-import ZSMTargetAllocation from '../../modules/zonal-sales-manager/TargetAllocation';
-import ZSMTeamPerformance from '../../modules/zonal-sales-manager/TeamPerformance';
-import ZSMZoneAnalytics from '../../modules/zonal-sales-manager/ZoneAnalytics';
-import ZSMZoneReports from '../../modules/zonal-sales-manager/ZoneReports';
 
 import RegionalSalesManagerDashboard from '../../modules/regional-sales-manager/Dashboard';
-import RSMSalesOrganization from '../../modules/regional-sales-manager/SalesOrganization';
+import RSMASMManagement from '../../modules/regional-sales-manager/ASMManagement';
 import RSMTargetAllocation from '../../modules/regional-sales-manager/TargetAllocation';
 import RSMTeamPerformance from '../../modules/regional-sales-manager/TeamPerformance';
-import RSMRegionalAnalytics from '../../modules/regional-sales-manager/RegionalAnalytics';
-import RSMRegionalReports from '../../modules/regional-sales-manager/RegionalReports';
+import RSMRegionalPerformance from '../../modules/regional-sales-manager/RegionalPerformance';
+import RSMTeamVisits from '../../modules/regional-sales-manager/TeamVisits';
+import RSMAttendance from '../../modules/regional-sales-manager/Attendance';
+import RSMDistributorManagement from '../../modules/regional-sales-manager/DistributorManagement';
+
 
 import AreaSalesManagerDashboard from '../../modules/area-sales-manager/Dashboard';
 import ASMSalesOrganization from '../../modules/area-sales-manager/SalesOrganization';
@@ -229,57 +227,32 @@ export const router = createBrowserRouter([
         element: <NationalSalesHeadDashboard />,
       },
       {
-        path: 'sales-organization',
-        element: <NSMSalesOrganization />,
+        path: 'rsm-management',
+        element: <NSMRSMManagement />,
       },
       {
-        path: 'target-allocation',
-        element: <NSMTargetAllocation />,
+        path: 'target-planning',
+        element: <NSMTargetPlanning />,
+      },
+      {
+        path: 'state-performance',
+        element: <NSMStatePerformance />,
       },
       {
         path: 'team-performance',
         element: <NSMTeamPerformance />,
       },
       {
-        path: 'analytics',
-        element: <NSMAnalytics />,
+        path: 'team-visits',
+        element: <NSMTeamVisits />,
       },
       {
-        path: 'reports',
-        element: <NSMReports />,
+        path: 'attendance',
+        element: <NSMAttendance />,
       },
     ],
   },
-  {
-    path: '/workspace/zonal-sales-manager',
-    element: <MainLayout />,
-    children: [
-      {
-        index: true,
-        element: <ZonalSalesManagerDashboard />,
-      },
-      {
-        path: 'sales-organization',
-        element: <ZSMSalesOrganization />,
-      },
-      {
-        path: 'target-allocation',
-        element: <ZSMTargetAllocation />,
-      },
-      {
-        path: 'team-performance',
-        element: <ZSMTeamPerformance />,
-      },
-      {
-        path: 'zone-analytics',
-        element: <ZSMZoneAnalytics />,
-      },
-      {
-        path: 'zone-reports',
-        element: <ZSMZoneReports />,
-      },
-    ],
-  },
+
   {
     path: '/workspace/regional-sales-manager',
     element: <MainLayout />,
@@ -289,8 +262,8 @@ export const router = createBrowserRouter([
         element: <RegionalSalesManagerDashboard />,
       },
       {
-        path: 'sales-organization',
-        element: <RSMSalesOrganization />,
+        path: 'asm-management',
+        element: <RSMASMManagement />,
       },
       {
         path: 'target-allocation',
@@ -301,12 +274,20 @@ export const router = createBrowserRouter([
         element: <RSMTeamPerformance />,
       },
       {
-        path: 'regional-analytics',
-        element: <RSMRegionalAnalytics />,
+        path: 'regional-performance',
+        element: <RSMRegionalPerformance />,
       },
       {
-        path: 'regional-reports',
-        element: <RSMRegionalReports />,
+        path: 'team-visits',
+        element: <RSMTeamVisits />,
+      },
+      {
+        path: 'attendance',
+        element: <RSMAttendance />,
+      },
+      {
+        path: 'distributor-management',
+        element: <RSMDistributorManagement />,
       },
     ],
   },

@@ -2,7 +2,6 @@ import type { Designation } from './types';
 
 export const DESIGNATIONS: Designation[] = [
   'National Sales Head',
-  'Zonal Sales Manager',
   'Regional Sales Manager',
   'Area Sales Manager',
   'Medical Representative',

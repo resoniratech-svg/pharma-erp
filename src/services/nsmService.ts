@@ -45,12 +45,12 @@ class NSMService {
   }
 
   /**
-   * Gets all ZSMs that report directly to the current NSM.
+   * Gets all RSMs that report directly to the current NSM.
    */
-  getReportingZSMs(): Employee[] {
+  getReportingRSMs(): Employee[] {
     const nsm = this.getCurrentNSM();
     return employeeService.getEmployees().filter(
-      e => e.designation === 'Zonal Sales Manager' && e.status === 'Active' && 
+      e => e.designation === 'Regional Sales Manager' && e.status === 'Active' && 
            (e.reportsToId === nsm.id || e.reportsTo === nsm.employeeName)
     );
   }
@@ -86,9 +86,9 @@ class NSMService {
   }
 
   /**
-   * Allocates a portion of an NSM target to a specific ZSM.
+   * Allocates a portion of an NSM target to a specific RSM.
    */
-  allocateToZSM(sourceTargetId: string, zsmId: string, amount: number, financialYear: string, allocationPeriod: string, startDate: string, endDate: string, remarks?: string): TargetAllocationRecord {
+  allocateToRSM(sourceTargetId: string, rsmId: string, amount: number, financialYear: string, allocationPeriod: string, startDate: string, endDate: string, remarks?: string): TargetAllocationRecord {
     const nsm = this.getCurrentNSM();
     const target = this.getAssignedTargets().find(t => t.id === sourceTargetId);
     
@@ -96,9 +96,9 @@ class NSMService {
       throw new Error("Source target not found or does not belong to you.");
     }
 
-    const zsm = this.getReportingZSMs().find(z => z.id === zsmId);
-    if (!zsm) {
-      throw new Error("Selected ZSM does not report to you or is inactive.");
+    const rsm = this.getReportingRSMs().find(r => r.id === rsmId);
+    if (!rsm) {
+      throw new Error("Selected RSM does not report to you or is inactive.");
     }
 
     // Verify balance
@@ -114,9 +114,9 @@ class NSMService {
       sourceTargetId,
       financialYear,
       allocationPeriod,
-      allocatedToEmployeeId: zsm.id,
-      allocatedToEmployeeName: zsm.employeeName,
-      allocatedToDesignation: zsm.designation,
+      allocatedToEmployeeId: rsm.id,
+      allocatedToEmployeeName: rsm.employeeName,
+      allocatedToDesignation: rsm.designation,
       allocatedByEmployeeId: nsm.id,
       targetAmount: amount,
       startDate,
@@ -126,7 +126,7 @@ class NSMService {
     });
   }
 
-  updateAllocation(allocationId: string, newAmount: number, zsmId?: string): TargetAllocationRecord {
+  updateAllocation(allocationId: string, newAmount: number, rsmId?: string): TargetAllocationRecord {
     const nsm = this.getCurrentNSM();
     const allocs = targetAllocationService.getAllocationsByEmployee(nsm.id);
     const existing = allocs.find(a => a.id === allocationId);
@@ -146,12 +146,12 @@ class NSMService {
 
     const updates: Partial<TargetAllocationRecord> = { targetAmount: newAmount };
 
-    if (zsmId && zsmId !== existing.allocatedToEmployeeId) {
-      const zsm = this.getReportingZSMs().find(z => z.id === zsmId);
-      if (!zsm) throw new Error("Selected ZSM does not report to you or is inactive.");
-      updates.allocatedToEmployeeId = zsm.id;
-      updates.allocatedToEmployeeName = zsm.employeeName;
-      updates.allocatedToDesignation = zsm.designation;
+    if (rsmId && rsmId !== existing.allocatedToEmployeeId) {
+      const rsm = this.getReportingRSMs().find(r => r.id === rsmId);
+      if (!rsm) throw new Error("Selected RSM does not report to you or is inactive.");
+      updates.allocatedToEmployeeId = rsm.id;
+      updates.allocatedToEmployeeName = rsm.employeeName;
+      updates.allocatedToDesignation = rsm.designation;
     }
 
     const updated = targetAllocationService.updateAllocation(allocationId, updates);
@@ -179,43 +179,43 @@ class NSMService {
     const allocatedTarget = summaries.reduce((sum, s) => sum + s.allocatedAmount, 0);
     const remainingTarget = summaries.reduce((sum, s) => sum + s.remainingAmount, 0);
     const targetAchievement = summaries.reduce((sum, s) => sum + s.achievement, 0);
-    const activeZSMCount = this.getReportingZSMs().length;
+    const activeRSMCount = this.getReportingRSMs().length;
 
     return {
       nationalTarget,
       allocatedTarget,
       remainingTarget,
       targetAchievement,
-      activeZSMCount,
+      activeRSMCount,
       allocationStatus: remainingTarget === 0 && nationalTarget > 0 ? 'Fully Allocated' : (allocatedTarget > 0 ? 'Partially Allocated' : 'Pending Allocation')
     };
   }
 
   /**
-   * Get team performance metrics for ZSMs
+   * Get team performance metrics for RSMs
    */
   getTeamPerformance() {
     const nsm = this.getCurrentNSM();
     const allocations = targetAllocationService.getAllocationsByEmployee(nsm.id).filter(a => a.status === 'Active');
     
-    // Group allocations by ZSM
-    const zsmMap = new Map<string, any>();
+    // Group allocations by RSM
+    const rsmMap = new Map<string, any>();
     
     for (const alloc of allocations) {
-      if (!zsmMap.has(alloc.allocatedToEmployeeId)) {
-        zsmMap.set(alloc.allocatedToEmployeeId, {
-          zsmId: alloc.allocatedToEmployeeId,
-          zsmName: alloc.allocatedToEmployeeName,
+      if (!rsmMap.has(alloc.allocatedToEmployeeId)) {
+        rsmMap.set(alloc.allocatedToEmployeeId, {
+          rsmId: alloc.allocatedToEmployeeId,
+          rsmName: alloc.allocatedToEmployeeName,
           totalAllocated: 0,
           totalAchievement: 0
         });
       }
-      const entry = zsmMap.get(alloc.allocatedToEmployeeId);
+      const entry = rsmMap.get(alloc.allocatedToEmployeeId);
       entry.totalAllocated += alloc.targetAmount;
       // Achievement is 0 as per rules
     }
 
-    return Array.from(zsmMap.values()).map(entry => ({
+    return Array.from(rsmMap.values()).map(entry => ({
       ...entry,
       achievementPercentage: entry.totalAllocated > 0 ? (entry.totalAchievement / entry.totalAllocated) * 100 : 0
     }));

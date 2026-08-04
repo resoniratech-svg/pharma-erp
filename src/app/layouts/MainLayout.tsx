@@ -30,6 +30,7 @@ import {
   MapPin,
   CheckSquare,
   Target,
+  Clock,
 } from 'lucide-react';
 import { hasPermission } from '../../constants/permissions';
 import { normalizePurchasedModules } from '../../config/tenantConfig';
@@ -266,45 +267,17 @@ const ROLE_NAV_MAP: Record<string, NavItem[]> = {
       label: 'Sales Operations', 
       icon: TrendingUp, 
       subItems: [
-        { label: 'Sales Organization', path: '/workspace/national-sales-head/sales-organization' },
-        { label: 'Target Allocation', path: '/workspace/national-sales-head/target-allocation' },
+        { label: 'RSM Management', path: '/workspace/national-sales-head/rsm-management' },
+        { label: 'Target Planning', path: '/workspace/national-sales-head/target-planning' },
+        { label: 'State Performance', path: '/workspace/national-sales-head/state-performance' },
         { label: 'Team Performance', path: '/workspace/national-sales-head/team-performance' },
-        { label: 'National Sales Analytics', path: '/workspace/national-sales-head/analytics' }
+        { label: 'Team Visits', path: '/workspace/national-sales-head/team-visits' }
       ]
     },
     {
-      label: 'Reports',
-      icon: ClipboardList,
-      subItems: [
-        { label: 'National Sales Reports', path: '/workspace/national-sales-head/reports' }
-      ]
-    },
-    NavModules.Alerts,
-    {
-      label: 'Settings',
-      icon: Settings,
-      subItems: [
-        { label: 'Profile Settings', path: '/workspace/settings/profile' }
-      ]
-    }
-  ],
-  ZONAL_SALES_MANAGER: [
-    { 
-      label: 'Sales Operations', 
-      icon: TrendingUp, 
-      subItems: [
-        { label: 'Sales Organization', path: '/workspace/zonal-sales-manager/sales-organization' },
-        { label: 'Target Allocation', path: '/workspace/zonal-sales-manager/target-allocation' },
-        { label: 'Team Performance', path: '/workspace/zonal-sales-manager/team-performance' },
-        { label: 'Zone Analytics', path: '/workspace/zonal-sales-manager/zone-analytics' }
-      ]
-    },
-    {
-      label: 'Reports',
-      icon: ClipboardList,
-      subItems: [
-        { label: 'Zone Reports', path: '/workspace/zonal-sales-manager/zone-reports' }
-      ]
+      label: 'Attendance',
+      icon: Clock,
+      path: '/workspace/national-sales-head/attendance',
     },
     {
       label: 'Settings',
@@ -314,23 +287,24 @@ const ROLE_NAV_MAP: Record<string, NavItem[]> = {
       ]
     }
   ],
+
   REGIONAL_SALES_MANAGER: [
     { 
       label: 'Sales Operations', 
       icon: TrendingUp, 
       subItems: [
-        { label: 'Sales Organization', path: '/workspace/regional-sales-manager/sales-organization' },
+        { label: 'ASM Management', path: '/workspace/regional-sales-manager/asm-management' },
         { label: 'Target Allocation', path: '/workspace/regional-sales-manager/target-allocation' },
+        { label: 'Regional Performance', path: '/workspace/regional-sales-manager/regional-performance' },
         { label: 'Team Performance', path: '/workspace/regional-sales-manager/team-performance' },
-        { label: 'Regional Analytics', path: '/workspace/regional-sales-manager/regional-analytics' }
+        { label: 'Team Visits', path: '/workspace/regional-sales-manager/team-visits' },
+        { label: 'Distributor Management', path: '/workspace/regional-sales-manager/distributor-management' }
       ]
     },
     {
-      label: 'Reports',
-      icon: ClipboardList,
-      subItems: [
-        { label: 'Regional Reports', path: '/workspace/regional-sales-manager/regional-reports' }
-      ]
+      label: 'Attendance',
+      icon: Clock,
+      path: '/workspace/regional-sales-manager/attendance',
     },
     {
       label: 'Settings',
@@ -410,7 +384,7 @@ const getDashboardRoute = (roleId: string) => {
   switch (roleId) {
     case 'SUPER_ADMIN': return '/workspace/dashboard';
     case 'NATIONAL_SALES_HEAD': return '/workspace/national-sales-head';
-    case 'ZONAL_SALES_MANAGER': return '/workspace/zonal-sales-manager';
+
     case 'REGIONAL_SALES_MANAGER': return '/workspace/regional-sales-manager';
     case 'AREA_SALES_MANAGER': return '/workspace/area-sales-manager';
     case 'WAREHOUSE_MANAGER': return '/workspace/dashboard';

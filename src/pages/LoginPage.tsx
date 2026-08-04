@@ -211,9 +211,10 @@ export default function LoginPage() {
 
         if (userRecord.roleId === 'NATIONAL_SALES_HEAD') {
           navigate("/workspace/national-sales-head");
-        } else if (userRecord.roleId === 'ZONAL_SALES_MANAGER') {
-          navigate("/workspace/zonal-sales-manager");
+
+
         } else if (userRecord.roleId === 'REGIONAL_SALES_MANAGER') {
+
           navigate("/workspace/regional-sales-manager");
         } else if (userRecord.roleId === 'AREA_SALES_MANAGER') {
           navigate("/workspace/area-sales-manager");

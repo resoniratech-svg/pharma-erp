@@ -1,0 +1,544 @@
+import React, { useState } from 'react';
+import { PageHeader, FilterBar, SearchInput, TableCard, DataTable, Badge, ActionButton } from './components/shared';
+import { Plus, Edit2, Eye, X } from 'lucide-react';
+import { Modal } from '../../components/ui/Modal';
+
+export default function RSMManagement() {
+  const [search, setSearch] = useState('');
+  
+  // Master list of available states that can be expanded dynamically
+  const [availableStates, setAvailableStates] = useState<string[]>([
+    'Maharashtra', 'Gujarat', 'Karnataka', 'Delhi', 'Tamil Nadu'
+  ]);
+
+  const [rsmData, setRsmData] = useState<any[]>([
+    { 
+      id: 'RSM001', name: 'Arun Kumar', mobile: '9876543210', email: 'arun.k@pharma.com', 
+      states: ['Maharashtra'], hq: 'Mumbai', area: 'Mumbai City', 
+      status: 'Active', joiningDate: '2025-01-15'
+    },
+    { 
+      id: 'RSM002', name: 'Rajesh Singh', mobile: '9876543211', email: 'rajesh.s@pharma.com', 
+      states: ['Gujarat'], hq: 'Ahmedabad', area: '', 
+      status: 'Active', joiningDate: '2025-02-10'
+    },
+    { 
+      id: 'RSM003', name: 'Priya Sharma', mobile: '9876543212', email: 'priya.s@pharma.com', 
+      states: ['Karnataka'], hq: 'Bangalore', area: 'Bangalore Urban', 
+      status: 'Active', joiningDate: '2025-03-01'
+    },
+  ]);
+
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [viewingRsm, setViewingRsm] = useState<any | null>(null);
+
+  // Multi-select state
+  const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
+  const [stateSearch, setStateSearch] = useState('');
+
+  const [newRsm, setNewRsm] = useState({
+    name: '',
+    mobile: '',
+    email: '',
+    states: [] as string[],
+    hq: '',
+    area: '',
+    password: '',
+    confirmPassword: '',
+    status: 'Active',
+    joiningDate: ''
+  });
+
+  const loggedInNsm = "Rajesh Sharma (National Sales Head)"; // Mocked logged-in NSM
+  const generatedEmpCode = editingId ? editingId : `RSM${String(rsmData.length + 1).padStart(3, '0')}`;
+
+  const openAddModal = () => {
+    setEditingId(null);
+    setNewRsm({
+      name: '', mobile: '', email: '', states: [], hq: '', area: '', 
+      password: '', confirmPassword: '', status: 'Active', joiningDate: ''
+    });
+    setStateSearch('');
+    setIsAddModalOpen(true);
+  };
+
+  const openEditModal = (rsm: any) => {
+    setEditingId(rsm.id);
+    // Handle backwards compatibility if old data has 'state' instead of 'states' array
+    let rsmStates = rsm.states || [];
+    if (rsm.state && rsmStates.length === 0) rsmStates = [rsm.state];
+    
+    setNewRsm({
+      name: rsm.name || '', mobile: rsm.mobile || '', email: rsm.email || '', 
+      states: [...rsmStates], hq: rsm.hq || '', area: rsm.area || '', 
+      password: '', confirmPassword: '', status: rsm.status || 'Active', joiningDate: rsm.joiningDate || ''
+    });
+    setStateSearch('');
+    setIsAddModalOpen(true);
+  };
+
+  const openViewModal = (rsm: any) => {
+    setViewingRsm(rsm);
+    setIsViewModalOpen(true);
+  };
+
+  const handleAddSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newRsm.states.length === 0) {
+      alert("Please select at least one State.");
+      return;
+    }
+    if (newRsm.password && newRsm.password !== newRsm.confirmPassword) {
+      alert("Passwords do not match");
+      return;
+    }
+    
+    if (editingId) {
+      setRsmData(rsmData.map(rsm => rsm.id === editingId ? { ...rsm, ...newRsm, id: editingId } : rsm));
+    } else {
+      setRsmData([...rsmData, {
+        ...newRsm,
+        id: generatedEmpCode
+      }]);
+    }
+
+    setIsAddModalOpen(false);
+  };
+
+  // State Multiselect Logic
+  const filteredStates = availableStates.filter(s => s.toLowerCase().includes(stateSearch.toLowerCase()));
+  const isSearchStateNew = stateSearch.trim() !== '' && !availableStates.some(s => s.toLowerCase() === stateSearch.trim().toLowerCase());
+
+  const handleStateSelect = (stateName: string) => {
+    if (newRsm.states.includes(stateName)) {
+      setNewRsm({ ...newRsm, states: newRsm.states.filter(s => s !== stateName) });
+    } else {
+      setNewRsm({ ...newRsm, states: [...newRsm.states, stateName] });
+    }
+  };
+
+  const handleCreateState = () => {
+    const newState = stateSearch.trim();
+    if (!newState) return;
+    
+    // Check if duplicate ignores case
+    const existingIndex = availableStates.findIndex(s => s.toLowerCase() === newState.toLowerCase());
+    
+    if (existingIndex === -1) {
+      // Add to master list permanently
+      setAvailableStates([...availableStates, newState]);
+      // Add to current selection
+      setNewRsm({ ...newRsm, states: [...newRsm.states, newState] });
+    } else {
+      // If it exists but just cases differ, use the existing one and select it
+      const actualState = availableStates[existingIndex];
+      if (!newRsm.states.includes(actualState)) {
+        setNewRsm({ ...newRsm, states: [...newRsm.states, actualState] });
+      }
+    }
+    
+    setStateSearch('');
+  };
+
+  const filteredData = rsmData.filter(row => {
+    const rowStates = row.states || (row.state ? [row.state] : []);
+    const statesMatch = rowStates.some((s: string) => s.toLowerCase().includes(search.toLowerCase()));
+    return row.name.toLowerCase().includes(search.toLowerCase()) || statesMatch;
+  });
+
+  const columns = [
+    { key: 'id', label: 'Employee Code' },
+    { key: 'name', label: 'RSM Name' },
+    { 
+      key: 'states', 
+      label: 'State (Territory)',
+      render: (row: any) => {
+        const states = row.states || (row.state ? [row.state] : []);
+        return states.join(', ');
+      }
+    },
+    { key: 'hq', label: 'Headquarters' },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (row: any) => <Badge variant={row.status === 'Active' ? 'success' : 'neutral'}>{row.status}</Badge>
+    },
+    {
+      key: 'actions',
+      label: 'Actions',
+      render: (row: any) => (
+        <div className="flex gap-2">
+          <button onClick={() => openViewModal(row)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="View Details">
+            <Eye className="w-4 h-4" />
+          </button>
+          <button onClick={() => openEditModal(row)} className="p-1.5 text-slate-400 hover:text-[#163c78] hover:bg-blue-50 rounded transition-colors" title="Edit RSM">
+            <Edit2 className="w-4 h-4" />
+          </button>
+        </div>
+      )
+    }
+  ];
+
+  return (
+    <div className="p-6">
+      <PageHeader 
+        title="RSM Management" 
+        subtitle="Manage Regional Sales Managers and assign State Territories."
+        actions={
+          <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openAddModal}>
+            Add RSM
+          </ActionButton>
+        }
+      />
+
+      <FilterBar>
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by name or state..." />
+      </FilterBar>
+
+      <TableCard>
+        <DataTable columns={columns} data={filteredData} emptyMessage="No RSMs found." />
+      </TableCard>
+
+      {/* Add / Edit Modal */}
+      <Modal
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title={editingId ? "Edit Regional Sales Manager" : "Add Regional Sales Manager (RSM)"}
+        className="max-w-4xl w-full"
+      >
+        <form onSubmit={handleAddSubmit} className="space-y-6 mt-2">
+          {/* 1. Basic Information */}
+          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">1. Basic Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Employee Code</label>
+                <input 
+                  type="text" 
+                  value={generatedEmpCode}
+                  disabled 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Employee Name *</label>
+                <input 
+                  type="text"
+                  required
+                  value={newRsm.name}
+                  onChange={e => setNewRsm({...newRsm, name: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Mobile Number *</label>
+                <input 
+                  type="tel"
+                  required
+                  pattern="[0-9]{10}"
+                  value={newRsm.mobile}
+                  onChange={e => setNewRsm({...newRsm, mobile: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Designation</label>
+                <input 
+                  type="text" 
+                  value="Regional Sales Manager"
+                  disabled 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Reports To</label>
+                <input 
+                  type="text" 
+                  value={loggedInNsm}
+                  disabled 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed" 
+                />
+              </div>
+              <div className="hidden md:block"></div>
+            </div>
+          </div>
+
+          {/* 2. Territory Information */}
+          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">2. Territory Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-700 mb-2">States *</label>
+                <div 
+                  className="w-full min-h-[46px] px-3 py-2 border border-slate-300 rounded-lg bg-white cursor-text flex flex-wrap gap-2 items-center focus-within:ring-2 focus-within:ring-[#163c78] focus-within:border-[#163c78]"
+                  onClick={() => setIsStateDropdownOpen(true)}
+                >
+                  {newRsm.states.map(state => (
+                    <span key={state} className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200">
+                      {state}
+                      <button 
+                        type="button" 
+                        onClick={(e) => { e.stopPropagation(); handleStateSelect(state); }} 
+                        className="hover:text-rose-500 hover:bg-slate-200 rounded-full p-0.5 ml-0.5 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </span>
+                  ))}
+                  <input
+                    type="text"
+                    className="flex-1 min-w-[120px] outline-none text-sm bg-transparent"
+                    placeholder={newRsm.states.length === 0 ? "Search or add states..." : ""}
+                    value={stateSearch}
+                    onChange={e => {
+                      setStateSearch(e.target.value);
+                      setIsStateDropdownOpen(true);
+                    }}
+                    onFocus={() => setIsStateDropdownOpen(true)}
+                    onKeyDown={e => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (isSearchStateNew) {
+                          handleCreateState();
+                        } else if (filteredStates.length > 0) {
+                          handleStateSelect(filteredStates[0]);
+                          setStateSearch('');
+                        }
+                      }
+                    }}
+                  />
+                </div>
+                
+                {isStateDropdownOpen && (
+                  <>
+                    <div className="fixed inset-0 z-10" onClick={() => setIsStateDropdownOpen(false)}></div>
+                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
+                      {isSearchStateNew && (
+                        <div 
+                          className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 flex items-center text-sm font-medium text-[#163c78]"
+                          onClick={() => handleCreateState()}
+                        >
+                          <Plus className="w-4 h-4 mr-2" />
+                          Create "{stateSearch.trim()}"
+                        </div>
+                      )}
+                      {filteredStates.map(state => (
+                        <div 
+                          key={state} 
+                          className="px-4 py-2 hover:bg-slate-50 cursor-pointer flex items-center text-sm text-slate-700"
+                          onClick={() => handleStateSelect(state)}
+                        >
+                          <input 
+                            type="checkbox" 
+                            className="mr-3 rounded border-slate-300 text-[#163c78] focus:ring-[#163c78]"
+                            checked={newRsm.states.includes(state)}
+                            onChange={() => {}} 
+                            onClick={(e) => e.stopPropagation()} 
+                          />
+                          {state}
+                        </div>
+                      ))}
+                      {filteredStates.length === 0 && !isSearchStateNew && (
+                        <div className="px-4 py-3 text-sm text-slate-500 text-center">No states found</div>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Headquarters *</label>
+                <input 
+                  type="text"
+                  required
+                  value={newRsm.hq}
+                  onChange={e => setNewRsm({...newRsm, hq: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Area (Optional)</label>
+                <input 
+                  type="text"
+                  value={newRsm.area}
+                  onChange={e => setNewRsm({...newRsm, area: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                  placeholder="Additional area details"
+                />
+              </div>
+              <div className="hidden md:block"></div>
+            </div>
+          </div>
+
+          {/* 3. Login Credentials */}
+          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">3. Login Credentials</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Email Address (Login ID) *</label>
+                <input 
+                  type="email"
+                  required
+                  value={newRsm.email}
+                  onChange={e => setNewRsm({...newRsm, email: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Account Status</label>
+                <select 
+                  value={newRsm.status}
+                  onChange={e => setNewRsm({...newRsm, status: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]"
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Password {editingId ? '(Leave blank to keep unchanged)' : '*'}</label>
+                <input 
+                  type="password"
+                  required={!editingId}
+                  minLength={8}
+                  value={newRsm.password}
+                  onChange={e => setNewRsm({...newRsm, password: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Confirm Password {editingId ? '' : '*'}</label>
+                <input 
+                  type="password"
+                  required={!editingId && !!newRsm.password}
+                  minLength={8}
+                  value={newRsm.confirmPassword}
+                  onChange={e => setNewRsm({...newRsm, confirmPassword: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* 4. Employment Information */}
+          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
+            <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">4. Employment Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Joining Date *</label>
+                <input 
+                  type="date"
+                  required
+                  value={newRsm.joiningDate}
+                  onChange={e => setNewRsm({...newRsm, joiningDate: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                />
+              </div>
+              <div className="hidden md:block"></div>
+            </div>
+          </div>
+
+          <div className="flex justify-end gap-4 pt-6 border-t border-slate-200">
+            <button 
+              type="button" 
+              className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              onClick={() => setIsAddModalOpen(false)}
+            >
+              Cancel
+            </button>
+            <button 
+              type="submit"
+              className="px-6 py-2.5 text-sm font-medium text-white bg-[#163c78] rounded-lg hover:bg-[#122e5c] transition-colors"
+            >
+              {editingId ? "Update RSM" : "Create RSM"}
+            </button>
+          </div>
+        </form>
+      </Modal>
+
+      {/* View Modal */}
+      {viewingRsm && (
+        <Modal
+          isOpen={isViewModalOpen}
+          onClose={() => setIsViewModalOpen(false)}
+          title="Regional Sales Manager Details"
+          size="lg"
+        >
+          <div className="space-y-6">
+            {/* 1. Basic Information */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 mb-4 border-b pb-2">Basic Information</h3>
+              <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Employee Code</span><span className="text-sm font-medium">{viewingRsm.id}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Employee Name</span><span className="text-sm font-medium">{viewingRsm.name}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Mobile Number</span><span className="text-sm font-medium">{viewingRsm.mobile}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Email Address</span><span className="text-sm font-medium">{viewingRsm.email}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Designation</span><span className="text-sm font-medium">Regional Sales Manager</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Reports To</span><span className="text-sm font-medium">{loggedInNsm}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Joining Date</span><span className="text-sm font-medium">{viewingRsm.joiningDate}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Status</span><Badge variant={viewingRsm.status === 'Active' ? 'success' : 'neutral'}>{viewingRsm.status}</Badge></div>
+              </div>
+            </div>
+
+            {/* 2. Territory Information */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 mb-4 border-b pb-2">Territory Information</h3>
+              <div className="grid grid-cols-3 gap-y-4 gap-x-8">
+                <div>
+                  <span className="block text-xs text-slate-500 font-semibold mb-1">State(s)</span>
+                  <span className="text-sm font-medium">
+                    {viewingRsm.states ? viewingRsm.states.join(', ') : (viewingRsm.state || '-')}
+                  </span>
+                </div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Headquarters</span><span className="text-sm font-medium">{viewingRsm.hq}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Area</span><span className="text-sm font-medium">{viewingRsm.area || '-'}</span></div>
+              </div>
+            </div>
+
+            {/* 3. Performance Summary */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 mb-4 border-b pb-2">Performance Summary</h3>
+              <div className="grid grid-cols-2 gap-y-4 gap-x-8">
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Current Target</span><span className="text-sm font-medium">₹0.00 L</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Target Achievement</span><span className="text-sm font-medium text-emerald-600">0%</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Attendance Percentage</span><span className="text-sm font-medium text-blue-600">0%</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Number of ASMs</span><span className="text-sm font-medium">0</span></div>
+              </div>
+            </div>
+
+            {/* 4. Security */}
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 mb-4 border-b pb-2">Security</h3>
+              <div className="grid grid-cols-2 gap-y-4 gap-x-8 items-end">
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Email Address (Login ID)</span><span className="text-sm font-medium">{viewingRsm.email}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Password</span><span className="text-sm font-medium tracking-widest text-slate-400">••••••••</span></div>
+                <div className="col-span-2">
+                  <button className="text-sm font-medium text-[#163c78] hover:underline" onClick={() => alert('Password reset link sent to ' + viewingRsm.email)}>
+                    Send Password Reset Link
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* 5. Audit Information */}
+            <div className="bg-slate-50 p-4 rounded-lg">
+              <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase">Audit Information</h3>
+              <div className="grid grid-cols-2 gap-y-2 gap-x-8">
+                <div><span className="block text-xs text-slate-400 font-semibold mb-0.5">Created By</span><span className="text-xs font-medium text-slate-600">{loggedInNsm}</span></div>
+                <div><span className="block text-xs text-slate-400 font-semibold mb-0.5">Created Date</span><span className="text-xs font-medium text-slate-600">{viewingRsm.joiningDate}</span></div>
+                <div><span className="block text-xs text-slate-400 font-semibold mb-0.5">Last Modified Date</span><span className="text-xs font-medium text-slate-600">-</span></div>
+                <div><span className="block text-xs text-slate-400 font-semibold mb-0.5">Last Login</span><span className="text-xs font-medium text-slate-600">-</span></div>
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-end pt-6 mt-4 border-t border-slate-100">
+            <ActionButton variant="secondary" onClick={() => setIsViewModalOpen(false)}>Close</ActionButton>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}

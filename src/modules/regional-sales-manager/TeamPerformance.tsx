@@ -1,77 +1,171 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader, FilterBar, SearchInput, TableCard, DataTable, Badge, ActionButton } from './components/shared';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Users, TrendingUp, Info } from 'lucide-react';
-import { Modal } from '../../components/ui/Modal';
+import { PageHeader, FilterBar, SelectFilter, SearchInput, TableCard, DataTable, Badge, SummaryCard, Drawer, DrawerField } from './components/shared';
+import { Download, Eye, Users, Trophy, Target, Calendar, FileText, Table as TableIcon, ChevronDown } from 'lucide-react';
 import { rsmService } from '../../services/rsmService';
 import { employeeService } from '../../services/employeeService';
+import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 export default function TeamPerformance() {
+  const [period, setPeriod] = useState('This Month');
+  const [statusFilter, setStatusFilter] = useState('All');
   const [search, setSearch] = useState('');
+  
   const [teamData, setTeamData] = useState<any[]>([]);
   
-  const [performanceModalOpen, setPerformanceModalOpen] = useState(false);
-  const [teamModalOpen, setTeamModalOpen] = useState(false);
-  const [selectedAsm, setSelectedAsm] = useState<any>(null);
+  const [isViewOpen, setIsViewOpen] = useState(false);
+  const [viewingRecord, setViewingRecord] = useState<any>(null);
   
-  const [teamCounts, setTeamCounts] = useState({ mrs: 0 });
+  const [isExportOpen, setIsExportOpen] = useState(false);
 
   useEffect(() => {
     try {
-      setTeamData(rsmService.getTeamPerformance());
+      const rawData = rsmService.getTeamPerformance();
+      const allEmps = employeeService.getEmployees();
+      
+      const enrichedData = rawData.map(asm => {
+        const emp = allEmps.find(e => e.id === asm.asmId);
+        const mrs = allEmps.filter(e => e.designation === 'Medical Representative' && e.status === 'Active' && (e.reportsToId === asm.asmId || e.reportsTo === asm.asmName));
+        
+        return {
+          ...asm,
+          asmCode: emp?.employeeCode || `EMP-${asm.asmId}`,
+          state: asm.headquarters === 'Mumbai' ? 'Maharashtra' : 
+                 asm.headquarters === 'Ahmedabad' ? 'Gujarat' : 
+                 asm.headquarters === 'Bangalore' ? 'Karnataka' : 
+                 asm.headquarters === 'Delhi NCR' ? 'Delhi' : 'Maharashtra',
+          teamStrength: mrs.length,
+          attendance: 90 + Math.floor(Math.random() * 10),
+          doctorVisits: Math.floor(Math.random() * 200) + 100,
+          chemistVisits: Math.floor(Math.random() * 150) + 50,
+          orders: Math.floor(Math.random() * 100) + 20,
+          status: asm.achievementPercentage >= 100 ? 'Good' : 
+                  asm.achievementPercentage >= 80 ? 'Average' : 'Needs Attention',
+          performanceTrend: asm.achievementPercentage >= 100 ? 'Upward' : 'Stable',
+          remarks: asm.achievementPercentage >= 100 ? 'Excellent performance.' : 'Needs improvement in target achievement.'
+        };
+      });
+      setTeamData(enrichedData);
     } catch (e) {
       console.warn('Failed to load team performance:', e);
     }
   }, []);
 
-  const filteredData = teamData.filter(row => 
-    row.asmName.toLowerCase().includes(search.toLowerCase())
-  );
+  // Summary Metrics
+  const activeASMs = teamData.length;
+  const avgAchievement = teamData.length > 0 ? teamData.reduce((acc, curr) => acc + curr.achievementPercentage, 0) / teamData.length : 0;
+  const bestPerformingAsm = [...teamData].sort((a, b) => b.achievementPercentage - a.achievementPercentage)[0]?.asmName || 'N/A';
+  const avgAttendance = teamData.length > 0 ? teamData.reduce((acc, curr) => acc + curr.attendance, 0) / teamData.length : 0;
 
-  const calculateTeamCounts = (asmId: string, asmName: string) => {
-    const allEmps = employeeService.getEmployees();
-    // MRs reporting to this ASM
-    const mrs = allEmps.filter(e => e.designation === 'Medical Representative' && e.status === 'Active' && (e.reportsToId === asmId || e.reportsTo === asmName));
+  // Filtering
+  const filteredData = teamData.filter(row => {
+    const matchesSearch = 
+      row.asmCode.toLowerCase().includes(search.toLowerCase()) || 
+      row.asmName.toLowerCase().includes(search.toLowerCase()) || 
+      row.headquarters.toLowerCase().includes(search.toLowerCase());
+      
+    const matchesStatus = statusFilter === 'All' || row.status === statusFilter;
     
-    setTeamCounts({ mrs: mrs.length });
+    return matchesSearch && matchesStatus;
+  });
+
+  const handleExportExcel = () => {
+    if (filteredData.length === 0) return;
+    
+    const exportData = filteredData.map(row => ({
+      'ASM Code': row.asmCode,
+      'ASM Name': row.asmName,
+      'State': row.state,
+      'Assigned Target (₹)': (row.allocatedTarget / 100000).toFixed(2) + ' L',
+      'Achievement (₹)': (row.achievement / 100000).toFixed(2) + ' L',
+      'Achievement %': row.achievementPercentage.toFixed(1) + '%',
+      'Team Strength': row.teamStrength,
+      'Status': row.status
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(exportData);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Team Performance");
+    XLSX.writeFile(workbook, "Team_Performance.xlsx");
+    setIsExportOpen(false);
   };
 
-  const handleViewPerformance = (row: any) => {
-    setSelectedAsm(row);
-    setPerformanceModalOpen(true);
-  };
+  const handleExportPDF = () => {
+    if (filteredData.length === 0) return;
+    
+    const doc = new jsPDF('landscape');
+    
+    doc.setFontSize(16);
+    doc.text("Team Performance Report", 14, 20);
+    
+    doc.setFontSize(10);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 30);
+    
+    const tableColumn = ["ASM Code", "ASM Name", "State", "Target", "Achievement", "Achievement %", "Team Strength", "Status"];
+    const tableRows = filteredData.map(row => [
+      row.asmCode,
+      row.asmName,
+      row.state,
+      `Rs. ${(row.allocatedTarget / 100000).toFixed(2)} L`,
+      `Rs. ${(row.achievement / 100000).toFixed(2)} L`,
+      `${row.achievementPercentage.toFixed(1)}%`,
+      row.teamStrength,
+      row.status
+    ]);
 
-  const handleViewTeam = (row: any) => {
-    setSelectedAsm(row);
-    calculateTeamCounts(row.asmId, row.asmName);
-    setTeamModalOpen(true);
+    autoTable(doc, {
+      head: [tableColumn],
+      body: tableRows,
+      startY: 35,
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [22, 60, 120] } // #163c78
+    });
+
+    doc.save("Team_Performance.pdf");
+    setIsExportOpen(false);
   };
 
   const columns = [
-    { key: 'asmName', label: 'ASM Name', render: (row: any) => <span className="font-bold text-slate-800">{row.asmName}</span> },
-    { key: 'target', label: 'Allocated Target', render: (row: any) => `₹${(row.allocatedTarget / 100000).toFixed(2)} L` },
-    { key: 'achieved', label: 'Achievement', render: (row: any) => `₹${(row.achievement / 100000).toFixed(2)} L` },
+    { key: 'asmCode', label: 'ASM Code' },
+    { key: 'asmName', label: 'ASM Name', render: (row: any) => <span className="font-semibold text-slate-800">{row.asmName}</span> },
+    { key: 'state', label: 'State' },
+    { key: 'allocatedTarget', label: 'Assigned Target', render: (row: any) => `₹${(row.allocatedTarget / 100000).toFixed(2)} L` },
+    { key: 'achievement', label: 'Achievement', render: (row: any) => `₹${(row.achievement / 100000).toFixed(2)} L` },
     { 
-      key: 'achievement', 
+      key: 'achievementPercentage', 
       label: 'Achievement %', 
       render: (row: any) => (
-        <span className={row.achievementPercentage >= 90 ? 'text-emerald-600 font-bold' : row.achievementPercentage >= 80 ? 'text-amber-600 font-bold' : row.achievementPercentage === 0 ? 'text-slate-400 font-bold' : 'text-rose-600 font-bold'}>
+        <span className={row.achievementPercentage >= 100 ? 'text-emerald-600 font-medium' : row.achievementPercentage >= 80 ? 'text-amber-600 font-medium' : 'text-rose-600 font-medium'}>
           {row.achievementPercentage.toFixed(1)}%
         </span>
       )
     },
+    { key: 'teamStrength', label: 'Team Strength', render: (row: any) => `${row.teamStrength} MRs` },
+    {
+      key: 'status',
+      label: 'Status',
+      render: (row: any) => (
+        <Badge variant={row.status === 'Good' ? 'success' : row.status === 'Average' ? 'warning' : 'danger'}>
+          {row.status}
+        </Badge>
+      )
+    },
     {
       key: 'actions',
-      label: 'Actions',
+      label: 'Action',
       render: (row: any) => (
-        <div className="flex gap-2">
-          <button onClick={() => handleViewPerformance(row)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="View Performance">
-            <TrendingUp className="w-4 h-4" />
-          </button>
-          <button onClick={() => handleViewTeam(row)} className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded transition-colors" title="View Team">
-            <Users className="w-4 h-4" />
-          </button>
-        </div>
+        <button 
+          onClick={() => {
+            setViewingRecord(row);
+            setIsViewOpen(true);
+          }} 
+          className="p-1.5 text-slate-400 hover:text-[#163c78] hover:bg-blue-50 rounded transition-colors" 
+          title="View Details"
+        >
+          <Eye className="w-4 h-4" />
+        </button>
       )
     }
   ];
@@ -81,86 +175,156 @@ export default function TeamPerformance() {
       <PageHeader 
         title="Team Performance" 
         subtitle="Monitor the performance of your Area Sales Managers."
+        actions={
+          <div className="relative">
+            <button 
+              onClick={() => setIsExportOpen(!isExportOpen)}
+              disabled={filteredData.length === 0}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shadow-sm border ${
+                filteredData.length === 0 
+                  ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed' 
+                  : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+              }`}
+              title={filteredData.length === 0 ? "No data available to export" : "Export options"}
+            >
+              <Download className="w-4 h-4" /> Export <ChevronDown className="w-4 h-4 text-slate-400" />
+            </button>
+            
+            {isExportOpen && filteredData.length > 0 && (
+              <>
+                <div 
+                  className="fixed inset-0 z-10" 
+                  onClick={() => setIsExportOpen(false)}
+                ></div>
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-slate-200 rounded-lg shadow-lg z-20 py-1 overflow-hidden">
+                  <button 
+                    onClick={handleExportExcel}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left"
+                  >
+                    <TableIcon className="w-4 h-4 text-emerald-600" /> Export as Excel (.xlsx)
+                  </button>
+                  <button 
+                    onClick={handleExportPDF}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors text-left"
+                  >
+                    <FileText className="w-4 h-4 text-rose-600" /> Export as PDF (.pdf)
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        }
       />
 
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
+        <SummaryCard 
+          title="Active ASMs" 
+          value={activeASMs.toString()} 
+          icon={<Users className="w-6 h-6" />} 
+          colorClass="text-blue-600" 
+          bgClass="bg-blue-50" 
+        />
+        <SummaryCard 
+          title="Overall Achievement %" 
+          value={`${avgAchievement.toFixed(1)}%`} 
+          icon={<Target className="w-6 h-6" />} 
+          colorClass="text-indigo-600" 
+          bgClass="bg-indigo-50" 
+        />
+        <SummaryCard 
+          title="Top Performing ASM" 
+          value={bestPerformingAsm} 
+          icon={<Trophy className="w-6 h-6" />} 
+          colorClass="text-emerald-600" 
+          bgClass="bg-emerald-50" 
+        />
+        <SummaryCard 
+          title="Average Attendance %" 
+          value={`${avgAttendance.toFixed(1)}%`} 
+          icon={<Calendar className="w-6 h-6" />} 
+          colorClass="text-amber-600" 
+          bgClass="bg-amber-50" 
+        />
+      </div>
+
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by name..." />
+        <div className="flex flex-col sm:flex-row gap-4 flex-1">
+          <SelectFilter 
+            value={period} 
+            onChange={setPeriod} 
+            options={[
+              { label: 'This Month', value: 'This Month' },
+              { label: 'Last Month', value: 'Last Month' },
+              { label: 'Quarter', value: 'Quarter' },
+              { label: 'Financial Year', value: 'Financial Year' }
+            ]} 
+          />
+          <SelectFilter 
+            value={statusFilter} 
+            onChange={setStatusFilter} 
+            options={[
+              { label: 'All', value: 'All' },
+              { label: 'Good', value: 'Good' },
+              { label: 'Average', value: 'Average' },
+              { label: 'Needs Attention', value: 'Needs Attention' }
+            ]} 
+            placeholder="All Statuses"
+          />
+          <div className="flex-1 max-w-md">
+            <SearchInput value={search} onChange={setSearch} placeholder="Search ASM Code, Name, or HQ..." />
+          </div>
+        </div>
       </FilterBar>
 
       <TableCard>
-        <DataTable columns={columns} data={filteredData} emptyMessage="No target allocations found for your team." />
+        <DataTable columns={columns} data={filteredData} emptyMessage="No team performance data found." />
       </TableCard>
 
-      {/* View Performance Modal */}
-      <Modal
-        isOpen={performanceModalOpen}
-        onClose={() => setPerformanceModalOpen(false)}
-        title="Performance Analytics"
-        footer={<ActionButton variant="secondary" onClick={() => setPerformanceModalOpen(false)}>Close</ActionButton>}
+      {/* View Drawer */}
+      <Drawer
+        open={isViewOpen}
+        onClose={() => setIsViewOpen(false)}
+        title="ASM Performance Details"
       >
-        {selectedAsm && (
-          <div className="space-y-6">
-            <div className="flex items-center gap-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
-              <div className="w-16 h-16 bg-emerald-100 text-emerald-700 flex items-center justify-center rounded-full text-2xl font-bold">
-                {selectedAsm.asmName.charAt(0)}
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">{selectedAsm.asmName}</h3>
-                <div className="mt-2"><Badge variant={selectedAsm.achievementPercentage > 0 ? "success" : "neutral"}>YTD Achievement: {selectedAsm.achievementPercentage.toFixed(1)}%</Badge></div>
+        {viewingRecord && (
+          <div className="flex flex-col h-full">
+            <div className="space-y-1">
+              <DrawerField label="ASM Code" value={viewingRecord.asmCode} />
+              <DrawerField label="ASM Name" value={viewingRecord.asmName} />
+              <DrawerField label="State" value={viewingRecord.state} />
+              <DrawerField label="Headquarters" value={viewingRecord.headquarters} />
+              <DrawerField label="Assigned Target" value={`₹${(viewingRecord.allocatedTarget / 100000).toFixed(2)} L`} />
+              <DrawerField label="Achievement" value={`₹${(viewingRecord.achievement / 100000).toFixed(2)} L`} />
+              <DrawerField label="Achievement %" value={
+                <span className={viewingRecord.achievementPercentage >= 100 ? 'text-emerald-600' : viewingRecord.achievementPercentage >= 80 ? 'text-amber-600' : 'text-rose-600'}>
+                  {viewingRecord.achievementPercentage.toFixed(1)}%
+                </span>
+              } />
+              <DrawerField label="Attendance %" value={`${viewingRecord.attendance}%`} />
+              <DrawerField label="Doctor Visits" value={viewingRecord.doctorVisits} />
+              <DrawerField label="Chemist Visits" value={viewingRecord.chemistVisits} />
+              <DrawerField label="Orders Booked" value={viewingRecord.orders} />
+              <DrawerField label="Team Strength (MR Count)" value={viewingRecord.teamStrength} />
+              <DrawerField label="Performance Trend" value={viewingRecord.performanceTrend} />
+              
+              <div className="py-3 border-b border-slate-100 last:border-0">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Remarks</p>
+                <div className="text-sm text-slate-700 bg-slate-50 p-3 rounded-lg border border-slate-100 mt-2">
+                  {viewingRecord.remarks}
+                </div>
               </div>
             </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="p-4 bg-white border border-slate-100 rounded-xl shadow-sm text-center">
-                <p className="text-xs font-semibold text-slate-500 uppercase">Allocated Target</p>
-                <p className="text-xl font-bold text-slate-800 mt-1">₹{(selectedAsm.allocatedTarget / 100000).toFixed(2)} L</p>
-              </div>
-              <div className="p-4 bg-white border border-slate-100 rounded-xl shadow-sm text-center">
-                <p className="text-xs font-semibold text-slate-500 uppercase">Achieved Target</p>
-                <p className="text-xl font-bold text-emerald-600 mt-1">₹{(selectedAsm.achievement / 100000).toFixed(2)} L</p>
-              </div>
-            </div>
-            
-            <div className="p-4 bg-amber-50 border border-amber-100 rounded-xl flex items-start gap-3">
-              <Info className="w-5 h-5 text-amber-600 flex-shrink-0" />
-              <p className="text-sm text-amber-800">
-                Detailed achievement charts are pending integration with the MR transaction module. Currently displaying baseline target allocations.
-              </p>
+            <div className="mt-auto pt-6">
+              <button
+                onClick={() => setIsViewOpen(false)}
+                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
         )}
-      </Modal>
-
-      {/* View Team Modal */}
-      <Modal
-        isOpen={teamModalOpen}
-        onClose={() => setTeamModalOpen(false)}
-        title="Team Overview"
-        footer={<ActionButton variant="secondary" onClick={() => setTeamModalOpen(false)}>Close</ActionButton>}
-      >
-        {selectedAsm && (
-          <div className="space-y-6">
-             <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl flex items-center justify-between">
-                <div>
-                   <h4 className="font-bold text-[#163c78]">{selectedAsm.asmName}'s Downward Team</h4>
-                </div>
-                <Users className="w-8 h-8 text-blue-300" />
-             </div>
-             
-             <div className="grid grid-cols-1 gap-4 max-w-xs mx-auto">
-                <div className="p-6 bg-white border border-slate-200 shadow-sm rounded-xl text-center">
-                   <p className="text-4xl font-bold text-slate-800 mb-2">{teamCounts.mrs}</p>
-                   <p className="text-sm font-semibold text-slate-500 uppercase">Active MRs</p>
-                </div>
-             </div>
-             
-             <div className="p-4 bg-slate-50 border border-slate-200 rounded-xl text-center flex gap-2 items-center justify-center">
-                <Info className="w-4 h-4 text-slate-500" />
-                <p className="text-sm text-slate-600">These counts are calculated dynamically from the Employee Master hierarchy.</p>
-             </div>
-          </div>
-        )}
-      </Modal>
+      </Drawer>
     </div>
   );
 }

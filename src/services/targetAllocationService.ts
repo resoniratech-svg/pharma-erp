@@ -12,10 +12,24 @@ export interface TargetAllocationRecord {
   endDate: string;
   allocationDate: string;
   remarks?: string;
-  status: 'Active' | 'Inactive' | 'Cancelled';
+  status: 'Active' | 'Inactive' | 'Cancelled' | 'Draft' | 'Validated' | 'Allocated' | 'Pending';
+}
+
+export interface NationalTargetRecord {
+  id: string;
+  financialYear: string;
+  planningPeriod?: 'Annual' | 'Quarterly' | 'Monthly';
+  targetType?: 'Sales Value' | 'Sales Volume' | 'Both';
+  targetAmount: number;
+  startDate: string;
+  endDate: string;
+  remarks?: string;
+  createdByEmployeeId: string;
+  status: 'Draft' | 'Active' | 'Inactive';
 }
 
 const STORAGE_KEY = 'sales_allocations';
+const NATIONAL_TARGETS_KEY = 'national_targets';
 
 class TargetAllocationService {
   getAllocations(): TargetAllocationRecord[] {
@@ -92,6 +106,51 @@ class TargetAllocationService {
   cancelAllocation(id: string): boolean {
     const updated = this.updateAllocation(id, { status: 'Cancelled' });
     return !!updated;
+  }
+
+  // --- National Targets ---
+  getNationalTargets(): NationalTargetRecord[] {
+    const data = localStorage.getItem(NATIONAL_TARGETS_KEY);
+    if (!data) return [];
+    try {
+      const parsed = JSON.parse(data);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  createNationalTarget(record: Omit<NationalTargetRecord, 'id'>): NationalTargetRecord {
+    const targets = this.getNationalTargets();
+    
+    // Ensure only one active national target per financial year
+    const active = targets.find(t => t.financialYear === record.financialYear && (t.status === 'Active' || t.status === 'Draft'));
+    if (active) {
+      throw new Error(`An active or draft National Target already exists for ${record.financialYear}.`);
+    }
+
+    if (record.targetAmount <= 0) {
+      throw new Error("Target amount must be greater than zero.");
+    }
+
+    const newTarget: NationalTargetRecord = {
+      ...record,
+      id: `NAT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+    };
+
+    targets.unshift(newTarget);
+    localStorage.setItem(NATIONAL_TARGETS_KEY, JSON.stringify(targets));
+    return newTarget;
+  }
+
+  updateNationalTarget(id: string, updated: Partial<NationalTargetRecord>): NationalTargetRecord | null {
+    const targets = this.getNationalTargets();
+    const index = targets.findIndex(t => t.id === id);
+    if (index === -1) return null;
+
+    targets[index] = { ...targets[index], ...updated };
+    localStorage.setItem(NATIONAL_TARGETS_KEY, JSON.stringify(targets));
+    return targets[index];
   }
 }
 
