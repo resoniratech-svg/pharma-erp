@@ -7,7 +7,6 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function RegionalPerformance() {
-  const [period, setPeriod] = useState('This Month');
   const [stateFilter, setStateFilter] = useState('All States');
   const [search, setSearch] = useState('');
   
@@ -19,30 +18,7 @@ export default function RegionalPerformance() {
   
   const [isExportOpen, setIsExportOpen] = useState(false);
 
-  // Custom Range State
-  const [customRange, setCustomRange] = useState({ from: '', to: '' });
-  const [appliedCustomRange, setAppliedCustomRange] = useState({ from: '', to: '' });
-  const [dateError, setDateError] = useState('');
 
-  const handleApplyCustomRange = () => {
-    setDateError('');
-    if (!customRange.from || !customRange.to) {
-      setDateError('Both From Date and To Date are mandatory.');
-      return;
-    }
-    if (new Date(customRange.from) > new Date(customRange.to)) {
-      setDateError('From Date cannot be greater than To Date.');
-      return;
-    }
-    setAppliedCustomRange(customRange);
-  };
-
-  const handleResetCustomRange = () => {
-    setCustomRange({ from: '', to: '' });
-    setAppliedCustomRange({ from: '', to: '' });
-    setDateError('');
-    setPeriod('This Month');
-  };
 
   useEffect(() => {
     try {
@@ -82,15 +58,7 @@ export default function RegionalPerformance() {
       
     const matchesState = stateFilter === 'All States' || row.state === stateFilter;
     
-    let matchesDate = true;
-    if (period === 'Custom' && appliedCustomRange.from && appliedCustomRange.to) {
-      const rowDate = new Date(row.date);
-      const fromDate = new Date(appliedCustomRange.from);
-      const toDate = new Date(appliedCustomRange.to);
-      matchesDate = rowDate >= fromDate && rowDate <= toDate;
-    }
-    
-    return matchesSearch && matchesState && matchesDate;
+    return matchesSearch && matchesState;
   });
 
   // Deriving summary metrics based on filtered data
@@ -286,27 +254,8 @@ export default function RegionalPerformance() {
         />
       </div>
 
-      <FilterBar className="!block space-y-4">
-        <div className="flex flex-col sm:flex-row gap-4 flex-1 w-full">
-          <SelectFilter 
-            value={period} 
-            onChange={(val) => {
-              setPeriod(val);
-              if (val !== 'Custom') {
-                setCustomRange({ from: '', to: '' });
-                setAppliedCustomRange({ from: '', to: '' });
-                setDateError('');
-              }
-            }} 
-            options={[
-              { label: 'Today', value: 'Today' },
-              { label: 'This Week', value: 'This Week' },
-              { label: 'This Month', value: 'This Month' },
-              { label: 'This Quarter', value: 'This Quarter' },
-              { label: 'This Year', value: 'This Year' },
-              { label: 'Custom', value: 'Custom' }
-            ]} 
-          />
+      <FilterBar>
+        <div className="flex flex-col sm:flex-row gap-4 flex-1">
           <SelectFilter 
             value={stateFilter} 
             onChange={setStateFilter} 
@@ -317,48 +266,6 @@ export default function RegionalPerformance() {
             <SearchInput value={search} onChange={setSearch} placeholder="Search state, ASM, or territory..." />
           </div>
         </div>
-
-        {period === 'Custom' && (
-          <div className="flex flex-wrap gap-4 items-end bg-slate-50 p-4 rounded-lg border border-slate-200">
-            <div className="flex flex-col">
-              <label className="text-xs font-semibold text-slate-600 mb-1">From Date <span className="text-rose-500">*</span></label>
-              <input 
-                type="date" 
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#163c78]"
-                value={customRange.from}
-                onChange={(e) => setCustomRange({ ...customRange, from: e.target.value })}
-              />
-            </div>
-            <div className="flex flex-col">
-              <label className="text-xs font-semibold text-slate-600 mb-1">To Date <span className="text-rose-500">*</span></label>
-              <input 
-                type="date" 
-                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#163c78]"
-                value={customRange.to}
-                onChange={(e) => setCustomRange({ ...customRange, to: e.target.value })}
-              />
-            </div>
-            <div className="flex gap-2">
-              <button 
-                onClick={handleApplyCustomRange}
-                className="px-4 py-2 bg-[#163c78] text-white text-sm font-medium rounded-lg hover:bg-[#122e5c] transition-colors"
-              >
-                Apply
-              </button>
-              <button 
-                onClick={handleResetCustomRange}
-                className="px-4 py-2 bg-white text-slate-700 border border-slate-300 text-sm font-medium rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Reset
-              </button>
-            </div>
-            {dateError && (
-              <div className="w-full mt-2 text-sm text-rose-500 font-medium">
-                {dateError}
-              </div>
-            )}
-          </div>
-        )}
       </FilterBar>
 
       <TableCard>

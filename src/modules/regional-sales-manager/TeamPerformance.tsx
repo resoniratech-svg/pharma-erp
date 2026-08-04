@@ -8,7 +8,6 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 export default function TeamPerformance() {
-  const [period, setPeriod] = useState('This Month');
   const [statusFilter, setStatusFilter] = useState('All');
   const [search, setSearch] = useState('');
   
@@ -249,16 +248,6 @@ export default function TeamPerformance() {
 
       <FilterBar>
         <div className="flex flex-col sm:flex-row gap-4 flex-1">
-          <SelectFilter 
-            value={period} 
-            onChange={setPeriod} 
-            options={[
-              { label: 'This Month', value: 'This Month' },
-              { label: 'Last Month', value: 'Last Month' },
-              { label: 'Quarter', value: 'Quarter' },
-              { label: 'Financial Year', value: 'Financial Year' }
-            ]} 
-          />
           <SelectFilter 
             value={statusFilter} 
             onChange={setStatusFilter} 

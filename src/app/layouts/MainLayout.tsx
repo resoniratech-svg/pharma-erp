@@ -319,27 +319,17 @@ const ROLE_NAV_MAP: Record<string, NavItem[]> = {
       label: 'Sales Operations', 
       icon: TrendingUp, 
       subItems: [
-        { label: 'Sales Organization', path: '/workspace/area-sales-manager/sales-organization' },
+        { label: 'MR Management', path: '/workspace/area-sales-manager/mr-management' },
         { label: 'Target Allocation', path: '/workspace/area-sales-manager/target-allocation' },
-        { label: 'Team Performance', path: '/workspace/area-sales-manager/team-performance' },
-        { label: 'Area Analytics', path: '/workspace/area-sales-manager/area-analytics' }
+        { label: 'Target Achievement', path: '/workspace/area-sales-manager/target-achievement' },
+        { label: 'Daily Activities', path: '/workspace/area-sales-manager/daily-activities' },
+        { label: 'Tour Planning', path: '/workspace/area-sales-manager/tour-planning' }
       ]
     },
     {
-      label: 'Approvals & Monitoring',
-      icon: CheckSquare,
-      subItems: [
-        { label: 'Tour Plan Review', path: '/workspace/area-sales-manager/tour-plan-review' },
-        { label: 'Daily Call Reports', path: '/workspace/area-sales-manager/dcr-review' },
-        { label: 'Attendance Monitoring', path: '/workspace/area-sales-manager/attendance-monitoring' }
-      ]
-    },
-    {
-      label: 'Reports',
-      icon: ClipboardList,
-      subItems: [
-        { label: 'Area Reports', path: '/workspace/area-sales-manager/area-reports' }
-      ]
+      label: 'Attendance',
+      icon: Clock,
+      path: '/workspace/area-sales-manager/attendance',
     },
     {
       label: 'Settings',

@@ -180,65 +180,33 @@ export class AuthService {
     return { user, mappedRoleId };
   }
   async login(email: string, password: string, force = false): Promise<UserRecord> {
-    let deviceId = localStorage.getItem('deviceId');
-    if (!deviceId) {
-      deviceId = window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : Math.random().toString(36).substring(2) + Date.now().toString(36);
-      localStorage.setItem('deviceId', deviceId);
-    }
+    try {
+      const { user, mappedRoleId } = await this.localLogin(email, password);
 
-    const response = await apiRequest<{
-      success: boolean;
-      message: string;
-      data: {
-        token: string;
-        user: {
-          id: number;
-          name: string;
-          email: string;
-          role: string;
-        };
-        mr: {
-          id: number;
-          mrCode: string;
-          name: string;
-          territory: string;
-        } | null;
+      // Map local user to frontend UserRecord format
+      const userRecord: UserRecord = {
+        id: String(user.id),
+        fullName: user.name,
+        email: user.email,
+        roleId: mappedRoleId,
+        mobile: user.mobile || '',
+        employeeCode: user.id,
+        linkedDistributorCode: user.linkedDistributorCode || '',
+        department: 'Management',
+        password: password, 
       };
-    }>('/auth/login', {
-      method: 'POST',
-      bodyData: { email, password, deviceId, force },
-    });
 
-    if (!response.success || !response.data) {
-      throw new Error(response.message || 'Login failed');
+      const token = 'mock-jwt-token-' + Date.now();
+
+      localStorage.setItem('authToken', token);
+      localStorage.setItem('authUser', JSON.stringify(userRecord));
+      localStorage.setItem('activeRole', mappedRoleId);
+      localStorage.setItem('userId', String(user.id));
+
+      return userRecord;
+    } catch (err: any) {
+      throw err;
     }
-
-    const { token, user, mr } = response.data;
-
-    // Map backend user to frontend UserRecord format
-    const userRecord: UserRecord = {
-      id: String(user.id),
-      fullName: user.name,
-      email: user.email,
-      roleId: user.role,
-      mobile: '',
-      employeeCode: mr ? mr.mrCode : ((user as any).linkedRetailerCode || ''),
-      linkedDistributorCode: (user as any).linkedDistributorCode || '',
-      department: mr ? 'Sales & Marketing' : 'Management',
-      password: password, // Keep the entered password for compatibility with settings
-    };
-
-    localStorage.setItem('authToken', token);
-    localStorage.setItem('authUser', JSON.stringify(userRecord));
-    localStorage.setItem('activeRole', user.role);
-    localStorage.setItem('userId', String(user.id));
-    if (mr) {
-      localStorage.setItem('mrId', String(mr.id));
-      localStorage.setItem('mrCode', mr.mrCode);
-      localStorage.setItem('mrTerritory', mr.territory || '');
-    }
-
-    return userRecord;
   }
 
   getCurrentUser(): UserRecord | null {

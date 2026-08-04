@@ -27,14 +27,12 @@ import RSMDistributorManagement from '../../modules/regional-sales-manager/Distr
 
 
 import AreaSalesManagerDashboard from '../../modules/area-sales-manager/Dashboard';
-import ASMSalesOrganization from '../../modules/area-sales-manager/SalesOrganization';
+import ASMMrManagement from '../../modules/area-sales-manager/MrManagement';
+import ASMTargetAchievement from '../../modules/area-sales-manager/TargetAchievement';
 import ASMTargetAllocation from '../../modules/area-sales-manager/TargetAllocation';
-import ASMTeamPerformance from '../../modules/area-sales-manager/TeamPerformance';
-import ASMAreaAnalytics from '../../modules/area-sales-manager/AreaAnalytics';
-import ASMTourPlanReview from '../../modules/area-sales-manager/TourPlanReview';
-import ASMDCRReview from '../../modules/area-sales-manager/DCRReview';
-import ASMAttendanceMonitoring from '../../modules/area-sales-manager/AttendanceMonitoring';
-import ASMAreaReports from '../../modules/area-sales-manager/AreaReports';
+import ASMDailyActivities from '../../modules/area-sales-manager/DailyActivities';
+import ASMTourPlanning from '../../modules/area-sales-manager/TourPlanning';
+import ASMAttendance from '../../modules/area-sales-manager/Attendance';
 // Products Module
 import ProductMaster from '../../modules/products/ProductMaster';
 import HSNMaster from '../../modules/products/HSNMaster';
@@ -300,36 +298,28 @@ export const router = createBrowserRouter([
         element: <AreaSalesManagerDashboard />,
       },
       {
-        path: 'sales-organization',
-        element: <ASMSalesOrganization />,
+        path: 'mr-management',
+        element: <ASMMrManagement />,
+      },
+      {
+        path: 'target-achievement',
+        element: <ASMTargetAchievement />,
       },
       {
         path: 'target-allocation',
         element: <ASMTargetAllocation />,
       },
       {
-        path: 'team-performance',
-        element: <ASMTeamPerformance />,
+        path: 'daily-activities',
+        element: <ASMDailyActivities />,
       },
       {
-        path: 'area-analytics',
-        element: <ASMAreaAnalytics />,
+        path: 'tour-planning',
+        element: <ASMTourPlanning />,
       },
       {
-        path: 'tour-plan-review',
-        element: <ASMTourPlanReview />,
-      },
-      {
-        path: 'dcr-review',
-        element: <ASMDCRReview />,
-      },
-      {
-        path: 'attendance-monitoring',
-        element: <ASMAttendanceMonitoring />,
-      },
-      {
-        path: 'area-reports',
-        element: <ASMAreaReports />,
+        path: 'attendance',
+        element: <ASMAttendance />,
       },
     ],
   },

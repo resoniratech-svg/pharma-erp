@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { PageHeader, FilterBar, SearchInput, TableCard, DataTable, Badge, ActionButton, SummaryCard } from './components/shared';
+import { PageHeader, FilterBar, SearchInput, TableCard, DataTable, Badge, ActionButton, SummaryCard, Drawer, DrawerField } from './components/shared';
 import { Plus, Edit2, Eye, Users, UserCheck, UserX, MapPin } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 
@@ -508,55 +508,56 @@ export default function ASMManagement() {
         </form>
       </Modal>
 
-      {/* View Modal */}
-      {viewingAsm && (
-        <Modal
-          isOpen={isViewModalOpen}
-          onClose={() => setIsViewModalOpen(false)}
-          title="Area Sales Manager Details"
-          size="lg"
-        >
-          <div className="space-y-6">
-            {/* Basic Information */}
-            <div>
-              <h3 className="text-sm font-bold text-slate-800 mb-4 border-b pb-2">Basic Information</h3>
-              <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Employee Code</span><span className="text-sm font-medium">{viewingAsm.id}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Employee Name</span><span className="text-sm font-medium">{viewingAsm.name}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Mobile Number</span><span className="text-sm font-medium">{viewingAsm.mobile}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Email Address</span><span className="text-sm font-medium">{viewingAsm.email}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Gender</span><span className="text-sm font-medium">{viewingAsm.gender || '-'}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Date of Birth</span><span className="text-sm font-medium">{viewingAsm.dob || '-'}</span></div>
+      {/* View Drawer */}
+      <Drawer
+        open={isViewModalOpen}
+        onClose={() => setIsViewModalOpen(false)}
+        title="Area Sales Manager Details"
+      >
+        {viewingAsm && (
+          <div className="flex flex-col h-full">
+            <div className="space-y-1">
+              <DrawerField label="Employee Code" value={viewingAsm.id} />
+              <DrawerField label="Employee Name" value={viewingAsm.name} />
+              <DrawerField label="Mobile Number" value={viewingAsm.mobile} />
+              <DrawerField label="Email Address" value={viewingAsm.email} />
+              <DrawerField label="Gender" value={viewingAsm.gender || '-'} />
+              <DrawerField label="Date of Birth" value={viewingAsm.dob || '-'} />
+
+              <div className="py-3 mt-2 border-t border-slate-100">
+                <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Employment Information</p>
+                <div className="space-y-1">
+                  <DrawerField label="Joining Date" value={viewingAsm.joiningDate} />
+                  <DrawerField label="State" value={viewingAsm.state} />
+                  <DrawerField label="Headquarters" value={viewingAsm.hq} />
+                  <DrawerField label="Territory" value={viewingAsm.territory || '-'} />
+                  <DrawerField label="Reporting RSM" value={loggedInRsm} />
+                  <DrawerField label="Employment Status" value={
+                    <Badge variant={viewingAsm.status === 'Active' ? 'success' : 'neutral'}>{viewingAsm.status}</Badge>
+                  } />
+                </div>
+              </div>
+
+              <div className="py-3 mt-2 border-t border-slate-100">
+                <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Audit Information</p>
+                <div className="space-y-1">
+                  <DrawerField label="Created Date" value={viewingAsm.joiningDate || 'N/A'} />
+                  <DrawerField label="Remarks" value={viewingAsm.remarks || '-'} />
+                </div>
               </div>
             </div>
-
-            {/* Employment Information */}
-            <div>
-              <h3 className="text-sm font-bold text-slate-800 mb-4 border-b pb-2">Employment Information</h3>
-              <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Joining Date</span><span className="text-sm font-medium">{viewingAsm.joiningDate}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">State</span><span className="text-sm font-medium">{viewingAsm.state}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Headquarters</span><span className="text-sm font-medium">{viewingAsm.hq}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Territory</span><span className="text-sm font-medium">{viewingAsm.territory || '-'}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Reporting RSM</span><span className="text-sm font-medium">{loggedInRsm}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Employment Status</span><Badge variant={viewingAsm.status === 'Active' ? 'success' : 'neutral'}>{viewingAsm.status}</Badge></div>
-              </div>
-            </div>
-
-            {/* Audit Information */}
-            <div className="bg-slate-50 p-4 rounded-lg">
-              <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase">Audit Information</h3>
-              <div className="grid grid-cols-2 gap-y-2 gap-x-8">
-                <div><span className="block text-xs text-slate-400 font-semibold mb-0.5">Created Date</span><span className="text-xs font-medium text-slate-600">{viewingAsm.joiningDate || 'N/A'}</span></div>
-                <div><span className="block text-xs text-slate-400 font-semibold mb-0.5">Remarks</span><span className="text-xs font-medium text-slate-600">{viewingAsm.remarks || '-'}</span></div>
-              </div>
+            
+            <div className="mt-auto pt-6 border-t border-slate-100">
+              <button
+                onClick={() => setIsViewModalOpen(false)}
+                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors"
+              >
+                Close
+              </button>
             </div>
           </div>
-          <div className="flex justify-end pt-6 mt-4 border-t border-slate-100">
-            <ActionButton variant="secondary" onClick={() => setIsViewModalOpen(false)}>Close</ActionButton>
-          </div>
-        </Modal>
-      )}
+        )}
+      </Drawer>
     </div>
   );
 }

@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { PageHeader, SummaryCard } from './components/shared';
-import { IndianRupee, Target, Activity, Users, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router';
+import { PageHeader, SummaryCard, TableCard, DataTable, Badge } from './components/shared';
+import { IndianRupee, Target, Activity, Users, AlertCircle, Eye } from 'lucide-react';
 import { rsmService } from '../../services/rsmService';
 
 export default function Dashboard() {
+  const navigate = useNavigate();
   const [kpis, setKpis] = useState({
     assignedTarget: 0,
     allocatedTarget: 0,
@@ -19,12 +21,38 @@ export default function Dashboard() {
       const liveKpis = rsmService.getDashboardKPIs();
       setKpis({
         ...liveKpis,
-        pendingActivities: 5 // Example data since no service provides this yet
+        pendingActivities: 5
       } as any);
     } catch (e) {
       console.warn("Error fetching dashboard KPIs:", e);
     }
   }, []);
+
+  const pendingActivities = [
+    { id: 1, source: 'Attendance', employee: 'Rahul Verma', activity: 'Late Check-in', date: 'Today', status: 'Pending Review', path: '/workspace/regional-sales-manager/attendance' },
+    { id: 2, source: 'Team Visit', employee: 'Vikash Sharma', activity: 'Visit Pending Approval', date: 'Today', status: 'Pending', path: '/workspace/regional-sales-manager/team-visits' },
+    { id: 3, source: 'Attendance', employee: 'Amit Desai', activity: 'Attendance Pending Review', date: 'Today', status: 'Pending', path: '/workspace/regional-sales-manager/attendance' },
+    { id: 4, source: 'Distributor', employee: 'Surat Pharma', activity: 'Outstanding Payment Follow-up', date: 'Today', status: 'Pending', path: '/workspace/regional-sales-manager/distributor-management' },
+    { id: 5, source: 'Distributor', employee: 'Apollo Pharma', activity: 'Outstanding Payment Follow-up', date: 'Yesterday', status: 'Pending', path: '/workspace/regional-sales-manager/distributor-management' },
+  ];
+
+  const columns = [
+    { key: 'source', label: 'Source', render: (row: any) => <span className="font-medium text-slate-700">{row.source}</span> },
+    { key: 'employee', label: 'Employee / Distributor', render: (row: any) => <span className="font-semibold text-slate-800">{row.employee}</span> },
+    { key: 'activity', label: 'Activity' },
+    { key: 'date', label: 'Date', render: (row: any) => <span className="text-slate-500 text-sm">{row.date}</span> },
+    { key: 'status', label: 'Status', render: (row: any) => (
+      <Badge variant={row.status.includes('Review') ? 'warning' : 'neutral'}>{row.status}</Badge>
+    ) },
+    { key: 'action', label: 'Action', render: (row: any) => (
+      <button 
+        onClick={() => navigate(row.path)}
+        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-[#163c78] bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors"
+      >
+        <Eye className="w-4 h-4" /> View
+      </button>
+    ) }
+  ];
 
   return (
     <div className="p-6">
@@ -84,13 +112,11 @@ export default function Dashboard() {
         />
       </div>
 
-      <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center text-slate-500 mb-8 flex flex-col items-center">
-        <Activity className="w-12 h-12 text-slate-300 mb-4" />
-        <h3 className="text-lg font-bold text-slate-700">Detailed Analytics Pending</h3>
-        <p className="max-w-md mt-2">
-          Charts and downstream transaction data (orders, doctor visits, daily call reports) will populate here once the Medical Representative (MR) module begins processing live transactions. 
-          Currently returning baseline service-layer values as requested.
-        </p>
+      <div className="mb-6">
+        <h2 className="text-lg font-bold text-slate-800 mb-4">Recent Pending Approvals & Activities</h2>
+        <TableCard>
+          <DataTable columns={columns} data={pendingActivities} />
+        </TableCard>
       </div>
     </div>
   );
