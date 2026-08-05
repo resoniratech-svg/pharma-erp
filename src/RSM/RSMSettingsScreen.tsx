@@ -13,17 +13,17 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 
-const NSMSettingsScreen = () => {
+const RSMSettingsScreen = () => {
   const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<'Profile' | 'Password'>('Profile');
 
-  // Profile fields
-  const [employeeId] = useState('NSM001');
-  const [name, setName] = useState('Rajesh Sharma');
+  // Profile fields for Amitabh Verma
+  const [employeeId] = useState('RSM001');
+  const [name, setName] = useState('Amitabh Verma');
   const [mobile, setMobile] = useState('+91 98765 11223');
-  const [email, setEmail] = useState('rajesh.sharma@pharmaerp.com');
-  const [designation] = useState('National Sales Head');
-  const [region] = useState('Pan-India Head Office');
+  const [email, setEmail] = useState('amitabh.verma@pharmaerp.com');
+  const [designation] = useState('Regional Sales Manager');
+  const [region] = useState('South Zone');
 
   // Change Password fields
   const [currentPassword, setCurrentPassword] = useState('');
@@ -31,7 +31,7 @@ const NSMSettingsScreen = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
 
   const handleSaveProfile = () => {
-    Alert.alert('✅ Profile Updated', 'NSM Profile information updated.');
+    Alert.alert('✅ Profile Updated', 'RSM Profile information updated.');
   };
 
   const handleChangePassword = () => {
@@ -51,14 +51,14 @@ const NSMSettingsScreen = () => {
 
   const handleLogoutConfirm = () => {
     if (Platform.OS === 'web') {
-      const confirmLogout = window.confirm('Are you sure you want to log out of the NSM Portal?');
+      const confirmLogout = window.confirm('Are you sure you want to log out of the RSM Portal?');
       if (confirmLogout) {
         navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
       }
     } else {
       Alert.alert(
         '🚪 Logout Confirmation',
-        'Are you sure you want to log out of the NSM Portal?',
+        'Are you sure you want to log out of the RSM Portal?',
         [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Logout', style: 'destructive', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Login' }] }) },
@@ -69,13 +69,19 @@ const NSMSettingsScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>⚙️ Settings</Text>
-          <Text style={styles.subtitle}>Account profile & security settings.</Text>
+      <View style={styles.header}>
+        <View style={styles.headerLeft}>
+          <TouchableOpacity onPress={() => navigation.navigate('RSMDashboard')} style={styles.backBtn}>
+            <Ionicons name="arrow-back" size={24} color="#0F172A" />
+          </TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.title}>⚙️ Settings</Text>
+            <Text style={styles.subtitle}>Account profile & security settings.</Text>
+          </View>
         </View>
+      </View>
 
+      <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* 2 Settings Tabs */}
         <View style={styles.tabContainer}>
           <TouchableOpacity style={[styles.tab, activeTab === 'Profile' && styles.activeTab]} onPress={() => setActiveTab('Profile')}>
@@ -162,21 +168,42 @@ const NSMSettingsScreen = () => {
         {/* Logout Button */}
         <TouchableOpacity style={styles.logoutCard} onPress={handleLogoutConfirm}>
           <Ionicons name="log-out-outline" size={22} color="#DC2626" />
-          <Text style={styles.logoutText}>🚪 Logout of NSM Portal</Text>
+          <Text style={styles.logoutText}>🚪 Logout of RSM Portal</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
 };
 
-export default NSMSettingsScreen;
+export default RSMSettingsScreen;
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
-  scrollContent: { padding: 16 },
-  header: { marginBottom: 14 },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    padding: 16, 
+    backgroundColor: '#FFF', 
+    borderBottomWidth: 1, 
+    borderBottomColor: '#E2E8F0',
+    gap: 12
+  },
+  headerLeft: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    flex: 1
+  },
+  backBtn: { 
+    padding: 6, 
+    marginRight: 12, 
+    backgroundColor: '#F1F5F9', 
+    borderRadius: 8,
+    marginTop: 2
+  },
   title: { fontSize: 20, fontWeight: 'bold', color: '#0F172A' },
   subtitle: { fontSize: 12, color: '#64748B', marginTop: 2 },
+  scrollContent: { padding: 16 },
 
   tabContainer: { flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 10, padding: 3, marginBottom: 16 },
   tab: { flex: 1, paddingVertical: 8, alignItems: 'center', borderRadius: 8 },

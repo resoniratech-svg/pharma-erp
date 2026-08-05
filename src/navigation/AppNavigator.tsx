@@ -12,6 +12,30 @@ import NSMTeamVisitsScreen from '../NSM/TeamVisitsScreen';
 import NSMSettingsScreen from '../NSM/NSMSettingsScreen';
 import NSMNotificationsScreen from '../NSM/NotificationsScreen';
 
+// ── RSM Module Screens ──
+import RSMDashboardScreen from '../RSM/RSMDashboardScreen';
+import ASMManagementScreen from '../RSM/ASMManagementScreen';
+import RSMTargetAllocationScreen from '../RSM/RSMTargetAllocationScreen';
+import RSMRegionalPerformanceScreen from '../RSM/RSMRegionalPerformanceScreen';
+import RSMTeamPerformanceScreen from '../RSM/RSMTeamPerformanceScreen';
+import RSMTeamVisitsScreen from '../RSM/RSMTeamVisitsScreen';
+import RSMDistributorManagementScreen from '../RSM/RSMDistributorManagementScreen';
+import RSMAttendanceScreen from '../RSM/RSMAttendanceScreen';
+import RSMSettingsScreen from '../RSM/RSMSettingsScreen';
+import RSMNotificationsScreen from '../RSM/RSMNotificationsScreen';
+
+// ── ASM Module Screens ──
+import ASMDashboardScreen from '../ASM/ASMDashboardScreen';
+import ASMMRManagementScreen from '../ASM/ASMMRManagementScreen';
+import ASMTargetAllocationScreen from '../ASM/ASMTargetAllocationScreen';
+import ASMTargetAchievementScreen from '../ASM/ASMTargetAchievementScreen';
+import ASMDailyActivitiesScreen from '../ASM/ASMDailyActivitiesScreen';
+import ASMTourPlanningScreen from '../ASM/ASMTourPlanningScreen';
+import ASMAttendanceScreen from '../ASM/ASMAttendanceScreen';
+import ASMSettingsScreen from '../ASM/ASMSettingsScreen';
+
+import ASMNotificationsScreen from '../ASM/ASMNotificationsScreen';
+
 import ActivityTrackingScreen from '../screens/ActivityTrackingScreen/ActivityTrackingScreen';
 import AttendanceScreen from '../screens/AttendanceScreen/AttendanceScreen';
 import BookOrderScreen from '../screens/BookOrderScreen/BookOrderScreen';
@@ -60,6 +84,33 @@ const AppNavigator = () => {
           headerLeft: () => null,
         }}
       />
+
+      {/* ── ASM Module Routes ── */}
+      <Stack.Screen name="ASMDashboard" component={ASMDashboardScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ASMMRManagement" component={ASMMRManagementScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ASMTargetAllocation" component={ASMTargetAllocationScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ASMTargetAchievement" component={ASMTargetAchievementScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ASMDailyActivities" component={ASMDailyActivitiesScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ASMTourPlanning" component={ASMTourPlanningScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ASMAttendance" component={ASMAttendanceScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ASMSettings" component={ASMSettingsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="ASMNotifications" component={ASMNotificationsScreen} options={{ headerShown: false }} />
+      
+      {/* ── RSM Module Routes ── */}
+      <Stack.Screen
+        name="RSMDashboard"
+        component={RSMDashboardScreen}
+        options={{ headerShown: false }}
+      />
+      <Stack.Screen name="ASMManagement" component={ASMManagementScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RSMTargetAllocation" component={RSMTargetAllocationScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RSMRegionalPerformance" component={RSMRegionalPerformanceScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RSMTeamPerformance" component={RSMTeamPerformanceScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RSMTeamVisits" component={RSMTeamVisitsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RSMDistributorManagement" component={RSMDistributorManagementScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RSMAttendance" component={RSMAttendanceScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RSMSettings" component={RSMSettingsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="RSMNotifications" component={RSMNotificationsScreen} options={{ headerShown: false }} />
 
       <Stack.Screen
         name="Attendance"
@@ -240,7 +291,7 @@ const AppNavigator = () => {
 />*/}
 
       {/* ── NSM Screens ── */}
-      <Stack.Screen name="NSMDashboard" component={NSMDashboardScreen} options={{ title: 'NSM Executive Dashboard' }} />
+      <Stack.Screen name="NSMDashboard" component={NSMDashboardScreen} options={{ title: 'NSM Executive Dashboard', headerBackVisible: false, headerLeft: () => null }} />
       <Stack.Screen name="NSMSalesOperations" component={NSMSalesOperationsScreen} options={{ title: 'Sales Operations' }} />
       <Stack.Screen name="NSMTargetPlanning" component={NSMTargetPlanningScreen} options={{ title: 'Target Planning' }} />
       <Stack.Screen name="NSMStatePerformance" component={NSMStatePerformanceScreen} options={{ title: 'State Performance' }} />

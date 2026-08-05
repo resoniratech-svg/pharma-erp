@@ -7,199 +7,305 @@ import {
   TextInput,
   TouchableOpacity,
   SafeAreaView,
+  Alert,
+  Modal,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 const NSMTeamPerformanceScreen = () => {
-  const [activeTab, setActiveTab] = useState<'Performance' | 'Attendance' | 'TargetAchv' | 'TeamStructure' | 'ActivityLog'>('Performance');
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewDetails, setViewDetails] = useState<any>(null);
 
-  // 5.1 Performance Data
-  const perfData = [
-    { empCode: 'RSM001', empName: 'Arun Kumar', region: 'West Zone', target: '₹15.00 Cr', achieved: '₹13.50 Cr', pct: '90.0%', revenue: '₹13.50 Cr', grade: 'Top Performer' },
-    { empCode: 'RSM002', empName: 'Rajesh Singh', region: 'North Zone', target: '₹12.00 Cr', achieved: '₹9.50 Cr', pct: '79.2%', revenue: '₹9.50 Cr', grade: 'On Track' },
-    { empCode: 'RSM003', empName: 'Priya Sharma', region: 'South Zone', target: '₹18.00 Cr', achieved: '₹19.50 Cr', pct: '108.3%', revenue: '₹19.50 Cr', grade: 'Star Performer' },
+  // Filter States
+  const [filterTarget, setFilterTarget] = useState('Annual Target');
+  const [filterRegion, setFilterRegion] = useState('All Regions');
+  const [filterState, setFilterState] = useState('All States');
+  const [dropdownTarget, setDropdownTarget] = useState<'target' | 'region' | 'state' | null>(null);
+
+  const teamPerformanceData = [
+    { id: '1', empCode: 'RSM001', empName: 'Arun Kumar', state: 'Maharashtra', target: '₹15.00 Cr', achieved: '₹13.50 Cr', achvPct: '90.0%', teamStrength: '53 Members', attdPct: '92%', orders: '4,520', status: 'Good' },
+    { id: '2', empCode: 'RSM002', empName: 'Rajesh Singh', state: 'Gujarat', target: '₹12.00 Cr', achieved: '₹9.50 Cr', achvPct: '79.2%', teamStrength: '41 Members', attdPct: '88%', orders: '3,100', status: 'Average' },
+    { id: '3', empCode: 'RSM003', empName: 'Priya Sharma', state: 'Karnataka', target: '₹18.00 Cr', achieved: '₹19.50 Cr', achvPct: '108.3%', teamStrength: '65 Members', attdPct: '95%', orders: '5,800', status: 'Excellent' },
+    { id: '4', empCode: 'RSM004', empName: 'Vikram Das', state: 'Tamil Nadu', target: '₹10.00 Cr', achieved: '₹4.50 Cr', achvPct: '45.0%', teamStrength: '30 Members', attdPct: '78%', orders: '1,200', status: 'Needs Attention' },
   ];
 
-  // 5.2 Attendance Data
-  const attdData = [
-    { empName: 'Arun Kumar', workingDays: 26, present: 24, leave: 2, attdPct: '92.3%' },
-    { empName: 'Rajesh Singh', workingDays: 26, present: 22, leave: 4, attdPct: '84.6%' },
-    { empName: 'Priya Sharma', workingDays: 26, present: 25, leave: 1, attdPct: '96.1%' },
+  const targetOptions = ['Monthly Target', 'Quarterly Target', 'Annual Target'];
+  const regionOptions = ['All Regions', 'North Zone', 'South Zone', 'East Zone', 'West Zone'];
+  const stateOptions = [
+    'All States', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh', 'Delhi', 'Goa', 'Gujarat',
+    'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra',
+    'Manipur', 'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab', 'Rajasthan', 'Sikkim', 'Tamil Nadu',
+    'Telangana', 'Tripura', 'Uttar Pradesh', 'Uttarakhand', 'West Bengal'
   ];
 
-  // 5.3 Target Achievement Data
-  const targetAchvData = [
-    { empName: 'Arun Kumar', salesTarget: '₹15.00Cr', salesAchieved: '₹13.50Cr', drTarget: 1200, drAchieved: 1150, chemistTarget: 400, chemistAchieved: 380 },
-    { empName: 'Rajesh Singh', salesTarget: '₹12.00Cr', salesAchieved: '₹9.50Cr', drTarget: 1000, drAchieved: 850, chemistTarget: 350, chemistAchieved: 290 },
-    { empName: 'Priya Sharma', salesTarget: '₹18.00Cr', salesAchieved: '₹19.50Cr', drTarget: 1400, drAchieved: 1450, chemistTarget: 450, chemistAchieved: 480 },
-  ];
+  const filteredData = teamPerformanceData.filter(row => {
+    const matchesSearch = row.empName.toLowerCase().includes(searchQuery.toLowerCase()) || row.empCode.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesState = filterState === 'All States' || row.state === filterState;
+    return matchesSearch && matchesState;
+  });
 
-  // 5.4 Team Structure Data
-  const teamStructData = [
-    { empName: 'Arun Kumar', totalASM: 4, activeASM: 4, totalMR: 22, activeMR: 20, statesCovered: 'Maharashtra, Goa' },
-    { empName: 'Rajesh Singh', totalASM: 3, activeASM: 3, totalMR: 18, activeMR: 16, statesCovered: 'Gujarat, Daman' },
-    { empName: 'Priya Sharma', totalASM: 5, activeASM: 5, totalMR: 25, activeMR: 24, statesCovered: 'Karnataka, Kerala' },
-  ];
+  const getStatusStyle = (status: string) => {
+    switch(status) {
+      case 'Excellent': return { bg: '#DCFCE7', text: '#15803D', border: '#bbf7d0' };
+      case 'Good': return { bg: '#F1F5F9', text: '#334155', border: '#cbd5e1' };
+      case 'Average': return { bg: '#FEF3C7', text: '#D97706', border: '#fde68a' };
+      case 'Needs Attention': return { bg: '#FEE2E2', text: '#DC2626', border: '#fecaca' };
+      default: return { bg: '#F1F5F9', text: '#334155', border: '#cbd5e1' };
+    }
+  };
 
-  // 5.5 Activity Log Data
-  const activityLogData = [
-    { date: '01 Aug 2026', time: '10:30 AM', activity: 'Target Published', description: 'Published Q2 Sales target for South Zone', performedBy: 'Rajesh Sharma (NSM)', status: 'Success' },
-    { date: '01 Aug 2026', time: '09:15 AM', activity: 'RSM Onboarded', description: 'Added Suresh Nambiar as Kerala RSM', performedBy: 'Rajesh Sharma (NSM)', status: 'Completed' },
-    { date: '31 Jul 2026', time: '05:45 PM', activity: 'Attendance Override', description: 'Approved GPS exception for Arun Kumar', performedBy: 'Rajesh Sharma (NSM)', status: 'Approved' },
-  ];
+  const handleExport = () => {
+    const headers = ['Employee Code', 'RSM Name', 'State', 'Assigned Target (Cr)', 'Achievement (Cr)', 'Achievement %', 'Team Strength', 'Attendance %', 'Orders', 'Status'];
+    const csvRows = [headers.join(',')];
+
+    filteredData.forEach(row => {
+      const values = [
+        row.empCode,
+        row.empName,
+        row.state,
+        row.target.replace(/[^\d.]/g, ''),
+        row.achieved.replace(/[^\d.]/g, ''),
+        row.achvPct.replace('%', ''),
+        row.teamStrength.replace(/[^\d]/g, ''),
+        row.attdPct.replace('%', ''),
+        row.orders.replace(/,/g, ''),
+        row.status
+      ];
+      csvRows.push(values.map(v => `"${v}"`).join(','));
+    });
+
+    const csvString = csvRows.join('\n');
+
+    if (Platform.OS === 'web') {
+      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      const link = document.createElement('a');
+      const url = URL.createObjectURL(blob);
+      link.setAttribute('href', url);
+      link.setAttribute('download', 'Team_Performance_Report.csv');
+      link.style.visibility = 'hidden';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } else {
+      Alert.alert('Export Successful', 'The report data has been generated.');
+    }
+  };
+
+  // Dynamic Summary Stats Calculations
+  const parseCr = (val: string) => parseFloat(val.replace(/[^\d.]/g, '')) || 0;
+  const parsePct = (val: string) => parseFloat(val.replace('%', '')) || 0;
+  const parseMembers = (val: string) => parseInt(val.replace(/[^\d]/g, '')) || 0;
+
+  const activeRSMs = filteredData.length;
+  
+  const totalFieldForce = filteredData.reduce((sum, row) => sum + parseMembers(row.teamStrength), 0);
+  
+  let topRsmRow = filteredData[0];
+  if (filteredData.length > 0) {
+    topRsmRow = filteredData.reduce((prev, current) => 
+      parsePct(prev.achvPct) > parsePct(current.achvPct) ? prev : current
+    );
+  }
+
+  const totalTarget = filteredData.reduce((sum, row) => sum + parseCr(row.target), 0);
+  const totalAchieved = filteredData.reduce((sum, row) => sum + parseCr(row.achieved), 0);
+  const overallAchvPct = totalTarget > 0 ? ((totalAchieved / totalTarget) * 100).toFixed(1) : '0.0';
+
+  const getDropdownOptions = () => {
+    if (dropdownTarget === 'target') return targetOptions;
+    if (dropdownTarget === 'region') return regionOptions;
+    if (dropdownTarget === 'state') return stateOptions;
+    return [];
+  };
+
+  const handleDropdownSelect = (opt: string) => {
+    if (dropdownTarget === 'target') setFilterTarget(opt);
+    if (dropdownTarget === 'region') setFilterRegion(opt);
+    if (dropdownTarget === 'state') setFilterState(opt);
+    setDropdownTarget(null);
+  };
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
-        <View style={styles.header}>
-          <Text style={styles.title}>👥 RSM Monitoring Hub</Text>
-          <Text style={styles.subtitle}>Performance, Attendance, Target Achievement, Team Structure & Activity Logs.</Text>
+        
+        {/* Filters */}
+        <View style={styles.filterSection}>
+           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dropdownsRow}>
+              <TouchableOpacity style={styles.pickerBox} onPress={() => setDropdownTarget('target')}>
+                <Text style={styles.pickerText}>{filterTarget}</Text>
+                <Ionicons name="chevron-down" size={14} color="#64748B" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.pickerBox} onPress={() => setDropdownTarget('region')}>
+                <Text style={styles.pickerText}>{filterRegion}</Text>
+                <Ionicons name="chevron-down" size={14} color="#64748B" />
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.pickerBox} onPress={() => setDropdownTarget('state')}>
+                <Text style={styles.pickerText}>{filterState}</Text>
+                <Ionicons name="chevron-down" size={14} color="#64748B" />
+              </TouchableOpacity>
+           </ScrollView>
+           
+           <View style={styles.searchExportRow}>
+              <View style={styles.searchBox}>
+                <Ionicons name="search" size={16} color="#94A3B8" />
+                <TextInput 
+                  placeholder="Search RSM Name or Code..." 
+                  style={[styles.searchInput, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} 
+                  value={searchQuery} 
+                  onChangeText={setSearchQuery} 
+                />
+              </View>
+              <TouchableOpacity style={styles.exportBtn} onPress={handleExport}>
+                <Ionicons name="download-outline" size={16} color="#475569" />
+                <Text style={styles.exportBtnText}>Export</Text>
+              </TouchableOpacity>
+           </View>
         </View>
 
-        {/* 5 Production Sub-Tabs */}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 14 }}>
-          <View style={styles.tabContainer}>
-            <TouchableOpacity style={[styles.tab, activeTab === 'Performance' && styles.activeTab]} onPress={() => setActiveTab('Performance')}>
-              <Text style={[styles.tabText, activeTab === 'Performance' && styles.activeTabText]}>5.1 Performance</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.tab, activeTab === 'Attendance' && styles.activeTab]} onPress={() => setActiveTab('Attendance')}>
-              <Text style={[styles.tabText, activeTab === 'Attendance' && styles.activeTabText]}>5.2 Attendance</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.tab, activeTab === 'TargetAchv' && styles.activeTab]} onPress={() => setActiveTab('TargetAchv')}>
-              <Text style={[styles.tabText, activeTab === 'TargetAchv' && styles.activeTabText]}>5.3 Target Achv</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.tab, activeTab === 'TeamStructure' && styles.activeTab]} onPress={() => setActiveTab('TeamStructure')}>
-              <Text style={[styles.tabText, activeTab === 'TeamStructure' && styles.activeTabText]}>5.4 Team Structure</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity style={[styles.tab, activeTab === 'ActivityLog' && styles.activeTab]} onPress={() => setActiveTab('ActivityLog')}>
-              <Text style={[styles.tabText, activeTab === 'ActivityLog' && styles.activeTabText]}>5.5 Activity Log</Text>
-            </TouchableOpacity>
+        {/* Summary Cards */}
+        <View style={styles.summaryGrid}>
+          <View style={styles.summaryCard}>
+            <View style={styles.iconCirclePurple}><Ionicons name="shield-checkmark-outline" size={18} color="#7E22CE" /></View>
+            <Text style={styles.summaryLabel}>Active RSMs</Text>
+            <Text style={styles.summaryValue}>{activeRSMs}</Text>
           </View>
-        </ScrollView>
+          
+          <View style={styles.summaryCard}>
+            <View style={styles.iconCircleBlue}><Ionicons name="people-outline" size={18} color="#1E3A8A" /></View>
+            <Text style={styles.summaryLabel}>Total Field Force</Text>
+            <Text style={styles.summaryValue}>{totalFieldForce}</Text>
+            <Text style={styles.summarySubtext}>{activeRSMs} ASM | {totalFieldForce - activeRSMs} MR</Text>
+          </View>
 
-        {/* Search Bar */}
-        <View style={styles.searchBar}>
-          <Ionicons name="search-outline" size={18} color="#94A3B8" style={{ marginRight: 8 }} />
-          <TextInput placeholder="Search RSM or activity..." style={styles.searchInput} value={searchQuery} onChangeText={setSearchQuery} />
+          <View style={styles.summaryCard}>
+            <View style={styles.iconCircleGreen}><Ionicons name="trending-up" size={18} color="#15803D" /></View>
+            <Text style={styles.summaryLabel}>Top Performing RSM</Text>
+            <Text style={styles.summaryValue}>{topRsmRow?.empName || '--'}</Text>
+            <Text style={styles.summarySubtext}>{topRsmRow?.achvPct || '0%'} Achieved</Text>
+          </View>
+
+          <View style={styles.summaryCard}>
+            <View style={styles.iconCircleBlue}><Ionicons name="disc-outline" size={18} color="#1E3A8A" /></View>
+            <Text style={styles.summaryLabel}>Overall Team Achievement</Text>
+            <Text style={styles.summaryValue}>{overallAchvPct}%</Text>
+            <Text style={styles.summarySubtext}>₹{totalAchieved.toFixed(2)}Cr / ₹{totalTarget.toFixed(2)}Cr</Text>
+          </View>
         </View>
 
-        {/* ── 5.1 PERFORMANCE TABLE ── */}
-        {activeTab === 'Performance' && (
-          <View style={styles.card}>
-            <Text style={styles.tableTitle}>5.1 Performance Table</Text>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.th, { flex: 0.9 }]}>Code</Text>
-              <Text style={[styles.th, { flex: 1.2 }]}>RSM Name</Text>
-              <Text style={[styles.th, { flex: 1 }]}>Region</Text>
-              <Text style={[styles.th, { flex: 1 }]}>Target</Text>
-              <Text style={[styles.th, { flex: 1 }]}>Achieved</Text>
-              <Text style={[styles.th, { flex: 0.9, textAlign: 'right' }]}>Grade</Text>
-            </View>
-
-            {perfData.map((row, idx) => (
-              <View key={idx} style={styles.tableRow}>
-                <Text style={[styles.td, { flex: 0.9, fontWeight: 'bold' }]}>{row.empCode}</Text>
-                <Text style={[styles.td, { flex: 1.2, fontWeight: 'bold' }]}>{row.empName}</Text>
-                <Text style={[styles.td, { flex: 1 }]}>{row.region}</Text>
-                <Text style={[styles.td, { flex: 1 }]}>{row.target}</Text>
-                <Text style={[styles.td, { flex: 1, color: '#059669', fontWeight: 'bold' }]}>{row.achieved}</Text>
-                <Text style={[styles.td, { flex: 0.9, textAlign: 'right', color: '#4F46E5', fontWeight: 'bold' }]}>{row.grade}</Text>
+        {/* Main Table */}
+        <View style={styles.card}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ minWidth: 1000 }}>
+              <View style={styles.tableHeader}>
+                <Text style={[styles.th, { width: 110 }]}>EMPLOYEE CODE</Text>
+                <Text style={[styles.th, { width: 110 }]}>RSM NAME</Text>
+                <Text style={[styles.th, { width: 90 }]}>STATE</Text>
+                <Text style={[styles.th, { width: 110 }]}>ASSIGNED TARGET</Text>
+                <Text style={[styles.th, { width: 100 }]}>ACHIEVEMENT</Text>
+                <Text style={[styles.th, { width: 70 }]}>ACHV %</Text>
+                <Text style={[styles.th, { width: 110 }]}>TEAM STRENGTH</Text>
+                <Text style={[styles.th, { width: 70 }]}>ATTD %</Text>
+                <Text style={[styles.th, { width: 70 }]}>ORDERS</Text>
+                <Text style={[styles.th, { width: 100, textAlign: 'center' }]}>STATUS</Text>
+                <Text style={[styles.th, { width: 60, textAlign: 'center' }]}>ACTION</Text>
               </View>
-            ))}
-          </View>
-        )}
 
-        {/* ── 5.2 ATTENDANCE TABLE ── */}
-        {activeTab === 'Attendance' && (
-          <View style={styles.card}>
-            <Text style={styles.tableTitle}>5.2 Attendance Table</Text>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.th, { flex: 1.3 }]}>Employee Name</Text>
-              <Text style={[styles.th, { flex: 1 }]}>Working Days</Text>
-              <Text style={[styles.th, { flex: 1 }]}>Present</Text>
-              <Text style={[styles.th, { flex: 1 }]}>Leave</Text>
-              <Text style={[styles.th, { flex: 0.9, textAlign: 'right' }]}>Attd %</Text>
-            </View>
-
-            {attdData.map((row, idx) => (
-              <View key={idx} style={styles.tableRow}>
-                <Text style={[styles.td, { flex: 1.3, fontWeight: 'bold' }]}>{row.empName}</Text>
-                <Text style={[styles.td, { flex: 1 }]}>{row.workingDays}</Text>
-                <Text style={[styles.td, { flex: 1, color: '#059669', fontWeight: 'bold' }]}>{row.present}</Text>
-                <Text style={[styles.td, { flex: 1, color: '#D97706' }]}>{row.leave}</Text>
-                <Text style={[styles.td, { flex: 0.9, textAlign: 'right', color: '#4F46E5', fontWeight: 'bold' }]}>{row.attdPct}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* ── 5.3 TARGET ACHIEVEMENT TABLE ── */}
-        {activeTab === 'TargetAchv' && (
-          <View style={styles.card}>
-            <Text style={styles.tableTitle}>5.3 Target Achievement Table</Text>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.th, { flex: 1.2 }]}>RSM Name</Text>
-              <Text style={[styles.th, { flex: 1 }]}>Sales (Ach/Tgt)</Text>
-              <Text style={[styles.th, { flex: 1 }]}>Dr (Ach/Tgt)</Text>
-              <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>Chemist (Ach/Tgt)</Text>
-            </View>
-
-            {targetAchvData.map((row, idx) => (
-              <View key={idx} style={styles.tableRow}>
-                <Text style={[styles.td, { flex: 1.2, fontWeight: 'bold' }]}>{row.empName}</Text>
-                <Text style={[styles.td, { flex: 1, color: '#059669', fontWeight: 'bold' }]}>{row.salesAchieved}/{row.salesTarget}</Text>
-                <Text style={[styles.td, { flex: 1 }]}>{row.drAchieved}/{row.drTarget}</Text>
-                <Text style={[styles.td, { flex: 1, textAlign: 'right' }]}>{row.chemistAchieved}/{row.chemistTarget}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* ── 5.4 TEAM STRUCTURE TABLE ── */}
-        {activeTab === 'TeamStructure' && (
-          <View style={styles.card}>
-            <Text style={styles.tableTitle}>5.4 Team Structure Table</Text>
-            <View style={styles.tableHeader}>
-              <Text style={[styles.th, { flex: 1.2 }]}>RSM Name</Text>
-              <Text style={[styles.th, { flex: 1 }]}>ASM (Act/Tot)</Text>
-              <Text style={[styles.th, { flex: 1 }]}>MR (Act/Tot)</Text>
-              <Text style={[styles.th, { flex: 1.2, textAlign: 'right' }]}>States Covered</Text>
-            </View>
-
-            {teamStructData.map((row, idx) => (
-              <View key={idx} style={styles.tableRow}>
-                <Text style={[styles.td, { flex: 1.2, fontWeight: 'bold' }]}>{row.empName}</Text>
-                <Text style={[styles.td, { flex: 1 }]}>{row.activeASM}/{row.totalASM}</Text>
-                <Text style={[styles.td, { flex: 1 }]}>{row.activeMR}/{row.totalMR}</Text>
-                <Text style={[styles.td, { flex: 1.2, textAlign: 'right', color: '#4F46E5', fontWeight: 'bold' }]}>{row.statesCovered}</Text>
-              </View>
-            ))}
-          </View>
-        )}
-
-        {/* ── 5.5 ACTIVITY LOG TABLE ── */}
-        {activeTab === 'ActivityLog' && (
-          <View style={styles.card}>
-            <Text style={styles.tableTitle}>5.5 System Activity Logs</Text>
-            {activityLogData.map((row, idx) => (
-              <View key={idx} style={styles.logBox}>
-                <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 2 }}>
-                  <Text style={styles.logActivity}>{row.activity}</Text>
-                  <Text style={styles.logTime}>{row.date} • {row.time}</Text>
+              {filteredData.map((row) => {
+                const statusStyle = getStatusStyle(row.status);
+                return (
+                <View key={row.id} style={styles.tableRow}>
+                  <Text style={[styles.td, { width: 110 }]}>{row.empCode}</Text>
+                  <Text style={[styles.td, { width: 110, fontWeight: 'bold' }]}>{row.empName}</Text>
+                  <Text style={[styles.td, { width: 90 }]}>{row.state}</Text>
+                  <Text style={[styles.td, { width: 110 }]}>{row.target}</Text>
+                  <Text style={[styles.td, { width: 100, color: '#059669', fontWeight: 'bold' }]}>{row.achieved}</Text>
+                  <Text style={[styles.td, { width: 70 }]}>{row.achvPct}</Text>
+                  <Text style={[styles.td, { width: 110 }]}>{row.teamStrength}</Text>
+                  <Text style={[styles.td, { width: 70 }]}>{row.attdPct}</Text>
+                  <Text style={[styles.td, { width: 70 }]}>{row.orders}</Text>
+                  <View style={{ width: 100, alignItems: 'center' }}>
+                     <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg, borderColor: statusStyle.border }]}>
+                        <Text style={[styles.statusText, { color: statusStyle.text }]}>{row.status}</Text>
+                     </View>
+                  </View>
+                  <TouchableOpacity style={{ width: 60, alignItems: 'center', paddingVertical: 4 }} onPress={() => setViewDetails(row)}>
+                     <Ionicons name="eye-outline" size={18} color="#64748B" />
+                  </TouchableOpacity>
                 </View>
-                <Text style={styles.logDesc}>{row.description}</Text>
-                <Text style={styles.logUser}>By: {row.performedBy} • Status: <Text style={{ color: '#059669', fontWeight: 'bold' }}>{row.status}</Text></Text>
-              </View>
-            ))}
-          </View>
-        )}
+              )})}
+            </View>
+          </ScrollView>
+        </View>
+
       </ScrollView>
+
+      {/* ── View Details Modal ── */}
+      <Modal visible={viewDetails !== null} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { width: '85%', maxWidth: 400 }]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>{viewDetails?.empName} - Details</Text>
+              <TouchableOpacity onPress={() => setViewDetails(null)}>
+                <Ionicons name="close" size={24} color="#64748B" />
+              </TouchableOpacity>
+            </View>
+            <View style={{ padding: 20 }}>
+              {viewDetails && (
+                <>
+                  <View style={styles.viewRow}><Text style={styles.viewLabel}>Employee Code:</Text><Text style={styles.viewValue}>{viewDetails.empCode}</Text></View>
+                  <View style={styles.viewRow}><Text style={styles.viewLabel}>State:</Text><Text style={styles.viewValue}>{viewDetails.state}</Text></View>
+                  <View style={styles.viewRow}><Text style={styles.viewLabel}>Assigned Target:</Text><Text style={styles.viewValue}>{viewDetails.target}</Text></View>
+                  <View style={styles.viewRow}><Text style={styles.viewLabel}>Achieved:</Text><Text style={[styles.viewValue, { color: '#15803D', fontWeight: 'bold' }]}>{viewDetails.achieved}</Text></View>
+                  <View style={styles.viewRow}><Text style={styles.viewLabel}>Achievement %:</Text><Text style={styles.viewValue}>{viewDetails.achvPct}</Text></View>
+                  <View style={styles.viewRow}><Text style={styles.viewLabel}>Team Strength:</Text><Text style={styles.viewValue}>{viewDetails.teamStrength}</Text></View>
+                  <View style={styles.viewRow}><Text style={styles.viewLabel}>Doctor Visits:</Text><Text style={styles.viewValue}>{viewDetails.drVisits || 'N/A'}</Text></View>
+                  <View style={styles.viewRow}><Text style={styles.viewLabel}>Attendance %:</Text><Text style={styles.viewValue}>{viewDetails.attdPct}</Text></View>
+                  <View style={styles.viewRow}>
+                     <Text style={styles.viewLabel}>Status:</Text>
+                     <View style={[styles.statusBadge, { backgroundColor: getStatusStyle(viewDetails.status).bg, borderColor: getStatusStyle(viewDetails.status).border }]}>
+                        <Text style={[styles.statusText, { color: getStatusStyle(viewDetails.status).text }]}>{viewDetails.status}</Text>
+                     </View>
+                  </View>
+                </>
+              )}
+            </View>
+            <View style={{ padding: 16, borderTopWidth: 1, borderTopColor: '#E2E8F0', alignItems: 'center' }}>
+              <TouchableOpacity style={styles.btnSolidPrimary} onPress={() => setViewDetails(null)}>
+                <Text style={styles.btnSolidPrimaryText}>Close</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ── Dropdown Modal ── */}
+      <Modal visible={dropdownTarget !== null} transparent animationType="fade">
+        <TouchableOpacity style={[styles.modalOverlay, { backgroundColor: 'transparent' }]} activeOpacity={1} onPress={() => setDropdownTarget(null)}>
+          <View style={[
+            styles.dropdownModalCard, 
+            { position: 'absolute', paddingVertical: 8, elevation: 5, shadowOpacity: 0.1, shadowRadius: 10 },
+            dropdownTarget === 'target' ? { top: 160, left: 16, width: 160 } :
+            dropdownTarget === 'region' ? { top: 160, left: 140, width: 140 } :
+            dropdownTarget === 'state' ? { top: 160, left: 260, width: 180 } :
+            { top: 250, alignSelf: 'center', width: 200 }
+          ]}>
+            <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+              {getDropdownOptions().map((opt) => (
+                <TouchableOpacity 
+                  key={opt} 
+                  style={{ paddingVertical: 10, paddingHorizontal: 16, backgroundColor: '#FFF' }} 
+                  onPress={() => handleDropdownSelect(opt)}
+                >
+                  <Text style={{ fontSize: 13, color: '#334155' }}>{opt}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        </TouchableOpacity>
+      </Modal>
+
     </SafeAreaView>
   );
 };
@@ -209,29 +315,50 @@ export default NSMTeamPerformanceScreen;
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F8FAFC' },
   scrollContent: { padding: 16 },
-  header: { marginBottom: 14 },
-  title: { fontSize: 20, fontWeight: 'bold', color: '#0F172A' },
-  subtitle: { fontSize: 12, color: '#64748B', marginTop: 2 },
 
-  tabContainer: { flexDirection: 'row', backgroundColor: '#E2E8F0', borderRadius: 10, padding: 3, gap: 4 },
-  tab: { paddingVertical: 8, paddingHorizontal: 12, borderRadius: 8 },
-  activeTab: { backgroundColor: '#FFF', elevation: 1 },
-  tabText: { fontSize: 11, fontWeight: '600', color: '#64748B' },
-  activeTabText: { color: '#4F46E5', fontWeight: 'bold' },
+  filterSection: { marginBottom: 20, gap: 10 },
+  dropdownsRow: { flexDirection: 'row', gap: 10, paddingBottom: 6 },
+  pickerBox: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 12, paddingVertical: 10, borderRadius: 8, minWidth: 120 },
+  pickerText: { fontSize: 13, color: '#475569', fontWeight: '500', marginRight: 8 },
+  
+  searchExportRow: { flexDirection: 'row', gap: 10 },
+  searchBox: { flex: 1, flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, gap: 8 },
+  searchInput: { flex: 1, fontSize: 13, color: '#0F172A', padding: 0 },
+  exportBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, gap: 6 },
+  exportBtnText: { fontSize: 13, color: '#475569', fontWeight: '500' },
 
-  searchBar: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF', borderWidth: 1, borderColor: '#E2E8F0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 8, marginBottom: 14 },
-  searchInput: { flex: 1, fontSize: 13, color: '#0F172A' },
+  summaryGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingBottom: 16 },
+  summaryCard: { backgroundColor: '#FFF', width: '48%', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12 },
+  iconCircleBlue: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  iconCircleGreen: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#DCFCE7', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  iconCirclePurple: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#F3E8FF', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  summaryLabel: { fontSize: 11, color: '#64748B', fontWeight: '600', marginBottom: 6 },
+  summaryValue: { fontSize: 18, fontWeight: 'bold', color: '#0F172A' },
+  summarySubtext: { fontSize: 10, color: '#94A3B8', marginTop: 4 },
 
-  card: { backgroundColor: '#FFF', padding: 16, borderRadius: 14, borderWidth: 1, borderColor: '#E2E8F0' },
-  tableTitle: { fontSize: 15, fontWeight: 'bold', color: '#0F172A', marginBottom: 12 },
-  tableHeader: { flexDirection: 'row', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', backgroundColor: '#F8FAFC' },
+  card: { backgroundColor: '#FFF', padding: 16, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', shadowColor: '#000', shadowOpacity: 0.02, shadowRadius: 5, shadowOffset: {width: 0, height: 2}, elevation: 1 },
+  tableHeader: { flexDirection: 'row', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#E2E8F0', backgroundColor: '#FFF' },
   th: { fontSize: 10, fontWeight: 'bold', color: '#64748B' },
-  tableRow: { flexDirection: 'row', paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', alignItems: 'center' },
-  td: { fontSize: 11, color: '#334155' },
+  tableRow: { flexDirection: 'row', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', alignItems: 'center' },
+  td: { fontSize: 12, color: '#334155' },
+  statusBadge: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 12, borderWidth: 1 },
+  statusText: { fontSize: 10, fontWeight: 'bold' },
 
-  logBox: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
-  logActivity: { fontSize: 13, fontWeight: 'bold', color: '#0F172A' },
-  logTime: { fontSize: 10, color: '#94A3B8' },
-  logDesc: { fontSize: 11, color: '#64748B', marginTop: 2 },
-  logUser: { fontSize: 10, color: '#475569', marginTop: 2 },
+  // Modals
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalCard: { backgroundColor: '#FFF', width: '90%', maxWidth: 320, paddingBottom: 10, borderRadius: 12 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  modalTitle: { fontSize: 15, fontWeight: 'bold', color: '#0F172A' },
+  viewRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  viewLabel: { fontSize: 13, color: '#64748B', fontWeight: '600' },
+  viewValue: { fontSize: 14, color: '#0F172A' },
+  btnSolidPrimary: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#1E3A8A', paddingVertical: 10, paddingHorizontal: 24, borderRadius: 6 },
+  btnSolidPrimaryText: { color: '#FFF', fontWeight: '600', fontSize: 13 },
+
+  dropdownModalCard: { backgroundColor: '#FFF', width: '80%', maxWidth: 300, borderRadius: 12, overflow: 'hidden' },
+  dropdownHeader: { backgroundColor: '#F8FAFC', paddingVertical: 12, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#E2E8F0' },
+  dropdownTitle: { fontSize: 13, fontWeight: 'bold', color: '#0F172A' },
+  dropdownOption: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
+  dropdownOptionText: { fontSize: 13, color: '#334155' },
+  dropdownOptionTextSelected: { color: '#4F46E5', fontWeight: 'bold' },
 });

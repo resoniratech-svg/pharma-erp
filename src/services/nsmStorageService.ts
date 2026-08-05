@@ -3,6 +3,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // AsyncStorage Keys for NSM Module
 const KEYS = {
   TARGET_PLANNING: '@nsm_target_planning',
+  RECENT_TARGET_PLANS: '@nsm_recent_target_plans',
   RSM_LIST: '@nsm_rsm_list',
   STATE_PERFORMANCE: '@nsm_state_performance',
   TEAM_VISITS: '@nsm_team_visits',
@@ -55,6 +56,32 @@ export const saveTargetPlanningData = async (data: any) => {
   } catch (e) {
     console.error('Error saving target planning data', e);
     return false;
+  }
+};
+
+const INITIAL_RECENT_PLANS = [
+  { id: '1', fy: '2026-27', period: 'Annual', created: '2026-04-01', status: 'Active', allocated: '₹0', remaining: '₹10,00,000' }
+];
+
+export const getRecentTargetPlans = async () => {
+  try {
+    const json = await AsyncStorage.getItem(KEYS.RECENT_TARGET_PLANS);
+    return json != null ? JSON.parse(json) : INITIAL_RECENT_PLANS;
+  } catch (e) {
+    console.error('Error reading recent target plans', e);
+    return INITIAL_RECENT_PLANS;
+  }
+};
+
+export const addRecentTargetPlan = async (newPlan: any) => {
+  try {
+    const current = await getRecentTargetPlans();
+    const updated = [newPlan, ...current];
+    await AsyncStorage.setItem(KEYS.RECENT_TARGET_PLANS, JSON.stringify(updated));
+    return updated;
+  } catch (e) {
+    console.error('Error adding recent target plan', e);
+    return null;
   }
 };
 

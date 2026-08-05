@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,9 +9,16 @@ import {
   Modal,
   Alert,
   Image,
+  Dimensions,
+  Animated,
+  TouchableWithoutFeedback,
+  Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getTargetPlanningData, getRSMList } from '../services/nsmStorageService';
+import { LineChart } from 'react-native-chart-kit';
 
 export const NSM_ROUTES = {
   DASHBOARD: 'NSMDashboard',
@@ -32,10 +39,30 @@ const NSMDashboardScreen = () => {
   const navigation = useNavigation<any>();
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const [isSalesOpsOpen, setIsSalesOpsOpen] = useState(false);
   const [selectedYear] = useState('2026-2027');
   const [selectedMonth] = useState('August');
   const [selectedRegion] = useState('All Regions');
   const [selectedState] = useState('All States');
+
+  // Animation values for custom drawer
+  const screenWidth = Dimensions.get('window').width;
+  const slideAnim = React.useRef(new Animated.Value(-screenWidth)).current;
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+
+  React.useEffect(() => {
+    if (isMenuVisible) {
+      Animated.parallel([
+        Animated.timing(slideAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 1, duration: 300, useNativeDriver: true }),
+      ]).start();
+    } else {
+      Animated.parallel([
+        Animated.timing(slideAnim, { toValue: -screenWidth, duration: 250, useNativeDriver: true }),
+        Animated.timing(fadeAnim, { toValue: 0, duration: 250, useNativeDriver: true }),
+      ]).start();
+    }
+  }, [isMenuVisible, slideAnim, fadeAnim, screenWidth]);
 
   // 11 Production KPI Cards
   const kpiData = {
@@ -83,22 +110,100 @@ const NSMDashboardScreen = () => {
     { rsm: 'Rajesh Singh', region: 'North Zone', target: '₹12.00 Cr', achieved: '₹9.50 Cr', grade: 'On Track' },
   ];
 
+  const [nationalTarget, setNationalTarget] = useState('₹15,00,00,000');
+  const [remainingTarget, setRemainingTarget] = useState('₹15,00,00,000');
+  const [activeRSMsCount, setActiveRSMsCount] = useState(5);
+  const [dynamicRSMs, setDynamicRSMs] = useState(topRSMs);
+
+  useFocusEffect(
+    useCallback(() => {
+      const loadDashboardData = async () => {
+        const tpData = await getTargetPlanningData();
+        const rsmList = await getRSMList();
+
+        const formatCurrency = (val: number) => {
+          return new Intl.NumberFormat('en-IN', {
+            style: 'currency',
+            currency: 'INR',
+            maximumFractionDigits: 0,
+          }).format(val);
+        };
+
+        // Check if we should keep the menu open upon returning
+        const keepMenuOpen = await AsyncStorage.getItem('@nsm_keep_menu_open');
+        if (keepMenuOpen === 'true') {
+          // Instantly open the drawer without animation
+          slideAnim.setValue(0);
+          fadeAnim.setValue(1);
+          setIsMenuVisible(true);
+          await AsyncStorage.removeItem('@nsm_keep_menu_open');
+        }
+
+        // 1. National Target
+        const nTarget = parseInt(tpData.nationalTargetInput || '0', 10);
+        setNationalTarget(formatCurrency(nTarget));
+
+        // 2. Active RSMs
+        const activeCount = rsmList.filter((r: any) => r.status === 'Active').length;
+        setActiveRSMsCount(activeCount);
+
+        // 3. Allocations / Remaining Target / Top RSMs
+        let totalAllocated = 0;
+        const mappedRSMs: any[] = [];
+
+        tpData.allocations.forEach((alloc: any) => {
+          const allocatedAmt = parseInt(alloc.allocatedTarget || '0', 10);
+          if (alloc.status === 'Allocated') {
+             totalAllocated += allocatedAmt;
+          }
+
+          // Build dynamic RSM table row
+          mappedRSMs.push({
+            rsm: alloc.name,
+            region: alloc.state,
+            target: formatCurrency(allocatedAmt),
+            achieved: alloc.currAchv,
+            grade: parseFloat(alloc.currAchv) >= 100 ? 'Star Performer' : parseFloat(alloc.currAchv) > 85 ? 'Top Performer' : 'On Track',
+            rawAchv: parseFloat(alloc.currAchv) || 0
+          });
+        });
+
+        const rem = nTarget - totalAllocated;
+        setRemainingTarget(formatCurrency(rem > 0 ? rem : 0));
+
+        mappedRSMs.sort((a, b) => b.rawAchv - a.rawAchv);
+        setDynamicRSMs(mappedRSMs.slice(0, 3));
+      };
+
+      loadDashboardData();
+    }, [])
+  );
+
   const handleRefresh = () => {
     Alert.alert('↻ Dashboard Refreshed', 'Production KPI metrics updated.');
   };
 
-  const handleNavigate = (routeKey: string) => {
+  const handleNavigate = async (routeKey: string) => {
     setIsMenuVisible(false);
     if (routeKey === NSM_ROUTES.AUTH) {
-      Alert.alert(
-        '🚪 Confirm Logout',
-        'Are you sure you want to log out of the NSM Portal?',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Logout', style: 'destructive', onPress: () => navigation.replace('Auth') },
-        ]
-      );
+      if (Platform.OS === 'web') {
+        const confirmLogout = window.confirm('Are you sure you want to log out of the NSM Portal?');
+        if (confirmLogout) {
+          navigation.reset({ index: 0, routes: [{ name: 'Login' }] });
+        }
+      } else {
+        Alert.alert(
+          '🚪 Logout',
+          'Are you sure you want to log out of the NSM Portal?',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Logout', onPress: () => navigation.reset({ index: 0, routes: [{ name: 'Login' }] }), style: 'destructive' }
+          ]
+        );
+      }
     } else {
+      // Set a flag so when we come back, the menu re-opens automatically
+      await AsyncStorage.setItem('@nsm_keep_menu_open', 'true');
       navigation.navigate(routeKey);
     }
   };
@@ -120,141 +225,146 @@ const NSMDashboardScreen = () => {
               <Ionicons name="refresh-outline" size={20} color="#FFF" />
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => handleNavigate(NSM_ROUTES.NOTIFICATIONS)} style={{ padding: 4, marginRight: 8, position: 'relative' }}>
+            <TouchableOpacity onPress={() => navigation.navigate(NSM_ROUTES.NOTIFICATIONS)} style={{ padding: 4, marginRight: 8, position: 'relative' }}>
               <Ionicons name="notifications-outline" size={22} color="#FFF" />
               <View style={styles.notifBadge}>
                 <Text style={styles.notifBadgeText}>3</Text>
               </View>
             </TouchableOpacity>
 
-            <TouchableOpacity onPress={() => handleNavigate(NSM_ROUTES.PROFILE)} style={{ padding: 4 }}>
+            <TouchableOpacity onPress={() => navigation.navigate(NSM_ROUTES.PROFILE)} style={{ padding: 4 }}>
               <Ionicons name="person-circle-outline" size={26} color="#FFF" />
             </TouchableOpacity>
           </View>
 
-          <Text style={styles.subtitle}>Pan-India Executive Sales & Performance Overview</Text>
-          <Text style={styles.lastUpdatedText}>Last Updated: {kpiData.lastUpdated}</Text>
+          <Text style={styles.subtitle}>Executive overview of national sales performance and targets.</Text>
         </View>
 
-        {/* 1. Dashboard Filters: Financial Year, Month, Region, State */}
-        <View style={styles.filterRow}>
-          <View style={styles.filterPill}>
-            <Ionicons name="calendar-outline" size={12} color="#4F46E5" />
-            <Text style={styles.filterPillText}>{selectedYear}</Text>
-          </View>
-          <View style={styles.filterPill}>
-            <Ionicons name="time-outline" size={12} color="#4F46E5" />
-            <Text style={styles.filterPillText}>{selectedMonth}</Text>
-          </View>
-          <View style={styles.filterPill}>
-            <Ionicons name="globe-outline" size={12} color="#4F46E5" />
-            <Text style={styles.filterPillText}>{selectedRegion}</Text>
-          </View>
-          <View style={styles.filterPill}>
-            <Ionicons name="map-outline" size={12} color="#4F46E5" />
-            <Text style={styles.filterPillText}>{selectedState}</Text>
-          </View>
-        </View>
-
-        {/* 2. 11 KPI Cards */}
-        <Text style={styles.sectionTitle}>📈 Executive Performance KPI Cards</Text>
-        <View style={styles.kpiGrid}>
-          <View style={[styles.kpiCard, { backgroundColor: '#EEF2FF' }]}>
-            <Ionicons name="cash-outline" size={20} color="#4F46E5" />
-            <Text style={[styles.kpiValue, { color: '#4F46E5' }]}>{kpiData.totalSales}</Text>
-            <Text style={styles.kpiLabel}>Total Sales (₹)</Text>
+        {/* 2. 6 KPI Cards (Web UI Layout) */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', paddingHorizontal: 16, marginTop: 10 }}>
+          <View style={styles.summaryCard}>
+            <View style={styles.iconCircleBlue}><Ionicons name="disc-outline" size={20} color="#3B82F6" /></View>
+            <Text style={styles.summaryLabel}>Assigned National Target</Text>
+            <Text style={styles.summaryValue}>{nationalTarget}</Text>
+            <Text style={styles.summarySubtext}>FY 2026-27</Text>
           </View>
 
-          <View style={[styles.kpiCard, { backgroundColor: '#FEF3C7' }]}>
-            <Ionicons name="flag-outline" size={20} color="#D97706" />
-            <Text style={[styles.kpiValue, { color: '#D97706' }]}>{kpiData.salesTarget}</Text>
-            <Text style={styles.kpiLabel}>Sales Target (₹)</Text>
+          <View style={styles.summaryCard}>
+            <View style={styles.iconCircleGreen}><Ionicons name="trending-up-outline" size={20} color="#10B981" /></View>
+            <Text style={styles.summaryLabel}>Achieved Target</Text>
+            <Text style={styles.summaryValue}>₹0</Text>
+            <Text style={styles.summarySubtext}>0.0% Achievement</Text>
           </View>
 
-          <View style={[styles.kpiCard, { backgroundColor: '#ECFDF5' }]}>
-            <Ionicons name="trending-up-outline" size={20} color="#059669" />
-            <Text style={[styles.kpiValue, { color: '#059669' }]}>{kpiData.achievementPercent}</Text>
-            <Text style={styles.kpiLabel}>Achievement %</Text>
+          <View style={styles.summaryCard}>
+            <View style={styles.iconCircleOrange}><Ionicons name="alert-circle-outline" size={20} color="#F59E0B" /></View>
+            <Text style={styles.summaryLabel}>Remaining Target</Text>
+            <Text style={styles.summaryValue}>{remainingTarget}</Text>
+            <Text style={styles.summarySubtext}>Pending realization</Text>
           </View>
 
-          <View style={[styles.kpiCard, { backgroundColor: '#F3E8FF' }]}>
-            <Ionicons name="cart-outline" size={20} color="#7E22CE" />
-            <Text style={[styles.kpiValue, { color: '#7E22CE' }]}>{kpiData.totalOrders}</Text>
-            <Text style={styles.kpiLabel}>Total Orders</Text>
+          <View style={styles.summaryCard}>
+            <View style={styles.iconCirclePurple}><Ionicons name="people-outline" size={20} color="#8B5CF6" /></View>
+            <Text style={styles.summaryLabel}>Active RSMs</Text>
+            <Text style={styles.summaryValue}>{activeRSMsCount}</Text>
+            <Text style={styles.summarySubtext}>Direct reports</Text>
           </View>
 
-          <View style={[styles.kpiCard, { backgroundColor: '#EFF6FF' }]}>
-            <Ionicons name="medkit-outline" size={20} color="#2563EB" />
-            <Text style={[styles.kpiValue, { color: '#2563EB' }]}>{kpiData.totalDoctorVisits}</Text>
-            <Text style={styles.kpiLabel}>Total Doctor Visits</Text>
+          <View style={styles.summaryCard}>
+            <View style={styles.iconCirclePurple}><Ionicons name="location-outline" size={20} color="#8B5CF6" /></View>
+            <Text style={styles.summaryLabel}>State Coverage</Text>
+            <Text style={styles.summaryValue}>85%</Text>
+            <Text style={styles.summarySubtext}>Of planned territories</Text>
           </View>
 
-          <View style={[styles.kpiCard, { backgroundColor: '#FFF7ED' }]}>
-            <Ionicons name="storefront-outline" size={20} color="#EA580C" />
-            <Text style={[styles.kpiValue, { color: '#EA580C' }]}>{kpiData.totalChemistVisits}</Text>
-            <Text style={styles.kpiLabel}>Total Chemist Visits</Text>
-          </View>
-
-          <View style={[styles.kpiCard, { backgroundColor: '#F0FDF4' }]}>
-            <Ionicons name="people-outline" size={20} color="#16A34A" />
-            <Text style={[styles.kpiValue, { color: '#16A34A' }]}>{kpiData.totalRSMs}</Text>
-            <Text style={styles.kpiLabel}>Total RSMs</Text>
-          </View>
-
-          <View style={[styles.kpiCard, { backgroundColor: '#EEF2FF' }]}>
-            <Ionicons name="people-circle-outline" size={20} color="#4F46E5" />
-            <Text style={[styles.kpiValue, { color: '#4F46E5' }]}>{kpiData.totalASMs}</Text>
-            <Text style={styles.kpiLabel}>Total ASMs</Text>
-          </View>
-
-          <View style={[styles.kpiCard, { backgroundColor: '#FEF3C7' }]}>
-            <Ionicons name="walk-outline" size={20} color="#D97706" />
-            <Text style={[styles.kpiValue, { color: '#D97706' }]}>{kpiData.totalMRs}</Text>
-            <Text style={styles.kpiLabel}>Total MRs</Text>
-          </View>
-
-          <View style={[styles.kpiCard, { backgroundColor: '#ECFDF5' }]}>
-            <Ionicons name="map-outline" size={20} color="#059669" />
-            <Text style={[styles.kpiValue, { color: '#059669' }]}>{kpiData.activeStates}</Text>
-            <Text style={styles.kpiLabel}>Active States</Text>
-          </View>
-
-          <View style={[styles.kpiCard, { backgroundColor: '#FEE2E2', width: '100%' }]}>
-            <Ionicons name="alert-circle-outline" size={20} color="#DC2626" />
-            <Text style={[styles.kpiValue, { color: '#DC2626' }]}>{kpiData.pendingApprovals}</Text>
-            <Text style={styles.kpiLabel}>Pending Approvals (Target & Attendance Exceptions)</Text>
+          <View style={styles.summaryCard}>
+            <View style={[styles.iconCirclePurple, { backgroundColor: '#FCE7F3' }]}><Ionicons name="checkbox-outline" size={20} color="#EC4899" /></View>
+            <Text style={styles.summaryLabel}>Pending Approvals</Text>
+            <Text style={styles.summaryValue}>12</Text>
+            <Text style={styles.summarySubtext}>Awaiting your review</Text>
           </View>
         </View>
 
         {/* 3. Charts Section */}
-        <Text style={styles.sectionTitle}>📊 Analytics & Trends</Text>
-
-        {/* Monthly Sales Trend Chart */}
         <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>📈 Monthly Sales Trend (Apr - Aug)</Text>
-          <View style={styles.barChartRow}>
-            {monthlyTrend.map((item) => (
-              <View key={item.month} style={styles.barCol}>
-                <Text style={styles.barVal}>{item.sales}</Text>
-                <View style={[styles.barFill, { height: item.pct * 0.7 }]} />
-                <Text style={styles.barLbl}>{item.month}</Text>
-              </View>
-            ))}
+          <Text style={styles.chartTitle}>Monthly Sales Trend</Text>
+          <LineChart
+            data={{
+              labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+              datasets: [
+                {
+                  data: [1.5, 1.5, 1.5, 1.7, 1.7, 2.0],
+                  color: (opacity = 1) => `rgba(148, 163, 184, 1)`, // Gray (Target)
+                  strokeWidth: 2,
+                  strokeDashArray: [5, 5]
+                },
+                {
+                  data: [0, 0, 0, 0, 0, 0],
+                  color: (opacity = 1) => `rgba(30, 58, 138, 1)`, // Dark Blue (Actual)
+                  strokeWidth: 2,
+                }
+              ]
+            }}
+            width={Dimensions.get('window').width - 64} // padding adjustment
+            height={220}
+            bezier
+            withDots={false}
+            withShadow={false}
+            withInnerLines={false}
+            withOuterLines={false}
+            withVerticalLines={false}
+            withHorizontalLines={true}
+            yAxisLabel="₹"
+            yAxisSuffix="Cr"
+            chartConfig={{
+              backgroundColor: '#ffffff',
+              backgroundGradientFrom: '#ffffff',
+              backgroundGradientTo: '#ffffff',
+              decimalPlaces: 1,
+              color: (opacity = 1) => `rgba(15, 23, 42, ${opacity})`,
+              labelColor: (opacity = 1) => `rgba(100, 116, 139, 1)`,
+              style: {
+                borderRadius: 16
+              },
+              propsForDots: {
+                r: "4",
+                strokeWidth: "2",
+                stroke: "#ffffff"
+              }
+            }}
+            style={{
+              marginTop: 16,
+              borderRadius: 16,
+              marginLeft: -20, // Align closer to left edge
+            }}
+          />
+          
+          {/* Custom Web-Style Legend */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'center', marginTop: -10 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginRight: 20 }}>
+              <View style={{ width: 12, height: 2, backgroundColor: '#1E3A8A', marginRight: 4 }} />
+              <Ionicons name="ellipse" size={6} color="#1E3A8A" style={{ marginLeft: -8, marginRight: 6 }} />
+              <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '500' }}>Actual Sales</Text>
+            </View>
+            <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ width: 12, height: 2, backgroundColor: '#94A3B8', borderStyle: 'dashed', marginRight: 4 }} />
+              <Ionicons name="ellipse-outline" size={6} color="#94A3B8" style={{ marginLeft: -8, marginRight: 6 }} />
+              <Text style={{ fontSize: 11, color: '#64748B', fontWeight: '500' }}>Target</Text>
+            </View>
           </View>
         </View>
 
-        {/* Region Wise Sales */}
+        {/* Top Products */}
         <View style={styles.chartCard}>
-          <Text style={styles.chartTitle}>🌐 Region Wise Sales & Achievement %</Text>
-          {regionSales.map((r) => (
-            <View key={r.region} style={styles.regionProgressRow}>
-              <Text style={styles.regionName}>{r.region} Zone</Text>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${parseFloat(r.pct)}%` as any, backgroundColor: r.color }]} />
+          <Text style={styles.chartTitle}>Top Products</Text>
+          
+          <View style={{ marginTop: 16 }}>
+            {['Aspirin 500mg', 'Amoxicillin 250mg', 'Ibuprofen 400mg', 'Paracetamol 500mg', 'Cetirizine 10mg'].map((prod, idx) => (
+              <View key={idx} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', alignItems: 'center' }}>
+                <Text style={{ fontSize: 13, color: '#475569', fontWeight: '500' }}>{prod}</Text>
               </View>
-              <Text style={styles.regionSalesVal}>{r.sales} ({r.pct})</Text>
-            </View>
-          ))}
+            ))}
+          </View>
         </View>
 
         {/* 4. Tables Section */}
@@ -283,19 +393,22 @@ const NSMDashboardScreen = () => {
           <Text style={styles.tableTitle}>👨‍💼 Top Performing RSM</Text>
           <View style={styles.tableHeaderRow}>
             <Text style={[styles.th, { flex: 1.2 }]}>RSM</Text>
-            <Text style={[styles.th, { flex: 1 }]}>Region</Text>
+            <Text style={[styles.th, { flex: 1 }]}>Target</Text>
             <Text style={[styles.th, { flex: 1 }]}>Achieved</Text>
             <Text style={[styles.th, { flex: 1, textAlign: 'right' }]}>Grade</Text>
           </View>
 
-          {topRSMs.map((r, idx) => (
+          {dynamicRSMs.map((r, idx) => (
             <View key={idx} style={styles.tableBodyRow}>
-              <Text style={[styles.td, { flex: 1.2, fontWeight: 'bold' }]}>{r.rsm}</Text>
-              <Text style={[styles.td, { flex: 1 }]}>{r.region}</Text>
-              <Text style={[styles.td, { flex: 1, color: '#059669', fontWeight: 'bold' }]}>{r.achieved}</Text>
+              <View style={{ flex: 1.2 }}>
+                <Text style={[styles.td, { fontWeight: 'bold' }]}>{r.rsm}</Text>
+                <Text style={{ fontSize: 10, color: '#94A3B8' }}>{r.region}</Text>
+              </View>
+              <Text style={[styles.td, { flex: 1 }]}>{r.target}</Text>
+              <Text style={[styles.td, { flex: 0.9, color: '#059669', fontWeight: 'bold' }]}>{r.achieved}</Text>
               <View style={{ flex: 1, alignItems: 'flex-end' }}>
                 <View style={styles.gradeBadge}>
-                  <Text style={styles.gradeText}>{r.grade}</Text>
+                  <Text style={{ fontSize: 9, color: '#16A34A', fontWeight: 'bold' }}>{r.grade}</Text>
                 </View>
               </View>
             </View>
@@ -303,77 +416,91 @@ const NSMDashboardScreen = () => {
         </View>
       </ScrollView>
 
-      {/* ── Slide-out Navigation Drawer Modal ── */}
-      <Modal visible={isMenuVisible} animationType="slide" transparent>
-        <TouchableOpacity style={styles.modalOverlay} activeOpacity={1} onPress={() => setIsMenuVisible(false)}>
-          <View style={styles.drawerContainer}>
-            <View style={styles.webDrawerHeader}>
-              <Image source={require('../../assets/images/logo.jpg')} style={{ width: 170, height: 48, resizeMode: 'contain' }} />
-            </View>
+      {/* ── Slide-out Navigation Drawer (Custom Animated) ── */}
+      <Animated.View style={[StyleSheet.absoluteFill, { zIndex: isMenuVisible ? 100 : -1, opacity: fadeAnim, backgroundColor: 'rgba(15, 23, 42, 0.6)' }]} pointerEvents={isMenuVisible ? 'auto' : 'none'}>
+        <TouchableWithoutFeedback onPress={() => setIsMenuVisible(false)}>
+          <View style={{ flex: 1 }} />
+        </TouchableWithoutFeedback>
+      </Animated.View>
 
-            <ScrollView style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
-              <TouchableOpacity style={styles.activePillMenuItem} onPress={() => handleNavigate(NSM_ROUTES.DASHBOARD)}>
-                <Ionicons name="grid-outline" size={20} color="#4F46E5" />
-                <Text style={styles.activePillMenuText}>Dashboard</Text>
+      <Animated.View style={[
+        styles.drawerContainer,
+        {
+          position: 'absolute',
+          top: 0,
+          bottom: 0,
+          left: 0,
+          zIndex: 101,
+          transform: [{ translateX: slideAnim }]
+        }
+      ]}>
+        <View style={styles.webDrawerHeader}>
+          <Image source={require('../../assets/images/logo.jpg')} style={{ width: 170, height: 48, resizeMode: 'contain' }} />
+        </View>
+
+        <ScrollView style={{ paddingHorizontal: 12, paddingVertical: 10 }}>
+          <TouchableOpacity style={styles.activePillMenuItem} onPress={() => handleNavigate(NSM_ROUTES.DASHBOARD)}>
+            <Ionicons name="grid-outline" size={20} color="#4F46E5" />
+            <Text style={styles.activePillMenuText}>Dashboard</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItemHeader} onPress={() => setIsSalesOpsOpen(!isSalesOpsOpen)}>
+            <Ionicons name="trending-up-outline" size={20} color="#475569" />
+            <Text style={styles.menuItemHeaderText}>Sales Operations</Text>
+            <Ionicons name={isSalesOpsOpen ? "chevron-up" : "chevron-down"} size={16} color="#94A3B8" style={{ marginLeft: 'auto' }} />
+          </TouchableOpacity>
+
+          {isSalesOpsOpen && (
+            <View style={{ paddingLeft: 18, marginVertical: 2 }}>
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); handleNavigate(NSM_ROUTES.RSM_SUPERVISION); }}>
+                <Text style={styles.subMenuItemText}>RSM Management</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.menuItemHeader} onPress={() => handleNavigate('NSMSalesOperations')}>
-                <Ionicons name="trending-up-outline" size={20} color="#475569" />
-                <Text style={styles.menuItemHeaderText}>Sales Operations</Text>
-                <Ionicons name="chevron-down" size={16} color="#94A3B8" style={{ marginLeft: 'auto' }} />
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); handleNavigate(NSM_ROUTES.TARGET); }}>
+                <Text style={styles.subMenuItemText}>Target Planning</Text>
               </TouchableOpacity>
 
-              <View style={{ paddingLeft: 18, marginVertical: 2 }}>
-                <TouchableOpacity style={styles.subMenuItem} onPress={() => handleNavigate(NSM_ROUTES.RSM_SUPERVISION)}>
-                  <Text style={styles.subMenuItemText}>RSM Management</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.subMenuItem} onPress={() => handleNavigate(NSM_ROUTES.TARGET)}>
-                  <Text style={styles.subMenuItemText}>Target Planning</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.subMenuItem} onPress={() => handleNavigate(NSM_ROUTES.STATE)}>
-                  <Text style={styles.subMenuItemText}>State Performance</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.subMenuItem} onPress={() => handleNavigate(NSM_ROUTES.TEAM_PERFORMANCE)}>
-                  <Text style={styles.subMenuItemText}>Team Performance</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.subMenuItem} onPress={() => handleNavigate(NSM_ROUTES.TEAM_VISITS)}>
-                  <Text style={styles.subMenuItemText}>Team Visits</Text>
-                </TouchableOpacity>
-              </View>
-
-              <TouchableOpacity style={styles.menuItem} onPress={() => handleNavigate(NSM_ROUTES.ATTENDANCE)}>
-                <Ionicons name="time-outline" size={20} color="#475569" />
-                <Text style={styles.menuItemText}>Attendance</Text>
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); handleNavigate(NSM_ROUTES.STATE); }}>
+                <Text style={styles.subMenuItemText}>State Performance</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.menuItem} onPress={() => handleNavigate(NSM_ROUTES.SETTINGS)}>
-                <Ionicons name="settings-outline" size={20} color="#475569" />
-                <Text style={styles.menuItemText}>Settings</Text>
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); handleNavigate(NSM_ROUTES.TEAM_PERFORMANCE); }}>
+                <Text style={styles.subMenuItemText}>Team Performance</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.menuItem} onPress={() => handleNavigate(NSM_ROUTES.NOTIFICATIONS)}>
-                <Ionicons name="notifications-outline" size={20} color="#475569" />
-                <Text style={styles.menuItemText}>Notifications Inbox</Text>
-              </TouchableOpacity>
-            </ScrollView>
-
-            <View style={styles.webUserFooter}>
-              <Ionicons name="person-circle-outline" size={36} color="#4F46E5" />
-              <View style={{ flex: 1, marginLeft: 8 }}>
-                <Text style={styles.footerUserName}>Rajesh Sharma</Text>
-                <Text style={styles.footerUserRole}>National Sales Head</Text>
-              </View>
-              <TouchableOpacity onPress={() => handleNavigate(NSM_ROUTES.AUTH)}>
-                <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); handleNavigate(NSM_ROUTES.TEAM_VISITS); }}>
+                <Text style={styles.subMenuItemText}>Team Visits</Text>
               </TouchableOpacity>
             </View>
+          )}
+
+          <TouchableOpacity style={styles.menuItem} onPress={() => handleNavigate(NSM_ROUTES.ATTENDANCE)}>
+            <Ionicons name="time-outline" size={20} color="#475569" />
+            <Text style={styles.menuItemText}>Attendance</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={() => handleNavigate(NSM_ROUTES.SETTINGS)}>
+            <Ionicons name="settings-outline" size={20} color="#475569" />
+            <Text style={styles.menuItemText}>Settings</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={() => handleNavigate(NSM_ROUTES.NOTIFICATIONS)}>
+            <Ionicons name="notifications-outline" size={20} color="#475569" />
+            <Text style={styles.menuItemText}>Notifications Inbox</Text>
+          </TouchableOpacity>
+        </ScrollView>
+
+        <View style={styles.webUserFooter}>
+          <Ionicons name="person-circle-outline" size={36} color="#4F46E5" />
+          <View style={{ flex: 1, marginLeft: 8 }}>
+            <Text style={styles.footerUserName}>Rajesh Sharma</Text>
+            <Text style={styles.footerUserRole}>National Sales Head</Text>
           </View>
-        </TouchableOpacity>
-      </Modal>
+          <TouchableOpacity onPress={() => handleNavigate(NSM_ROUTES.AUTH)}>
+            <Ionicons name="log-out-outline" size={20} color="#DC2626" />
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
     </SafeAreaView>
   );
 };
@@ -391,15 +518,17 @@ const styles = StyleSheet.create({
   notifBadge: { position: 'absolute', top: -2, right: -2, backgroundColor: '#EF4444', borderRadius: 8, width: 16, height: 16, justifyContent: 'center', alignItems: 'center' },
   notifBadgeText: { color: '#FFF', fontSize: 9, fontWeight: 'bold' },
 
-  filterRow: { flexDirection: 'row', gap: 6, marginBottom: 14 },
-  filterPill: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF', paddingHorizontal: 6, paddingVertical: 7, borderRadius: 8, borderWidth: 1, borderColor: '#CBD5E1', gap: 3 },
-  filterPillText: { fontSize: 10, fontWeight: '600', color: '#1E293B' },
+  sectionTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 10, marginTop: 4 },
 
-  sectionTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 10 },
-  kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
-  kpiCard: { width: '48%', padding: 12, borderRadius: 12, alignItems: 'center' },
-  kpiValue: { fontSize: 16, fontWeight: 'bold', marginTop: 4 },
-  kpiLabel: { fontSize: 10, color: '#64748B', marginTop: 2, fontWeight: '500', textAlign: 'center' },
+  // Summary Cards (Web UI Layout Match)
+  summaryCard: { backgroundColor: '#FFF', width: '48%', padding: 14, borderRadius: 12, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 12 },
+  iconCircleBlue: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#DBEAFE', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  iconCircleGreen: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#D1FAE5', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  iconCircleOrange: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#FEF3C7', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  iconCirclePurple: { width: 32, height: 32, borderRadius: 16, backgroundColor: '#EDE9FE', justifyContent: 'center', alignItems: 'center', marginBottom: 10 },
+  summaryLabel: { fontSize: 11, color: '#64748B', fontWeight: '600', marginBottom: 4 },
+  summaryValue: { fontSize: 16, fontWeight: 'bold', color: '#0F172A' },
+  summarySubtext: { fontSize: 10, color: '#94A3B8', marginTop: 4 },
 
   chartCard: { backgroundColor: '#FFF', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0', marginBottom: 14 },
   chartTitle: { fontSize: 14, fontWeight: 'bold', color: '#1E293B', marginBottom: 10 },
@@ -408,12 +537,6 @@ const styles = StyleSheet.create({
   barVal: { fontSize: 9, fontWeight: 'bold', color: '#64748B', marginBottom: 4 },
   barFill: { width: 18, backgroundColor: '#4F46E5', borderRadius: 4 },
   barLbl: { fontSize: 10, color: '#64748B', marginTop: 4, fontWeight: '600' },
-
-  regionProgressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 6 },
-  regionName: { width: 75, fontSize: 11, fontWeight: 'bold', color: '#1E293B' },
-  progressTrack: { flex: 1, height: 8, backgroundColor: '#F1F5F9', borderRadius: 4, overflow: 'hidden' },
-  progressFill: { height: '100%', borderRadius: 4 },
-  regionSalesVal: { width: 95, fontSize: 11, fontWeight: 'bold', color: '#64748B', textAlign: 'right' },
 
   tableCard: { backgroundColor: '#FFF', padding: 16, borderRadius: 16, borderWidth: 1, borderColor: '#E2E8F0' },
   tableTitle: { fontSize: 15, fontWeight: 'bold', color: '#1E293B', marginBottom: 10 },
@@ -425,7 +548,7 @@ const styles = StyleSheet.create({
   gradeText: { fontSize: 9, fontWeight: 'bold', color: '#15803D' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(15, 23, 42, 0.5)', justifyContent: 'center', alignItems: 'center' },
-  drawerContainer: { width: '80%', maxWidth: 300, height: '100%', backgroundColor: '#FFF', elevation: 10, alignSelf: 'flex-start' },
+  drawerContainer: { width: '50%', maxWidth: 260, height: '100%', backgroundColor: '#FFF', elevation: 10, alignSelf: 'flex-start' },
   webDrawerHeader: { padding: 18, borderBottomWidth: 1, borderBottomColor: '#F1F5F9' },
   activePillMenuItem: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: '#F3E8FF', borderRadius: 10, marginBottom: 4 },
   activePillMenuText: { fontSize: 14, fontWeight: 'bold', color: '#4F46E5' },

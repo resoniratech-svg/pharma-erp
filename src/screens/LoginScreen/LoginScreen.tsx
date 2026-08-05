@@ -96,7 +96,17 @@ const LoginScreen = () => {
       );
 
       setIsSubmitting(false);
-      navigation.replace('App');
+      
+      const role = response.data.user?.role;
+      if (role === 'Area Sales Manager' || role === 'ASM') {
+        navigation.replace('App', { screen: 'ASMDashboard' });
+      } else if (role === 'Regional Sales Manager' || role === 'RSM') {
+        navigation.replace('App', { screen: 'RSMDashboard' });
+      } else if (role === 'National Sales Manager' || role === 'NSM') {
+        navigation.replace('App', { screen: 'NSMDashboard' });
+      } else {
+        navigation.replace('App');
+      }
 
     } catch (error: any) {
       setIsSubmitting(false);
