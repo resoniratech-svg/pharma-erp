@@ -1,12 +1,10 @@
 import { useState } from 'react';
-import { Users, GitFork, MapPin, Target } from 'lucide-react';
+import { Users, GitFork } from 'lucide-react';
 import { PageHeader } from '../components/shared';
 import EmployeesTab from './EmployeesTab';
 import OrganizationTab from './OrganizationTab';
-import TerritoriesTab from './TerritoriesTab';
-import SalesTargetsTab from './SalesTargetsTab';
 
-type TabType = 'employees' | 'organization' | 'territories' | 'targets';
+type TabType = 'employees' | 'organization';
 
 export default function SalesOrganization() {
   const [activeTab, setActiveTab] = useState<TabType>('employees');
@@ -14,8 +12,6 @@ export default function SalesOrganization() {
   const tabs: { id: TabType; label: string; icon: React.ReactNode }[] = [
     { id: 'employees', label: 'Employees', icon: <Users className="w-4 h-4" /> },
     { id: 'organization', label: 'Organization Hierarchy', icon: <GitFork className="w-4 h-4" /> },
-    { id: 'territories', label: 'Territories', icon: <MapPin className="w-4 h-4" /> },
-    { id: 'targets', label: 'Sales Targets', icon: <Target className="w-4 h-4" /> },
   ];
 
   return (
@@ -54,8 +50,6 @@ export default function SalesOrganization() {
       <div className="mt-4">
         {activeTab === 'employees' && <EmployeesTab />}
         {activeTab === 'organization' && <OrganizationTab />}
-        {activeTab === 'territories' && <TerritoriesTab />}
-        {activeTab === 'targets' && <SalesTargetsTab />}
       </div>
     </div>
   );

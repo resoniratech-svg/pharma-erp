@@ -11,7 +11,6 @@ import autoTable from 'jspdf-autotable';
 export default function TargetAchievement() {
   const [teamPerformance, setTeamPerformance] = useState<any[]>([]);
   const [search, setSearch] = useState('');
-  const [fyFilter, setFyFilter] = useState('All Financial Years');
   const [statusFilter, setStatusFilter] = useState('All');
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedEmp, setSelectedEmp] = useState<any | null>(null);
@@ -35,8 +34,7 @@ export default function TargetAchievement() {
     const matchesSearch = row.mrName.toLowerCase().includes(search.toLowerCase()) || 
                           row.territory?.toLowerCase().includes(search.toLowerCase());
     const matchesStatus = statusFilter === 'All' || row.status === statusFilter;
-    const matchesFy = fyFilter === 'All Financial Years' || true;
-    return matchesSearch && matchesStatus && matchesFy;
+    return matchesSearch && matchesStatus;
   });
 
   const totalAssigned = filteredData.reduce((acc, row) => acc + (row.allocatedTarget || 0), 0);
@@ -222,16 +220,6 @@ export default function TargetAchievement() {
         <div className="flex flex-col sm:flex-row gap-4 flex-1">
           <SearchInput value={search} onChange={setSearch} placeholder="Search by MR Name, Territory..." />
           <SelectFilter
-            value={fyFilter}
-            onChange={setFyFilter}
-            options={[
-              { label: 'All Financial Years', value: 'All Financial Years' },
-              { label: 'FY 2026-27', value: 'FY 2026-27' },
-              { label: 'FY 2025-26', value: 'FY 2025-26' },
-              { label: 'FY 2024-25', value: 'FY 2024-25' }
-            ]}
-          />
-          <SelectFilter
             value={statusFilter}
             onChange={setStatusFilter}
             options={[
@@ -278,7 +266,7 @@ export default function TargetAchievement() {
               <div className="py-3 border-t border-slate-100">
                 <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">2. Target Summary</p>
                 <div className="space-y-1">
-                  <DrawerField label="Financial Year" value={fyFilter !== 'All Financial Years' ? fyFilter : 'FY 2024-25'} />
+                  <DrawerField label="Financial Year" value="FY 2024-25" />
                   <DrawerField label="Assigned Target" value={`₹ ${(selectedEmp.allocatedTarget || 0).toLocaleString()}`} />
                   <DrawerField label="Achieved Target" value={`₹ ${(selectedEmp.achievement || 0).toLocaleString()}`} />
                   <DrawerField label="Remaining Target" value={`₹ ${Math.max(0, (selectedEmp.allocatedTarget || 0) - (selectedEmp.achievement || 0)).toLocaleString()}`} />

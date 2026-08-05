@@ -1,10 +1,35 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader, SummaryCard, TableCard, DataTable } from './components/shared';
-import { Target, Activity, Users, AlertTriangle, Play } from 'lucide-react';
+import { Target, Activity, Users, AlertTriangle, Eye } from 'lucide-react';
+import { useNavigate } from 'react-router';
 import { asmService } from '../../services/asmService';
 
 export default function Dashboard() {
   const [kpis, setKpis] = useState<any>(null);
+  const navigate = useNavigate();
+
+  const handleView = (row: any) => {
+    switch (row.source) {
+      case 'Attendance':
+      case 'Leave Request':
+        navigate('/workspace/area-sales-manager/attendance');
+        break;
+      case 'Tour Planning':
+        navigate('/workspace/area-sales-manager/tour-planning');
+        break;
+      case 'Target Allocation':
+        navigate('/workspace/area-sales-manager/target-allocation');
+        break;
+      case 'Doctor Visit':
+      case 'Chemist Visit':
+      case 'Order Booking':
+        navigate('/workspace/area-sales-manager/daily-activities');
+        break;
+      default:
+        // Default to daily activities or appropriate module if unspecified
+        navigate('/workspace/area-sales-manager/daily-activities');
+    }
+  };
 
   useEffect(() => {
     try {
@@ -31,9 +56,12 @@ export default function Dashboard() {
     { 
       key: 'action', 
       label: 'Action',
-      render: () => (
-        <button className="text-primary hover:text-primary-600 font-medium text-sm flex items-center gap-1">
-          Review <Play className="w-3 h-3" />
+      render: (row: any) => (
+        <button 
+          onClick={() => handleView(row)}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-[#163c78] bg-blue-50 hover:bg-blue-100 rounded-lg transition-colors" 
+        >
+          <Eye className="w-4 h-4" /> View
         </button>
       )
     }
@@ -86,7 +114,7 @@ export default function Dashboard() {
         />
         <SummaryCard 
           title="Achievement %" 
-          value={`${((kpis.allocatedTarget / kpis.assignedTarget) * 100).toFixed(1)}%`} 
+          value={`${kpis.assignedTarget ? ((kpis.allocatedTarget / kpis.assignedTarget) * 100).toFixed(1) : 0}%`} 
           icon={<Target className="w-6 h-6" />} 
           colorClass="text-emerald-600" 
           bgClass="bg-emerald-50" 

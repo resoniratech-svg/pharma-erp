@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Eye, Edit2, UserX, X } from 'lucide-react';
+import { Plus, Eye, Edit2, UserX, X, ChevronDown } from 'lucide-react';
 import { salesOrganizationService } from '../../../services/salesOrganizationService';
 import type { Employee, Designation } from './types';
 import { DESIGNATIONS, STATUS_OPTIONS } from './constants';
@@ -30,6 +30,7 @@ export default function EmployeesTab() {
   const [editingEmployee, setEditingEmployee] = useState<Employee | null>(null);
 
   // Form State
+  const [showReportsToDropdown, setShowReportsToDropdown] = useState(false);
   const [formData, setFormData] = useState({
     employeeCode: '',
     employeeName: '',
@@ -52,24 +53,43 @@ export default function EmployeesTab() {
   // Dynamically compute Reports To options based on chosen designation
   const getReportsToOptions = (designation: Designation): string[] => {
     const allEmps = salesOrganizationService.getEmployees();
+    let options: string[] = [];
     switch (designation) {
       case 'Medical Representative':
-        return allEmps
+        options = allEmps
           .filter((e) => e.designation === 'Area Sales Manager' && e.status === 'Active')
           .map((e) => e.employeeName);
+        break;
       case 'Area Sales Manager':
-        return allEmps
+        options = allEmps
           .filter((e) => e.designation === 'Regional Sales Manager' && e.status === 'Active')
           .map((e) => e.employeeName);
+        break;
       case 'Regional Sales Manager':
-        return allEmps
+        options = allEmps
           .filter((e) => e.designation === 'National Sales Head' && e.status === 'Active')
           .map((e) => e.employeeName);
+        break;
       case 'National Sales Head':
-        return ['Owner / Super Admin'];
+        options = ['Owner / Super Admin'];
+        break;
       default:
-        return ['Owner / Super Admin'];
+        options = ['Owner / Super Admin'];
     }
+
+    try {
+      const customManagersStr = localStorage.getItem('customReportingManagers');
+      if (customManagersStr) {
+        const customManagers = JSON.parse(customManagersStr);
+        if (customManagers[designation]) {
+          options = [...options, ...customManagers[designation]];
+        }
+      }
+    } catch (e) {
+      console.error('Failed to parse custom managers', e);
+    }
+
+    return Array.from(new Set(options));
   };
 
   const validateForm = (): boolean => {
@@ -240,6 +260,25 @@ export default function EmployeesTab() {
       } else {
         salesOrganizationService.addEmployee(payload);
       }
+
+      // Persist custom reporting manager if it's new
+      const currentOptions = getReportsToOptions(formData.designation);
+      if (formData.reportsTo && !currentOptions.includes(formData.reportsTo)) {
+        try {
+          const customManagersStr = localStorage.getItem('customReportingManagers');
+          const customManagers = customManagersStr ? JSON.parse(customManagersStr) : {};
+          if (!customManagers[formData.designation]) {
+            customManagers[formData.designation] = [];
+          }
+          if (!customManagers[formData.designation].includes(formData.reportsTo)) {
+            customManagers[formData.designation].push(formData.reportsTo);
+            localStorage.setItem('customReportingManagers', JSON.stringify(customManagers));
+          }
+        } catch (e) {
+          console.error('Failed to save custom manager', e);
+        }
+      }
+
       reloadEmployees();
       setShowModal(false);
     } catch (err: any) {
@@ -481,21 +520,70 @@ export default function EmployeesTab() {
                     )}
                   </div>
 
-                  <div>
+                  <div className="relative">
                     <label className="block text-sm font-medium mb-1 text-slate-800">
                       Reports To *
                     </label>
-                    <select
-                      value={formData.reportsTo}
-                      onChange={(e) => setFormData({ ...formData, reportsTo: e.target.value })}
-                      className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 bg-white"
-                    >
-                      {getReportsToOptions(formData.designation).map((rep) => (
-                        <option key={rep} value={rep}>
-                          {rep}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        value={formData.reportsTo}
+                        onChange={(e) => {
+                          setFormData({ ...formData, reportsTo: e.target.value });
+                          setShowReportsToDropdown(true);
+                        }}
+                        onFocus={() => setShowReportsToDropdown(true)}
+                        placeholder="Search or enter manager name..."
+                        className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 bg-white text-slate-900"
+                      />
+                      <ChevronDown
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
+                        onClick={() => setShowReportsToDropdown(!showReportsToDropdown)}
+                      />
+                    </div>
+                    {showReportsToDropdown && (
+                      <>
+                        <div
+                          className="fixed inset-0 z-10"
+                          onClick={() => setShowReportsToDropdown(false)}
+                        />
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
+                          {getReportsToOptions(formData.designation)
+                            .filter((rep) =>
+                              rep.toLowerCase().includes((formData.reportsTo || '').toLowerCase())
+                            )
+                            .map((rep) => (
+                              <div
+                                key={rep}
+                                className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
+                                onClick={() => {
+                                  setFormData({ ...formData, reportsTo: rep });
+                                  setShowReportsToDropdown(false);
+                                }}
+                              >
+                                {rep}
+                              </div>
+                            ))}
+                          {(formData.reportsTo || '').trim() !== '' &&
+                            !getReportsToOptions(formData.designation).some(
+                              (rep) =>
+                                rep.trim().toLowerCase() ===
+                                (formData.reportsTo || '').trim().toLowerCase()
+                            ) && (
+                              <div
+                                className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer rounded flex items-center gap-2"
+                                onClick={() => {
+                                  const newManager = (formData.reportsTo || '').trim();
+                                  setFormData({ ...formData, reportsTo: newManager });
+                                  setShowReportsToDropdown(false);
+                                }}
+                              >
+                                <Plus className="w-4 h-4" /> Add "{formData.reportsTo.trim()}"
+                              </div>
+                            )}
+                        </div>
+                      </>
+                    )}
                     {errors.reportsTo && (
                       <p className="text-xs text-rose-600 font-medium mt-1">{errors.reportsTo}</p>
                     )}

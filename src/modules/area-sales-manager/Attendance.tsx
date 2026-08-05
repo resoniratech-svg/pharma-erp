@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
-import { PageHeader, FilterBar, SearchInput, TableCard, DataTable, Badge, ActionButton, SummaryCard } from './components/shared';
+import { PageHeader, FilterBar, SearchInput, TableCard, DataTable, Badge, ActionButton, SummaryCard, DrawerField } from './components/shared';
 import { Download, Eye, Users, UserCheck, UserX, Clock, MapPin, ChevronDown, FileText, Table as TableIcon } from 'lucide-react';
 import CheckIn from '../gps/CheckIn';
 import { exportToCSV } from '../../utils/exportUtils';
-import { Modal } from '../../components/ui/Modal';
+import { Drawer } from '../../components/ui/Drawer';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -423,153 +423,76 @@ export default function Attendance() {
               <DataTable columns={columns} data={filteredData} emptyMessage="No attendance records found." />
             </TableCard>
 
-            {/* View Details Modal */}
-            {selectedRecord && (
-              <Modal
-                isOpen={isViewModalOpen}
-                onClose={() => setIsViewModalOpen(false)}
-                title={`Attendance Details: ${selectedRecord.empCode}`}
-                className="max-w-3xl w-full"
-              >
-                <div className="space-y-6">
-                  {/* Header Metrics */}
-                  <div className="flex justify-between items-center bg-slate-50 p-6 rounded-xl border border-slate-200">
-                    <div>
-                      <span className="block text-sm font-semibold text-slate-500 mb-1">Date: {selectedRecord.date}</span>
-                      <span className="text-xl font-bold text-[#163c78]">{selectedRecord.empName}</span>
-                      <span className="block text-sm font-medium text-slate-500 mt-1">{selectedRecord.designation} • {selectedRecord.state}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="block text-sm font-semibold text-slate-500 mb-1">Status</span>
-                      <Badge variant={getStatusBadge(selectedRecord.status).color as any}>
-                        {getStatusBadge(selectedRecord.status).label}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* View Details Drawer */}
+            <Drawer
+              isOpen={isViewModalOpen}
+              onClose={() => setIsViewModalOpen(false)}
+              title={`Attendance Details: ${selectedRecord?.empCode}`}
+            >
+              {selectedRecord && (
+                <div className="flex flex-col h-full pb-8">
+                  <div className="space-y-1">
+                    
                     {/* Employee Information */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Employee Information</h4>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">Employee Code</span>
-                          <span className="text-sm font-bold text-slate-800">{selectedRecord.empCode}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">Employee Name</span>
-                          <span className="text-sm font-bold text-slate-800">{selectedRecord.empName}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">Designation</span>
-                          <span className="text-sm font-bold text-slate-800">{selectedRecord.designation}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">Reporting Manager</span>
-                          <span className="text-sm font-bold text-[#163c78]">{selectedRecord.reportingRsm}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">State</span>
-                          <span className="text-sm font-bold text-slate-800">{selectedRecord.state}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">HQ / Territory</span>
-                          <span className="text-sm font-bold text-slate-800">{selectedRecord.hq}</span>
-                        </div>
+                    <div className="py-3 border-t border-slate-100 first:border-0">
+                      <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Employee Information</p>
+                      <div className="space-y-1">
+                        <DrawerField label="Employee Code" value={selectedRecord.empCode} />
+                        <DrawerField label="Employee Name" value={selectedRecord.empName} />
+                        <DrawerField label="Designation" value={selectedRecord.designation} />
+                        <DrawerField label="Reporting Manager" value={selectedRecord.reportingRsm} />
+                        <DrawerField label="State" value={selectedRecord.state} />
+                        <DrawerField label="HQ / Territory" value={selectedRecord.hq} />
                       </div>
                     </div>
 
                     {/* Attendance Information */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Attendance Information</h4>
-                      <div className="space-y-4">
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">Attendance Date</span>
-                          <span className="text-sm font-bold text-slate-800">{selectedRecord.date}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">Attendance Status</span>
-                          <Badge variant={getStatusBadge(selectedRecord.status).color as any}>{selectedRecord.status}</Badge>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">Check-In Time</span>
-                          <span className="text-sm font-bold text-slate-800">{selectedRecord.checkInTime}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">Check-Out Time</span>
-                          <span className="text-sm font-bold text-slate-800">{selectedRecord.checkOutTime}</span>
-                        </div>
-                        <div className="flex justify-between items-center">
-                          <span className="text-sm font-medium text-slate-600">Total Working Hours</span>
-                          <span className="text-sm font-bold text-purple-600">{selectedRecord.workingHours}</span>
-                        </div>
+                    <div className="py-3 border-t border-slate-100 first:border-0">
+                      <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Attendance Information</p>
+                      <div className="space-y-1">
+                        <DrawerField label="Attendance Date" value={selectedRecord.date} />
+                        <DrawerField label="Attendance Status" value={selectedRecord.status} />
+                        <DrawerField label="Check-In Time" value={selectedRecord.checkInTime} />
+                        <DrawerField label="Check-Out Time" value={selectedRecord.checkOutTime} />
+                        <DrawerField label="Total Working Hours" value={selectedRecord.workingHours} />
                       </div>
                     </div>
 
                     {/* GPS Information */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm col-span-1 md:col-span-2">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">GPS Information</h4>
-                      
-                      <div className="mb-6 flex items-center justify-between bg-slate-50 p-3 rounded-lg border border-slate-200">
-                         <span className="text-sm font-medium text-slate-600">GPS Verification Status</span>
-                         <span className={`text-sm font-bold flex items-center gap-1 ${selectedRecord.gpsStatus === 'Verified' ? 'text-emerald-600' : 'text-slate-500'}`}>
-                           <MapPin className="w-4 h-4" />
-                           {selectedRecord.gpsStatus}
-                         </span>
-                      </div>
-
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        <div className="space-y-4">
-                          <h5 className="text-sm font-bold text-slate-800">Check-In Details</h5>
-                          <div>
-                            <span className="block text-xs font-medium text-slate-500 mb-1">Check-In Address</span>
-                            <span className="text-sm font-semibold text-slate-800">{selectedRecord.checkInAddress}</span>
-                          </div>
-                          <div>
-                            <span className="block text-xs font-medium text-slate-500 mb-1">Check-In Coordinates</span>
-                            <span className="text-sm font-mono text-slate-600">{selectedRecord.checkInCoords}</span>
-                          </div>
-                        </div>
-                        <div className="space-y-4">
-                          <h5 className="text-sm font-bold text-slate-800">Check-Out Details</h5>
-                          <div>
-                            <span className="block text-xs font-medium text-slate-500 mb-1">Check-Out Address</span>
-                            <span className="text-sm font-semibold text-slate-800">{selectedRecord.checkOutAddress}</span>
-                          </div>
-                          <div>
-                            <span className="block text-xs font-medium text-slate-500 mb-1">Check-Out Coordinates</span>
-                            <span className="text-sm font-mono text-slate-600">{selectedRecord.checkOutCoords}</span>
-                          </div>
-                        </div>
+                    <div className="py-3 border-t border-slate-100 first:border-0">
+                      <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">GPS Information</p>
+                      <div className="space-y-1">
+                        <DrawerField label="GPS Verification Status" value={selectedRecord.gpsStatus} />
+                        <DrawerField label="Check-In Address" value={selectedRecord.checkInAddress} />
+                        <DrawerField label="Check-In Coordinates" value={selectedRecord.checkInCoords} />
+                        <DrawerField label="Check-Out Address" value={selectedRecord.checkOutAddress} />
+                        <DrawerField label="Check-Out Coordinates" value={selectedRecord.checkOutCoords} />
                       </div>
                     </div>
 
                     {/* Additional Information */}
-                    <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm col-span-1 md:col-span-2">
-                      <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 border-b border-slate-100 pb-2">Additional Information</h4>
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <div>
-                          <span className="block text-xs font-medium text-slate-500 mb-1">Device Name</span>
-                          <span className="text-sm font-semibold text-slate-800">{selectedRecord.deviceName || '-'}</span>
-                        </div>
-                        <div>
-                          <span className="block text-xs font-medium text-slate-500 mb-1">Device ID</span>
-                          <span className="text-sm font-semibold text-slate-800">{selectedRecord.deviceId || '-'}</span>
-                        </div>
-                        <div>
-                          <span className="block text-xs font-medium text-slate-500 mb-1">Attendance Remarks</span>
-                          <span className="text-sm font-semibold text-slate-800">{selectedRecord.remarks || '-'}</span>
-                        </div>
+                    <div className="py-3 border-t border-slate-100 first:border-0">
+                      <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Additional Information</p>
+                      <div className="space-y-1">
+                        <DrawerField label="Device Name" value={selectedRecord.deviceName || '-'} />
+                        <DrawerField label="Device ID" value={selectedRecord.deviceId || '-'} />
+                        <DrawerField label="Attendance Remarks" value={selectedRecord.remarks || '-'} />
                       </div>
                     </div>
-                  </div>
 
-                  <div className="flex justify-end pt-4">
-                    <ActionButton variant="secondary" onClick={() => setIsViewModalOpen(false)}>Close Summary</ActionButton>
+                  </div>
+                  
+                  <div className="mt-auto pt-6 border-t border-slate-100">
+                    <button
+                      onClick={() => setIsViewModalOpen(false)}
+                      className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors"
+                    >
+                      Close Details
+                    </button>
                   </div>
                 </div>
-              </Modal>
-            )}
+              )}
+            </Drawer>
           </div>
         )}
       </div>

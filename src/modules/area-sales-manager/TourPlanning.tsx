@@ -16,6 +16,8 @@ export default function TourPlanning() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any | null>(null);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
+  const [rejectRemarks, setRejectRemarks] = useState('');
 
   useEffect(() => {
     // Realistic production mock data for Tour Planning
@@ -49,6 +51,45 @@ export default function TourPlanning() {
   const handleView = (row: any) => {
     setSelectedPlan(row);
     setDrawerOpen(true);
+  };
+
+  const handleApprove = () => {
+    if (!selectedPlan) return;
+    const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const updatedPlan = {
+      ...selectedPlan,
+      status: 'Approved',
+      approvedBy: 'Current ASM User',
+      approvalDate: now,
+      asmRemarks: 'Approved'
+    };
+    
+    setPlans(plans.map(p => p.id === updatedPlan.id ? updatedPlan : p));
+    setSelectedPlan(updatedPlan);
+    alert('Tour plan approved successfully!');
+  };
+
+  const handleReject = () => {
+    if (!rejectRemarks.trim()) {
+      alert("Please provide rejection remarks.");
+      return;
+    }
+    if (!selectedPlan) return;
+    
+    const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const updatedPlan = {
+      ...selectedPlan,
+      status: 'Rejected',
+      approvedBy: 'Current ASM User',
+      approvalDate: now,
+      asmRemarks: rejectRemarks
+    };
+    
+    setPlans(plans.map(p => p.id === updatedPlan.id ? updatedPlan : p));
+    setSelectedPlan(updatedPlan);
+    setIsRejectModalOpen(false);
+    setRejectRemarks('');
+    alert('Tour plan rejected.');
   };
 
   const handleExportExcel = () => {
@@ -311,8 +352,8 @@ export default function TourPlanning() {
                       {selectedPlan.status}
                     </Badge>
                   } />
-                  <DrawerField label="Approved By" value="Current ASM User" />
-                  <DrawerField label="Approval Date" value="30 Jul 2026" />
+                  <DrawerField label="Approved By" value={selectedPlan.approvedBy || (selectedPlan.status !== 'Pending' ? 'Current ASM User' : '-')} />
+                  <DrawerField label="Approval Date" value={selectedPlan.approvalDate || (selectedPlan.status !== 'Pending' ? '30 Jul 2026' : '-')} />
                 </div>
               </div>
               
@@ -320,23 +361,74 @@ export default function TourPlanning() {
                 <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">5. Remarks</p>
                 <div className="space-y-1">
                   <DrawerField label="MR Remarks" value="Focus on Cardio new products this month." />
-                  <DrawerField label="ASM Remarks" value="Approved, ensure maximum coverage." />
+                  <DrawerField label="ASM Remarks" value={selectedPlan.asmRemarks || (selectedPlan.status !== 'Pending' ? 'Approved, ensure maximum coverage.' : '-')} />
                 </div>
               </div>
 
             </div>
             
-            <div className="mt-auto pt-6 border-t border-slate-100">
+            <div className="mt-auto pt-6 border-t border-slate-100 flex items-center justify-end gap-3">
               <button
                 onClick={() => setDrawerOpen(false)}
-                className="w-full py-2.5 px-4 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-lg transition-colors"
+                className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
               >
-                Close Plan Details
+                Close
               </button>
+              {selectedPlan.status === 'Pending' && (
+                <>
+                  <button
+                    onClick={() => setIsRejectModalOpen(true)}
+                    className="px-6 py-2.5 text-sm font-medium text-white bg-rose-600 rounded-lg hover:bg-rose-700 transition-colors"
+                  >
+                    Reject
+                  </button>
+                  <button
+                    onClick={handleApprove}
+                    className="px-6 py-2.5 text-sm font-medium text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 transition-colors"
+                  >
+                    Approve
+                  </button>
+                </>
+              )}
             </div>
           </div>
         )}
       </Drawer>
+
+      {/* Reject Modal */}
+      {isRejectModalOpen && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-5 border-b border-slate-200">
+              <h3 className="text-lg font-bold text-slate-800">Reject Tour Plan</h3>
+              <p className="text-sm text-slate-500 mt-0.5">Please provide remarks for rejection.</p>
+            </div>
+            <div className="p-6">
+              <label className="block text-sm font-medium text-slate-700 mb-1">Remarks (Required) *</label>
+              <textarea 
+                value={rejectRemarks}
+                onChange={(e) => setRejectRemarks(e.target.value)}
+                className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] min-h-[100px]"
+                placeholder="Enter rejection reasons..."
+              />
+            </div>
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+              <button 
+                onClick={() => { setIsRejectModalOpen(false); setRejectRemarks(''); }}
+                className="px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button 
+                onClick={handleReject}
+                className="px-4 py-2.5 text-sm font-medium text-white bg-rose-600 rounded-lg hover:bg-rose-700 transition-colors"
+              >
+                Reject Tour
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

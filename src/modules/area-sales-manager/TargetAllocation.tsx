@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader, SummaryCard, ActionButton, DataTable, Badge, FilterBar, SearchInput, SelectFilter, DrawerField } from './components/shared';
-import { Target, TrendingUp, AlertCircle, Calendar, CheckCircle, Eye, Search, Save, Send, Download, ChevronDown, FileText, Table as TableIcon } from 'lucide-react';
+import { Target, TrendingUp, AlertCircle, Calendar, CheckCircle, Eye, Search, Save, Send, Download, ChevronDown, FileText, Table as TableIcon, Edit2, X } from 'lucide-react';
 import { Drawer } from '../../components/ui/Drawer';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -12,9 +12,12 @@ export default function TargetAllocation() {
   const [mrs, setMrs] = useState<any[]>([]);
   
   const [search, setSearch] = useState('');
+  const [territoryFilter, setTerritoryFilter] = useState('All Territories');
+  const [statusFilter, setStatusFilter] = useState('All Status');
   const [isExportOpen, setIsExportOpen] = useState(false);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [selectedMR, setSelectedMR] = useState<any | null>(null);
+  const [editModal, setEditModal] = useState<{isOpen: boolean, mr: any, amount: string} | null>(null);
   
   const [allocationInputs, setAllocationInputs] = useState<Record<string, string>>({});
 
@@ -86,12 +89,35 @@ export default function TargetAllocation() {
   const currentTotalInputAllocation = Object.values(allocationInputs).reduce((sum, val) => sum + (Number(val) || 0), 0);
   const remainingAfterInputs = activeTarget ? activeTarget.targetAmount - currentTotalInputAllocation : 0;
 
+  const uniqueTerritories = Array.from(new Set(mrs.map(mr => mr.territory).filter(Boolean)));
+  const uniqueStatuses = Array.from(new Set([...mrs.map(mr => mr.status).filter(Boolean), 'Draft']));
+
+  const handleSaveDraft = () => {
+    setMrs(mrs.map(mr => {
+      const amount = Number(allocationInputs[mr.id]);
+      if (mr.status !== 'Allocated' && amount > 0) {
+        return { ...mr, allocatedTarget: amount, status: 'Draft' };
+      }
+      return mr;
+    }));
+    alert("Draft saved!");
+  };
+
   const handleValidateAllocation = () => {
     if (activeTarget && currentTotalInputAllocation > activeTarget.targetAmount) {
       alert(`Total allocated amount (${formatCurrency(currentTotalInputAllocation)}) exceeds Assigned Target (${formatCurrency(activeTarget.targetAmount)})`);
       return false;
     }
-    alert("Validation Successful! Amounts are within target limits.");
+    
+    setMrs(mrs.map(mr => {
+      const amount = Number(allocationInputs[mr.id]);
+      if (mr.status !== 'Allocated' && amount > 0) {
+        return { ...mr, allocatedTarget: amount, status: 'Validated' };
+      }
+      return mr;
+    }));
+
+    alert("Validation Successful! Amounts are within target limits and set to Validated.");
     return true;
   };
 
@@ -100,8 +126,55 @@ export default function TargetAllocation() {
       alert(`Validation Failed: Allocated amount exceeds Assigned Target.`);
       return;
     }
+    
+    setMrs(mrs.map(mr => {
+      if (mr.status === 'Validated') {
+        return { ...mr, status: 'Allocated' };
+      }
+      return mr;
+    }));
+
     alert("Final Plan Submitted successfully! Targets allocated to MRs.");
     setActiveStep('overview');
+  };
+
+  const handleOpenEdit = (mr: any) => {
+    setEditModal({
+      isOpen: true,
+      mr,
+      amount: allocationInputs[mr.id] || '',
+    });
+  };
+
+  const handleUpdateAllocation = () => {
+    if (!editModal || !activeTarget) return;
+    const numAmount = Number(editModal.amount);
+    
+    if (isNaN(numAmount) || numAmount < 0) {
+      alert("Please enter a valid positive amount.");
+      return;
+    }
+
+    const currentTotalExceptThis = Object.entries(allocationInputs)
+      .filter(([id]) => id !== editModal.mr.id)
+      .reduce((sum, [, val]) => sum + (Number(val) || 0), 0);
+      
+    if (currentTotalExceptThis + numAmount > activeTarget.targetAmount) {
+      alert(`Validation Failed: This allocation would exceed the Assigned Target.`);
+      return;
+    }
+    
+    setAllocationInputs(prev => ({ ...prev, [editModal.mr.id]: numAmount.toString() }));
+    
+    setMrs(mrs.map(mr => {
+      if (mr.id === editModal.mr.id) {
+        return { ...mr, allocatedTarget: numAmount };
+      }
+      return mr;
+    }));
+    
+    setEditModal(null);
+    alert("Allocation updated successfully!");
   };
 
   const handleView = (row: any) => {
@@ -300,13 +373,21 @@ export default function TargetAllocation() {
           {/* Section 2 - Filters */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-4 items-center justify-between">
             <div className="flex gap-4">
-              <select className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#163c78] bg-white">
-                <option>All Territories</option>
+              <select 
+                value={territoryFilter}
+                onChange={(e) => setTerritoryFilter(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#163c78] bg-white"
+              >
+                <option value="All Territories">All Territories</option>
+                {uniqueTerritories.map(t => <option key={t} value={t}>{t}</option>)}
               </select>
-              <select className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#163c78] bg-white">
-                <option>All Status</option>
-                <option>Pending</option>
-                <option>Allocated</option>
+              <select 
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value)}
+                className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#163c78] bg-white"
+              >
+                <option value="All Status">All Status</option>
+                {uniqueStatuses.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </div>
             <div className="relative">
@@ -340,27 +421,41 @@ export default function TargetAllocation() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-200">
-                  {mrs.filter(a => a.employeeName.toLowerCase().includes(search.toLowerCase()) || a.employeeCode.toLowerCase().includes(search.toLowerCase())).map((mr) => (
+                  {mrs.filter(mr => {
+                    const matchSearch = mr.employeeName.toLowerCase().includes(search.toLowerCase()) || mr.employeeCode.toLowerCase().includes(search.toLowerCase());
+                    const matchTerritory = territoryFilter === 'All Territories' || mr.territory === territoryFilter;
+                    const matchStatus = statusFilter === 'All Status' || mr.status === statusFilter;
+                    return matchSearch && matchTerritory && matchStatus;
+                  }).map((mr) => (
                     <tr key={mr.id} className="hover:bg-slate-50">
                       <td className="p-4 text-sm font-medium text-slate-900">{mr.employeeCode}</td>
                       <td className="p-4 text-sm text-slate-700">{mr.employeeName}</td>
                       <td className="p-4 text-sm text-slate-700">{mr.headquarters || '-'}</td>
                       <td className="p-4 text-sm text-slate-700">{mr.territory || '-'}</td>
                       <td className="p-4">
-                        <input 
-                          type="number"
-                          className="w-32 px-3 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm"
-                          placeholder="Amount"
-                          value={allocationInputs[mr.id] || ''}
-                          onChange={(e) => setAllocationInputs({...allocationInputs, [mr.id]: e.target.value})}
-                        />
+                        {mr.status === 'Allocated' ? (
+                          <span className="font-semibold text-slate-800">{formatCurrency(mr.allocatedTarget)}</span>
+                        ) : (
+                          <input 
+                            type="number"
+                            className="w-32 px-3 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm"
+                            placeholder="Amount"
+                            value={allocationInputs[mr.id] || ''}
+                            onChange={(e) => setAllocationInputs({...allocationInputs, [mr.id]: e.target.value})}
+                          />
+                        )}
                       </td>
                       <td className="p-4">
-                        <Badge variant={allocationInputs[mr.id] ? 'success' : 'warning'}>
-                          {allocationInputs[mr.id] ? 'Allocated' : 'Pending'}
+                        <Badge variant={mr.status === 'Allocated' ? 'success' : mr.status === 'Validated' ? 'primary' : mr.status === 'Draft' ? 'neutral' : 'warning'}>
+                          {mr.status}
                         </Badge>
                       </td>
-                      <td className="p-4 text-right">
+                      <td className="p-4 text-right flex items-center justify-end gap-2">
+                        {mr.status === 'Allocated' && (
+                          <button onClick={() => handleOpenEdit(mr)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="Edit Allocation">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                        )}
                         <button onClick={() => handleView(mr)} className="p-1.5 text-slate-400 hover:text-[#163c78] hover:bg-blue-50 rounded transition-colors" title="View Details">
                           <Eye className="w-4 h-4" />
                         </button>
@@ -382,7 +477,7 @@ export default function TargetAllocation() {
             <div className="flex gap-4">
               <button 
                 type="button" 
-                onClick={() => alert("Draft saved!")}
+                onClick={handleSaveDraft}
                 className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
               >
                 Save Draft
@@ -401,6 +496,75 @@ export default function TargetAllocation() {
               >
                 Submit Final Plan
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editModal?.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden animate-in fade-in zoom-in duration-200">
+            <div className="p-5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+               <div>
+                 <h3 className="text-lg font-bold text-slate-800">Edit Allocation</h3>
+                 <p className="text-sm text-slate-500 mt-0.5">Update assigned target for {editModal.mr.employeeName}</p>
+               </div>
+               <button 
+                 onClick={() => setEditModal(null)}
+                 className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-200 rounded transition-colors"
+               >
+                 <X className="w-5 h-5" />
+               </button>
+            </div>
+            <div className="p-6 space-y-4">
+               <div>
+                 <label className="block text-sm font-medium text-slate-700 mb-1">Employee Code</label>
+                 <input type="text" disabled value={editModal.mr.employeeCode} className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed font-medium" />
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                 <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">MR Name</label>
+                   <input type="text" disabled value={editModal.mr.employeeName} className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed font-medium" />
+                 </div>
+                 <div>
+                   <label className="block text-sm font-medium text-slate-700 mb-1">Headquarters</label>
+                   <input type="text" disabled value={editModal.mr.headquarters || '-'} className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed font-medium" />
+                 </div>
+               </div>
+               <div>
+                 <label className="block text-sm font-medium text-slate-700 mb-1">Territory</label>
+                 <input type="text" disabled value={editModal.mr.territory || '-'} className="w-full px-3 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-600 cursor-not-allowed font-medium" />
+               </div>
+               <div>
+                 <label className="block text-sm font-medium text-slate-700 mb-1">Allocated Target (₹) *</label>
+                 <input 
+                   type="number" 
+                   value={editModal.amount} 
+                   onChange={(e) => setEditModal({...editModal, amount: e.target.value})}
+                   className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] font-semibold text-[#163c78]" 
+                 />
+               </div>
+               <div>
+                 <label className="block text-sm font-medium text-slate-700 mb-1">Remarks (Optional)</label>
+                 <textarea 
+                   className="w-full px-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] min-h-[80px]" 
+                   placeholder="Enter context for this update..."
+                 />
+               </div>
+            </div>
+            <div className="p-4 border-t border-slate-200 bg-slate-50 flex justify-end gap-3">
+               <button 
+                 onClick={() => setEditModal(null)}
+                 className="px-4 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+               >
+                 Cancel
+               </button>
+               <button 
+                 onClick={handleUpdateAllocation}
+                 className="px-4 py-2.5 text-sm font-medium text-white bg-[#163c78] rounded-lg hover:bg-[#122e5c] transition-colors"
+               >
+                 Update Allocation
+               </button>
             </div>
           </div>
         </div>
