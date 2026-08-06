@@ -244,28 +244,28 @@ export default function MRDashboard() {
 
           {/* Quick Actions / Shortcuts */}
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <a href="/workspace/mr/doctor-visits" className="bg-white p-4 rounded-xl border border-slate-200 text-center hover:border-blue-300 hover:shadow-md transition-all group cursor-pointer block">
+            <a href="/workspace/mr/doctors" className="bg-white p-4 rounded-xl border border-slate-200 text-center hover:border-blue-300 hover:shadow-md transition-all group cursor-pointer block">
               <div className="w-10 h-10 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                 <Stethoscope className="w-5 h-5" />
               </div>
               <span className="text-sm font-semibold text-slate-700">Log Doc Visit</span>
             </a>
             
-            <a href="/workspace/mr/chemist-visits" className="bg-white p-4 rounded-xl border border-slate-200 text-center hover:border-emerald-300 hover:shadow-md transition-all group cursor-pointer block">
+            <a href="/workspace/mr/chemists" className="bg-white p-4 rounded-xl border border-slate-200 text-center hover:border-emerald-300 hover:shadow-md transition-all group cursor-pointer block">
               <div className="w-10 h-10 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                 <Pill className="w-5 h-5" />
               </div>
               <span className="text-sm font-semibold text-slate-700">Log Chemist</span>
             </a>
 
-            <a href="/workspace/mr/order-booking" className="bg-white p-4 rounded-xl border border-slate-200 text-center hover:border-purple-300 hover:shadow-md transition-all group cursor-pointer block">
+            <a href="/workspace/mr/orders" className="bg-white p-4 rounded-xl border border-slate-200 text-center hover:border-purple-300 hover:shadow-md transition-all group cursor-pointer block">
               <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                 <ShoppingCart className="w-5 h-5" />
               </div>
               <span className="text-sm font-semibold text-slate-700">Book Order</span>
             </a>
 
-            <a href="/workspace/mr/daily-reports" className="bg-white p-4 rounded-xl border border-slate-200 text-center hover:border-indigo-300 hover:shadow-md transition-all group cursor-pointer block">
+            <a href="/workspace/mr/dcr" className="bg-white p-4 rounded-xl border border-slate-200 text-center hover:border-indigo-300 hover:shadow-md transition-all group cursor-pointer block">
               <div className="w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-3 group-hover:scale-110 transition-transform">
                 <FileText className="w-5 h-5" />
               </div>
@@ -277,7 +277,7 @@ export default function MRDashboard() {
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
             <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50/50">
               <h3 className="font-bold text-slate-800">Recent Orders (POB)</h3>
-              <a href="/workspace/mr/order-booking" className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
+              <a href="/workspace/mr/orders" className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1">
                 View All <ArrowRight className="w-3 h-3" />
               </a>
             </div>

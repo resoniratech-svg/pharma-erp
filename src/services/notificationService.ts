@@ -113,7 +113,7 @@ export const NotificationService = {
         isActionRequired: isPending, 
         read: readStatus.includes(id),
         createdAt: new Date(visit.visitDate || Date.now()).toISOString(),
-        actionUrl: '/workspace/mr/doctor-visits'
+        actionUrl: '/workspace/mr/doctors'
       });
     });
 
@@ -134,7 +134,7 @@ export const NotificationService = {
         isActionRequired: isPending, 
         read: readStatus.includes(id),
         createdAt: new Date(visit.visitDate || Date.now()).toISOString(),
-        actionUrl: '/workspace/mr/chemist-visits'
+        actionUrl: '/workspace/mr/chemists'
       });
     });
 
