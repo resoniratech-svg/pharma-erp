@@ -123,12 +123,13 @@ export default function AdminManagement() {
             const existingLocal = localAdmins.find(la => la.id === adminId || la.email.toLowerCase() === adminEmail || la.companyName.toLowerCase() === c.name.toLowerCase());
             
             const savedModules = existingLocal?.subscription?.purchasedModules || erpModules;
+            const primaryUser = c.users && c.users.length > 0 ? c.users[0] : null;
 
             return {
               id: adminId,
-              adminName: c.contactPerson || c.name || 'Company Admin',
+              adminName: primaryUser?.name || c.contactPerson || c.name || 'Company Admin',
               companyName: c.name,
-              email: c.email || `admin@${c.code ? c.code.toLowerCase() : 'company'}.com`,
+              email: primaryUser?.email || c.email || `admin@${c.code ? c.code.toLowerCase() : 'company'}.com`,
               passwordHash: '********',
               companyCode: c.code,
               gstNumber: c.gstNumber,
