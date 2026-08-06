@@ -5,7 +5,7 @@ import type { OrganizationNode } from './types';
 import { SearchInput, ActionButton, Badge, FilterBar } from '../components/shared';
 
 export default function OrganizationTab() {
-  const [treeData, setTreeData] = useState<OrganizationNode | null>(null);
+  const [treeData, setTreeData] = useState<OrganizationNode[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({
@@ -35,13 +35,15 @@ export default function OrganizationTab() {
   };
 
   const handleExpandAll = () => {
-    if (!treeData) return;
+    if (!treeData || treeData.length === 0) return;
     const newExpanded: Record<string, boolean> = {};
     const traverse = (node: OrganizationNode) => {
       newExpanded[node.id] = true;
-      node.children.forEach(traverse);
+      if (node.children) {
+        node.children.forEach(traverse);
+      }
     };
-    traverse(treeData);
+    treeData.forEach(traverse);
     setExpandedNodes(newExpanded);
   };
 
@@ -154,7 +156,7 @@ export default function OrganizationTab() {
     return <div className="p-8 text-center text-slate-500">Loading organization tree...</div>;
   }
 
-  if (!treeData) {
+  if (!treeData || treeData.length === 0) {
     return <div className="p-8 text-center text-rose-500">Failed to load tree data.</div>;
   }
 
@@ -182,7 +184,11 @@ export default function OrganizationTab() {
             <span className="text-xs text-slate-400">Click any employee to view details</span>
           </div>
 
-          {renderTreeNode(treeData)}
+          {treeData.map((node) => (
+            <div key={node.id}>
+              {renderTreeNode(node)}
+            </div>
+          ))}
         </div>
 
         {/* Details Side Panel */}

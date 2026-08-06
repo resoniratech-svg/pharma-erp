@@ -103,10 +103,10 @@ class EmployeeService {
     return res.success;
   }
 
-  async getOrganizationTree(): Promise<OrganizationNode> {
+  async getOrganizationTree(): Promise<OrganizationNode[]> {
     const res = await apiRequest<{ success: boolean; data: any }>('/sales-organization/tree');
     if (!res.success || !res.data) {
-      return {
+      return [{
         id: 'root',
         employeeCode: 'OWNER-001',
         employeeName: 'Owner / Super Admin',
@@ -117,9 +117,9 @@ class EmployeeService {
         area: 'Headquarters',
         status: 'Active',
         children: [],
-      };
+      }];
     }
-    return res.data;
+    return Array.isArray(res.data) ? res.data : [res.data];
   }
 
   async getMyTeam(): Promise<Employee[]> {

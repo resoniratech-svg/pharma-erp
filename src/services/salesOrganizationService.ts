@@ -22,7 +22,7 @@ class SalesOrganizationService {
   }
 
   // --- Hierarchy Tree Helper ---
-  async getOrganizationTree(): Promise<OrganizationNode> {
+  async getOrganizationTree(): Promise<OrganizationNode[]> {
     return employeeService.getOrganizationTree();
   }
 
