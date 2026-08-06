@@ -1,7 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageHeader, FilterBar, SearchInput, TableCard, DataTable, Badge, ActionButton, SummaryCard, Drawer, DrawerField } from './components/shared';
-import { Plus, Edit2, Eye, Users, UserCheck, UserX, MapPin } from 'lucide-react';
+import { Plus, Edit2, Eye, Users, UserCheck, UserX, MapPin, Loader2 } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
+import { employeeService } from '../../services/employeeService';
+import type { Employee } from '../super-admin/sales-organization/types';
 
 export default function ASMManagement() {
   const [search, setSearch] = useState('');
@@ -10,34 +12,19 @@ export default function ASMManagement() {
     status: 'All'
   });
 
-  const [asmData, setAsmData] = useState<any[]>([
-    { 
-      id: 'ASM012', name: 'Vikas Sharma', mobile: '9876543213', email: 'vikas.s@pharma.com', 
-      state: 'Maharashtra', hq: 'Pune', territory: 'Pune East', 
-      status: 'Active', joiningDate: '2025-04-15'
-    },
-    { 
-      id: 'ASM015', name: 'Amit Desai', mobile: '9876543214', email: 'amit.d@pharma.com', 
-      state: 'Gujarat', hq: 'Ahmedabad', territory: 'Ahmedabad Central', 
-      status: 'Active', joiningDate: '2025-05-10'
-    },
-    { 
-      id: 'ASM018', name: 'Kiran Rao', mobile: '9876543215', email: 'kiran.r@pharma.com', 
-      state: 'Maharashtra', hq: 'Mumbai', territory: 'Mumbai South', 
-      status: 'Inactive', joiningDate: '2025-06-01'
-    },
-  ]);
+  const [asmData, setAsmData] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [viewingAsm, setViewingAsm] = useState<any | null>(null);
+  const [viewingAsm, setViewingAsm] = useState<Employee | null>(null);
   
-  const [availableStates, setAvailableStates] = useState<string[]>(() => {
-    const saved = localStorage.getItem('pharma_states_master');
-    if (saved) return JSON.parse(saved);
-    return ['Maharashtra', 'Gujarat', 'Karnataka', 'Delhi', 'Tamil Nadu'];
-  });
+  const [availableStates, setAvailableStates] = useState<string[]>([
+    'Maharashtra', 'Gujarat', 'Karnataka', 'Delhi', 'Tamil Nadu', 'Telangana', 'Uttar Pradesh', 'West Bengal'
+  ]);
   const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
   const [stateSearch, setStateSearch] = useState('');
 
@@ -54,35 +41,67 @@ export default function ASMManagement() {
     confirmPassword: '',
     status: 'Active',
     accountStatus: 'Active',
-    joiningDate: '',
+    joiningDate: new Date().toISOString().split('T')[0],
     remarks: ''
   });
 
-  const loggedInRsm = "Arun Kumar (Regional Sales Manager)"; // Mocked logged-in RSM
-  const generatedEmpCode = editingId ? editingId : `ASM${String(asmData.length + 12).padStart(3, '0')}`;
+  const loggedInRsm = "Regional Sales Manager";
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      setErrorMsg('');
+      const data = await employeeService.getEmployees({ designation: 'Area Sales Manager' });
+      setAsmData(data.reverse());
+    } catch (e: any) {
+      console.error(e);
+      setErrorMsg(e.message || 'Failed to load ASMs from database');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
 
   const openAddModal = () => {
     setEditingId(null);
     setNewAsm({
       name: '', mobile: '', email: '', gender: 'Male', dob: '', state: '', hq: '', territory: '', 
-      password: '', confirmPassword: '', status: 'Active', accountStatus: 'Active', joiningDate: '', remarks: ''
+      password: '', confirmPassword: '', status: 'Active', accountStatus: 'Active', 
+      joiningDate: new Date().toISOString().split('T')[0], remarks: ''
     });
     setStateSearch('');
+    setErrorMsg('');
     setIsAddModalOpen(true);
   };
 
-  const openEditModal = (asm: any) => {
+  const openEditModal = (asm: Employee) => {
     setEditingId(asm.id);
+    const anyAsm = asm as any;
     setNewAsm({
-      name: asm.name || '', mobile: asm.mobile || '', email: asm.email || '', gender: asm.gender || 'Male', dob: asm.dob || '',
-      state: asm.state || '', hq: asm.hq || '', territory: asm.territory || '', 
-      password: '', confirmPassword: '', status: asm.status || 'Active', accountStatus: asm.accountStatus || 'Active', joiningDate: asm.joiningDate || '', remarks: asm.remarks || ''
+      name: asm.employeeName || '', 
+      mobile: anyAsm.mobile || '', 
+      email: anyAsm.email || '', 
+      gender: anyAsm.gender || 'Male', 
+      dob: anyAsm.dob || '',
+      state: (asm.states && asm.states[0]) || asm.region || '', 
+      hq: asm.headquarters || '', 
+      territory: asm.area || '', 
+      password: '', 
+      confirmPassword: '', 
+      status: asm.status || 'Active', 
+      accountStatus: asm.status || 'Active', 
+      joiningDate: asm.joiningDate || '', 
+      remarks: anyAsm.remarks || ''
     });
-    setStateSearch(asm.state || '');
+    setStateSearch((asm.states && asm.states[0]) || asm.region || '');
+    setErrorMsg('');
     setIsAddModalOpen(true);
   };
 
-  const openViewModal = (asm: any) => {
+  const openViewModal = (asm: Employee) => {
     setViewingAsm(asm);
     setIsViewModalOpen(true);
   };
@@ -91,14 +110,14 @@ export default function ASMManagement() {
     const trimmed = stateName.trim();
     if (!trimmed) return;
     const existing = availableStates.find(s => s.toLowerCase() === trimmed.toLowerCase());
-    let finalState = existing ? existing : trimmed;
+    const finalState = existing ? existing : trimmed;
     
     setNewAsm({ ...newAsm, state: finalState });
     setStateSearch(finalState);
     setIsStateDropdownOpen(false);
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newAsm.password && newAsm.password !== newAsm.confirmPassword) {
       alert("Passwords do not match");
@@ -111,59 +130,81 @@ export default function ASMManagement() {
        return;
     }
     
-    const existing = availableStates.find(s => s.toLowerCase() === trimmedState.toLowerCase());
-    let finalState = trimmedState;
-    if (existing) {
-       finalState = existing;
-    } else {
-       const updated = [...availableStates, trimmedState].sort();
-       setAvailableStates(updated);
-       localStorage.setItem('pharma_states_master', JSON.stringify(updated));
-    }
-    
-    const asmToSave = { ...newAsm, state: finalState };
-    
-    if (editingId) {
-      setAsmData(asmData.map(asm => asm.id === editingId ? { ...asm, ...asmToSave, id: editingId } : asm));
-    } else {
-      setAsmData([...asmData, {
-        ...asmToSave,
-        id: generatedEmpCode
-      }]);
-    }
+    try {
+      setSaving(true);
+      setErrorMsg('');
 
-    setIsAddModalOpen(false);
+      if (editingId) {
+        await employeeService.updateEmployee(editingId, {
+          employeeName: newAsm.name,
+          designation: 'Area Sales Manager',
+          email: newAsm.email,
+          mobile: newAsm.mobile,
+          password: newAsm.password || undefined,
+          states: [trimmedState],
+          headquarters: newAsm.hq,
+          region: trimmedState,
+          area: newAsm.territory,
+          joiningDate: newAsm.joiningDate,
+          status: newAsm.status as 'Active' | 'Inactive',
+        });
+      } else {
+        await employeeService.addEmployee({
+          employeeName: newAsm.name,
+          designation: 'Area Sales Manager',
+          email: newAsm.email,
+          mobile: newAsm.mobile,
+          password: newAsm.password || 'Welcome@123',
+          states: [trimmedState],
+          headquarters: newAsm.hq,
+          region: trimmedState,
+          area: newAsm.territory,
+          joiningDate: newAsm.joiningDate,
+          status: newAsm.status as 'Active' | 'Inactive',
+        });
+      }
+
+      await loadData();
+      setIsAddModalOpen(false);
+    } catch (e: any) {
+      console.error(e);
+      setErrorMsg(e.message || 'Failed to save ASM');
+    } finally {
+      setSaving(false);
+    }
   };
 
   const filteredData = asmData.filter(row => {
     const s = search.toLowerCase();
+    const anyRow = row as any;
     const matchesSearch = search === '' || 
-      row.id.toLowerCase().includes(s) ||
-      row.name.toLowerCase().includes(s) ||
-      row.mobile.toLowerCase().includes(s) ||
-      row.email.toLowerCase().includes(s) ||
-      row.hq.toLowerCase().includes(s);
+      (row.employeeCode || '').toLowerCase().includes(s) ||
+      (row.employeeName || '').toLowerCase().includes(s) ||
+      (anyRow.mobile || '').toLowerCase().includes(s) ||
+      (anyRow.email || '').toLowerCase().includes(s) ||
+      (row.headquarters || '').toLowerCase().includes(s);
 
-    const matchesState = filters.state === 'All' || row.state === filters.state;
+    const rowState = (row.states && row.states[0]) || row.region || '';
+    const matchesState = filters.state === 'All' || rowState === filters.state;
     const matchesStatus = filters.status === 'All' || row.status === filters.status;
     
     return matchesSearch && matchesState && matchesStatus;
   });
 
   const columns = [
-    { key: 'id', label: 'Employee Code' },
-    { key: 'name', label: 'ASM Name' },
-    { key: 'state', label: 'State' },
-    { key: 'hq', label: 'Headquarters' },
+    { key: 'id', label: 'Employee Code', render: (row: Employee) => row.employeeCode || `ASM-${row.id}` },
+    { key: 'name', label: 'ASM Name', render: (row: Employee) => row.employeeName },
+    { key: 'state', label: 'State', render: (row: Employee) => (row.states && row.states[0]) || row.region || '-' },
+    { key: 'hq', label: 'Headquarters', render: (row: Employee) => row.headquarters || '-' },
     {
       key: 'status',
       label: 'Status',
-      render: (row: any) => <Badge variant={row.status === 'Active' ? 'success' : 'neutral'}>{row.status}</Badge>
+      render: (row: Employee) => <Badge variant={row.status === 'Active' ? 'success' : 'neutral'}>{row.status}</Badge>
     },
     {
       key: 'actions',
       label: 'Action',
-      render: (row: any) => (
+      render: (row: Employee) => (
         <div className="flex gap-2">
           <button onClick={() => openViewModal(row)} className="p-1.5 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded transition-colors" title="View Details">
             <Eye className="w-4 h-4" />
@@ -180,7 +221,7 @@ export default function ASMManagement() {
     <div className="p-6">
       <PageHeader 
         title="ASM Management" 
-        subtitle="Manage Area Sales Managers and assign operational details."
+        subtitle="Manage Area Sales Managers and assign operational details (Database Integrated)."
         actions={
           <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openAddModal}>
             Add ASM
@@ -216,7 +257,14 @@ export default function ASMManagement() {
       </div>
 
       <TableCard>
-        <DataTable columns={columns} data={filteredData} emptyMessage="No ASMs found." />
+        {loading ? (
+          <div className="py-12 flex flex-col items-center justify-center text-slate-500">
+            <Loader2 className="w-8 h-8 animate-spin text-[#163c78] mb-2" />
+            <p className="text-sm">Loading Area Sales Managers from database...</p>
+          </div>
+        ) : (
+          <DataTable columns={columns} data={filteredData} emptyMessage="No ASMs found in database." />
+        )}
       </TableCard>
 
       {/* Add / Edit Modal */}
@@ -227,6 +275,12 @@ export default function ASMManagement() {
         className="max-w-4xl w-full"
       >
         <form onSubmit={handleAddSubmit} className="space-y-6 mt-2">
+          {errorMsg && (
+            <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg">
+              {errorMsg}
+            </div>
+          )}
+
           {/* 1. Basic Information */}
           <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
             <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">1. Basic Information</h3>
@@ -235,7 +289,7 @@ export default function ASMManagement() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Employee Code</label>
                 <input 
                   type="text" 
-                  value={generatedEmpCode}
+                  value={editingId ? `ASM-${editingId}` : "Auto-generated on save"}
                   disabled 
                   className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed" 
                 />
@@ -243,7 +297,7 @@ export default function ASMManagement() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Full Name *</label>
                 <input 
-                  type="text"
+                  type="text" 
                   required
                   value={newAsm.name}
                   onChange={e => setNewAsm({...newAsm, name: e.target.value})}
@@ -285,10 +339,9 @@ export default function ASMManagement() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Date of Birth *</label>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Date of Birth</label>
                 <input 
                   type="date"
-                  required
                   value={newAsm.dob}
                   onChange={e => setNewAsm({...newAsm, dob: e.target.value})}
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
@@ -325,7 +378,6 @@ export default function ASMManagement() {
                   <input 
                     type="text"
                     required
-                    disabled={!!editingId}
                     value={isStateDropdownOpen ? stateSearch : newAsm.state}
                     onChange={(e) => {
                        setStateSearch(e.target.value);
@@ -341,33 +393,20 @@ export default function ASMManagement() {
                          setIsStateDropdownOpen(false);
                        }, 200);
                     }}
-                    placeholder="Search or create new state..."
-                    className={`w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] ${editingId ? 'bg-slate-100 cursor-not-allowed' : ''}`}
+                    placeholder="Search or select state..."
+                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]"
                   />
-                  {isStateDropdownOpen && !editingId && (
+                  {isStateDropdownOpen && (
                     <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                      {availableStates.filter(s => s.toLowerCase().includes(stateSearch.toLowerCase())).length > 0 ? (
-                        availableStates.filter(s => s.toLowerCase().includes(stateSearch.toLowerCase())).map(s => (
-                          <div 
-                            key={s}
-                            className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
-                            onMouseDown={() => handleSelectState(s)}
-                          >
-                            {s}
-                          </div>
-                        ))
-                      ) : (
-                         stateSearch.trim() ? (
-                           <div 
-                             className="px-4 py-2.5 hover:bg-blue-50 cursor-pointer text-sm text-[#163c78] font-medium flex items-center gap-2 transition-colors"
-                             onMouseDown={() => handleSelectState(stateSearch)}
-                           >
-                             <Plus className="w-4 h-4" /> Create "{stateSearch.trim()}"
-                           </div>
-                         ) : (
-                           <div className="px-4 py-2.5 text-sm text-slate-500 italic">Type to search or create...</div>
-                         )
-                      )}
+                      {availableStates.filter(s => s.toLowerCase().includes(stateSearch.toLowerCase())).map(s => (
+                        <div 
+                          key={s}
+                          className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
+                          onMouseDown={() => handleSelectState(s)}
+                        >
+                          {s}
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
@@ -391,7 +430,6 @@ export default function ASMManagement() {
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
                 />
               </div>
-              <div className="hidden md:block"></div>
             </div>
           </div>
 
@@ -400,32 +438,11 @@ export default function ASMManagement() {
             <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">3. Login Credentials</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Email Address (Login ID) *</label>
-                <input 
-                  type="email"
-                  disabled 
-                  value={newAsm.email}
-                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed" 
-                  placeholder="Auto-populated from email"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Account Status</label>
-                <select 
-                  value={newAsm.accountStatus}
-                  onChange={e => setNewAsm({...newAsm, accountStatus: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]"
-                >
-                  <option value="Active">Active</option>
-                  <option value="Inactive">Inactive</option>
-                </select>
-              </div>
-              <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Password {editingId ? '(Leave blank to keep unchanged)' : '*'}</label>
                 <input 
                   type="password"
                   required={!editingId}
-                  minLength={8}
+                  minLength={6}
                   value={newAsm.password}
                   onChange={e => setNewAsm({...newAsm, password: e.target.value})}
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
@@ -436,7 +453,7 @@ export default function ASMManagement() {
                 <input 
                   type="password"
                   required={!editingId && !!newAsm.password}
-                  minLength={8}
+                  minLength={6}
                   value={newAsm.confirmPassword}
                   onChange={e => setNewAsm({...newAsm, confirmPassword: e.target.value})}
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
@@ -454,10 +471,9 @@ export default function ASMManagement() {
                 <input 
                   type="date"
                   required
-                  disabled={!!editingId}
                   value={newAsm.joiningDate}
                   onChange={e => setNewAsm({...newAsm, joiningDate: e.target.value})}
-                  className={`w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] ${editingId ? 'bg-slate-100 cursor-not-allowed' : ''}`} 
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
                 />
               </div>
               <div>
@@ -474,22 +490,6 @@ export default function ASMManagement() {
             </div>
           </div>
 
-          {/* 5. Optional Information */}
-          <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
-            <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">5. Optional Information</h3>
-            <div className="grid grid-cols-1 gap-x-8 gap-y-6">
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Remarks</label>
-                <textarea 
-                  value={newAsm.remarks}
-                  onChange={e => setNewAsm({...newAsm, remarks: e.target.value})}
-                  rows={3}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
-                ></textarea>
-              </div>
-            </div>
-          </div>
-
           <div className="flex justify-end gap-4 pt-6 border-t border-slate-200">
             <button 
               type="button" 
@@ -500,8 +500,10 @@ export default function ASMManagement() {
             </button>
             <button 
               type="submit"
-              className="px-6 py-2.5 text-sm font-medium text-white bg-[#163c78] rounded-lg hover:bg-[#122e5c] transition-colors"
+              disabled={saving}
+              className="px-6 py-2.5 text-sm font-medium text-white bg-[#163c78] rounded-lg hover:bg-[#122e5c] transition-colors flex items-center gap-2"
             >
+              {saving && <Loader2 className="w-4 h-4 animate-spin" />}
               {editingId ? "Update ASM" : "Create ASM"}
             </button>
           </div>
@@ -558,6 +560,7 @@ export default function ASMManagement() {
           </div>
         )}
       </Drawer>
+
     </div>
   );
 }

@@ -11,6 +11,30 @@ export interface MRRecord {
   status: string;
 }
 
+export interface MRDashboardKPIs {
+  mr: {
+    id: number;
+    mrId?: number;
+    employeeCode: string;
+    name: string;
+    headquarters: string;
+    area: string;
+  };
+  financialYear: string;
+  assignedTarget: number;
+  targetAchievement: number;
+  remainingTarget: number;
+  achievementPercentage: number;
+  totalOrdersBooked: number;
+  totalOrderValue: number;
+  doctorVisitCount: number;
+  chemistVisitCount: number;
+  pendingDCRs: number;
+  pendingTourPlans: number;
+  attendanceStatus: string;
+  todayAttendance: any;
+}
+
 export const mrService = {
   async getMRs(): Promise<MRRecord[]> {
     const response = await apiRequest<{ success: boolean; data: MRRecord[] }>('/mrs');
@@ -20,5 +44,12 @@ export const mrService = {
   async getMRById(id: number): Promise<MRRecord | null> {
     const response = await apiRequest<{ success: boolean; data: MRRecord }>(`/mrs/${id}`);
     return response.success ? response.data : null;
-  }
+  },
+
+  async getDashboardKPIs(financialYear = '2026-27', employeeId?: number): Promise<MRDashboardKPIs | null> {
+    const url = `/dashboard/mr?financialYear=${encodeURIComponent(financialYear)}${employeeId ? `&employeeId=${employeeId}` : ''}`;
+    const response = await apiRequest<{ success: boolean; data: MRDashboardKPIs }>(url);
+    return response.success ? response.data : null;
+  },
 };
+

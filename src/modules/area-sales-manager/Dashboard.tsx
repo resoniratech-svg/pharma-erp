@@ -32,11 +32,18 @@ export default function Dashboard() {
   };
 
   useEffect(() => {
-    try {
-      setKpis(asmService.getDashboardKPIs());
-    } catch (e) {
-      console.warn("Failed to load dashboard data", e);
+    async function loadData() {
+      try {
+        const [kpiData, teamData] = await Promise.all([
+          asmService.getDashboardKPIs(),
+          asmService.getTeamPerformance()
+        ]);
+        setKpis(kpiData);
+      } catch (e) {
+        console.warn("Failed to load dashboard data", e);
+      }
     }
+    loadData();
   }, []);
 
   const pendingActivitiesColumns = [

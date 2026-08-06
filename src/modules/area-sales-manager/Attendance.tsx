@@ -1,65 +1,22 @@
 import React, { useState } from 'react';
 import { PageHeader, FilterBar, SearchInput, TableCard, DataTable, Badge, ActionButton, SummaryCard, DrawerField } from './components/shared';
 import { Download, Eye, Users, UserCheck, UserX, Clock, MapPin, ChevronDown, FileText, Table as TableIcon } from 'lucide-react';
-import CheckIn from '../gps/CheckIn';
+
 import { exportToCSV } from '../../utils/exportUtils';
 import { Drawer } from '../../components/ui/Drawer';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { asmService } from '../../services/asmService';
 
-// Mock Data for Team Attendance (MRs only)
-const MOCK_TEAM_ATTENDANCE = [
-  {
-    id: 'ATT003',
-    date: '2026-08-02',
-    empCode: 'MR045',
-    empName: 'Rahul Verma',
-    designation: 'MR',
-    state: 'Maharashtra',
-    reportingRsm: 'Arun Kumar',
-    hq: 'Nagpur',
-    checkInTime: '-',
-    checkOutTime: '-',
-    workingHours: '-',
-    status: 'Absent',
-    gpsStatus: 'N/A',
-    checkInCoords: '-',
-    checkOutCoords: '-',
-    checkInAddress: '-',
-    checkOutAddress: '-',
-    deviceName: '-',
-    deviceId: '-',
-    remarks: 'Sick Leave.'
-  },
-  {
-    id: 'ATT006',
-    date: '2026-08-02',
-    empCode: 'MR112',
-    empName: 'Sneha Patel',
-    designation: 'MR',
-    state: 'Gujarat',
-    reportingRsm: 'Arun Kumar',
-    hq: 'Surat',
-    checkInTime: '10:15 AM',
-    checkOutTime: '-',
-    workingHours: '-',
-    status: 'Late',
-    gpsStatus: 'Verified',
-    checkInCoords: '21.1702° N, 72.8311° E',
-    checkOutCoords: '-',
-    checkInAddress: 'Ring Road, Surat',
-    checkOutAddress: '-',
-    deviceName: 'Samsung Galaxy A54',
-    deviceId: 'DEV-882310',
-    remarks: '-'
-  }
-];
+import { attendanceService } from '../../services/attendanceService';
 
 export default function Attendance() {
   const [activeTab, setActiveTab] = useState<'my-attendance' | 'team-attendance'>('my-attendance');
+  const [myRecords, setMyRecords] = useState<any[]>([]);
   
   // Team Attendance State
+  const [teamAttendance, setTeamAttendance] = useState<any[]>([]);
   const [search, setSearch] = useState('');
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<any>(null);
@@ -74,6 +31,78 @@ export default function Attendance() {
   const [customRange, setCustomRange] = useState({ from: '', to: '' });
   const [appliedCustomRange, setAppliedCustomRange] = useState({ from: '', to: '' });
   const [dateError, setDateError] = useState('');
+
+  React.useEffect(() => {
+    const fetchMyRecords = async () => {
+      try {
+        let authUser = null;
+        try {
+          const authUserString = localStorage.getItem('authUser');
+          authUser = authUserString ? JSON.parse(authUserString) : null;
+        } catch { }
+        
+        let isManager = false;
+        if (authUser) {
+          const userRole = authUser.roleId || authUser.role;
+          const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
+          if (managementRoles.includes(userRole)) {
+            isManager = true;
+          }
+        }
+
+        const rawMrId = localStorage.getItem('mrId');
+        
+        if (!isManager && rawMrId) {
+          const mrId = Number(rawMrId);
+          const data = await attendanceService.loadAttendance(mrId);
+          setMyRecords(data);
+        } else {
+          // Managers load from scoped localStorage
+          const userId = authUser?.id || 'default';
+          const scopedKey = `web_attendance_records_${userId}`;
+          const stored = localStorage.getItem(scopedKey);
+          if (stored) {
+            setMyRecords(JSON.parse(stored));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load personal attendance records:", e);
+      }
+    };
+    if (activeTab === 'my-attendance') {
+      fetchMyRecords();
+    }
+  }, [activeTab]);
+
+  React.useEffect(() => {
+    if (activeTab === 'team-attendance') {
+      asmService.getTeamAttendance().then(data => {
+        const mapped = data.map((d: any) => ({
+          id: `ATT${d.id}`,
+          date: d.attendanceDate ? new Date(d.attendanceDate).toLocaleDateString() : '-',
+          empCode: d.mr?.employee?.employeeCode || `EMP-${d.mr?.employee?.id}`,
+          empName: d.mr?.employee?.employeeName || 'Unknown',
+          designation: d.mr?.employee?.designation || 'MR',
+          state: d.mr?.employee?.state || '-',
+          reportingRsm: '-',
+          hq: d.mr?.employee?.headquarters || '-',
+          checkInTime: d.checkInTime ? new Date(d.checkInTime).toLocaleTimeString() : '-',
+          checkOutTime: d.checkOutTime ? new Date(d.checkOutTime).toLocaleTimeString() : '-',
+          workingHours: '-',
+          status: 'Present',
+          gpsStatus: 'Verified',
+          checkInCoords: `${d.checkInLatitude}, ${d.checkInLongitude}`,
+          checkOutCoords: d.checkOutLatitude ? `${d.checkOutLatitude}, ${d.checkOutLongitude}` : '-',
+          checkInAddress: '-',
+          checkOutAddress: '-',
+          deviceName: '-',
+          deviceId: '-',
+          remarks: '-'
+        }));
+        setTeamAttendance(mapped);
+      }).catch(console.error);
+    }
+  }, [activeTab]);
 
   const handleApplyCustomRange = () => {
     setDateError('');
@@ -95,7 +124,7 @@ export default function Attendance() {
     setFilters({ ...filters, period: 'Today' });
   };
 
-  const filteredData = MOCK_TEAM_ATTENDANCE.filter(row => {
+  const filteredData = teamAttendance.filter(row => {
     const s = search.toLowerCase();
     const matchesSearch = search === '' || 
       row.empCode.toLowerCase().includes(s) ||
@@ -261,8 +290,30 @@ export default function Attendance() {
       <div className="mt-4">
         {activeTab === 'my-attendance' ? (
           <div>
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Daily Check-In</h3>
-            <CheckIn />
+            <h3 className="text-lg font-bold text-slate-800 mb-4">My Attendance History</h3>
+            <TableCard>
+              <DataTable 
+                columns={[
+                  { key: 'date', label: 'Date', render: (row: any) => <span className="font-semibold text-slate-900">{row.date}</span> },
+                  { key: 'checkInTime', label: 'Check In', render: (row: any) => <span className="text-emerald-600 font-medium">{row.checkInTime}</span> },
+                  { key: 'checkOutTime', label: 'Check Out', render: (row: any) => <span className="text-rose-600 font-medium">{row.checkOutTime}</span> },
+                  { key: 'location', label: 'Start Location' },
+                  {
+                    key: 'status',
+                    label: 'Status',
+                    render: (row: any) => {
+                      const currentStatus = row.dayStatus || row.status;
+                      const variant = currentStatus === 'Present' || currentStatus === 'Completed' ? 'success' : 
+                                      currentStatus === 'Absent' || currentStatus === 'Missed Check-Out' || currentStatus === 'Auto Closed' ? 'danger' : 
+                                      currentStatus === 'Half Day' || currentStatus === 'Pending Checkout' ? 'warning' : 'neutral';
+                      return <Badge variant={variant as any}>{currentStatus}</Badge>;
+                    }
+                  }
+                ]}
+                data={myRecords}
+                emptyMessage="No attendance records found."
+              />
+            </TableCard>
           </div>
         ) : (
           <div>

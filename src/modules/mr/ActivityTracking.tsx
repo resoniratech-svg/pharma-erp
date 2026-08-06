@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Download, Filter, Activity, Users, Store, ClipboardList, Target, CheckCircle2, Map, Bell } from 'lucide-react';
 import {
   PageHeader,
@@ -15,6 +15,9 @@ import { type Column } from './components/shared';
 import { doctorVisitService } from '../../services/doctorVisitService';
 import { chemistVisitService } from '../../services/chemistVisitService';
 import { retailerOrderService } from '../../services/retailerOrderService';
+import { attendanceService } from '../../services/attendanceService';
+import { dailyReportService } from '../../services/dailyReportService';
+import { ExportService } from '../../services/exportService';
 
 interface ActivityItem {
   id: string;
@@ -34,167 +37,176 @@ export default function ActivityTracking() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [activities, setActivities] = useState<ActivityItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
+
+  const mrId = Number(localStorage.getItem('mrId') || '1');
+
+  const loadAndCompile = useCallback(async () => {
+    setLoading(true);
+    try {
+      let authUser: any = null;
+      try {
+        authUser = JSON.parse(localStorage.getItem('authUser') || '{}');
+      } catch {
+        authUser = {};
+      }
+      const userName = authUser.fullName || authUser.name || 'Medical Representative';
+
+      // 1. Load Doctor Visits
+      const docData = await doctorVisitService.loadDoctorVisits(mrId);
+      // 2. Load Chemist Visits
+      const chemData = await chemistVisitService.loadChemistVisits(mrId);
+      // 3. Load Orders
+      const orderData = await retailerOrderService.getRetailerOrders();
+      // 4. Load Attendance History
+      const attendanceData = await attendanceService.getAttendanceHistory(mrId).catch(() => []);
+      // 5. Load DCRs
+      const dcrData = await dailyReportService.loadDailyReports(mrId);
+
+      const compiledActivities: ActivityItem[] = [];
+
+      // Attendance
+      attendanceData.forEach((a: any) => {
+        compiledActivities.push({
+          id: String(a.id),
+          activityId: `ACT-ATT-${String(a.id).slice(-4)}`,
+          mrName: a.mr?.name || a.repName || userName,
+          activityType: 'Attendance',
+          customerName: a.territory || 'HQ Location',
+          territory: a.territory || 'HQ',
+          date: a.date ? a.date.split('T')[0] : '',
+          startTime: a.checkInTime ? new Date(a.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '09:00 AM',
+          endTime: a.checkOutTime ? new Date(a.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '-',
+          duration: a.checkOutTime ? 'Completed Shift' : 'In Progress',
+          status: a.checkOutTime ? 'Completed' : 'In Progress'
+        });
+      });
+
+      // Doctor Visits
+      docData.forEach((v: any) => {
+        compiledActivities.push({
+          id: String(v.id),
+          activityId: `ACT-DOC-${String(v.id).slice(-4)}`,
+          mrName: v.mrName || userName,
+          activityType: 'Doctor Visit',
+          customerName: `Dr. ${v.doctorName}`,
+          territory: v.clinic || 'Clinic',
+          date: v.visitDate || v.date || '',
+          startTime: v.time || v.visitTime || '10:00 AM',
+          endTime: '',
+          duration: '30 mins',
+          status: 'Completed'
+        });
+      });
+
+      // Chemist Visits
+      chemData.forEach((c: any) => {
+        compiledActivities.push({
+          id: String(c.id),
+          activityId: `ACT-CHM-${String(c.id).slice(-4)}`,
+          mrName: c.mrName || userName,
+          activityType: 'Chemist Visit',
+          customerName: c.shopName || c.chemistName,
+          territory: c.address || 'Pharmacy',
+          date: c.visitDate || c.date || '',
+          startTime: c.time || c.visitTime || '11:00 AM',
+          endTime: '',
+          duration: '30 mins',
+          status: 'Completed'
+        });
+      });
+
+      // Orders
+      orderData.forEach((o: any) => {
+        compiledActivities.push({
+          id: String(o.id),
+          activityId: `ACT-ORD-${String(o.id).slice(-4)}`,
+          mrName: o.mrName || userName,
+          activityType: 'Order Booking',
+          customerName: o.customerName || o.chemistName || 'Pharmacy Store',
+          territory: o.distributor || o.area || 'Territory',
+          date: o.orderDate ? o.orderDate.split('T')[0] : (o.dateFormatted || o.date || ''),
+          startTime: '',
+          endTime: '',
+          duration: '',
+          status: o.status === 'Cancelled' ? 'Missed' : 'Completed'
+        });
+      });
+
+      // DCRs
+      dcrData.forEach((r: any) => {
+        compiledActivities.push({
+          id: String(r.id),
+          activityId: `ACT-DCR-${String(r.id).slice(-4)}`,
+          mrName: r.repName || userName,
+          activityType: 'DCR Submission',
+          customerName: 'HQ Office',
+          territory: r.route || r.beat || 'HQ',
+          date: r.date,
+          startTime: '18:00',
+          endTime: '18:30',
+          duration: `${r.totalCalls || 0} calls`,
+          status: 'Completed'
+        });
+      });
+
+      // Sort activities chronologically by date descending
+      compiledActivities.sort((x, y) => (y.date || '').localeCompare(x.date || ''));
+
+      setActivities(compiledActivities);
+    } catch (e) {
+      console.error("Failed to compile activity logs:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [mrId]);
 
   useEffect(() => {
-    async function loadAndCompile() {
-      const mrId = Number(localStorage.getItem('mrId') || '1');
-      try {
-        // Pre-load from backend database
-        await doctorVisitService.loadDoctorVisits(mrId);
-        await chemistVisitService.loadChemistVisits(mrId);
-        await retailerOrderService.getRetailerOrders();
-      } catch (err) {
-        console.error("Failed to pre-fetch database records:", err);
-      }
-
-      try {
-        // 1. Get logged-in user name and role
-        const authUser = JSON.parse(localStorage.getItem('authUser') || '{}');
-        const userName = authUser.fullName || authUser.name || 'Medical Representative';
-        const userRole = authUser.role || '';
-        const isMR = userRole === 'MEDICAL_REPRESENTATIVE' || userRole === 'Medical Representative';
-
-        // 2. Fetch all raw stores
-        const docData = JSON.parse(localStorage.getItem('doctor_visits') || localStorage.getItem('web_doctor_visits') || '[]');
-        const chemData = JSON.parse(localStorage.getItem('chemist_visits') || localStorage.getItem('web_chemist_visits') || '[]');
-        const orderData = JSON.parse(localStorage.getItem('@orders') || localStorage.getItem('web_orders') || '[]');
-        const attendanceData = JSON.parse(localStorage.getItem('web_attendance_records') || '[]');
-        const dcrData = JSON.parse(localStorage.getItem('web_daily_reports') || '[]');
-
-        const compiledActivities: ActivityItem[] = [];
-
-        // 3. Map Attendance shifts
-        const filteredAttendance = isMR
-          ? attendanceData.filter((a: any) => Number(a.mrId) === mrId || a.repName === userName)
-          : attendanceData;
-
-        filteredAttendance.forEach((a: any) => {
-          compiledActivities.push({
-            id: a.id,
-            activityId: `ACT-ATT-${String(a.id).slice(-4)}`,
-            mrName: a.repName || userName,
-            activityType: 'Attendance',
-            customerName: a.location,
-            territory: a.location?.split(',')[0] || 'HQ',
-            date: a.date,
-            startTime: a.checkInTime,
-            endTime: a.checkOutTime || '-',
-            duration: a.workingHours || 'In Progress',
-            status: a.checkOutTime && a.checkOutTime !== '-' ? 'Completed' : 'In Progress'
-          });
-        });
-
-        // 4. Map Doctor Visits
-        const filteredDocs = isMR
-          ? docData.filter((v: any) => !v.mrId || Number(v.mrId) === mrId)
-          : docData;
-
-        filteredDocs.forEach((v: any) => {
-          compiledActivities.push({
-            id: v.id,
-            activityId: `ACT-DOC-${String(v.id).slice(-4)}`,
-            mrName: v.mrName || userName,
-            activityType: 'Doctor Visit',
-            customerName: `Dr. ${v.doctorName}`,
-            territory: v.clinic?.split(',')[0] || 'Clinic',
-            date: v.visitDate || '',
-            startTime: v.visitTime || '10:00 AM',
-            endTime: '',
-            duration: '30 mins',
-            status: 'Completed'
-          });
-        });
-
-        // 5. Map Chemist Visits
-        const filteredChemists = isMR
-          ? chemData.filter((c: any) => !c.mrId || Number(c.mrId) === mrId)
-          : chemData;
-
-        filteredChemists.forEach((c: any) => {
-          compiledActivities.push({
-            id: c.id,
-            activityId: `ACT-CHM-${String(c.id).slice(-4)}`,
-            mrName: c.mrName || userName,
-            activityType: 'Chemist Visit',
-            customerName: c.shopName || c.chemistName,
-            territory: c.address?.split(',')[0] || 'Pharmacy',
-            date: c.visitDate || '',
-            startTime: c.visitTime || '11:00 AM',
-            endTime: '',
-            duration: '30 mins',
-            status: 'Completed'
-          });
-        });
-
-        // 6. Map Order Bookings
-        const filteredOrders = isMR
-          ? orderData.filter((o: any) => !o.mrId || Number(o.mrId) === mrId)
-          : orderData;
-
-        filteredOrders.forEach((o: any) => {
-          compiledActivities.push({
-            id: o.id,
-            activityId: `ACT-ORD-${String(o.id).slice(-4)}`,
-            mrName: o.mrName || userName,
-            activityType: 'Order Booking',
-            customerName: o.customerName || 'Chemist Store',
-            territory: o.distributor || 'City',
-            date: o.dateFormatted || o.date || '',
-            startTime: '',
-            endTime: '',
-            duration: '',
-            status: o.status === 'Cancelled' ? 'Missed' : 'Completed'
-          });
-        });
-
-        // 7. Map DCR reports
-        const filteredDcrs = isMR
-          ? dcrData.filter((r: any) => Number(r.userId) === mrId || r.repName === userName)
-          : dcrData;
-
-        filteredDcrs.forEach((r: any) => {
-          compiledActivities.push({
-            id: r.id,
-            activityId: `ACT-DCR-${String(r.id).slice(-4)}`,
-            mrName: r.repName || userName,
-            activityType: 'DCR Submission',
-            customerName: 'HQ Office',
-            territory: r.area || 'HQ',
-            date: r.date,
-            startTime: r.startTime || '',
-            endTime: r.endTime || '',
-            duration: `${r.totalKmTravelled || 0} km`,
-            status: 'Completed'
-          });
-        });
-
-        // Sort activities chronologically by date
-        compiledActivities.sort((x, y) => (y.date || '').localeCompare(x.date || ''));
-
-        setActivities(compiledActivities);
-      } catch (e) {
-        console.error("Failed to compile activity logs:", e);
-      }
-    }
     loadAndCompile();
-  }, []);
+  }, [loadAndCompile]);
 
-  const handleExport = () => {
-    const headers = ['Activity ID', 'MR Name', 'Activity Type', 'Customer', 'Territory', 'Date', 'Start Time', 'End Time', 'Duration', 'Status'];
-    const csvContent = [
-      headers.join(','),
-      ...activities.map(a => [
-        a.activityId, `"${a.mrName}"`, a.activityType, `"${a.customerName}"`, `"${a.territory}"`, a.date, a.startTime, a.endTime, a.duration, a.status
-      ].join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `Activity_Tracking_Export_${new Date().toISOString().split('T')[0]}.csv`;
-    link.click();
-    window.URL.revokeObjectURL(url);
+  const exportColumns = [
+    { header: 'Activity ID', dataKey: 'activityId' },
+    { header: 'MR Name', dataKey: 'mrName' },
+    { header: 'Type', dataKey: 'activityType' },
+    { header: 'Customer', dataKey: 'customerName' },
+    { header: 'Territory', dataKey: 'territory' },
+    { header: 'Date', dataKey: 'date' },
+    { header: 'Start Time', dataKey: 'startTime' },
+    { header: 'End Time', dataKey: 'endTime' },
+    { header: 'Duration', dataKey: 'duration' },
+    { header: 'Status', dataKey: 'status' }
+  ];
+
+  const handleExportPDF = () => {
+    if (activities.length === 0) return alert("No activities to export.");
+    ExportService.exportToPDF({
+      title: 'MR Field Activity Tracking Log',
+      filename: `MR_Activities_${new Date().toISOString().split('T')[0]}`,
+      data: activities,
+      columns: exportColumns
+    });
+  };
+
+  const handleExportExcel = () => {
+    if (activities.length === 0) return alert("No activities to export.");
+    ExportService.exportToExcel({
+      title: 'MR Field Activity Tracking Log',
+      filename: `MR_Activities_${new Date().toISOString().split('T')[0]}`,
+      data: activities,
+      columns: exportColumns
+    });
+  };
+
+  const handleExportCSV = () => {
+    if (activities.length === 0) return alert("No activities to export.");
+    ExportService.exportToCSV({
+      title: 'MR Field Activity Tracking Log',
+      filename: `MR_Activities_${new Date().toISOString().split('T')[0]}`,
+      data: activities,
+      columns: exportColumns
+    });
   };
 
   const columns: Column<ActivityItem>[] = [
@@ -211,7 +223,7 @@ export default function ActivityTracking() {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        let variant: any = 'default';
+        let variant: any = 'neutral';
         switch (row.status) {
           case 'Completed': variant = 'success'; break;
           case 'In Progress': variant = 'info'; break;
@@ -236,8 +248,7 @@ export default function ActivityTracking() {
   const chemistVisits = activities.filter(a => a.activityType === 'Chemist Visit').length;
   const ordersGenerated = activities.filter(a => a.activityType === 'Order Booking').length;
 
-  // Generate timeline dynamically from stored activities
-  const timelineEvents = activities.map(act => {
+  const timelineEvents = activities.slice(0, 8).map(act => {
     let icon = CheckCircle2;
     let color = 'text-slate-500';
     if (act.activityType === 'Doctor Visit') { icon = Map; color = 'text-blue-500'; }
@@ -249,9 +260,9 @@ export default function ActivityTracking() {
     else if (act.activityType === 'Target Achievement') { icon = Target; color = 'text-emerald-600'; }
 
     return {
-      time: act.startTime,
+      time: act.startTime || act.date,
       title: act.activityType,
-      description: `Customer: ${act.customerName} - ${act.territory}`,
+      description: `${act.customerName} (${act.territory})`,
       icon,
       color
     };
@@ -263,7 +274,39 @@ export default function ActivityTracking() {
         title="Activity Tracking"
         subtitle="Track and monitor MR field activities, visit performance, customer interactions, route completion, and daily productivity."
         actions={
-          <ActionButton onClick={handleExport} variant="secondary" icon={<Download className="w-4 h-4" />}>Export Activities</ActionButton>
+          <div className="flex items-center gap-3">
+            <div className="relative">
+              <ActionButton 
+                variant="secondary" 
+                onClick={() => setIsExportOpen(!isExportOpen)} 
+                icon={<Download className="w-4 h-4" />}
+              >
+                Export
+              </ActionButton>
+              {isExportOpen && (
+                <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden z-50">
+                  <button 
+                    onClick={() => { handleExportExcel(); setIsExportOpen(false); }} 
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-100"
+                  >
+                    Excel (.xlsx)
+                  </button>
+                  <button 
+                    onClick={() => { handleExportPDF(); setIsExportOpen(false); }} 
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-100"
+                  >
+                    PDF Document
+                  </button>
+                  <button 
+                    onClick={() => { handleExportCSV(); setIsExportOpen(false); }} 
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    CSV (.csv)
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
         }
       />
 
@@ -280,7 +323,7 @@ export default function ActivityTracking() {
         <SummaryCard
           title="Doctor Visits Completed"
           value={docVisits.toString()}
-          subtitle="Target tracked"
+          subtitle="Field calls"
           icon={<Users className="w-5 h-5" />}
           colorClass="text-blue-600"
           bgClass="bg-blue-50"
@@ -312,10 +355,8 @@ export default function ActivityTracking() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-8 mb-8">
-        
         {/* Main Content Area */}
         <div className="xl:col-span-3 flex flex-col gap-8">
-          
           <FilterBar>
             <SearchInput value={search} onChange={setSearch} placeholder="Search MR, customer, or type..." />
             <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
@@ -340,18 +381,15 @@ export default function ActivityTracking() {
             <DataTable
               columns={columns}
               data={filteredData}
-              emptyMessage="No activity records found."
+              emptyMessage={loading ? "Loading activity logs..." : "No activity records found."}
             />
           </TableCard>
-          
         </div>
 
-        {/* Right Sidebar - Timeline & Performance */}
+        {/* Right Sidebar - Timeline */}
         <div className="xl:col-span-1 flex flex-col gap-6">
-          
-          {/* Daily Activity Timeline */}
           <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm flex-1">
-            <h3 className="text-md font-semibold text-slate-900 mb-6">Daily Activity Timeline</h3>
+            <h3 className="text-md font-semibold text-slate-900 mb-6">Recent Activity Timeline</h3>
             {timelineEvents.length === 0 ? (
               <p className="text-sm text-slate-500 italic">No activities logged yet.</p>
             ) : (

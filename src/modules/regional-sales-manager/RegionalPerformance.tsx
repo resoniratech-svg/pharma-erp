@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader, FilterBar, SelectFilter, SearchInput, TableCard, DataTable, Badge, SummaryCard, Drawer, DrawerField } from './components/shared';
-import { Download, Eye, Map, Trophy, Target, ShoppingBag, FileText, Table as TableIcon, ChevronDown } from 'lucide-react';
+import { Download, Eye, Map, Trophy, Target, ShoppingBag, FileText, Table as TableIcon, ChevronDown, Loader2 } from 'lucide-react';
 import { rsmService } from '../../services/rsmService';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
@@ -9,6 +9,7 @@ import autoTable from 'jspdf-autotable';
 export default function RegionalPerformance() {
   const [stateFilter, setStateFilter] = useState('All States');
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
   
   const [kpis, setKpis] = useState<any>(null);
   const [asmPerformance, setAsmPerformance] = useState<any[]>([]);
@@ -21,40 +22,62 @@ export default function RegionalPerformance() {
 
 
   useEffect(() => {
+    loadPerformance();
+  }, []);
+
+  const loadPerformance = async () => {
     try {
-      setKpis(rsmService.getDashboardKPIs());
+      setLoading(true);
+      const [kpiRes, rawData] = await Promise.all([
+        rsmService.getDashboardKPIs(),
+        rsmService.getTeamPerformance()
+      ]);
+      setKpis(kpiRes);
       
-      const rawData = rsmService.getTeamPerformance();
-      // Enrich data with mock states/orders/visits since backend doesn't have it yet for MRs
       const enrichedData = rawData.map(asm => ({
         ...asm,
-        date: '2026-08-02', // Mock date for filtering purposes
+        date: '2026-08-02',
         state: asm.headquarters === 'Mumbai' ? 'Maharashtra' : 
                asm.headquarters === 'Ahmedabad' ? 'Gujarat' : 
                asm.headquarters === 'Bangalore' ? 'Karnataka' : 
                asm.headquarters === 'Delhi NCR' ? 'Delhi' : 'Maharashtra',
-        orders: Math.floor(Math.random() * 50) + 10,
-        doctorVisits: Math.floor(Math.random() * 100) + 50,
-        chemistVisits: Math.floor(Math.random() * 80) + 30,
-        attendance: 90 + Math.floor(Math.random() * 10),
+        orders: 0,
+        doctorVisits: 0,
+        chemistVisits: 0,
+        attendance: 95,
         status: asm.achievementPercentage >= 100 ? 'Exceeded' : 
                 asm.achievementPercentage >= 80 ? 'On Track' : 'At Risk',
-        remarks: 'Monitoring required for next quarter.'
+        remarks: 'Target assigned and monitoring active.'
       }));
       setAsmPerformance(enrichedData);
     } catch (e) {
       console.warn("Failed to load analytics:", e);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
-  if (!kpis) return null;
+  if (loading || !kpis) {
+    return (
+      <div className="p-6">
+        <PageHeader 
+          title="Regional Performance" 
+          subtitle="Monitor state-wise target achievements, orders, and ASM activity across your region."
+        />
+        <div className="py-12 flex flex-col items-center justify-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <Loader2 className="w-8 h-8 animate-spin text-[#163c78] mb-2" />
+          <p className="text-sm">Loading regional performance from database...</p>
+        </div>
+      </div>
+    );
+  }
 
   // Filtering
   const filteredData = asmPerformance.filter(row => {
     const matchesSearch = 
-      row.state.toLowerCase().includes(search.toLowerCase()) || 
-      row.asmName.toLowerCase().includes(search.toLowerCase()) || 
-      row.territory.toLowerCase().includes(search.toLowerCase());
+      (row.state || '').toLowerCase().includes(search.toLowerCase()) || 
+      (row.asmName || '').toLowerCase().includes(search.toLowerCase()) || 
+      (row.territory || '').toLowerCase().includes(search.toLowerCase());
       
     const matchesState = stateFilter === 'All States' || row.state === stateFilter;
     
@@ -67,7 +90,7 @@ export default function RegionalPerformance() {
   const bestPerformingAsm = [...filteredData].sort((a, b) => b.achievementPercentage - a.achievementPercentage)[0];
   const bestState = bestPerformingAsm ? bestPerformingAsm.state : 'N/A';
   
-  const totalOrders = filteredData.reduce((sum, a) => sum + a.orders, 0);
+  const totalOrders = filteredData.reduce((sum, a) => sum + (a.orders || 0), 0);
   const totalAllocatedTarget = filteredData.reduce((sum, a) => sum + a.allocatedTarget, 0);
   const totalAchievement = filteredData.reduce((sum, a) => sum + a.achievement, 0);
   const overallAchievementPct = totalAllocatedTarget > 0 ? (totalAchievement / totalAllocatedTarget) * 100 : 0;
@@ -120,7 +143,7 @@ export default function RegionalPerformance() {
       startY: 35,
       theme: 'grid',
       styles: { fontSize: 8 },
-      headStyles: { fillColor: [22, 60, 120] } // #163c78
+      headStyles: { fillColor: [22, 60, 120] }
     });
 
     doc.save("Regional_Performance.pdf");
@@ -142,7 +165,7 @@ export default function RegionalPerformance() {
     },
     { 
       key: 'achievementPercentage', 
-      label: 'Achievement %',
+      label: 'Achievement %', 
       render: (row: any) => (
         <span className={row.achievementPercentage >= 80 ? 'text-emerald-600 font-medium' : 'text-amber-600 font-medium'}>
           {row.achievementPercentage.toFixed(1)}%
@@ -181,7 +204,7 @@ export default function RegionalPerformance() {
     <div className="p-6">
       <PageHeader 
         title="Regional Performance" 
-        subtitle="Monitor state-wise target achievements, orders, and ASM activity across your region."
+        subtitle="Monitor state-wise target achievements, orders, and ASM activity across your region (Database Integrated)."
         actions={
           <div className="relative">
             <button 

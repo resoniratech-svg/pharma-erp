@@ -1,92 +1,4 @@
-// import { useState } from 'react';
-// import { Plus, Video, Users } from 'lucide-react';
-// import {
-//   PageHeader,
-//   FilterBar,
-//   SearchInput,
-//   ActionButton,
-//   TableCard,
-//   DataTable,
-//   Badge,
-// } from './components/shared';
-// import { type Column } from './components/shared';
-
-// interface Meeting {
-//   id: string;
-//   title: string;
-//   date: string;
-//   type: 'Cycle Meeting' | 'Training' | 'Review';
-//   status: 'Scheduled' | 'Completed';
-// }
-
-// const mockData: any[] = [];
-
-// export default function Meetings() {
-//   const [search, setSearch] = useState('');
-
-//   const columns: Column<Meeting>[] = [
-//     { key: 'title', label: 'Meeting Title', render: (row) => <span className="font-semibold text-slate-900">{row.title}</span> },
-//     { key: 'date', label: 'Date' },
-//     { key: 'type', label: 'Type', render: (row) => <span className="font-medium text-slate-600">{row.type}</span> },
-//     {
-//       key: 'status',
-//       label: 'Status',
-//       render: (row) => {
-//         const variant = row.status === 'Completed' ? 'neutral' : 'info';
-//         return <Badge variant={variant}>{row.status}</Badge>;
-//       },
-//     },
-//     {
-//       key: 'action',
-//       label: '',
-//       render: (row) => row.status === 'Scheduled' ? <ActionButton variant="secondary" className="text-xs px-2 py-1 border-violet-200 text-violet-700"><Video className="w-4 h-4 mr-1" /> Join</ActionButton> : <span className="text-slate-300">-</span>
-//     }
-//   ];
-
-//   const filteredData = mockData.filter((item) => {
-//     return item.title.toLowerCase().includes(search.toLowerCase());
-//   });
-
-//   return (
-//     <div className="animate-in fade-in duration-500">
-//       <PageHeader
-//         title="Meeting Scheduling"
-//         subtitle="Manage cycle meetings, territory reviews, and corporate training sessions."
-//         actions={
-//           <ActionButton icon={<Plus className="w-4 h-4" />}>Schedule Meeting</ActionButton>
-//         }
-//       />
-
-//       <div className="bg-indigo-50 border border-indigo-200 rounded-xl p-4 mb-6 flex items-start gap-3">
-//         <Users className="w-5 h-5 text-indigo-600 mt-0.5" />
-//         <div>
-//           <h3 className="text-sm font-semibold text-indigo-800">Upcoming Regional Meeting</h3>
-//           <p className="text-sm text-indigo-700 mt-1">You are required to attend the Q3 Cycle Meeting on Oct 25th in Mumbai.</p>
-//         </div>
-//       </div>
-
-//       <FilterBar>
-//         <SearchInput value={search} onChange={setSearch} placeholder="Search meetings..." />
-//       </FilterBar>
-
-//       <TableCard>
-//         <DataTable
-//           columns={columns}
-//           data={filteredData}
-//           emptyMessage="No meetings found."
-//         />
-//       </TableCard>
-//     </div>
-//   );
-// }
-
-
-
-////////////////////////////////////////////////////////////////////////import { useState, useEffect } from 'react';
-
-import { useState ,useEffect} from 'react';
-
-//import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Users, X, Check, XCircle, Edit, Eye, Calendar, MapPin, AlignLeft, UserCircle, AlertCircle, Video, Clock } from 'lucide-react';
 import {
   PageHeader,
@@ -210,37 +122,7 @@ export default function MrMeetings() {
     setIsFormOpen(true);
   };
 
-  // const handleScheduleOrUpdate = () => {
-    
-  //   if (!title.trim() || !location.trim() || !organizer.trim() || !participants.trim()) {
-  //     alert('Please fill in all required fields (Title, Location, Organizer, Participants).');
-  //     return;
-  //   }
-
-  //   if (followUpDate && followUpDate < date) {
-  //     alert('Follow-up date cannot be earlier than meeting date.');
-  //     return;
-  //   }
-
-  //   const todayStr = new Date().toISOString().split('T')[0];
-  //   if (!editMeetingId && date < todayStr) {
-  //     alert('Cannot schedule a meeting on a past date.');
-  //     return;
-  //   }
-
-  //   if (!editMeetingId && date === todayStr) {
-  //     const now = new Date();
-  //     const currentHours = now.getHours();
-  //     const currentMinutes = now.getMinutes();
-  //     const currentTimeStr = `${currentHours.toString().padStart(2, '0')}:${currentMinutes.toString().padStart(2, '0')}`;
-      
-  //     if (time < currentTimeStr) {
-  //       alert('Cannot schedule a meeting at a past time today.');
-  //       return;
-  //     }
-  //   }
   const handleScheduleOrUpdate = async () => {
-    // 1. NEW: Check if the MR is checked in before they can schedule!
     if (!validateCheckIn()) {
       return;
     }
@@ -255,14 +137,12 @@ export default function MrMeetings() {
       return;
     }
 
-    // 2. NEW: Prevent scheduling meetings on past dates
     const todayStr = new Date().toISOString().split('T')[0];
     if (!editMeetingId && date < todayStr) {
       alert('Cannot schedule a meeting on a past date.');
       return;
     }
 
-    // 3. NEW: Prevent scheduling past times if the meeting is today
     if (!editMeetingId && date === todayStr) {
       const now = new Date();
       const currentHours = now.getHours();
@@ -275,7 +155,6 @@ export default function MrMeetings() {
       }
     }
 
-    // ... continue with your existing meeting conflict logic below ...
     const isConflict = meetings.some(
       (m) => m.date === date && m.rawTime === time && m.status === 'Scheduled' && m.id !== editMeetingId
     );
@@ -330,7 +209,6 @@ export default function MrMeetings() {
         updatedMeetings = [newMeetingData, ...meetings];
       }
 
-      // Backend handles database storage, so we don't need localStorage here anymore.
       setMeetings(updatedMeetings);
       alert('✅ Meeting saved successfully to database!');
 
@@ -458,8 +336,6 @@ export default function MrMeetings() {
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Meeting Title *</label>
                   <input placeholder="e.g. Q3 Cycle Meeting" className="w-full border border-slate-300 rounded-xl p-3 text-sm focus:ring-2 focus:ring-indigo-500 outline-none" value={title} onChange={(e)=>setTitle(e.target.value)} />
                 </div>
-                
-
 
                 <div className="col-span-2 sm:col-span-1">
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Organizer *</label>
@@ -510,8 +386,6 @@ export default function MrMeetings() {
                     <option value="1 Day">1 Day</option>
                   </select>
                 </div>
-
-
 
                 <div className="col-span-2 sm:col-span-1">
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">Follow-Up Date</label>

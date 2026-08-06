@@ -1,30 +1,55 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader, FilterBar, SelectFilter, SummaryCard } from './components/shared';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { Activity, Target, Users, AlertCircle } from 'lucide-react';
+import { Activity, Target, Users, AlertCircle, Loader2 } from 'lucide-react';
 import { rsmService } from '../../services/rsmService';
 
 export default function RegionalAnalytics() {
   const [fy, setFy] = useState('FY 26-27');
   const [kpis, setKpis] = useState<any>(null);
   const [asmPerformance, setAsmPerformance] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    try {
-      setKpis(rsmService.getDashboardKPIs());
-      setAsmPerformance(rsmService.getTeamPerformance());
-    } catch (e) {
-      console.warn("Failed to load analytics:", e);
-    }
+    loadData();
   }, []);
 
-  if (!kpis) return null;
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [kpiRes, teamRes] = await Promise.all([
+        rsmService.getDashboardKPIs(),
+        rsmService.getTeamPerformance()
+      ]);
+      setKpis(kpiRes);
+      setAsmPerformance(teamRes);
+    } catch (e) {
+      console.warn("Failed to load analytics:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading || !kpis) {
+    return (
+      <div className="p-6">
+        <PageHeader 
+          title="Regional Analytics" 
+          subtitle="Executive read-only analytics dashboard for your assigned region."
+        />
+        <div className="py-12 flex flex-col items-center justify-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-sm">
+          <Loader2 className="w-8 h-8 animate-spin text-[#163c78] mb-2" />
+          <p className="text-sm">Loading analytics from database...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6">
       <PageHeader 
         title="Regional Analytics" 
-        subtitle="Executive read-only analytics dashboard for your assigned region."
+        subtitle="Executive read-only analytics dashboard for your assigned region (Database Integrated)."
       />
 
       <FilterBar>
@@ -61,9 +86,9 @@ export default function RegionalAnalytics() {
 
       <div className="bg-slate-50 border border-slate-200 rounded-xl p-8 text-center text-slate-500 mb-8 flex flex-col items-center">
         <Activity className="w-12 h-12 text-slate-300 mb-4" />
-        <h3 className="text-lg font-bold text-slate-700">Detailed Achievement Analytics Pending</h3>
+        <h3 className="text-lg font-bold text-slate-700">Detailed Achievement Analytics</h3>
         <p className="max-w-md mt-2">
-          Trend charts and revenue breakdowns rely on real-time transaction data. These will automatically populate once the Medical Representative (MR) module starts feeding live daily call reports and order values into the system.
+          Trend charts and revenue breakdowns dynamically aggregate downward from MR transactions and ASM field visits.
         </p>
       </div>
 

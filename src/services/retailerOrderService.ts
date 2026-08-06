@@ -2,15 +2,19 @@ import { apiRequest } from './apiClient';
 
 export interface RetailerOrderRecord {
   id: number;
-  retailerId: number;
+  retailerId?: number;
+  chemistId?: number;
+  hospitalId?: number;
+  stockistId?: number;
+  mrId?: number;
   orderNumber: string;
   orderDate: string;
   totalAmount: number;
   status: string;
-  retailer?: {
-    name: string;
-    mobile: string;
-  };
+  retailer?: { name: string; mobile?: string };
+  chemist?: { name: string; mobile?: string };
+  stockist?: { name: string; mobile?: string };
+  hospital?: { name: string; mobile?: string };
   orderItems: Array<{
     productId: number;
     quantity: number;
@@ -27,23 +31,6 @@ export const retailerOrderService = {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/retailer-orders');
       if (response.success && Array.isArray(response.data)) {
-        const mapped = response.data.map((o: any) => ({
-          id: o.id,
-          orderNumber: o.orderNumber,
-          customerType: o.chemist ? 'Chemist' : (o.hospital ? 'Hospital' : (o.stockist ? 'Stockist' : 'Retailer')),
-          customerName: o.retailer?.name || o.chemist?.name || o.hospital?.name || o.stockist?.name || 'Unknown Customer',
-          customerMobile: o.retailer?.mobile || o.chemist?.mobile || o.hospital?.mobile || o.stockist?.mobile || '',
-          productName: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].product?.name || 'Product' : 'Product',
-          quantity: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].quantity : 0,
-          rate: o.orderItems && o.orderItems.length > 0 ? o.orderItems[0].rate : 0,
-          totalAmount: o.totalAmount,
-          remarks: o.remarks || '',
-          status: o.status === 'PENDING' ? 'Booked' : (o.status === 'DELIVERED' ? 'Delivered' : o.status === 'CANCELLED' ? 'Cancelled' : 'Booked'),
-          dateFormatted: o.orderDate ? o.orderDate.split('T')[0] : new Date().toISOString().split('T')[0],
-          date: o.orderDate ? o.orderDate.split('T')[0] : new Date().toISOString().split('T')[0],
-          mrId: o.mrId,
-        }));
-        localStorage.setItem('web_orders', JSON.stringify(mapped));
         return response.data;
       }
       return [];
@@ -53,17 +40,7 @@ export const retailerOrderService = {
     }
   },
 
-  async addRetailerOrder(order: {
-    retailerId: number;
-    totalAmount: number;
-    status?: string;
-    orderItems: Array<{
-      productId: number;
-      quantity: number;
-      rate: number;
-      amount: number;
-    }>;
-  }): Promise<any> {
+  async addRetailerOrder(order: any): Promise<any> {
     const response = await apiRequest<{ success: boolean; data: any }>('/retailer-orders', {
       method: 'POST',
       bodyData: order,
@@ -72,11 +49,24 @@ export const retailerOrderService = {
       throw new Error('Failed to submit order');
     }
     
-    // Refresh web_orders locally after adding an order
-    try {
-      await this.getRetailerOrders();
-    } catch (e) {}
-
     return response.data;
+  },
+
+  async updateRetailerOrder(id: number | string, data: Partial<{ status: string; totalAmount: number; [key: string]: any }>): Promise<any> {
+    const response = await apiRequest<{ success: boolean; data: any }>(`/retailer-orders/${id}`, {
+      method: 'PUT',
+      bodyData: data,
+    });
+    if (!response.success) {
+      throw new Error(response.message || 'Failed to update order');
+    }
+    return response.data;
+  },
+
+  async deleteRetailerOrder(id: number | string): Promise<boolean> {
+    const response = await apiRequest<{ success: boolean; message: string }>(`/retailer-orders/${id}`, {
+      method: 'DELETE',
+    });
+    return response.success;
   }
 };

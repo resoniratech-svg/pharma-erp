@@ -6,6 +6,7 @@ import { DrawerField } from './components/shared';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { asmService } from '../../services/asmService';
 
 export default function DailyActivities() {
   const [activities, setActivities] = useState<any[]>([]);
@@ -17,14 +18,25 @@ export default function DailyActivities() {
   const [isExportOpen, setIsExportOpen] = useState(false);
 
   useEffect(() => {
-    // Mock Data for MR Daily Activities
-    const mockData = [
-      { id: '1', date: '2024-05-15', mrName: 'Rahul Verma', type: 'Doctor Visit', customer: 'Dr. A. Sharma', territory: 'South Mumbai', status: 'Completed', details: 'Promoted Cardio range, gave 5 samples.' },
-      { id: '2', date: '2024-05-15', mrName: 'Sneha Patel', type: 'Chemist Visit', customer: 'Apollo Pharmacy', territory: 'Navi Mumbai', status: 'Completed', details: 'Collected POB of ₹5,000' },
-      { id: '3', date: '2024-05-15', mrName: 'Amit Kumar', type: 'Doctor Visit', customer: 'Dr. B. Singh', territory: 'Thane', status: 'Pending', details: '-' },
-      { id: '4', date: '2024-05-15', mrName: 'Vikas Singh', type: 'Order Booking', customer: 'Wellness Medico', territory: 'Andheri', status: 'Completed', details: 'Order Value: ₹12,500' },
-    ];
-    setActivities(mockData);
+    const loadActivities = async () => {
+      try {
+        const rawData = await asmService.getMRDailyActivities();
+        const mappedData = rawData.map((d: any) => ({
+          id: d.id?.toString(),
+          date: new Date(d.reportDate).toLocaleDateString(),
+          mrName: d.mr?.employee?.employeeName || 'Unknown',
+          type: 'Daily Report',
+          customer: `Doc: ${d.doctorVisits || 0}, Chem: ${d.chemistVisits || 0}`,
+          territory: d.mr?.employee?.territory || '-',
+          status: d.status,
+          details: `Orders: ${d.ordersCollected || 0} | Remarks: ${d.remarks || '-'}`
+        }));
+        setActivities(mappedData);
+      } catch (e) {
+        console.warn("Failed to load activities", e);
+      }
+    };
+    loadActivities();
   }, []);
 
   const filteredData = activities.filter(row => {

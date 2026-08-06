@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader, SummaryCard, ActionButton, DataTable, Badge, FilterBar, SearchInput, SelectFilter } from './components/shared';
-import { Target, TrendingUp, AlertCircle, Calendar, CheckCircle, Eye, Search, Save, Send } from 'lucide-react';
+import { Target, TrendingUp, AlertCircle, Calendar, CheckCircle, Eye, Search, Save, Send, Loader2 } from 'lucide-react';
 import { rsmService } from '../../services/rsmService';
 import type { RSMTargetSummary } from '../../services/rsmService';
 import type { Employee } from '../super-admin/sales-organization/types';
@@ -9,6 +9,9 @@ export default function TargetAllocation() {
   const [activeStep, setActiveStep] = useState<'overview' | 'asm'>('overview');
   const [summaries, setSummaries] = useState<RSMTargetSummary[]>([]);
   const [asms, setAsms] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
   
   const [search, setSearch] = useState('');
   
@@ -19,12 +22,32 @@ export default function TargetAllocation() {
     loadData();
   }, []);
 
-  const loadData = () => {
+  const loadData = async () => {
     try {
-      setSummaries(rsmService.getTargetSummaries());
-      setAsms(rsmService.getReportingASMs());
-    } catch (e) {
+      setLoading(true);
+      setErrorMsg('');
+      const [summs, reportingAsms] = await Promise.all([
+        rsmService.getTargetSummaries(),
+        rsmService.getReportingASMs()
+      ]);
+      setSummaries(summs);
+      setAsms(reportingAsms);
+
+      // Pre-fill inputs with existing active allocations if any
+      if (summs.length > 0) {
+        const initialInputs: Record<string, string> = {};
+        summs[0].allocations.forEach(alloc => {
+          if (alloc.status === 'Active') {
+            initialInputs[String(alloc.allocatedToEmployeeId)] = String(alloc.targetAmount);
+          }
+        });
+        setAllocationInputs(initialInputs);
+      }
+    } catch (e: any) {
       console.warn('Failed to load RSM allocations data', e);
+      setErrorMsg(e.message || 'Failed to load target allocations from database');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -36,8 +59,7 @@ export default function TargetAllocation() {
     }).format(amount);
   };
 
-  // Find the most recent/active target assigned to this RSM
-  // Assuming the first one with remaining > 0 or the most recent one is active
+  // Active assigned target for this RSM
   const activeSummary = summaries.length > 0 ? summaries[0] : null;
   const activeTarget = activeSummary?.parentAllocation;
 
@@ -70,21 +92,57 @@ export default function TargetAllocation() {
     return true;
   };
 
-  const handleSubmitFinalPlan = () => {
-    if (activeTarget && currentTotalInputAllocation > activeTarget.targetAmount) {
+  const handleSubmitFinalPlan = async () => {
+    if (!activeTarget) return;
+    if (currentTotalInputAllocation > activeTarget.targetAmount) {
       alert(`Validation Failed: Allocated amount exceeds Assigned Target.`);
       return;
     }
-    // Implement actual allocation via rsmService if needed here
-    alert("Final Plan Submitted successfully! Targets allocated to ASMs.");
-    setActiveStep('overview');
+
+    try {
+      setSaving(true);
+      setErrorMsg('');
+
+      for (const asm of asms) {
+        const inputVal = Number(allocationInputs[asm.id]);
+        if (inputVal && inputVal > 0) {
+          // Check if already allocated
+          const existingAlloc = activeSummary?.allocations.find(a => String(a.allocatedToEmployeeId) === String(asm.id) && a.status === 'Active');
+          if (existingAlloc) {
+            if (existingAlloc.targetAmount !== inputVal) {
+              await rsmService.updateAllocation(existingAlloc.id, inputVal, asm.id);
+            }
+          } else {
+            await rsmService.allocateToASM({
+              sourceAllocationId: activeTarget.id,
+              asmId: asm.id,
+              amount: inputVal,
+              financialYear: activeTarget.financialYear || '2026-27',
+              allocationPeriod: activeTarget.allocationPeriod || 'Annual',
+              startDate: activeTarget.startDate,
+              endDate: activeTarget.endDate,
+              remarks: `Allocated to ${asm.employeeName}`,
+            });
+          }
+        }
+      }
+
+      await loadData();
+      alert("Final Plan Submitted successfully! Targets allocated to ASMs in database.");
+      setActiveStep('overview');
+    } catch (e: any) {
+      console.error(e);
+      alert(e.message || 'Error saving allocations to database');
+    } finally {
+      setSaving(false);
+    }
   };
 
   return (
     <div className="p-6">
       <PageHeader 
         title="Target Allocation Workspace" 
-        subtitle="Review targets received from the NSM and allocate them to your Area Sales Managers."
+        subtitle="Review targets received from the NSM and allocate them to your Area Sales Managers (Database Integrated)."
       />
 
       {/* Tabs */}
@@ -109,7 +167,12 @@ export default function TargetAllocation() {
         </button>
       </div>
 
-      {activeStep === 'overview' && (
+      {loading ? (
+        <div className="py-12 flex flex-col items-center justify-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-sm mb-8">
+          <Loader2 className="w-8 h-8 animate-spin text-[#163c78] mb-2" />
+          <p className="text-sm">Loading target summaries from database...</p>
+        </div>
+      ) : activeStep === 'overview' ? (
         <div className="animate-in fade-in duration-500">
           <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
             <SummaryCard
@@ -158,7 +221,7 @@ export default function TargetAllocation() {
               columns={[
                 { key: 'financialYear', label: 'Financial Year' },
                 { key: 'allocationPeriod', label: 'Planning Period' },
-                { key: 'startDate', label: 'Start Date', render: (row: any) => new Date(row.startDate).toLocaleDateString() },
+                { key: 'startDate', label: 'Start Date', render: (row: any) => row.startDate ? new Date(row.startDate).toLocaleDateString() : '-' },
                 { 
                   key: 'status', 
                   label: 'Allocation Status', 
@@ -174,7 +237,7 @@ export default function TargetAllocation() {
                 { key: 'allocatedAmount', label: 'Allocated Down', render: (row: any) => formatCurrency(row.allocatedAmount) },
                 { key: 'remainingAmount', label: 'Remaining Balance', render: (row: any) => <span className={row.remainingAmount > 0 ? 'text-amber-600 font-semibold' : 'text-emerald-600 font-semibold'}>{formatCurrency(row.remainingAmount)}</span> },
                 { key: 'actions', label: 'Actions', render: () => (
-                    <button className="p-1.5 text-slate-400 hover:text-[#163c78] hover:bg-blue-50 rounded transition-colors" title="View Details">
+                    <button onClick={() => setActiveStep('asm')} className="p-1.5 text-slate-400 hover:text-[#163c78] hover:bg-blue-50 rounded transition-colors" title="Allocate to ASMs">
                       <Eye className="w-4 h-4" />
                     </button>
                 )}
@@ -184,125 +247,110 @@ export default function TargetAllocation() {
             />
           </div>
         </div>
-      )}
+      ) : (
+        activeTarget && (
+          <div className="animate-in fade-in duration-500 space-y-6">
+            {/* Section 1 - Planning Summary */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+              <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider border-b border-slate-200 pb-2">1. Planning Summary</h3>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Assigned Target</span><span className="text-sm font-medium text-[#163c78]">{formatCurrency(activeTarget.targetAmount)}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Allocated Amount</span><span className="text-sm font-medium text-emerald-600">{formatCurrency(currentTotalInputAllocation)}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Remaining Amount</span><span className={`text-sm font-medium ${remainingAfterInputs < 0 ? 'text-red-600' : 'text-amber-600'}`}>{formatCurrency(remainingAfterInputs)}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Active ASM Count</span><span className="text-sm font-medium text-slate-800">{activeAsmCount}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Pending Allocation</span><span className="text-sm font-medium text-slate-800">{pendingAllocationCount}</span></div>
+              </div>
+            </div>
 
-      {activeStep === 'asm' && activeTarget && (
-        <div className="animate-in fade-in duration-500 space-y-6">
-          {/* Section 1 - Planning Summary */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
-            <h3 className="text-sm font-bold text-slate-800 mb-4 uppercase tracking-wider border-b border-slate-200 pb-2">1. Planning Summary</h3>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
-              <div><span className="block text-xs text-slate-500 font-semibold mb-1">Assigned Target</span><span className="text-sm font-medium text-[#163c78]">{formatCurrency(activeTarget.targetAmount)}</span></div>
-              <div><span className="block text-xs text-slate-500 font-semibold mb-1">Allocated Amount</span><span className="text-sm font-medium text-emerald-600">{formatCurrency(currentTotalInputAllocation)}</span></div>
-              <div><span className="block text-xs text-slate-500 font-semibold mb-1">Remaining Amount</span><span className={`text-sm font-medium ${remainingAfterInputs < 0 ? 'text-red-600' : 'text-amber-600'}`}>{formatCurrency(remainingAfterInputs)}</span></div>
-              <div><span className="block text-xs text-slate-500 font-semibold mb-1">Active ASM Count</span><span className="text-sm font-medium text-slate-800">{activeAsmCount}</span></div>
-              <div><span className="block text-xs text-slate-500 font-semibold mb-1">Pending Allocation</span><span className="text-sm font-medium text-slate-800">{pendingAllocationCount}</span></div>
+            {/* Section 2 - Filters */}
+            <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-4 items-center justify-between">
+              <div className="relative w-full max-w-sm">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
+                <input 
+                  type="text" 
+                  placeholder="Search ASM name or code..." 
+                  className="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm w-full focus:ring-2 focus:ring-[#163c78]"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                />
+              </div>
             </div>
-          </div>
 
-          {/* Section 2 - Filters */}
-          <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap gap-4 items-center justify-between">
-            <div className="flex gap-4">
-              <select className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#163c78] bg-white">
-                <option>All Areas</option>
-              </select>
-              <select className="px-3 py-2 border border-slate-300 rounded-lg text-sm focus:ring-2 focus:ring-[#163c78] bg-white">
-                <option>All Status</option>
-                <option>Pending</option>
-                <option>Allocated</option>
-              </select>
-            </div>
-            <div className="relative">
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" />
-              <input 
-                type="text" 
-                placeholder="Search ASM..." 
-                className="pl-9 pr-4 py-2 border border-slate-300 rounded-lg text-sm w-64 focus:ring-2 focus:ring-[#163c78]"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-          </div>
-
-          {/* Section 3 - Allocation Table */}
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-50">
-               <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">2. ASM Target Allocation</h3>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase">
-                    <th className="p-4">Employee Code</th>
-                    <th className="p-4">ASM Name</th>
-                    <th className="p-4">Headquarters</th>
-                    <th className="p-4">Allocated Target (₹)</th>
-                    <th className="p-4">Effective From</th>
-                    <th className="p-4">Effective To</th>
-                    <th className="p-4">Status</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-200">
-                  {asms.filter(a => a.employeeName.toLowerCase().includes(search.toLowerCase()) || a.employeeCode.toLowerCase().includes(search.toLowerCase())).map((asm) => (
-                    <tr key={asm.id} className="hover:bg-slate-50">
-                      <td className="p-4 text-sm font-medium text-slate-900">{asm.employeeCode}</td>
-                      <td className="p-4 text-sm text-slate-700">{asm.employeeName}</td>
-                      <td className="p-4 text-sm text-slate-700">{asm.headquarters || '-'}</td>
-                      <td className="p-4">
-                        <input 
-                          type="number"
-                          className="w-32 px-3 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm"
-                          placeholder="Amount"
-                          value={allocationInputs[asm.id] || ''}
-                          onChange={(e) => setAllocationInputs({...allocationInputs, [asm.id]: e.target.value})}
-                        />
-                      </td>
-                      <td className="p-4 text-sm text-slate-700">{new Date(activeTarget.startDate).toLocaleDateString()}</td>
-                      <td className="p-4 text-sm text-slate-700">{new Date(activeTarget.endDate).toLocaleDateString()}</td>
-                      <td className="p-4">
-                        <Badge variant={allocationInputs[asm.id] ? 'success' : 'warning'}>
-                          {allocationInputs[asm.id] ? 'Allocated' : 'Pending'}
-                        </Badge>
-                      </td>
+            {/* Section 3 - Allocation Table */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+              <div className="p-4 border-b border-slate-200 bg-slate-50">
+                 <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider">2. ASM Target Allocation</h3>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse">
+                  <thead>
+                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase">
+                      <th className="p-4">Employee Code</th>
+                      <th className="p-4">ASM Name</th>
+                      <th className="p-4">Headquarters</th>
+                      <th className="p-4">Allocated Target (₹)</th>
+                      <th className="p-4">Effective From</th>
+                      <th className="p-4">Effective To</th>
+                      <th className="p-4">Status</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {asms.filter(a => a.employeeName.toLowerCase().includes(search.toLowerCase()) || a.employeeCode.toLowerCase().includes(search.toLowerCase())).map((asm) => (
+                      <tr key={asm.id} className="hover:bg-slate-50">
+                        <td className="p-4 text-sm font-medium text-slate-900">{asm.employeeCode || `ASM-${asm.id}`}</td>
+                        <td className="p-4 text-sm text-slate-700">{asm.employeeName}</td>
+                        <td className="p-4 text-sm text-slate-700">{asm.headquarters || '-'}</td>
+                        <td className="p-4">
+                          <input 
+                            type="number"
+                            className="w-36 px-3 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm"
+                            placeholder="Amount"
+                            value={allocationInputs[asm.id] || ''}
+                            onChange={(e) => setAllocationInputs({...allocationInputs, [asm.id]: e.target.value})}
+                          />
+                        </td>
+                        <td className="p-4 text-sm text-slate-700">{activeTarget.startDate ? new Date(activeTarget.startDate).toLocaleDateString() : '-'}</td>
+                        <td className="p-4 text-sm text-slate-700">{activeTarget.endDate ? new Date(activeTarget.endDate).toLocaleDateString() : '-'}</td>
+                        <td className="p-4">
+                          <Badge variant={allocationInputs[asm.id] ? 'success' : 'warning'}>
+                            {allocationInputs[asm.id] ? 'Allocated' : 'Pending'}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
 
-          {/* Section 4 & 5 - Summary & Action Buttons */}
-          <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
-            <div className="flex gap-8">
-               <div><span className="block text-xs text-slate-500 font-semibold mb-1">Total Allocated</span><span className="text-lg font-bold text-[#163c78]">{formatCurrency(currentTotalInputAllocation)}</span></div>
-               <div><span className="block text-xs text-slate-500 font-semibold mb-1">Remaining Balance</span><span className={`text-lg font-bold ${remainingAfterInputs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(remainingAfterInputs)}</span></div>
-            </div>
-            
-            <div className="flex gap-4">
-              <button 
-                type="button" 
-                onClick={() => alert("Draft saved!")}
-                className="px-6 py-2.5 text-sm font-medium text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Save Draft
-              </button>
-              <button 
-                type="button"
-                onClick={handleValidateAllocation}
-                className="px-6 py-2.5 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors"
-              >
-                Validate Allocation
-              </button>
-              <button 
-                type="button"
-                onClick={handleSubmitFinalPlan}
-                className="px-6 py-2.5 text-sm font-medium text-white bg-[#163c78] rounded-lg hover:bg-[#122e5c] transition-colors"
-              >
-                Submit Final Plan
-              </button>
+            {/* Section 4 & 5 - Summary & Action Buttons */}
+            <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-6">
+              <div className="flex gap-8">
+                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Total Allocated</span><span className="text-lg font-bold text-[#163c78]">{formatCurrency(currentTotalInputAllocation)}</span></div>
+                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Remaining Balance</span><span className={`text-lg font-bold ${remainingAfterInputs < 0 ? 'text-red-600' : 'text-emerald-600'}`}>{formatCurrency(remainingAfterInputs)}</span></div>
+              </div>
+              
+              <div className="flex gap-4">
+                <button 
+                  type="button"
+                  onClick={handleValidateAllocation}
+                  className="px-6 py-2.5 text-sm font-medium text-white bg-amber-500 rounded-lg hover:bg-amber-600 transition-colors"
+                >
+                  Validate Allocation
+                </button>
+                <button 
+                  type="button"
+                  disabled={saving || remainingAfterInputs < 0}
+                  onClick={handleSubmitFinalPlan}
+                  className={`px-6 py-2.5 text-sm font-medium text-white bg-[#163c78] rounded-lg hover:bg-[#122e5c] transition-colors flex items-center gap-2 ${remainingAfterInputs < 0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  {saving && <Loader2 className="w-4 h-4 animate-spin" />}
+                  Submit Final Plan
+                </button>
+              </div>
             </div>
           </div>
-        </div>
+        )
       )}
     </div>
   );

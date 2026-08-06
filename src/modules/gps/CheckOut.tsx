@@ -92,14 +92,37 @@ export default function CheckOut() {
   useEffect(() => {
     const fetchRecords = async () => {
       try {
+        let authUser = null;
+        try {
+          const authUserString = localStorage.getItem('authUser');
+          authUser = authUserString ? JSON.parse(authUserString) : null;
+        } catch { }
+        
+        let isManager = false;
+        if (authUser) {
+          const userRole = authUser.roleId || authUser.role;
+          const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
+          if (managementRoles.includes(userRole)) {
+            isManager = true;
+          }
+        }
+
         const rawMrId = localStorage.getItem('mrId');
-        const mrId = rawMrId ? Number(rawMrId) : 1; // Fallback to 1 for admins testing
-        const data = await attendanceService.loadAttendance(mrId);
-        setRecords(data);
+        
+        if (!isManager && rawMrId) {
+          const mrId = Number(rawMrId);
+          const data = await attendanceService.loadAttendance(mrId);
+          setRecords(data);
+        } else {
+          const userId = authUser?.id || 'default';
+          const scopedKey = `web_attendance_records_${userId}`;
+          const stored = localStorage.getItem(scopedKey);
+          if (stored) {
+            setRecords(JSON.parse(stored));
+          }
+        }
       } catch (e) {
         console.error("Failed to load records on checkout mount:", e);
-        const stored = localStorage.getItem('web_attendance_records');
-        if (stored) setRecords(JSON.parse(stored));
       }
     };
     fetchRecords();
@@ -115,6 +138,20 @@ export default function CheckOut() {
 
     const recordIndex = records.findIndex((r: any) => r.date === todayDateStr);
 
+    const getRedirectPath = () => {
+      try {
+        const authUserStr = localStorage.getItem('authUser');
+        if (authUserStr) {
+          const authUser = JSON.parse(authUserStr);
+          const role = authUser.roleId || authUser.role;
+          if (role === 'NATIONAL_SALES_HEAD' || role === 'National Sales Head') return '/workspace/national-sales-head/attendance';
+          if (role === 'REGIONAL_SALES_MANAGER' || role === 'Regional Sales Manager') return '/workspace/regional-sales-manager/attendance';
+          if (role === 'AREA_SALES_MANAGER' || role === 'Area Sales Manager') return '/workspace/area-sales-manager/attendance';
+        }
+      } catch (e) {}
+      return '/workspace/gps/attendance';
+    };
+
     if (recordIndex === -1) {
       alert('You have not checked in today! Please Check-In first.');
       navigate('/workspace/gps/check-in');
@@ -123,13 +160,56 @@ export default function CheckOut() {
 
     if (records[recordIndex].checkOutTime && records[recordIndex].checkOutTime !== '-') {
       alert('You have already checked out today!');
-      navigate('/workspace/gps/attendance');
+      navigate(getRedirectPath());
       return;
     }
 
     try {
       const todayRecord = records[recordIndex];
-      await attendanceService.checkOut(String(todayRecord.id), latLng.lat, latLng.lng, locationText);
+      
+      let isManager = false;
+      const authUserStr = localStorage.getItem('authUser');
+      const authUser = authUserStr ? JSON.parse(authUserStr) : null;
+      if (authUser) {
+        const userRole = authUser.roleId || authUser.role;
+        const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
+        if (managementRoles.includes(userRole)) {
+          isManager = true;
+        }
+      }
+      
+      const rawMrId = localStorage.getItem('mrId');
+      
+      if (!isManager && rawMrId !== null) {
+        // Real Backend Flow
+        await attendanceService.checkOut(String(todayRecord.id), latLng.lat, latLng.lng, locationText);
+      } else {
+        // Mock Flow
+        const userId = authUser?.id || 'default';
+        const scopedKey = `web_attendance_records_${userId}`;
+        const existingData = localStorage.getItem(scopedKey);
+        if (existingData) {
+          const scopedRecords = JSON.parse(existingData);
+          const idx = scopedRecords.findIndex((r: any) => r.id === todayRecord.id);
+          if (idx !== -1) {
+            scopedRecords[idx].checkOutTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            scopedRecords[idx].checkOutDateTime = now.toISOString();
+            if (scopedRecords[idx].checkInDateTime) {
+              const checkIn = new Date(scopedRecords[idx].checkInDateTime);
+              const diffMs = now.getTime() - checkIn.getTime();
+              const hours = Math.floor(diffMs / 3600000);
+              const minutes = Math.floor((diffMs % 3600000) / 60000);
+              scopedRecords[idx].workingHours = `${hours}h ${minutes}m`;
+              scopedRecords[idx].totalMinutes = Math.floor(diffMs / 60000);
+            }
+            scopedRecords[idx].checkOutLocation = locationText;
+            scopedRecords[idx].checkOutLatitude = latLng.lat;
+            scopedRecords[idx].checkOutLongitude = latLng.lng;
+            scopedRecords[idx].dayStatus = "Completed";
+            localStorage.setItem(scopedKey, JSON.stringify(scopedRecords));
+          }
+        }
+      }
 
       records[recordIndex].checkOutTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
       records[recordIndex].checkOutDateTime = now.toISOString();
@@ -149,19 +229,20 @@ export default function CheckOut() {
       records[recordIndex].checkOutLongitude = latLng.lng;
       records[recordIndex].dayStatus = "Completed";
 
-      // Backend handles database storage, so we don't need localStorage 'web_attendance_records' here anymore.
+      const userId = authUser?.id || 'default';
 
       localStorage.setItem(
-        'today_checkin',
+        `today_checkin_${userId}`,
         JSON.stringify({
           checkedIn: false,
           user: userName,
-          checkoutTime: now.toISOString()
+          checkoutTime: now.toISOString(),
+          checkedOut: true
         })
       );
       
       alert('Checked out successfully!');
-      navigate('/workspace/gps/attendance');
+      navigate(getRedirectPath());
     } catch (e: any) {
       console.error(e);
       alert('Checkout failed: ' + e.message);

@@ -71,6 +71,31 @@ export default function TargetAllocation() {
   const activeSummary = summaries.length > 0 ? summaries[0] : null;
   const activeTarget = activeSummary?.parentAllocation;
 
+  const refreshData = async () => {
+    try {
+      const [sumData, mrData] = await Promise.all([
+        asmService.getTargetSummaries(),
+        asmService.getReportingMRs()
+      ]);
+      setSummaries(sumData || []);
+      setMrs(mrData || []);
+    } catch (e) {
+      console.warn("Failed to load targets", e);
+    }
+  };
+
+  const filteredTargets = summaries.filter(s => {
+    const row = s.parentAllocation;
+    const codeMatches = row.id?.toString().toLowerCase().includes(search.toLowerCase()) ||
+                        row.targetAllocationCode?.toLowerCase().includes(search.toLowerCase());
+    
+    let allocStatus = 'Pending Allocation';
+    if (s.remainingAmount === 0 && row.targetAmount > 0) allocStatus = 'Fully Allocated';
+    else if (s.allocatedAmount > 0) allocStatus = 'Partially Allocated';
+
+    return codeMatches;
+  });
+
   const allocatedToMrs = activeSummary ? activeSummary.allocatedAmount : 0;
   const remainingTarget = activeSummary ? activeSummary.remainingAmount : 0;
   const activeMrCount = mrs.length;
@@ -121,21 +146,36 @@ export default function TargetAllocation() {
     return true;
   };
 
-  const handleSubmitFinalPlan = () => {
+  const handleSubmitFinalPlan = async () => {
     if (activeTarget && currentTotalInputAllocation > activeTarget.targetAmount) {
       alert(`Validation Failed: Allocated amount exceeds Assigned Target.`);
       return;
     }
     
-    setMrs(mrs.map(mr => {
-      if (mr.status === 'Validated') {
-        return { ...mr, status: 'Allocated' };
+    try {
+      const validatedMrs = mrs.filter(mr => mr.status === 'Validated');
+      for (const mr of validatedMrs) {
+        const amount = Number(allocationInputs[mr.id]);
+        if (amount > 0) {
+          await asmService.allocateToMR({
+            sourceAllocationId: activeTarget!.id,
+            mrId: mr.id,
+            amount: amount,
+            financialYear: activeTarget!.financialYear || '',
+            allocationPeriod: activeTarget!.allocationPeriod || '',
+            startDate: activeTarget!.startDate || '',
+            endDate: activeTarget!.endDate || '',
+            remarks: 'Bulk Allocation'
+          });
+        }
       }
-      return mr;
-    }));
-
-    alert("Final Plan Submitted successfully! Targets allocated to MRs.");
-    setActiveStep('overview');
+      
+      await refreshData();
+      alert("Final Plan Submitted successfully! Targets allocated to MRs.");
+      setActiveStep('overview');
+    } catch (e: any) {
+      alert("Error saving allocations: " + e.message);
+    }
   };
 
   const handleOpenEdit = (mr: any) => {
@@ -146,7 +186,7 @@ export default function TargetAllocation() {
     });
   };
 
-  const handleUpdateAllocation = () => {
+  const handleUpdateAllocation = async () => {
     if (!editModal || !activeTarget) return;
     const numAmount = Number(editModal.amount);
     
@@ -164,17 +204,31 @@ export default function TargetAllocation() {
       return;
     }
     
-    setAllocationInputs(prev => ({ ...prev, [editModal.mr.id]: numAmount.toString() }));
-    
-    setMrs(mrs.map(mr => {
-      if (mr.id === editModal.mr.id) {
-        return { ...mr, allocatedTarget: numAmount };
+    try {
+      // Find the specific allocation ID for this MR in the active summary
+      const allocRecord = activeSummary?.allocations?.find((a: any) => a.allocatedToEmployeeId === editModal.mr.id);
+      if (allocRecord) {
+        await asmService.updateAllocation(allocRecord.id, numAmount, editModal.mr.id);
+      } else {
+        await asmService.allocateToMR({
+          sourceAllocationId: activeTarget.id,
+          mrId: editModal.mr.id,
+          amount: numAmount,
+          financialYear: activeTarget.financialYear || '',
+          allocationPeriod: activeTarget.allocationPeriod || '',
+          startDate: activeTarget.startDate || '',
+          endDate: activeTarget.endDate || '',
+          remarks: 'Manual Update'
+        });
       }
-      return mr;
-    }));
-    
-    setEditModal(null);
-    alert("Allocation updated successfully!");
+      
+      setAllocationInputs(prev => ({ ...prev, [editModal.mr.id]: numAmount.toString() }));
+      await refreshData();
+      setEditModal(null);
+      alert("Allocation updated successfully!");
+    } catch (e: any) {
+      alert("Failed to update allocation: " + e.message);
+    }
   };
 
   const handleView = (row: any) => {

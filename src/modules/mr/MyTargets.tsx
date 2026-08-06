@@ -17,6 +17,8 @@ const formatCurrency = (amount: number | string | undefined) => {
   }).format(num || 0);
 };
 
+import { employeeService } from '../../services/employeeService';
+
 export default function MyTargets() {
   const currentUser = authService.getCurrentUser();
   const mrIdStr = String(currentUser?.id || '');
@@ -32,14 +34,18 @@ export default function MyTargets() {
         setLoading(true);
         // Resolve internal Employee ID
         const empCode = currentUser?.employeeCode || currentUser?.id || '';
-        const employees = (await import('../../services/employeeService')).employeeService.getEmployees();
+        const employees = await employeeService.getEmployees();
         const employeeRecord = employees.find(e => 
-          e.employeeCode === empCode || e.id === empCode || e.employeeName === currentUser?.fullName
+          e.employeeCode === empCode || String(e.id) === String(empCode) || e.employeeName === currentUser?.fullName || (currentUser?.id && e.userId === currentUser.id)
         );
         const targetEmployeeId = employeeRecord ? employeeRecord.id : String(currentUser?.id || '');
 
         // Load allocations assigned to current user using internal ID
-        const userAllocations = targetAllocationService.getAllocationsToEmployee(targetEmployeeId);
+        let userAllocations = await targetAllocationService.getAllocationsToEmployee(targetEmployeeId);
+        if ((!userAllocations || userAllocations.length === 0) && employeeRecord) {
+          const allActive = await targetAllocationService.getAllocations({ status: 'Active' });
+          userAllocations = allActive.filter(a => String(a.allocatedToEmployeeId) === String(employeeRecord.id));
+        }
         setAllocations(Array.isArray(userAllocations) ? userAllocations : []);
         // Load Execution Data
         const allOrders = await retailerOrderService.getRetailerOrders();

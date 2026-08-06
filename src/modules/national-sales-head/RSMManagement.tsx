@@ -1,33 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { PageHeader, FilterBar, SearchInput, TableCard, DataTable, Badge, ActionButton } from './components/shared';
-import { Plus, Edit2, Eye, X } from 'lucide-react';
+import { Plus, Edit2, Eye, X, Loader2 } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
+import { employeeService } from '../../services/employeeService';
+import { authService } from '../../services/authService';
 
 export default function RSMManagement() {
   const [search, setSearch] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // Master list of available states that can be expanded dynamically
   const [availableStates, setAvailableStates] = useState<string[]>([
-    'Maharashtra', 'Gujarat', 'Karnataka', 'Delhi', 'Tamil Nadu'
+    'Maharashtra', 'Gujarat', 'Karnataka', 'Delhi', 'Tamil Nadu', 'Telangana', 'Uttar Pradesh', 'West Bengal', 'Rajasthan', 'Kerala'
   ]);
 
-  const [rsmData, setRsmData] = useState<any[]>([
-    { 
-      id: 'RSM001', name: 'Arun Kumar', mobile: '9876543210', email: 'arun.k@pharma.com', 
-      states: ['Maharashtra'], hq: 'Mumbai', area: 'Mumbai City', 
-      status: 'Active', joiningDate: '2025-01-15'
-    },
-    { 
-      id: 'RSM002', name: 'Rajesh Singh', mobile: '9876543211', email: 'rajesh.s@pharma.com', 
-      states: ['Gujarat'], hq: 'Ahmedabad', area: '', 
-      status: 'Active', joiningDate: '2025-02-10'
-    },
-    { 
-      id: 'RSM003', name: 'Priya Sharma', mobile: '9876543212', email: 'priya.s@pharma.com', 
-      states: ['Karnataka'], hq: 'Bangalore', area: 'Bangalore Urban', 
-      status: 'Active', joiningDate: '2025-03-01'
-    },
-  ]);
+  const [rsmData, setRsmData] = useState<any[]>([]);
 
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
@@ -47,18 +36,62 @@ export default function RSMManagement() {
     area: '',
     password: '',
     confirmPassword: '',
-    status: 'Active',
+    status: 'Active' as 'Active' | 'Inactive',
     joiningDate: ''
   });
 
-  const loggedInNsm = "Rajesh Sharma (National Sales Head)"; // Mocked logged-in NSM
-  const generatedEmpCode = editingId ? editingId : `RSM${String(rsmData.length + 1).padStart(3, '0')}`;
+  const currentUser = authService.getCurrentUser();
+  const loggedInNsm = currentUser ? `${currentUser.fullName || 'NSM'} (National Sales Head)` : "National Sales Head";
+
+  useEffect(() => {
+    loadRSMs();
+  }, []);
+
+  const loadRSMs = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const employees = await employeeService.getEmployees({
+        designation: 'Regional Sales Manager'
+      });
+      
+      const mapped = employees.map(emp => ({
+        id: emp.id,
+        employeeCode: emp.employeeCode,
+        name: emp.employeeName,
+        mobile: (emp as any).mobile || '',
+        email: (emp as any).email || '',
+        states: (emp as any).states && (emp as any).states.length > 0 ? (emp as any).states : (emp.area ? [emp.area] : []),
+        hq: emp.headquarters || '',
+        area: emp.area || '',
+        status: emp.status || 'Active',
+        joiningDate: emp.joiningDate || '',
+      })).reverse();
+
+      setRsmData(mapped);
+
+      // Collect states from loaded data
+      const existingStates = new Set(availableStates);
+      mapped.forEach(r => {
+        if (r.states && Array.isArray(r.states)) {
+          r.states.forEach((s: string) => { if (s) existingStates.add(s); });
+        }
+      });
+      setAvailableStates(Array.from(existingStates));
+    } catch (err: any) {
+      console.error("Failed to load RSMs:", err);
+      setError(err.message || "Failed to load Regional Sales Managers.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openAddModal = () => {
     setEditingId(null);
     setNewRsm({
       name: '', mobile: '', email: '', states: [], hq: '', area: '', 
-      password: '', confirmPassword: '', status: 'Active', joiningDate: ''
+      password: '', confirmPassword: '', status: 'Active', 
+      joiningDate: new Date().toISOString().split('T')[0]
     });
     setStateSearch('');
     setIsAddModalOpen(true);
@@ -66,7 +99,6 @@ export default function RSMManagement() {
 
   const openEditModal = (rsm: any) => {
     setEditingId(rsm.id);
-    // Handle backwards compatibility if old data has 'state' instead of 'states' array
     let rsmStates = rsm.states || [];
     if (rsm.state && rsmStates.length === 0) rsmStates = [rsm.state];
     
@@ -84,27 +116,53 @@ export default function RSMManagement() {
     setIsViewModalOpen(true);
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newRsm.states.length === 0) {
       alert("Please select at least one State.");
       return;
     }
-    if (newRsm.password && newRsm.password !== newRsm.confirmPassword) {
-      alert("Passwords do not match");
+    if (!editingId && (!newRsm.password || newRsm.password !== newRsm.confirmPassword)) {
+      alert("Passwords do not match or is empty");
       return;
     }
     
-    if (editingId) {
-      setRsmData(rsmData.map(rsm => rsm.id === editingId ? { ...rsm, ...newRsm, id: editingId } : rsm));
-    } else {
-      setRsmData([...rsmData, {
-        ...newRsm,
-        id: generatedEmpCode
-      }]);
-    }
+    try {
+      setSubmitting(true);
+      if (editingId) {
+        await employeeService.updateEmployee(editingId, {
+          employeeName: newRsm.name,
+          mobile: newRsm.mobile,
+          email: newRsm.email,
+          states: newRsm.states,
+          headquarters: newRsm.hq,
+          area: newRsm.area,
+          status: newRsm.status,
+          joiningDate: newRsm.joiningDate,
+          ...(newRsm.password ? { password: newRsm.password } : {}),
+        });
+      } else {
+        await employeeService.addEmployee({
+          employeeName: newRsm.name,
+          designation: 'Regional Sales Manager',
+          mobile: newRsm.mobile,
+          email: newRsm.email,
+          password: newRsm.password,
+          states: newRsm.states,
+          headquarters: newRsm.hq,
+          area: newRsm.area,
+          status: newRsm.status,
+          joiningDate: newRsm.joiningDate,
+        });
+      }
 
-    setIsAddModalOpen(false);
+      await loadRSMs();
+      setIsAddModalOpen(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to save RSM");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   // State Multiselect Logic
@@ -123,43 +181,39 @@ export default function RSMManagement() {
     const newState = stateSearch.trim();
     if (!newState) return;
     
-    // Check if duplicate ignores case
     const existingIndex = availableStates.findIndex(s => s.toLowerCase() === newState.toLowerCase());
-    
     if (existingIndex === -1) {
-      // Add to master list permanently
       setAvailableStates([...availableStates, newState]);
-      // Add to current selection
       setNewRsm({ ...newRsm, states: [...newRsm.states, newState] });
     } else {
-      // If it exists but just cases differ, use the existing one and select it
       const actualState = availableStates[existingIndex];
       if (!newRsm.states.includes(actualState)) {
         setNewRsm({ ...newRsm, states: [...newRsm.states, actualState] });
       }
     }
-    
     setStateSearch('');
   };
 
   const filteredData = rsmData.filter(row => {
     const rowStates = row.states || (row.state ? [row.state] : []);
     const statesMatch = rowStates.some((s: string) => s.toLowerCase().includes(search.toLowerCase()));
-    return row.name.toLowerCase().includes(search.toLowerCase()) || statesMatch;
+    return (row.name || '').toLowerCase().includes(search.toLowerCase()) || 
+           (row.employeeCode || '').toLowerCase().includes(search.toLowerCase()) || 
+           statesMatch;
   });
 
   const columns = [
-    { key: 'id', label: 'Employee Code' },
+    { key: 'employeeCode', label: 'Employee Code', render: (row: any) => row.employeeCode || `EMP-${row.id}` },
     { key: 'name', label: 'RSM Name' },
     { 
       key: 'states', 
       label: 'State (Territory)',
       render: (row: any) => {
         const states = row.states || (row.state ? [row.state] : []);
-        return states.join(', ');
+        return states.length > 0 ? states.join(', ') : (row.area || '-');
       }
     },
-    { key: 'hq', label: 'Headquarters' },
+    { key: 'hq', label: 'Headquarters', render: (row: any) => row.hq || '-' },
     {
       key: 'status',
       label: 'Status',
@@ -185,7 +239,7 @@ export default function RSMManagement() {
     <div className="p-6">
       <PageHeader 
         title="RSM Management" 
-        subtitle="Manage Regional Sales Managers and assign State Territories."
+        subtitle="Manage Regional Sales Managers and assign State Territories (Database Integrated)."
         actions={
           <ActionButton icon={<Plus className="w-4 h-4" />} onClick={openAddModal}>
             Add RSM
@@ -194,11 +248,24 @@ export default function RSMManagement() {
       />
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by name or state..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by name, code or state..." />
       </FilterBar>
 
+      {error && (
+        <div className="mb-4 p-4 bg-rose-50 border border-rose-200 text-rose-700 text-sm rounded-lg">
+          {error}
+        </div>
+      )}
+
       <TableCard>
-        <DataTable columns={columns} data={filteredData} emptyMessage="No RSMs found." />
+        {loading ? (
+          <div className="py-12 flex flex-col items-center justify-center text-slate-500">
+            <Loader2 className="w-8 h-8 animate-spin text-[#163c78] mb-2" />
+            <p className="text-sm">Loading Regional Sales Managers from database...</p>
+          </div>
+        ) : (
+          <DataTable columns={columns} data={filteredData} emptyMessage="No RSMs found in the database." />
+        )}
       </TableCard>
 
       {/* Add / Edit Modal */}
@@ -217,19 +284,19 @@ export default function RSMManagement() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Employee Code</label>
                 <input 
                   type="text" 
-                  value={generatedEmpCode}
+                  value={editingId ? (rsmData.find(r => r.id === editingId)?.employeeCode || `EMP-${editingId}`) : 'Auto-generated by server'}
                   disabled 
-                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed" 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed text-sm" 
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Employee Name *</label>
                 <input 
-                  type="text"
+                  type="text" 
                   required
                   value={newRsm.name}
                   onChange={e => setNewRsm({...newRsm, name: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm" 
                 />
               </div>
               <div>
@@ -238,9 +305,13 @@ export default function RSMManagement() {
                   type="tel"
                   required
                   pattern="[0-9]{10}"
+                  maxLength={10}
                   value={newRsm.mobile}
-                  onChange={e => setNewRsm({...newRsm, mobile: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                  onChange={e => {
+                    const val = e.target.value.replace(/[^0-9]/g, '');
+                    setNewRsm({...newRsm, mobile: val});
+                  }}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm" 
                 />
               </div>
               <div>
@@ -249,7 +320,7 @@ export default function RSMManagement() {
                   type="text" 
                   value="Regional Sales Manager"
                   disabled 
-                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed" 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed text-sm" 
                 />
               </div>
               <div>
@@ -258,7 +329,7 @@ export default function RSMManagement() {
                   type="text" 
                   value={loggedInNsm}
                   disabled 
-                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed" 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed text-sm" 
                 />
               </div>
               <div className="hidden md:block"></div>
@@ -352,20 +423,20 @@ export default function RSMManagement() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Headquarters *</label>
                 <input 
-                  type="text"
+                  type="text" 
                   required
                   value={newRsm.hq}
                   onChange={e => setNewRsm({...newRsm, hq: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm" 
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Area (Optional)</label>
                 <input 
-                  type="text"
+                  type="text" 
                   value={newRsm.area}
                   onChange={e => setNewRsm({...newRsm, area: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm" 
                   placeholder="Additional area details"
                 />
               </div>
@@ -380,19 +451,19 @@ export default function RSMManagement() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Email Address (Login ID) *</label>
                 <input 
-                  type="email"
+                  type="email" 
                   required
                   value={newRsm.email}
                   onChange={e => setNewRsm({...newRsm, email: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm" 
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Account Status</label>
                 <select 
                   value={newRsm.status}
-                  onChange={e => setNewRsm({...newRsm, status: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]"
+                  onChange={e => setNewRsm({...newRsm, status: e.target.value as 'Active' | 'Inactive'})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm"
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
@@ -401,23 +472,23 @@ export default function RSMManagement() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Password {editingId ? '(Leave blank to keep unchanged)' : '*'}</label>
                 <input 
-                  type="password"
+                  type="password" 
                   required={!editingId}
-                  minLength={8}
+                  minLength={6}
                   value={newRsm.password}
                   onChange={e => setNewRsm({...newRsm, password: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm" 
                 />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Confirm Password {editingId ? '' : '*'}</label>
                 <input 
-                  type="password"
+                  type="password" 
                   required={!editingId && !!newRsm.password}
-                  minLength={8}
+                  minLength={6}
                   value={newRsm.confirmPassword}
                   onChange={e => setNewRsm({...newRsm, confirmPassword: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm" 
                 />
               </div>
             </div>
@@ -430,11 +501,11 @@ export default function RSMManagement() {
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Joining Date *</label>
                 <input 
-                  type="date"
+                  type="date" 
                   required
                   value={newRsm.joiningDate}
                   onChange={e => setNewRsm({...newRsm, joiningDate: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78] text-sm" 
                 />
               </div>
               <div className="hidden md:block"></div>
@@ -451,8 +522,10 @@ export default function RSMManagement() {
             </button>
             <button 
               type="submit"
-              className="px-6 py-2.5 text-sm font-medium text-white bg-[#163c78] rounded-lg hover:bg-[#122e5c] transition-colors"
+              disabled={submitting}
+              className="px-6 py-2.5 text-sm font-medium text-white bg-[#163c78] rounded-lg hover:bg-[#122e5c] transition-colors flex items-center gap-2"
             >
+              {submitting && <Loader2 className="w-4 h-4 animate-spin" />}
               {editingId ? "Update RSM" : "Create RSM"}
             </button>
           </div>
@@ -472,13 +545,13 @@ export default function RSMManagement() {
             <div>
               <h3 className="text-sm font-bold text-slate-800 mb-4 border-b pb-2">Basic Information</h3>
               <div className="grid grid-cols-2 gap-y-4 gap-x-8">
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Employee Code</span><span className="text-sm font-medium">{viewingRsm.id}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Employee Code</span><span className="text-sm font-medium">{viewingRsm.employeeCode || viewingRsm.id}</span></div>
                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Employee Name</span><span className="text-sm font-medium">{viewingRsm.name}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Mobile Number</span><span className="text-sm font-medium">{viewingRsm.mobile}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Email Address</span><span className="text-sm font-medium">{viewingRsm.email}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Mobile Number</span><span className="text-sm font-medium">{viewingRsm.mobile || '-'}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Email Address</span><span className="text-sm font-medium">{viewingRsm.email || '-'}</span></div>
                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Designation</span><span className="text-sm font-medium">Regional Sales Manager</span></div>
                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Reports To</span><span className="text-sm font-medium">{loggedInNsm}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Joining Date</span><span className="text-sm font-medium">{viewingRsm.joiningDate}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Joining Date</span><span className="text-sm font-medium">{viewingRsm.joiningDate || '-'}</span></div>
                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Status</span><Badge variant={viewingRsm.status === 'Active' ? 'success' : 'neutral'}>{viewingRsm.status}</Badge></div>
               </div>
             </div>
@@ -493,7 +566,7 @@ export default function RSMManagement() {
                     {viewingRsm.states ? viewingRsm.states.join(', ') : (viewingRsm.state || '-')}
                   </span>
                 </div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Headquarters</span><span className="text-sm font-medium">{viewingRsm.hq}</span></div>
+                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Headquarters</span><span className="text-sm font-medium">{viewingRsm.hq || '-'}</span></div>
                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Area</span><span className="text-sm font-medium">{viewingRsm.area || '-'}</span></div>
               </div>
             </div>
@@ -506,31 +579,6 @@ export default function RSMManagement() {
                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Target Achievement</span><span className="text-sm font-medium text-emerald-600">0%</span></div>
                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Attendance Percentage</span><span className="text-sm font-medium text-blue-600">0%</span></div>
                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Number of ASMs</span><span className="text-sm font-medium">0</span></div>
-              </div>
-            </div>
-
-            {/* 4. Security */}
-            <div>
-              <h3 className="text-sm font-bold text-slate-800 mb-4 border-b pb-2">Security</h3>
-              <div className="grid grid-cols-2 gap-y-4 gap-x-8 items-end">
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Email Address (Login ID)</span><span className="text-sm font-medium">{viewingRsm.email}</span></div>
-                <div><span className="block text-xs text-slate-500 font-semibold mb-1">Password</span><span className="text-sm font-medium tracking-widest text-slate-400">••••••••</span></div>
-                <div className="col-span-2">
-                  <button className="text-sm font-medium text-[#163c78] hover:underline" onClick={() => alert('Password reset link sent to ' + viewingRsm.email)}>
-                    Send Password Reset Link
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* 5. Audit Information */}
-            <div className="bg-slate-50 p-4 rounded-lg">
-              <h3 className="text-xs font-bold text-slate-500 mb-3 uppercase">Audit Information</h3>
-              <div className="grid grid-cols-2 gap-y-2 gap-x-8">
-                <div><span className="block text-xs text-slate-400 font-semibold mb-0.5">Created By</span><span className="text-xs font-medium text-slate-600">{loggedInNsm}</span></div>
-                <div><span className="block text-xs text-slate-400 font-semibold mb-0.5">Created Date</span><span className="text-xs font-medium text-slate-600">{viewingRsm.joiningDate}</span></div>
-                <div><span className="block text-xs text-slate-400 font-semibold mb-0.5">Last Modified Date</span><span className="text-xs font-medium text-slate-600">-</span></div>
-                <div><span className="block text-xs text-slate-400 font-semibold mb-0.5">Last Login</span><span className="text-xs font-medium text-slate-600">-</span></div>
               </div>
             </div>
           </div>

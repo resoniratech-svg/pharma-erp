@@ -1,156 +1,249 @@
+import { apiRequest } from './apiClient';
+
 export interface TargetAllocationRecord {
-  id: string;
-  sourceTargetId: string; // ID of the parent target/allocation being drawn from
+  id: string | number;
+  sourceTargetId?: string | number; // ID of the parent target/allocation being drawn from
+  nationalTargetId?: number;
+  sourceAllocationId?: number | null;
+  targetAllocationCode?: string;
   financialYear: string;
-  allocationPeriod: string;
-  allocatedToEmployeeId: string;
-  allocatedToEmployeeName: string;
-  allocatedToDesignation: string;
-  allocatedByEmployeeId: string;
+  allocationPeriod?: string;
+  allocatedToEmployeeId: number | string;
+  allocatedToEmployeeName?: string;
+  allocatedToDesignation?: string;
+  allocatedByEmployeeId?: number | string;
   targetAmount: number;
-  startDate: string;
-  endDate: string;
-  allocationDate: string;
+  allocatedAmount?: number;
+  remainingAmount?: number;
+  startDate?: string;
+  endDate?: string;
+  allocationDate?: string;
   remarks?: string;
   status: 'Active' | 'Inactive' | 'Cancelled' | 'Draft' | 'Validated' | 'Allocated' | 'Pending';
+  employee?: {
+    id: number;
+    employeeCode: string;
+    name: string;
+    designation: string;
+    states?: string[];
+    headquarters?: string;
+  };
+  allocatedBy?: {
+    id: number;
+    employeeCode: string;
+    name: string;
+    designation: string;
+  };
+  nationalTarget?: {
+    id: number;
+    targetCode: string;
+    financialYear: string;
+    targetAmount: number;
+    allocatedAmount: number;
+    remainingAmount: number;
+  };
 }
 
 export interface NationalTargetRecord {
-  id: string;
+  id: string | number;
+  targetCode?: string;
   financialYear: string;
   planningPeriod?: 'Annual' | 'Quarterly' | 'Monthly';
   targetType?: 'Sales Value' | 'Sales Volume' | 'Both';
   targetAmount: number;
-  startDate: string;
-  endDate: string;
+  allocatedAmount?: number;
+  remainingAmount?: number;
+  startDate?: string;
+  endDate?: string;
   remarks?: string;
-  createdByEmployeeId: string;
+  createdByEmployeeId?: number | string;
   status: 'Draft' | 'Active' | 'Inactive';
 }
 
-const STORAGE_KEY = 'sales_allocations';
-const NATIONAL_TARGETS_KEY = 'national_targets';
-
 class TargetAllocationService {
-  getAllocations(): TargetAllocationRecord[] {
-    const data = localStorage.getItem(STORAGE_KEY);
-    if (!data) return [];
-    try {
-      const parsed = JSON.parse(data);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  // Get all allocations made out of a specific parent target
-  getAllocationsFromSource(sourceTargetId: string): TargetAllocationRecord[] {
-    return this.getAllocations().filter(a => a.sourceTargetId === sourceTargetId);
-  }
-
-  // Get all allocations assigned to a specific employee
-  getAllocationsToEmployee(employeeId: string): TargetAllocationRecord[] {
-    return this.getAllocations().filter(a => a.allocatedToEmployeeId === employeeId);
-  }
-
-  // Get allocations assigned by a specific manager
-  getAllocationsByEmployee(employeeId: string): TargetAllocationRecord[] {
-    return this.getAllocations().filter(a => a.allocatedByEmployeeId === employeeId);
-  }
-
-  allocateTarget(record: Omit<TargetAllocationRecord, 'id' | 'allocationDate'>): TargetAllocationRecord {
-    const allocations = this.getAllocations();
-
-    // Prevent duplicate active allocations for the same source, FY, and employee
-    const duplicate = allocations.find(
-      a => 
-        a.sourceTargetId === record.sourceTargetId && 
-        a.allocatedToEmployeeId === record.allocatedToEmployeeId && 
-        a.financialYear === record.financialYear && 
-        a.status === 'Active'
-    );
-
-    if (duplicate) {
-      throw new Error(`An active allocation already exists for this employee for the given target and financial year.`);
-    }
-
-    if (record.targetAmount <= 0) {
-      throw new Error("Allocation amount must be greater than zero.");
-    }
-
-    const newAlloc: TargetAllocationRecord = {
-      ...record,
-      id: `ALL-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
-      allocationDate: new Date().toISOString(),
-    };
-
-    allocations.unshift(newAlloc);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(allocations));
-    return newAlloc;
-  }
-
-  updateAllocation(id: string, updated: Partial<TargetAllocationRecord>): TargetAllocationRecord | null {
-    const allocations = this.getAllocations();
-    const index = allocations.findIndex(a => a.id === id);
-    if (index === -1) return null;
-
-    if (updated.targetAmount !== undefined && updated.targetAmount <= 0) {
-      throw new Error("Allocation amount must be greater than zero.");
-    }
-
-    allocations[index] = { ...allocations[index], ...updated };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(allocations));
-    return allocations[index];
-  }
-
-  cancelAllocation(id: string): boolean {
-    const updated = this.updateAllocation(id, { status: 'Cancelled' });
-    return !!updated;
-  }
-
   // --- National Targets ---
-  getNationalTargets(): NationalTargetRecord[] {
-    const data = localStorage.getItem(NATIONAL_TARGETS_KEY);
-    if (!data) return [];
-    try {
-      const parsed = JSON.parse(data);
-      return Array.isArray(parsed) ? parsed : [];
-    } catch (e) {
-      return [];
-    }
+  async getNationalTargets(financialYear?: string): Promise<NationalTargetRecord[]> {
+    const url = financialYear 
+      ? `/target-allocations/national-targets?financialYear=${encodeURIComponent(financialYear)}`
+      : `/target-allocations/national-targets`;
+    const res = await apiRequest<{ success: boolean; data: any[] }>(url);
+    if (!res.success || !res.data) return [];
+    return res.data.map(item => ({
+      id: item.id,
+      targetCode: item.targetCode,
+      financialYear: item.financialYear,
+      planningPeriod: item.planningPeriod,
+      targetType: item.targetType,
+      targetAmount: Number(item.targetAmount),
+      allocatedAmount: Number(item.allocatedAmount || 0),
+      remainingAmount: Number(item.remainingAmount ?? item.targetAmount),
+      startDate: item.startDate ? item.startDate.split('T')[0] : '',
+      endDate: item.endDate ? item.endDate.split('T')[0] : '',
+      remarks: item.remarks || '',
+      status: item.status,
+    }));
   }
 
-  createNationalTarget(record: Omit<NationalTargetRecord, 'id'>): NationalTargetRecord {
-    const targets = this.getNationalTargets();
+  async createNationalTarget(record: Partial<NationalTargetRecord>): Promise<NationalTargetRecord> {
+    const res = await apiRequest<{ success: boolean; data: any }>('/target-allocations/national-targets', {
+      method: 'POST',
+      bodyData: {
+        financialYear: record.financialYear,
+        planningPeriod: record.planningPeriod || 'Annual',
+        targetType: record.targetType || 'Sales Value',
+        targetAmount: Number(record.targetAmount),
+        startDate: record.startDate,
+        endDate: record.endDate,
+        remarks: record.remarks,
+        status: record.status || 'Active',
+      }
+    });
+
+    if (!res.success || !res.data) {
+      throw new Error((res as any).message || 'Failed to create national target');
+    }
+    return res.data;
+  }
+
+  async updateNationalTarget(id: string | number, updated: Partial<NationalTargetRecord>): Promise<NationalTargetRecord> {
+    const res = await apiRequest<{ success: boolean; data: any }>(`/target-allocations/national-targets/${id}`, {
+      method: 'PUT',
+      bodyData: updated,
+    });
+    if (!res.success || !res.data) {
+      throw new Error((res as any).message || 'Failed to update national target');
+    }
+    return res.data;
+  }
+
+  // --- Target Allocations ---
+  async getAllocations(params?: { financialYear?: string; allocatedToEmployeeId?: number | string; status?: string }): Promise<TargetAllocationRecord[]> {
+    const query = new URLSearchParams();
+    if (params?.financialYear) query.append('financialYear', params.financialYear);
+    if (params?.allocatedToEmployeeId) query.append('allocatedToEmployeeId', String(params.allocatedToEmployeeId));
+    if (params?.status) query.append('status', params.status);
+
+    const queryString = query.toString() ? `?${query.toString()}` : '';
+    const res = await apiRequest<{ success: boolean; data: any[] }>(`/target-allocations${queryString}`);
+    if (!res.success || !res.data) return [];
     
-    // Ensure only one active national target per financial year
-    const active = targets.find(t => t.financialYear === record.financialYear && (t.status === 'Active' || t.status === 'Draft'));
-    if (active) {
-      throw new Error(`An active or draft National Target already exists for ${record.financialYear}.`);
-    }
+    return res.data.map(item => ({
+      id: item.id,
+      targetAllocationCode: item.targetAllocationCode,
+      sourceTargetId: item.nationalTargetId || item.sourceAllocationId,
+      nationalTargetId: item.nationalTargetId,
+      sourceAllocationId: item.sourceAllocationId,
+      financialYear: item.financialYear,
+      allocationPeriod: item.allocationPeriod,
+      allocatedToEmployeeId: item.allocatedToEmployeeId,
+      allocatedToEmployeeName: item.employee?.name || `Employee #${item.allocatedToEmployeeId}`,
+      allocatedToDesignation: item.employee?.designation || '',
+      allocatedByEmployeeId: item.allocatedByEmployeeId,
+      targetAmount: Number(item.targetAmount),
+      allocatedAmount: Number(item.allocatedAmount || 0),
+      remainingAmount: Number(item.remainingAmount ?? item.targetAmount),
+      startDate: item.startDate ? item.startDate.split('T')[0] : '',
+      endDate: item.endDate ? item.endDate.split('T')[0] : '',
+      allocationDate: item.createdAt,
+      remarks: item.remarks || '',
+      status: item.status,
+      employee: item.employee,
+      allocatedBy: item.allocatedBy,
+      nationalTarget: item.nationalTarget,
+    }));
+  }
 
-    if (record.targetAmount <= 0) {
-      throw new Error("Target amount must be greater than zero.");
-    }
+  async getAllocationsFromSource(sourceTargetId: string | number): Promise<TargetAllocationRecord[]> {
+    const all = await this.getAllocations();
+    return all.filter(a => String(a.sourceTargetId) === String(sourceTargetId));
+  }
 
-    const newTarget: NationalTargetRecord = {
-      ...record,
-      id: `NAT-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+  async getAllocationsToEmployee(employeeId: string | number): Promise<TargetAllocationRecord[]> {
+    return this.getAllocations({ allocatedToEmployeeId: employeeId, status: 'Active' });
+  }
+
+  async getAllocationsByEmployee(employeeId: string | number): Promise<TargetAllocationRecord[]> {
+    const all = await this.getAllocations();
+    return all.filter(a => String(a.allocatedByEmployeeId) === String(employeeId));
+  }
+
+  async allocateTarget(record: {
+    nationalTargetId?: number | string;
+    sourceAllocationId?: number | string;
+    sourceTargetId?: number | string;
+    allocatedToEmployeeId: number | string;
+    targetAmount: number;
+    financialYear: string;
+    allocationPeriod?: string;
+    startDate?: string;
+    endDate?: string;
+    remarks?: string;
+    status?: string;
+  }): Promise<TargetAllocationRecord> {
+    const body: any = {
+      allocatedToEmployeeId: Number(record.allocatedToEmployeeId),
+      targetAmount: Number(record.targetAmount),
+      financialYear: record.financialYear,
+      allocationPeriod: record.allocationPeriod || 'Annual',
+      startDate: record.startDate,
+      endDate: record.endDate,
+      remarks: record.remarks,
     };
 
-    targets.unshift(newTarget);
-    localStorage.setItem(NATIONAL_TARGETS_KEY, JSON.stringify(targets));
-    return newTarget;
+    if (record.nationalTargetId) {
+      body.nationalTargetId = Number(record.nationalTargetId);
+    } else if (record.sourceAllocationId) {
+      body.sourceAllocationId = Number(record.sourceAllocationId);
+    } else if (record.sourceTargetId) {
+      // Intelligently map sourceTargetId
+      if (typeof record.sourceTargetId === 'number' || !isNaN(Number(record.sourceTargetId))) {
+        body.nationalTargetId = Number(record.sourceTargetId);
+      }
+    }
+
+    const res = await apiRequest<{ success: boolean; data: any }>('/target-allocations/allocate', {
+      method: 'POST',
+      bodyData: body,
+    });
+
+    if (!res.success || !res.data) {
+      throw new Error((res as any).message || 'Failed to allocate target');
+    }
+    return res.data;
   }
 
-  updateNationalTarget(id: string, updated: Partial<NationalTargetRecord>): NationalTargetRecord | null {
-    const targets = this.getNationalTargets();
-    const index = targets.findIndex(t => t.id === id);
-    if (index === -1) return null;
+  async updateAllocation(id: string | number, updated: Partial<TargetAllocationRecord>): Promise<TargetAllocationRecord> {
+    const res = await apiRequest<{ success: boolean; data: any }>(`/target-allocations/${id}`, {
+      method: 'PUT',
+      bodyData: updated,
+    });
+    if (!res.success || !res.data) {
+      throw new Error((res as any).message || 'Failed to update allocation');
+    }
+    return res.data;
+  }
 
-    targets[index] = { ...targets[index], ...updated };
-    localStorage.setItem(NATIONAL_TARGETS_KEY, JSON.stringify(targets));
-    return targets[index];
+  async cancelAllocation(id: string | number): Promise<boolean> {
+    const res = await apiRequest<{ success: boolean }>(`/target-allocations/${id}`, {
+      method: 'DELETE',
+    });
+    return res.success;
+  }
+
+  // --- Summaries ---
+  async getNationalTargetSummary(financialYear = '2026-27') {
+    const res = await apiRequest<{ success: boolean; data: any }>(`/target-allocations/summary?financialYear=${encodeURIComponent(financialYear)}`);
+    return res.data;
+  }
+
+  async getRSMTargetSummary(financialYear = '2026-27') {
+    const res = await apiRequest<{ success: boolean; data: any }>(`/target-allocations/rsm-summary?financialYear=${encodeURIComponent(financialYear)}`);
+    return res.data;
+  }
+
+  async getASMTargetSummary(financialYear = '2026-27') {
+    const res = await apiRequest<{ success: boolean; data: any }>(`/target-allocations/asm-summary?financialYear=${encodeURIComponent(financialYear)}`);
+    return res.data;
   }
 }
 

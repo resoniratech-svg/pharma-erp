@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Plus, Download, Calendar, MapPin, X, Edit, Trash2, Clock, CheckCircle, XCircle } from 'lucide-react';
 import {
   PageHeader,
@@ -11,34 +11,19 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './components/shared';
-import { tourPlanService } from '../../services/tourPlanService';
-
-interface TourPlan {
-  id: string;
-  planType: 'MTP' | 'WTP' | 'DTP';
-  date: string;
-  repName: string;
-  hq: string;
-  route: string;
-  beat: string;
-  startTime: string;
-  endTime: string;
-  objective: string;
-  docCount: number;
-  chemistCount: number;
-  doctorsList: string;
-  chemistsList: string;
-  remarks: string;
-  status: 'Draft' | 'Pending Approval' | 'Approved' | 'Rejected' | 'Completed';
-}
+import { tourPlanService, type TourPlanRecord } from '../../services/tourPlanService';
+import { ExportService } from '../../services/exportService';
+import { validateCheckIn } from '../../utils/attendanceValidation';
 
 export default function TourPlanning() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [plans, setPlans] = useState<TourPlan[]>([]);
+  const [plans, setPlans] = useState<TourPlanRecord[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [isExportOpen, setIsExportOpen] = useState(false);
   
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [viewPlan, setViewPlan] = useState<TourPlan | null>(null);
+  const [viewPlan, setViewPlan] = useState<TourPlanRecord | null>(null);
   
   // Form State
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -69,23 +54,23 @@ export default function TourPlanning() {
 
   const mrId = Number(localStorage.getItem('mrId') || '1');
 
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const loaded = await tourPlanService.loadTourPlans(mrId);
-        setPlans(loaded);
-      } catch (error) {
-        console.error('Failed to load tour plans from database:', error);
-      }
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const loaded = await tourPlanService.loadTourPlans(mrId);
+      setPlans(loaded);
+    } catch (error) {
+      console.error('Failed to load tour plans from database:', error);
+    } finally {
+      setLoading(false);
     }
-    loadData();
   }, [mrId]);
 
-  const savePlans = (newPlans: TourPlan[]) => {
-    setPlans(newPlans);
-  };
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
-  const openForm = (plan?: TourPlan) => {
+  const openForm = (plan?: TourPlanRecord) => {
     if (plan) {
       setEditingId(plan.id);
       setPlanType(plan.planType);
@@ -102,7 +87,7 @@ export default function TourPlanning() {
     } else {
       setEditingId(null);
       setPlanType('MTP');
-      setDate('');
+      setDate(new Date().toISOString().split('T')[0]);
       setHq('');
       setRoute('');
       setBeat('');
@@ -123,35 +108,15 @@ export default function TourPlanning() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingId) {
-      savePlans(plans.map(p => p.id === editingId ? {
-        ...p, planType, date, hq, route, beat, startTime, endTime, objective, docCount, chemistCount, doctorsList, chemistsList, remarks
-      } : p));
-    } else {
-      let authUser = null;
-      try {
-        const authUserString = localStorage.getItem('authUser');
-        authUser = authUserString ? JSON.parse(authUserString) : null;
-      } catch {
-        authUser = null;
-      }
-      const activeMRName = authUser?.fullName || authUser?.name || 'Medical Representative';
-      
-      try {
-        const created = await tourPlanService.addTourPlan(mrId, {
-          date,
-          hq,
-          route,
-          beat,
-          objective,
-          remarks
-        });
+    if (!validateCheckIn()) {
+      return;
+    }
 
-        const newPlan: TourPlan = {
-          id: String(created.id),
+    try {
+      if (editingId) {
+        await tourPlanService.updateTourPlan(editingId, {
           planType,
           date,
-          repName: activeMRName,
           hq,
           route,
           beat,
@@ -163,45 +128,105 @@ export default function TourPlanning() {
           doctorsList,
           chemistsList,
           remarks,
-          status: 'Draft'
-        };
-        savePlans([newPlan, ...plans]);
-        alert('Tour Plan saved successfully to database!');
+        });
+        alert('✅ Tour Plan updated successfully!');
+      } else {
+        await tourPlanService.addTourPlan(mrId, {
+          planType,
+          date,
+          hq,
+          route,
+          beat,
+          startTime,
+          endTime,
+          objective,
+          docCount,
+          chemistCount,
+          doctorsList,
+          chemistsList,
+          remarks,
+          status: 'Draft',
+        });
+        alert('✅ Tour Plan saved successfully to database!');
+      }
+      closeForm();
+      await loadData();
+    } catch (err: any) {
+      console.error(err);
+      alert('Failed to save tour plan: ' + err.message);
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (window.confirm('Are you sure you want to delete this tour plan?')) {
+      try {
+        await tourPlanService.deleteTourPlan(id);
+        setPlans(prev => prev.filter(p => p.id !== id));
+        if (viewPlan?.id === id) setViewPlan(null);
+        alert('Tour plan deleted successfully.');
       } catch (err: any) {
-        console.error(err);
-        alert('Failed to save tour plan: ' + err.message);
+        alert('Failed to delete tour plan: ' + err.message);
       }
     }
-    closeForm();
   };
 
-  const handleDelete = (id: string) => {
-    if (window.confirm('Are you sure you want to delete this tour plan?')) {
-      savePlans(plans.filter(p => p.id !== id));
-      if (viewPlan?.id === id) setViewPlan(null);
+  const handleStatusChange = async (id: string, status: TourPlanRecord['status']) => {
+    try {
+      if (status === 'Approved') {
+        await tourPlanService.approveTourPlan(id);
+      } else if (status === 'Completed') {
+        await tourPlanService.completeTourPlan(id);
+      } else {
+        await tourPlanService.updateTourPlan(id, { status });
+      }
+      setPlans(prev => prev.map(p => p.id === id ? { ...p, status } : p));
+    } catch (err: any) {
+      alert('Failed to update status: ' + err.message);
     }
   };
 
-  const handleStatusChange = (id: string, status: TourPlan['status']) => {
-    savePlans(plans.map(p => p.id === id ? { ...p, status } : p));
+  const exportColumns = [
+    { header: 'Type', dataKey: 'planType' },
+    { header: 'Date', dataKey: 'date' },
+    { header: 'HQ', dataKey: 'hq' },
+    { header: 'Route', dataKey: 'route' },
+    { header: 'Beat', dataKey: 'beat' },
+    { header: 'Start Time', dataKey: 'startTime' },
+    { header: 'End Time', dataKey: 'endTime' },
+    { header: 'Objective', dataKey: 'objective' },
+    { header: 'Doc Count', dataKey: 'docCount' },
+    { header: 'Chemist Count', dataKey: 'chemistCount' },
+    { header: 'Status', dataKey: 'status' },
+  ];
+
+  const handleExportPDF = () => {
+    if (plans.length === 0) return alert('No tour plans to export.');
+    ExportService.exportToPDF({
+      title: 'Monthly Tour Planning (MTP) Report',
+      filename: `MTP_Report_${new Date().toISOString().split('T')[0]}`,
+      data: plans,
+      columns: exportColumns,
+    });
   };
 
-  const handleExport = () => {
-    const headers = ['Type', 'Date', 'HQ', 'Route', 'Beat', 'Start Time', 'End Time', 'Objective', 'Planned Doctors', 'Planned Chemists', 'Status'];
-    const csvContent = [
-      headers.join(','),
-      ...plans.map(p => [
-        p.planType, p.date, `"${p.hq}"`, `"${p.route}"`, `"${p.beat}"`, p.startTime, p.endTime, `"${p.objective}"`, p.docCount, p.chemistCount, p.status
-      ].join(','))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `Tour_Plans_Export_${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+  const handleExportExcel = () => {
+    if (plans.length === 0) return alert('No tour plans to export.');
+    ExportService.exportToExcel({
+      title: 'Monthly Tour Planning (MTP) Report',
+      filename: `MTP_Report_${new Date().toISOString().split('T')[0]}`,
+      data: plans,
+      columns: exportColumns,
+    });
+  };
+
+  const handleExportCSV = () => {
+    if (plans.length === 0) return alert('No data to export.');
+    ExportService.exportToCSV({
+      title: 'Monthly Tour Planning Report',
+      filename: `Tour_Plans_${new Date().toISOString().split('T')[0]}`,
+      data: plans,
+      columns: exportColumns,
+    });
   };
 
   const totalPlans = plans.length;
@@ -209,7 +234,7 @@ export default function TourPlanning() {
   const pendingPlans = plans.filter(p => p.status === 'Pending Approval').length;
   const plannedCalls = plans.reduce((acc, p) => acc + p.docCount + p.chemistCount, 0);
 
-  const columns: Column<TourPlan>[] = [
+  const columns: Column<TourPlanRecord>[] = [
     { key: 'planType', label: 'Type', render: (row) => <span className="font-bold text-slate-800">{row.planType}</span> },
     { key: 'date', label: 'Tour Date', render: (row) => <span className="font-semibold text-slate-900">{row.date}</span> },
     { key: 'hq', label: 'HQ' },
@@ -268,10 +293,45 @@ export default function TourPlanning() {
         title="Tour Planning"
         subtitle="Manage and submit monthly travel routes and daily patch assignments."
         actions={
-          <>
-            <ActionButton onClick={handleExport} variant="secondary" icon={<Download className="w-4 h-4" />}>Export MTP</ActionButton>
-            <ActionButton onClick={() => openForm()} icon={<Plus className="w-4 h-4" />}>Create Plan</ActionButton>
-          </>
+          <div className="flex items-center gap-3">
+            {/* EXPORT DROPDOWN */}
+            <div className="relative">
+              <ActionButton
+                variant="secondary"
+                onClick={() => setIsExportOpen(!isExportOpen)}
+                icon={<Download className="w-4 h-4" />}
+              >
+                Export
+              </ActionButton>
+
+              {isExportOpen && (
+                <div className="absolute right-0 mt-2 w-40 bg-white border border-slate-200 rounded-lg shadow-lg overflow-hidden z-50">
+                  <button
+                    onClick={() => { handleExportExcel(); setIsExportOpen(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-100"
+                  >
+                    Excel (.xlsx)
+                  </button>
+                  <button
+                    onClick={() => { handleExportPDF(); setIsExportOpen(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-100"
+                  >
+                    PDF Document
+                  </button>
+                  <button
+                    onClick={() => { handleExportCSV(); setIsExportOpen(false); }}
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    CSV (.csv)
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <ActionButton onClick={() => openForm()} icon={<Plus className="w-4 h-4" />}>
+              Create Plan
+            </ActionButton>
+          </div>
         }
       />
 
@@ -314,7 +374,7 @@ export default function TourPlanning() {
         <DataTable
           columns={columns}
           data={filteredData}
-          emptyMessage="No tour plans found."
+          emptyMessage={loading ? "Loading tour plans from server..." : "No tour plans found."}
         />
       </TableCard>
 

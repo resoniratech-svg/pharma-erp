@@ -39,13 +39,15 @@ export default function MRManagement() {
   const generatedEmpCode = selectedEmp ? selectedEmp.id || selectedEmp.employeeCode : `MR${String(employees.length + 1).padStart(3, '0')}`;
 
   useEffect(() => {
-    try {
-      const data = asmService.getReportingMRs();
-      // add mobile for mock
-      setEmployees(data.map(d => ({...d, mobile: '+91 9876543210'})));
-    } catch (e) {
-      console.warn("Failed to load reporting MRs", e);
-    }
+    const loadMRs = async () => {
+      try {
+        const data = await asmService.getReportingMRs();
+        setEmployees(data.reverse());
+      } catch (e) {
+        console.warn("Failed to load reporting MRs", e);
+      }
+    };
+    loadMRs();
   }, []);
 
   const filteredData = employees.filter(row => {
@@ -83,7 +85,7 @@ export default function MRManagement() {
     setModalOpen(true);
   };
 
-  const handleAddSubmit = (e: React.FormEvent) => {
+  const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (newMr.password && newMr.password !== newMr.confirmPassword) {
       alert("Passwords do not match");
@@ -96,8 +98,49 @@ export default function MRManagement() {
        return;
     }
 
-    // Logic to save the new or edited MR can go here
-    setModalOpen(false);
+    try {
+      if (selectedEmp) {
+        await asmService.updateMR(selectedEmp.id, {
+          employeeName: newMr.name,
+          mobile: newMr.mobile,
+          email: newMr.email,
+          gender: newMr.gender,
+          dob: newMr.dob,
+          state: newMr.state,
+          headquarters: newMr.hq,
+          territory: newMr.territory,
+          status: newMr.status,
+          accountStatus: newMr.accountStatus,
+          remarks: newMr.remarks,
+          ...(newMr.password && { password: newMr.password })
+        });
+        alert('MR Updated successfully');
+      } else {
+        await asmService.createMR({
+          employeeCode: generatedEmpCode,
+          employeeName: newMr.name,
+          mobile: newMr.mobile,
+          email: newMr.email,
+          gender: newMr.gender,
+          dob: newMr.dob,
+          state: newMr.state,
+          headquarters: newMr.hq,
+          territory: newMr.territory,
+          status: newMr.status,
+          accountStatus: newMr.accountStatus,
+          joiningDate: newMr.joiningDate,
+          remarks: newMr.remarks,
+          password: newMr.password
+        });
+        alert('MR Created successfully');
+      }
+      setModalOpen(false);
+      // reload
+      const data = await asmService.getReportingMRs();
+      setEmployees(data.reverse());
+    } catch (e: any) {
+      alert(e.message || "Failed to save MR");
+    }
   };
 
   const [isExportOpen, setIsExportOpen] = useState(false);

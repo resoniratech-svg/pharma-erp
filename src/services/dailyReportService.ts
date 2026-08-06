@@ -15,47 +15,62 @@ export interface DailyReportRecord {
   orderCollected: number;
   sampleGiven: number;
   remarks: string;
-  status: 'Draft' | 'Submitted' | 'Approved';
+  status: 'Draft' | 'Submitted' | 'Approved' | 'Rejected';
+  workingHours?: string;
+  totalKmTravelled?: number;
+  activityScore?: number;
+  challenges?: string;
+  nextDayPlan?: string;
 }
 
 let reportsCache: DailyReportRecord[] = [];
 
-try {
-  const data = localStorage.getItem("web_daily_reports");
-  if (data) {
-    reportsCache = JSON.parse(data);
-  }
-} catch (e) {
-  console.error("Failed to parse cached daily reports:", e);
-}
+const mapBackendToDailyReport = (dr: any): DailyReportRecord => {
+  let uiStatus: DailyReportRecord['status'] = 'Submitted';
+  const rawStatus = (dr.status || '').toUpperCase();
+  if (rawStatus === 'APPROVED') uiStatus = 'Approved';
+  else if (rawStatus === 'REJECTED') uiStatus = 'Rejected';
+  else if (rawStatus === 'DRAFT') uiStatus = 'Draft';
+  else uiStatus = 'Submitted';
+
+  const docCalls = dr.doctorVisits || dr.docCalls || 0;
+  const chemCalls = dr.chemistVisits || dr.chemCalls || 0;
+
+  return {
+    id: String(dr.id),
+    date: dr.reportDate ? dr.reportDate.split('T')[0] : (dr.date || new Date().toISOString().split('T')[0]),
+    repName: dr.mr?.name || "Medical Representative",
+    attendanceStatus: dr.attendanceStatus || 'Present',
+    workType: dr.workType || 'Field Work',
+    hq: dr.hq || 'HQ',
+    route: dr.route || 'Route',
+    beat: dr.beat || 'Beat',
+    docCalls,
+    chemCalls,
+    totalCalls: docCalls + chemCalls,
+    orderCollected: Number(dr.ordersCollected || dr.orderCollected || 0),
+    sampleGiven: dr.samplesDistributed || dr.sampleGiven || 0,
+    remarks: dr.remarks || "",
+    status: uiStatus,
+    workingHours: dr.workingHours || '8h 00m',
+    totalKmTravelled: dr.totalKmTravelled || 0,
+    activityScore: dr.activityScore || (docCalls * 3 + chemCalls * 2 + (Number(dr.ordersCollected || 0) > 0 ? 5 : 0)),
+    challenges: dr.challenges || '',
+    nextDayPlan: dr.nextDayPlan || '',
+  };
+};
 
 export const dailyReportService = {
   getAll(): DailyReportRecord[] {
     return reportsCache;
   },
 
-  async loadDailyReports(mrId: number): Promise<DailyReportRecord[]> {
+  async loadDailyReports(mrId?: number): Promise<DailyReportRecord[]> {
     try {
-      const response = await apiRequest<{ success: boolean; data: any[] }>(`/daily-reports/mr/${mrId}`);
+      const endpoint = mrId ? `/daily-reports/mr/${mrId}` : '/daily-reports';
+      const response = await apiRequest<{ success: boolean; data: any[] }>(endpoint);
       if (response.success && Array.isArray(response.data)) {
-        reportsCache = response.data.map(dr => ({
-          id: String(dr.id),
-          date: dr.reportDate ? dr.reportDate.split('T')[0] : new Date().toISOString().split('T')[0],
-          repName: dr.mr?.name || "Medical Representative",
-          attendanceStatus: 'Present',
-          workType: 'Field Work',
-          hq: 'HQ',
-          route: 'Route',
-          beat: 'Beat',
-          docCalls: dr.doctorVisits || 0,
-          chemCalls: dr.chemistVisits || 0,
-          totalCalls: (dr.doctorVisits || 0) + (dr.chemistVisits || 0),
-          orderCollected: Number(dr.ordersCollected || 0),
-          sampleGiven: dr.samplesDistributed || 0,
-          remarks: dr.remarks || "",
-          status: dr.status === "Draft" ? "Draft" : dr.status === "Approved" ? "Approved" : "Submitted",
-        }));
-        localStorage.setItem("web_daily_reports", JSON.stringify(reportsCache));
+        reportsCache = response.data.map(mapBackendToDailyReport);
       }
     } catch (err) {
       console.error("Failed to load daily reports from backend:", err);
@@ -84,27 +99,49 @@ export const dailyReportService = {
       throw new Error('Failed to create daily report');
     }
 
-    const created = response.data;
-    const mapped: DailyReportRecord = {
-      id: String(created.id),
-      date: created.reportDate ? created.reportDate.split('T')[0] : new Date().toISOString().split('T')[0],
-      repName: created.mr?.name || report.repName || "Medical Representative",
-      attendanceStatus: report.attendanceStatus || 'Present',
-      workType: report.workType || 'Field Work',
-      hq: report.hq || 'HQ',
-      route: report.route || 'Route',
-      beat: report.beat || 'Beat',
-      docCalls: created.doctorVisits,
-      chemCalls: created.chemistVisits,
-      totalCalls: created.doctorVisits + created.chemistVisits,
-      orderCollected: Number(created.ordersCollected),
-      sampleGiven: created.samplesDistributed,
-      remarks: created.remarks || "",
-      status: created.status === "Draft" ? "Draft" : created.status === "Approved" ? "Approved" : "Submitted",
-    };
+    const created = mapBackendToDailyReport(response.data);
+    reportsCache = [created, ...reportsCache];
+    return created;
+  },
 
-    reportsCache = [mapped, ...reportsCache];
-    localStorage.setItem("web_daily_reports", JSON.stringify(reportsCache));
-    return mapped;
+  async updateDailyReport(id: string | number, updates: Partial<DailyReportRecord>): Promise<DailyReportRecord | null> {
+    try {
+      const dbPayload: any = {};
+      if (updates.docCalls !== undefined) dbPayload.doctorVisits = updates.docCalls;
+      if (updates.chemCalls !== undefined) dbPayload.chemistVisits = updates.chemCalls;
+      if (updates.sampleGiven !== undefined) dbPayload.samplesDistributed = updates.sampleGiven;
+      if (updates.orderCollected !== undefined) dbPayload.ordersCollected = updates.orderCollected;
+      if (updates.remarks !== undefined) dbPayload.remarks = updates.remarks;
+      if (updates.status) dbPayload.status = updates.status;
+
+      const response = await apiRequest<{ success: boolean; data: any }>(`/daily-reports/${id}`, {
+        method: 'PUT',
+        bodyData: dbPayload,
+      });
+
+      if (response.success && response.data) {
+        const updated = mapBackendToDailyReport(response.data);
+        reportsCache = reportsCache.map(r => r.id === String(id) ? updated : r);
+        return updated;
+      }
+    } catch (err) {
+      console.error("Failed to update daily report:", err);
+    }
+    return null;
+  },
+
+  async deleteDailyReport(id: string | number): Promise<boolean> {
+    try {
+      const response = await apiRequest<{ success: boolean }>(`/daily-reports/${id}`, {
+        method: 'DELETE',
+      });
+      if (response.success) {
+        reportsCache = reportsCache.filter(r => r.id !== String(id));
+        return true;
+      }
+    } catch (err) {
+      console.error("Failed to delete daily report:", err);
+    }
+    return false;
   }
 };

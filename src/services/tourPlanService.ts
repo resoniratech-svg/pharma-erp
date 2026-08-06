@@ -21,43 +21,46 @@ export interface TourPlanRecord {
 
 let plansCache: TourPlanRecord[] = [];
 
-try {
-  const data = localStorage.getItem("@web_tour_plans");
-  if (data) {
-    plansCache = JSON.parse(data);
-  }
-} catch (e) {
-  console.error("Failed to parse cached tour plans:", e);
-}
+const mapBackendToTourPlan = (tp: any): TourPlanRecord => {
+  let uiStatus: TourPlanRecord['status'] = 'Draft';
+  const rawStatus = (tp.status || '').toUpperCase();
+  if (rawStatus === 'APPROVED') uiStatus = 'Approved';
+  else if (rawStatus === 'REJECTED') uiStatus = 'Rejected';
+  else if (rawStatus === 'COMPLETED') uiStatus = 'Completed';
+  else if (rawStatus === 'PENDING' || rawStatus === 'PENDING_APPROVAL') uiStatus = 'Pending Approval';
+  else uiStatus = 'Approved'; // default for active planned tours
+
+  return {
+    id: String(tp.id),
+    planType: tp.planType || 'MTP',
+    date: tp.tourDate ? tp.tourDate.split('T')[0] : (tp.date || new Date().toISOString().split('T')[0]),
+    repName: tp.mr?.name || "Medical Representative",
+    hq: tp.hq || tp.territory || "HQ",
+    route: tp.route || tp.territory || "Route",
+    beat: tp.beat || tp.territory || "Beat",
+    startTime: tp.startTime || '09:00',
+    endTime: tp.endTime || '18:00',
+    objective: tp.objective || "",
+    docCount: tp.tourPlanDoctors?.length || tp.docCount || 0,
+    chemistCount: tp.tourPlanChemists?.length || tp.chemistCount || 0,
+    doctorsList: (tp.tourPlanDoctors || []).map((d: any) => d.doctor?.name).filter(Boolean).join(', ') || tp.doctorsList || '',
+    chemistsList: (tp.tourPlanChemists || []).map((c: any) => c.chemist?.name).filter(Boolean).join(', ') || tp.chemistsList || '',
+    remarks: tp.remarks || '',
+    status: uiStatus,
+  };
+};
 
 export const tourPlanService = {
   getAll(): TourPlanRecord[] {
     return plansCache;
   },
 
-  async loadTourPlans(mrId: number): Promise<TourPlanRecord[]> {
+  async loadTourPlans(mrId?: number): Promise<TourPlanRecord[]> {
     try {
-      const response = await apiRequest<{ success: boolean; data: any[] }>(`/tour-plans/mr/${mrId}`);
+      const endpoint = mrId ? `/tour-plans/mr/${mrId}` : '/tour-plans';
+      const response = await apiRequest<{ success: boolean; data: any[] }>(endpoint);
       if (response.success && Array.isArray(response.data)) {
-        plansCache = response.data.map(tp => ({
-          id: String(tp.id),
-          planType: 'MTP',
-          date: tp.tourDate ? tp.tourDate.split('T')[0] : new Date().toISOString().split('T')[0],
-          repName: tp.mr?.name || "Medical Representative",
-          hq: tp.territory || "HQ",
-          route: tp.territory || "Route",
-          beat: tp.territory || "Beat",
-          startTime: '09:00',
-          endTime: '18:00',
-          objective: tp.objective || "",
-          docCount: tp.tourPlanDoctors?.length || 0,
-          chemistCount: tp.tourPlanChemists?.length || 0,
-          doctorsList: (tp.tourPlanDoctors || []).map((d: any) => d.doctor?.name).join(', '),
-          chemistsList: (tp.tourPlanChemists || []).map((c: any) => c.chemist?.name).join(', '),
-          remarks: '',
-          status: 'Approved',
-        }));
-        localStorage.setItem("@web_tour_plans", JSON.stringify(plansCache));
+        plansCache = response.data.map(mapBackendToTourPlan);
       }
     } catch (err) {
       console.error("Failed to load tour plans from backend:", err);
@@ -71,7 +74,8 @@ export const tourPlanService = {
       tourDate: plan.date ? new Date(plan.date).toISOString() : new Date().toISOString(),
       territory: plan.beat || plan.route || plan.hq || "HQ",
       objective: plan.objective || "",
-      status: "PLANNED",
+      status: plan.status === 'Draft' ? 'DRAFT' : 'PLANNED',
+      remarks: plan.remarks || '',
     };
 
     const response = await apiRequest<{ success: boolean; data: any }>('/tour-plans', {
@@ -83,28 +87,78 @@ export const tourPlanService = {
       throw new Error('Failed to create tour plan');
     }
 
-    const created = response.data;
-    const mapped: TourPlanRecord = {
-      id: String(created.id),
-      planType: 'MTP',
-      date: created.tourDate ? created.tourDate.split('T')[0] : new Date().toISOString().split('T')[0],
-      repName: created.mr?.name || plan.repName || "Medical Representative",
-      hq: created.territory,
-      route: created.territory,
-      beat: created.territory,
-      startTime: plan.startTime || '09:00',
-      endTime: plan.endTime || '18:00',
-      objective: created.objective || "",
-      docCount: plan.docCount || 0,
-      chemistCount: plan.chemistCount || 0,
-      doctorsList: plan.doctorsList || '',
-      chemistsList: plan.chemistsList || '',
-      remarks: plan.remarks || '',
-      status: 'Approved',
-    };
+    const created = mapBackendToTourPlan(response.data);
+    plansCache = [created, ...plansCache];
+    return created;
+  },
 
-    plansCache = [mapped, ...plansCache];
-    localStorage.setItem("@web_tour_plans", JSON.stringify(plansCache));
-    return mapped;
+  async updateTourPlan(id: string | number, updates: Partial<TourPlanRecord>): Promise<TourPlanRecord | null> {
+    try {
+      const dbPayload: any = {};
+      if (updates.date) dbPayload.tourDate = new Date(updates.date).toISOString();
+      if (updates.beat || updates.route || updates.hq) dbPayload.territory = updates.beat || updates.route || updates.hq;
+      if (updates.objective !== undefined) dbPayload.objective = updates.objective;
+      if (updates.remarks !== undefined) dbPayload.remarks = updates.remarks;
+      if (updates.status) dbPayload.status = updates.status.toUpperCase();
+
+      const response = await apiRequest<{ success: boolean; data: any }>(`/tour-plans/${id}`, {
+        method: 'PUT',
+        bodyData: dbPayload,
+      });
+
+      if (response.success && response.data) {
+        const updated = mapBackendToTourPlan(response.data);
+        plansCache = plansCache.map(p => p.id === String(id) ? updated : p);
+        return updated;
+      }
+    } catch (err) {
+      console.error("Failed to update tour plan:", err);
+    }
+    return null;
+  },
+
+  async deleteTourPlan(id: string | number): Promise<boolean> {
+    try {
+      const response = await apiRequest<{ success: boolean }>(`/tour-plans/${id}`, {
+        method: 'DELETE',
+      });
+      if (response.success) {
+        plansCache = plansCache.filter(p => p.id !== String(id));
+        return true;
+      }
+    } catch (err) {
+      console.error("Failed to delete tour plan:", err);
+    }
+    return false;
+  },
+
+  async approveTourPlan(id: string | number): Promise<boolean> {
+    try {
+      const response = await apiRequest<{ success: boolean }>(`/tour-plans/${id}/approve`, {
+        method: 'PUT',
+      });
+      if (response.success) {
+        plansCache = plansCache.map(p => p.id === String(id) ? { ...p, status: 'Approved' } : p);
+        return true;
+      }
+    } catch (err) {
+      console.error("Failed to approve tour plan:", err);
+    }
+    return false;
+  },
+
+  async completeTourPlan(id: string | number): Promise<boolean> {
+    try {
+      const response = await apiRequest<{ success: boolean }>(`/tour-plans/${id}/complete`, {
+        method: 'PUT',
+      });
+      if (response.success) {
+        plansCache = plansCache.map(p => p.id === String(id) ? { ...p, status: 'Completed' } : p);
+        return true;
+      }
+    } catch (err) {
+      console.error("Failed to complete tour plan:", err);
+    }
+    return false;
   }
 };

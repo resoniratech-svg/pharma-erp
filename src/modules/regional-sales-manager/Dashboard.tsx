@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router';
 import { PageHeader, SummaryCard, TableCard, DataTable, Badge } from './components/shared';
-import { IndianRupee, Target, Activity, Users, AlertCircle, Eye } from 'lucide-react';
+import { IndianRupee, Target, Activity, Users, AlertCircle, Eye, Loader2 } from 'lucide-react';
 import { rsmService } from '../../services/rsmService';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [loading, setLoading] = useState(true);
   const [kpis, setKpis] = useState({
     assignedTarget: 0,
     allocatedTarget: 0,
@@ -17,16 +18,23 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
+    loadKpis();
+  }, []);
+
+  const loadKpis = async () => {
     try {
-      const liveKpis = rsmService.getDashboardKPIs();
+      setLoading(true);
+      const liveKpis = await rsmService.getDashboardKPIs();
       setKpis({
         ...liveKpis,
         pendingActivities: 5
       } as any);
     } catch (e) {
       console.warn("Error fetching dashboard KPIs:", e);
+    } finally {
+      setLoading(false);
     }
-  }, []);
+  };
 
   const pendingActivities = [
     { id: 1, source: 'Attendance', employee: 'Rahul Verma', activity: 'Late Check-in', date: 'Today', status: 'Pending Review', path: '/workspace/regional-sales-manager/attendance' },
@@ -58,59 +66,66 @@ export default function Dashboard() {
     <div className="p-6">
       <PageHeader 
         title="Regional Sales Dashboard" 
-        subtitle="Executive overview of regional performance and area metrics."
+        subtitle="Executive overview of regional performance and area metrics (Live Database Data)."
       />
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <SummaryCard 
-          title="Assigned Target" 
-          value={`₹${(kpis.assignedTarget / 100000).toFixed(2)} L`} 
-          subtitle="FY 2026-27"
-          icon={<Target className="w-6 h-6" />} 
-          colorClass="text-blue-600" 
-          bgClass="bg-blue-50" 
-        />
-        <SummaryCard 
-          title="Achieved Target" 
-          value={`₹${(kpis.targetAchievement / 100000).toFixed(2)} L`} 
-          subtitle={`${kpis.achievementPercentage.toFixed(1)}% Achievement`}
-          icon={<Activity className="w-6 h-6" />} 
-          colorClass="text-emerald-600" 
-          bgClass="bg-emerald-50" 
-        />
-        <SummaryCard 
-          title="Remaining Target" 
-          value={`₹${(kpis.remainingTarget / 100000).toFixed(2)} L`} 
-          subtitle="Pending realization"
-          icon={<AlertCircle className="w-6 h-6" />} 
-          colorClass={kpis.remainingTarget > 0 ? "text-amber-600" : "text-emerald-600"} 
-          bgClass={kpis.remainingTarget > 0 ? "bg-amber-50" : "bg-emerald-50"} 
-        />
-        <SummaryCard 
-          title="Active ASMs" 
-          value={kpis.activeAsmCount.toString()} 
-          subtitle="Direct reports"
-          icon={<Users className="w-6 h-6" />} 
-          colorClass="text-indigo-600" 
-          bgClass="bg-indigo-50" 
-        />
-        <SummaryCard 
-          title="Achievement %" 
-          value={`${kpis.achievementPercentage.toFixed(1)}%`} 
-          subtitle="Overall performance"
-          icon={<Target className="w-6 h-6" />} 
-          colorClass={kpis.achievementPercentage >= 90 ? "text-emerald-600" : "text-rose-600"} 
-          bgClass={kpis.achievementPercentage >= 90 ? "bg-emerald-50" : "bg-rose-50"} 
-        />
-        <SummaryCard 
-          title="Pending Activities" 
-          value={(kpis as any).pendingActivities?.toString() || "0"} 
-          subtitle="Awaiting your review"
-          icon={<AlertCircle className="w-6 h-6" />} 
-          colorClass="text-rose-600" 
-          bgClass="bg-rose-50" 
-        />
-      </div>
+      {loading ? (
+        <div className="py-12 flex flex-col items-center justify-center text-slate-500 bg-white rounded-2xl border border-slate-200 shadow-sm mb-8">
+          <Loader2 className="w-8 h-8 animate-spin text-[#163c78] mb-2" />
+          <p className="text-sm">Loading regional performance metrics...</p>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+          <SummaryCard 
+            title="Assigned Target" 
+            value={`₹${(kpis.assignedTarget / 100000).toFixed(2)} L`} 
+            subtitle="FY 2026-27"
+            icon={<Target className="w-6 h-6" />} 
+            colorClass="text-blue-600" 
+            bgClass="bg-blue-50" 
+          />
+          <SummaryCard 
+            title="Achieved Target" 
+            value={`₹${(kpis.targetAchievement / 100000).toFixed(2)} L`} 
+            subtitle={`${kpis.achievementPercentage.toFixed(1)}% Achievement`}
+            icon={<Activity className="w-6 h-6" />} 
+            colorClass="text-emerald-600" 
+            bgClass="bg-emerald-50" 
+          />
+          <SummaryCard 
+            title="Remaining Target" 
+            value={`₹${(kpis.remainingTarget / 100000).toFixed(2)} L`} 
+            subtitle="Pending realization"
+            icon={<AlertCircle className="w-6 h-6" />} 
+            colorClass={kpis.remainingTarget > 0 ? "text-amber-600" : "text-emerald-600"} 
+            bgClass={kpis.remainingTarget > 0 ? "bg-amber-50" : "bg-emerald-50"} 
+          />
+          <SummaryCard 
+            title="Active ASMs" 
+            value={kpis.activeAsmCount.toString()} 
+            subtitle="Direct reports in territory"
+            icon={<Users className="w-6 h-6" />} 
+            colorClass="text-indigo-600" 
+            bgClass="bg-indigo-50" 
+          />
+          <SummaryCard 
+            title="Achievement %" 
+            value={`${kpis.achievementPercentage.toFixed(1)}%`} 
+            subtitle="Overall performance"
+            icon={<Target className="w-6 h-6" />} 
+            colorClass={kpis.achievementPercentage >= 90 ? "text-emerald-600" : "text-rose-600"} 
+            bgClass={kpis.achievementPercentage >= 90 ? "bg-emerald-50" : "bg-rose-50"} 
+          />
+          <SummaryCard 
+            title="Pending Activities" 
+            value={(kpis as any).pendingActivities?.toString() || "0"} 
+            subtitle="Awaiting your review"
+            icon={<AlertCircle className="w-6 h-6" />} 
+            colorClass="text-rose-600" 
+            bgClass="bg-rose-50" 
+          />
+        </div>
+      )}
 
       <div className="mb-6">
         <h2 className="text-lg font-bold text-slate-800 mb-4">Recent Pending Approvals & Activities</h2>

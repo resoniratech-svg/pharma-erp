@@ -36,7 +36,14 @@ export const validateCheckIn = (): boolean => {
       return true; // Bypass check for admins
     }
 
-    const todayCheckin = JSON.parse(localStorage.getItem("today_checkin") || "{}");
+    let authUser = null;
+    try {
+      const authUserStr = localStorage.getItem('authUser');
+      authUser = authUserStr ? JSON.parse(authUserStr) : null;
+    } catch {}
+    const userId = authUser?.id || 'default';
+
+    const todayCheckin = JSON.parse(localStorage.getItem(`today_checkin_${userId}`) || "{}");
 
     if (!todayCheckin.checkedIn) {
       alert("Please complete your GPS Check-In before performing this action.");

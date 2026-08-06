@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient';
+import { authService } from './authService';
 
 export interface AttendanceRecord {
   id: string;
@@ -20,8 +21,16 @@ export interface AttendanceRecord {
 
 let attendanceRecords: AttendanceRecord[] = [];
 
+const getUserPrefix = () => {
+  const user = authService.getCurrentUser();
+  return user ? user.id : 'default';
+};
+
+const getRecordsKey = () => `web_attendance_records_${getUserPrefix()}`;
+const getCheckinKey = () => `today_checkin_${getUserPrefix()}`;
+
 try {
-  const stored = localStorage.getItem('web_attendance_records');
+  const stored = localStorage.getItem(getRecordsKey());
   if (stored) {
     attendanceRecords = JSON.parse(stored);
   }
@@ -71,7 +80,13 @@ export const attendanceService = {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>(`/attendance`);
       if (response.success && Array.isArray(response.data)) {
-        const myAttendance = response.data.filter(r => Number(r.mrId) === Number(mrId));
+        const currentUser = authService.getCurrentUser();
+        const myAttendance = response.data.filter(r => {
+          if (currentUser && currentUser.id) {
+            return r.mr?.userId === currentUser.id || Number(r.mrId) === Number(mrId);
+          }
+          return Number(r.mrId) === Number(mrId);
+        });
         
         // Optimistic Merge: If the backend returns empty but we have local records, don't wipe everything instantly.
         // But for normal cases, map the data.
@@ -96,34 +111,31 @@ export const attendanceService = {
           };
         });
 
-        if (mappedRecords.length > 0 || attendanceRecords.length === 0) {
-          attendanceRecords = mappedRecords;
+        const todayStr = new Date().toISOString().split('T')[0];
+        const localToday = attendanceRecords.find(r => r.date === todayStr);
+        const mappedToday = mappedRecords.find(r => r.date === todayStr);
+
+        if (localToday && !mappedToday) {
+          // Optimistic Merge logic: keep local today record if backend lost it momentarily or mocked for managers
+          attendanceRecords = [localToday, ...mappedRecords];
         } else {
-          // Optimistic Merge logic: keep local today record if backend lost it momentarily
-          const todayStr = new Date().toISOString().split('T')[0];
-          const localToday = attendanceRecords.find(r => r.date === todayStr);
-          if (localToday && !mappedRecords.find(r => r.date === todayStr)) {
-            attendanceRecords = [localToday, ...mappedRecords];
-          } else {
-            attendanceRecords = mappedRecords;
-          }
+          attendanceRecords = mappedRecords;
         }
         
-        localStorage.setItem('web_attendance_records', JSON.stringify(attendanceRecords));
+        localStorage.setItem(getRecordsKey(), JSON.stringify(attendanceRecords));
 
         // Sync today_checkin logic
-        const todayStr = new Date().toISOString().split('T')[0];
         const todayRecord = attendanceRecords.find(r => r.date === todayStr);
         if (todayRecord) {
           const checkedIn = todayRecord.dayStatus === 'In-Progress';
-          localStorage.setItem('today_checkin', JSON.stringify({
+          localStorage.setItem(getCheckinKey(), JSON.stringify({
             checkedIn,
             user: todayRecord.repName,
             time: todayRecord.checkInDateTime,
             checkedOut: todayRecord.dayStatus === 'Completed'
           }));
         } else {
-          localStorage.removeItem('today_checkin');
+          localStorage.removeItem(getCheckinKey());
         }
       }
     } catch (e) {

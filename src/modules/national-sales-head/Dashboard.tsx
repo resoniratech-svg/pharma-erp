@@ -1,42 +1,83 @@
 import React, { useState, useEffect } from 'react';
 import { PageHeader, SummaryCard } from './components/shared';
-import { Target, TrendingUp, AlertCircle, Users, CheckSquare, MapPin, Clock, Bell } from 'lucide-react';
+import { Target, TrendingUp, AlertCircle, Users, CheckSquare, MapPin } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
 import { nsmService } from '../../services/nsmService';
 
-const monthlyData = [
-  { name: 'Jan', sales: 0, target: 15000000 },
-  { name: 'Feb', sales: 0, target: 15000000 },
-  { name: 'Mar', sales: 0, target: 15000000 },
-  { name: 'Apr', sales: 0, target: 18000000 },
-  { name: 'May', sales: 0, target: 18000000 },
-  { name: 'Jun', sales: 0, target: 20000000 },
-];
-
-const productData = [
-  { name: 'Aspirin 500mg', revenue: 0 },
-  { name: 'Amoxicillin 250mg', revenue: 0 },
-  { name: 'Ibuprofen 400mg', revenue: 0 },
-  { name: 'Paracetamol 500mg', revenue: 0 },
-  { name: 'Cetirizine 10mg', revenue: 0 },
-];
-
 export default function Dashboard() {
+  const [loading, setLoading] = useState(true);
   const [kpis, setKpis] = useState({
-    nationalTarget: 150000000,
+    nationalTarget: 0,
     achievedTarget: 0,
-    remainingTarget: 150000000,
-    activeRSMCount: 5,
-    stateCoverage: 85,
-    pendingApprovals: 12
+    remainingTarget: 0,
+    activeRSMCount: 0,
+    stateCoverage: 0,
+    pendingApprovals: 0
   });
 
+  const [monthlyTrend, setMonthlyTrend] = useState<any[]>([]);
+  const [productTrend, setProductTrend] = useState<any[]>([]);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true);
+      const data = await nsmService.getDashboardKPIs('2026-27');
+      setKpis({
+        nationalTarget: data.nationalTarget || 0,
+        achievedTarget: data.achievedTarget || 0,
+        remainingTarget: data.remainingTarget ?? data.nationalTarget,
+        activeRSMCount: data.activeRSMCount || 0,
+        stateCoverage: data.stateCoverage || 0,
+        pendingApprovals: data.pendingApprovals || 0,
+      });
+      if (data.monthlyData && data.monthlyData.length > 0) {
+        setMonthlyTrend(data.monthlyData);
+      } else {
+        setMonthlyTrend([
+          { name: 'Apr', sales: 0, target: data.nationalTarget / 12 || 12500000 },
+          { name: 'May', sales: 0, target: data.nationalTarget / 12 || 12500000 },
+          { name: 'Jun', sales: 0, target: data.nationalTarget / 12 || 12500000 },
+          { name: 'Jul', sales: 0, target: data.nationalTarget / 12 || 12500000 },
+          { name: 'Aug', sales: 0, target: data.nationalTarget / 12 || 12500000 },
+          { name: 'Sep', sales: 0, target: data.nationalTarget / 12 || 12500000 },
+        ]);
+      }
+      if (data.productData && data.productData.length > 0) {
+        setProductTrend(data.productData);
+      } else {
+        setProductTrend([
+          { name: 'Aspirin 500mg', revenue: 0 },
+          { name: 'Amoxicillin 250mg', revenue: 0 },
+          { name: 'Ibuprofen 400mg', revenue: 0 },
+          { name: 'Paracetamol 500mg', revenue: 0 },
+          { name: 'Cetirizine 10mg', revenue: 0 },
+        ]);
+      }
+    } catch (e) {
+      console.warn("Failed to load NSM dashboard data:", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      maximumFractionDigits: 0
-    }).format(amount);
+    if (amount >= 10000000) {
+      return '₹' + (amount / 10000000).toFixed(2) + ' Cr';
+    } else if (amount >= 100000) {
+      return '₹' + (amount / 100000).toFixed(2) + ' L';
+    } else if (amount >= 1000) {
+      return '₹' + (amount / 1000).toFixed(2) + ' K';
+    } else {
+      return new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        maximumFractionDigits: 0
+      }).format(amount);
+    }
   };
 
   const achievementPct = kpis.nationalTarget > 0 ? ((kpis.achievedTarget / kpis.nationalTarget) * 100).toFixed(1) : '0.0';
@@ -45,22 +86,22 @@ export default function Dashboard() {
     <div className="p-6">
       <PageHeader 
         title="National Sales Dashboard" 
-        subtitle="Executive overview of national sales performance and targets."
+        subtitle="Executive overview of national sales performance and targets from database."
       />
 
       {/* KPI Cards (2 Rows of 3 Cards) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <SummaryCard
           title="Assigned National Target"
-          value={formatCurrency(kpis.nationalTarget)}
-          subtitle="FY 2026-27"
+          value={loading ? "Loading..." : formatCurrency(kpis.nationalTarget)}
+          subtitle="FY 2026-27 (PostgreSQL)"
           icon={<Target className="w-6 h-6" />}
           colorClass="text-blue-600"
           bgClass="bg-blue-50"
         />
         <SummaryCard
           title="Achieved Target"
-          value={formatCurrency(kpis.achievedTarget)}
+          value={loading ? "Loading..." : formatCurrency(kpis.achievedTarget)}
           subtitle={`${achievementPct}% Achievement`}
           icon={<TrendingUp className="w-6 h-6" />}
           colorClass="text-emerald-600"
@@ -68,7 +109,7 @@ export default function Dashboard() {
         />
         <SummaryCard
           title="Remaining Target"
-          value={formatCurrency(kpis.remainingTarget)}
+          value={loading ? "Loading..." : formatCurrency(kpis.remainingTarget)}
           subtitle="Pending realization"
           icon={<AlertCircle className="w-6 h-6" />}
           colorClass={kpis.remainingTarget > 0 ? "text-amber-600" : "text-emerald-600"}
@@ -76,15 +117,15 @@ export default function Dashboard() {
         />
         <SummaryCard
           title="Active RSMs"
-          value={kpis.activeRSMCount.toString()}
-          subtitle="Direct reports"
+          value={loading ? "..." : kpis.activeRSMCount.toString()}
+          subtitle="Direct reports in DB"
           icon={<Users className="w-6 h-6" />}
           colorClass="text-indigo-600"
           bgClass="bg-indigo-50"
         />
         <SummaryCard
           title="State Coverage"
-          value={`${kpis.stateCoverage}%`}
+          value={loading ? "..." : `${kpis.stateCoverage}%`}
           subtitle="Of planned territories"
           icon={<MapPin className="w-6 h-6" />}
           colorClass="text-purple-600"
@@ -92,7 +133,7 @@ export default function Dashboard() {
         />
         <SummaryCard
           title="Pending Approvals"
-          value={kpis.pendingApprovals.toString()}
+          value={loading ? "..." : kpis.pendingApprovals.toString()}
           subtitle="Awaiting your review"
           icon={<CheckSquare className="w-6 h-6" />}
           colorClass="text-rose-600"
@@ -108,7 +149,7 @@ export default function Dashboard() {
           </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={monthlyData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+              <AreaChart data={monthlyTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#163c78" stopOpacity={0.1}/>
@@ -142,7 +183,7 @@ export default function Dashboard() {
           </div>
           <div className="h-[300px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={productData} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
+              <BarChart data={productTrend} layout="vertical" margin={{ top: 5, right: 30, left: 20, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#f1f5f9" />
                 <XAxis type="number" hide />
                 <YAxis dataKey="name" type="category" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#64748b' }} width={120} />

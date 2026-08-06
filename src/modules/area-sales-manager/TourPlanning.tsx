@@ -20,18 +20,26 @@ export default function TourPlanning() {
   const [rejectRemarks, setRejectRemarks] = useState('');
 
   useEffect(() => {
-    // Realistic production mock data for Tour Planning
-    const mockData = [
-      { id: '001', mrName: 'Deepak Tyagi', territory: 'South Mumbai', headquarters: 'Mumbai', planDate: 'August 2026', plannedVisits: 45, status: 'Approved', submittedDate: '28 Jul 2026' },
-      { id: '002', mrName: 'Rohit Saxena', territory: 'Navi Mumbai', headquarters: 'Mumbai', planDate: 'August 2026', plannedVisits: 38, status: 'Pending', submittedDate: '01 Aug 2026' },
-      { id: '003', mrName: 'Vikram Singh', territory: 'Thane', headquarters: 'Thane', planDate: 'August 2026', plannedVisits: 52, status: 'Approved', submittedDate: '29 Jul 2026' },
-      { id: '004', mrName: 'Sneha Patel', territory: 'Andheri', headquarters: 'Mumbai', planDate: 'August 2026', plannedVisits: 40, status: 'Pending', submittedDate: '02 Aug 2026' },
-      { id: '005', mrName: 'Amit Kumar', territory: 'Pune East', headquarters: 'Pune', planDate: 'August 2026', plannedVisits: 30, status: 'Rejected', submittedDate: '25 Jul 2026' },
-      { id: '006', mrName: 'Rahul Verma', territory: 'Pune West', headquarters: 'Pune', planDate: 'August 2026', plannedVisits: 48, status: 'Approved', submittedDate: '30 Jul 2026' },
-      { id: '007', mrName: 'Neha Sharma', territory: 'Nashik Central', headquarters: 'Nashik', planDate: 'August 2026', plannedVisits: 35, status: 'Pending', submittedDate: '03 Aug 2026' },
-      { id: '008', mrName: 'Priya Desai', territory: 'Nagpur North', headquarters: 'Nagpur', planDate: 'August 2026', plannedVisits: 42, status: 'Approved', submittedDate: '27 Jul 2026' }
-    ];
-    setPlans(mockData);
+    const fetchPlans = async () => {
+      try {
+        const rawData = await asmService.getMRTourPlans();
+        const mappedData = rawData.map((d: any) => ({
+          id: d.id?.toString(),
+          mrName: d.mr?.employee?.employeeName || 'Unknown',
+          territory: d.mr?.employee?.territory || '-',
+          headquarters: d.mr?.employee?.headquarters || '-',
+          planDate: new Date(d.tourDate).toLocaleDateString('en-GB', { month: 'long', year: 'numeric' }),
+          plannedVisits: d.doctorsToVisit?.length || 0,
+          status: d.status,
+          submittedDate: new Date(d.createdAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+          asmRemarks: d.remarks || '-'
+        }));
+        setPlans(mappedData);
+      } catch (e) {
+        console.error("Failed to load tour plans", e);
+      }
+    };
+    fetchPlans();
   }, []);
 
   const filteredData = plans.filter(row => {
@@ -42,9 +50,9 @@ export default function TourPlanning() {
     return matchesSearch && matchesStatus && matchesPeriod;
   });
 
-  const pendingCount = filteredData.filter(d => d.status.includes('Pending')).length;
-  const approvedCount = filteredData.filter(d => d.status === 'Approved').length;
-  const rejectedCount = filteredData.filter(d => d.status === 'Rejected').length;
+  const pendingCount = filteredData.filter(d => d.status.includes('PENDING')).length;
+  const approvedCount = filteredData.filter(d => d.status === 'APPROVED').length;
+  const rejectedCount = filteredData.filter(d => d.status === 'REJECTED').length;
   const total = filteredData.length;
   const compliance = total > 0 ? Math.round(((approvedCount + pendingCount) / total) * 100) : 0;
 
@@ -53,43 +61,52 @@ export default function TourPlanning() {
     setDrawerOpen(true);
   };
 
-  const handleApprove = () => {
+  const handleApprove = async () => {
     if (!selectedPlan) return;
-    const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const updatedPlan = {
-      ...selectedPlan,
-      status: 'Approved',
-      approvedBy: 'Current ASM User',
-      approvalDate: now,
-      asmRemarks: 'Approved'
-    };
-    
-    setPlans(plans.map(p => p.id === updatedPlan.id ? updatedPlan : p));
-    setSelectedPlan(updatedPlan);
-    alert('Tour plan approved successfully!');
+    try {
+      await asmService.updateTourPlanStatus(selectedPlan.id, 'APPROVED');
+      const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const updatedPlan = {
+        ...selectedPlan,
+        status: 'APPROVED',
+        approvedBy: 'Current ASM User',
+        approvalDate: now,
+        asmRemarks: 'Approved'
+      };
+      setPlans(plans.map(p => p.id === updatedPlan.id ? updatedPlan : p));
+      setSelectedPlan(updatedPlan);
+      alert('Tour plan approved successfully!');
+    } catch (e: any) {
+      alert(e.message || "Failed to approve tour plan");
+    }
   };
 
-  const handleReject = () => {
+  const handleReject = async () => {
     if (!rejectRemarks.trim()) {
       alert("Please provide rejection remarks.");
       return;
     }
     if (!selectedPlan) return;
     
-    const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-    const updatedPlan = {
-      ...selectedPlan,
-      status: 'Rejected',
-      approvedBy: 'Current ASM User',
-      approvalDate: now,
-      asmRemarks: rejectRemarks
-    };
-    
-    setPlans(plans.map(p => p.id === updatedPlan.id ? updatedPlan : p));
-    setSelectedPlan(updatedPlan);
-    setIsRejectModalOpen(false);
-    setRejectRemarks('');
-    alert('Tour plan rejected.');
+    try {
+      await asmService.updateTourPlanStatus(selectedPlan.id, 'REJECTED', rejectRemarks);
+      const now = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+      const updatedPlan = {
+        ...selectedPlan,
+        status: 'REJECTED',
+        approvedBy: 'Current ASM User',
+        approvalDate: now,
+        asmRemarks: rejectRemarks
+      };
+      
+      setPlans(plans.map(p => p.id === updatedPlan.id ? updatedPlan : p));
+      setSelectedPlan(updatedPlan);
+      setIsRejectModalOpen(false);
+      setRejectRemarks('');
+      alert('Tour plan rejected.');
+    } catch (e: any) {
+      alert(e.message || "Failed to reject tour plan");
+    }
   };
 
   const handleExportExcel = () => {
@@ -153,8 +170,8 @@ export default function TourPlanning() {
       label: 'Status', 
       render: (row: any) => {
         let variant: "success" | "warning" | "error" = "warning";
-        if (row.status === 'Approved') variant = 'success';
-        if (row.status === 'Rejected') variant = 'error';
+        if (row.status === 'APPROVED' || row.status === 'Approved') variant = 'success';
+        if (row.status === 'REJECTED' || row.status === 'Rejected') variant = 'error';
         return <Badge variant={variant}>{row.status}</Badge>;
       } 
     },
@@ -348,12 +365,12 @@ export default function TourPlanning() {
                 <div className="space-y-1">
                   <DrawerField label="Submitted Date" value="28 Jul 2026" />
                   <DrawerField label="Approval Status" value={
-                    <Badge variant={selectedPlan.status === 'Approved' ? 'success' : selectedPlan.status === 'Rejected' ? 'error' : 'warning'}>
+                    <Badge variant={selectedPlan.status.toUpperCase() === 'APPROVED' ? 'success' : selectedPlan.status.toUpperCase() === 'REJECTED' ? 'error' : 'warning'}>
                       {selectedPlan.status}
                     </Badge>
                   } />
-                  <DrawerField label="Approved By" value={selectedPlan.approvedBy || (selectedPlan.status !== 'Pending' ? 'Current ASM User' : '-')} />
-                  <DrawerField label="Approval Date" value={selectedPlan.approvalDate || (selectedPlan.status !== 'Pending' ? '30 Jul 2026' : '-')} />
+                  <DrawerField label="Approved By" value={selectedPlan.approvedBy || (selectedPlan.status.toUpperCase() !== 'PENDING' ? 'Current ASM User' : '-')} />
+                  <DrawerField label="Approval Date" value={selectedPlan.approvalDate || (selectedPlan.status.toUpperCase() !== 'PENDING' ? '30 Jul 2026' : '-')} />
                 </div>
               </div>
               
@@ -361,7 +378,7 @@ export default function TourPlanning() {
                 <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">5. Remarks</p>
                 <div className="space-y-1">
                   <DrawerField label="MR Remarks" value="Focus on Cardio new products this month." />
-                  <DrawerField label="ASM Remarks" value={selectedPlan.asmRemarks || (selectedPlan.status !== 'Pending' ? 'Approved, ensure maximum coverage.' : '-')} />
+                  <DrawerField label="ASM Remarks" value={selectedPlan.asmRemarks || (selectedPlan.status.toUpperCase() !== 'PENDING' ? 'Approved, ensure maximum coverage.' : '-')} />
                 </div>
               </div>
 
@@ -374,7 +391,7 @@ export default function TourPlanning() {
               >
                 Close
               </button>
-              {selectedPlan.status === 'Pending' && (
+              {selectedPlan.status.toUpperCase() === 'PENDING' && (
                 <>
                   <button
                     onClick={() => setIsRejectModalOpen(true)}

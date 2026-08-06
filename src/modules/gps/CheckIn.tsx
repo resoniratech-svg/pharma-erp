@@ -206,18 +206,38 @@ export default function CheckIn() {
   useEffect(() => {
     const fetchRecords = async () => {
       try {
-        const rawMrId = localStorage.getItem('mrId');
-        if (!rawMrId) {
-          console.warn("No MR ID found for current user. Attendance cannot be loaded.");
-          return;
+        let authUser = null;
+        try {
+          const authUserString = localStorage.getItem('authUser');
+          authUser = authUserString ? JSON.parse(authUserString) : null;
+        } catch { }
+        
+        let isManager = false;
+        if (authUser) {
+          const userRole = authUser.roleId || authUser.role;
+          const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
+          if (managementRoles.includes(userRole)) {
+            isManager = true;
+          }
         }
-        const mrId = Number(rawMrId);
-        const data = await attendanceService.loadAttendance(mrId);
-        setRecords(data);
+
+        const rawMrId = localStorage.getItem('mrId');
+        
+        if (!isManager && rawMrId) {
+          const mrId = Number(rawMrId);
+          const data = await attendanceService.loadAttendance(mrId);
+          setRecords(data);
+        } else {
+          // Managers load from scoped localStorage
+          const userId = authUser?.id || 'default';
+          const scopedKey = `web_attendance_records_${userId}`;
+          const stored = localStorage.getItem(scopedKey);
+          if (stored) {
+            setRecords(JSON.parse(stored));
+          }
+        }
       } catch (e) {
         console.error("Failed to load records on checkin mount:", e);
-        const stored = localStorage.getItem('web_attendance_records');
-        if (stored) setRecords(JSON.parse(stored));
       }
     };
     fetchRecords();
@@ -247,42 +267,95 @@ export default function CheckIn() {
       return recordDate === todayDateStr && (!r.checkOutTime || r.checkOutTime === '-');
     });
 
+    const getRedirectPath = () => {
+      try {
+        const authUserStr = localStorage.getItem('authUser');
+        if (authUserStr) {
+          const authUser = JSON.parse(authUserStr);
+          const role = authUser.roleId || authUser.role;
+          if (role === 'NATIONAL_SALES_HEAD' || role === 'National Sales Head') return '/workspace/national-sales-head/attendance';
+          if (role === 'REGIONAL_SALES_MANAGER' || role === 'Regional Sales Manager') return '/workspace/regional-sales-manager/attendance';
+          if (role === 'AREA_SALES_MANAGER' || role === 'Area Sales Manager') return '/workspace/area-sales-manager/attendance';
+        }
+      } catch (e) {}
+      return '/workspace/gps/attendance';
+    };
+
     if (activeSession) {
       alert('You have already checked in today! Please check out first.');
-      navigate('/workspace/gps/attendance');
+      navigate(getRedirectPath());
       return;
     }
 
     try {
       const rawMrId = localStorage.getItem('mrId');
-      if (!rawMrId) {
+      const authUserStr = localStorage.getItem('authUser');
+      const authUser = authUserStr ? JSON.parse(authUserStr) : null;
+      
+      let isManager = false;
+      let mrId: number | null = null;
+      if (rawMrId) {
+        mrId = Number(rawMrId);
+      } else if (authUser) {
+        const userRole = authUser.roleId || authUser.role;
+        const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
+        if (managementRoles.includes(userRole)) {
+          isManager = true;
+        } else {
+          alert('Your account is not linked to an MR profile. Please create an MR profile first.');
+          return;
+        }
+      } else {
         alert('Your account is not linked to an MR profile. Please create an MR profile first.');
         return;
       }
-      const mrId = Number(rawMrId);
-      const dbRecord = await attendanceService.checkIn(mrId, userName, latLng.lat, latLng.lng, locationText);
-
-      // Add today's new check-in
-      const newRecord = {
-        id: String(dbRecord.id),
-        userId: userId, 
-        date: todayDateStr,
-        repName: userName,
-        checkInDateTime: now.toISOString(),
-        checkInTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-        checkOutTime: '-',
-        status: "Present", 
-        location: locationText,
-        latitude: latLng.lat,
-        longitude: latLng.lng,
-        createdAt: now.toISOString(),
-        dayStatus: 'In-Progress'
-      };
-
-      // Backend handles database storage, so we don't need localStorage 'web_attendance_records' here anymore.
       
+      let newRecord: any = null;
+
+      if (!isManager && mrId !== null) {
+        // Real Backend Flow for MR
+        const dbRecord = await attendanceService.checkIn(mrId, userName, latLng.lat, latLng.lng, locationText);
+        newRecord = {
+          id: String(dbRecord.id),
+          userId: userId, 
+          date: todayDateStr,
+          repName: userName,
+          checkInDateTime: now.toISOString(),
+          checkInTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          checkOutTime: '-',
+          status: "Present", 
+          location: locationText,
+          latitude: latLng.lat,
+          longitude: latLng.lng,
+          createdAt: now.toISOString(),
+          dayStatus: 'In-Progress'
+        };
+      } else {
+        // Scoped Local Storage Mock Flow for Managers
+        newRecord = {
+          id: crypto.randomUUID(),
+          userId: userId, 
+          date: todayDateStr,
+          repName: userName,
+          checkInDateTime: now.toISOString(),
+          checkInTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+          checkOutTime: '-',
+          status: "Present", 
+          location: locationText,
+          latitude: latLng.lat,
+          longitude: latLng.lng,
+          createdAt: now.toISOString(),
+          dayStatus: 'In-Progress'
+        };
+        const scopedKey = `web_attendance_records_${userId}`;
+        const existingData = localStorage.getItem(scopedKey);
+        const scopedRecords = existingData ? JSON.parse(existingData) : [];
+        scopedRecords.unshift(newRecord);
+        localStorage.setItem(scopedKey, JSON.stringify(scopedRecords));
+      }
+
       localStorage.setItem(
-        'today_checkin',
+        `today_checkin_${userId}`,
         JSON.stringify({
             checkedIn: true,
             user: userName,
@@ -291,7 +364,7 @@ export default function CheckIn() {
       );
 
       alert('Checked in successfully!');
-      navigate('/workspace/gps/attendance');
+      navigate(getRedirectPath());
     } catch (e: any) {
       console.error(e);
       alert('Check-in failed: ' + e.message);

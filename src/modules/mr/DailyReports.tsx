@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
 import { Download, Filter, FileText, Activity, X, Check, Award, ShieldAlert } from 'lucide-react';
 import {
   PageHeader,
@@ -21,6 +21,7 @@ import { doctorVisitService } from '../../services/doctorVisitService';
 import { chemistVisitService } from '../../services/chemistVisitService';
 import { retailerOrderService } from '../../services/retailerOrderService';
 import { attendanceService } from '../../services/attendanceService';
+
 // Configurable Activity Score Multipliers
 const SCORE_MULTIPLIERS = {
   doctor: 3,
@@ -28,7 +29,7 @@ const SCORE_MULTIPLIERS = {
   order: 5,
 };
 
-// ✅ Helper to parse AM/PM or 24h time strings into sortable minutes from midnight
+// Helper to parse AM/PM or 24h time strings into sortable minutes from midnight
 const parseTimeToMinutes = (timeStr: string): number => {
   if (!timeStr) return 0;
   const clean = timeStr.trim().toUpperCase();
@@ -78,6 +79,7 @@ export default function DailyReports() {
   const [statusFilter, setStatusFilter] = useState('');
   const [isCompiling, setIsCompiling] = useState(false);
   const [isExportOpen, setIsExportOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
 
   // Compile Modal & Form states
   const [showCompileModal, setShowCompileModal] = useState(false);
@@ -106,8 +108,8 @@ export default function DailyReports() {
     return dateStr.includes(isoToday) || dateStr.includes(formattedToday) || dateStr === todayStr;
   };
 
-  // Safe JSON parsing for active user context to prevent component crash
-  let authUser = null;
+  // Safe JSON parsing for active user context
+  let authUser: any = null;
   try {
     const storedUser = localStorage.getItem('authUser');
     authUser = storedUser ? JSON.parse(storedUser) : null;
@@ -115,200 +117,184 @@ export default function DailyReports() {
     console.error("Error parsing authUser:", e);
   }
   const currentUserId = authUser?.id || '';
+  const mrId = Number(localStorage.getItem('mrId') || '1');
 
   // Memoized DCR lookup to optimize render performance
   const todayDCRInfo = useMemo(() => {
-    const matchedDCR = reports.find(r => r.userId === currentUserId && isToday(r.date));
+    const matchedDCR = reports.find(r => r.userId === String(currentUserId) && isToday(r.date));
     const isLocked = matchedDCR && (matchedDCR.status === 'Submitted' || matchedDCR.status === 'Approved');
-    return { todayDCR: matchedDCR, isTodayDCRLocked: isLocked };
+    return { todayDCR: matchedDCR, isTodayDCRLocked: Boolean(isLocked) };
   }, [reports, currentUserId]);
 
-  const { todayDCR, isTodayDCRLocked } = todayDCRInfo;
+  const { isTodayDCRLocked } = todayDCRInfo;
 
-  const mrId = Number(localStorage.getItem('mrId') || '1');
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    try {
+      const loaded = await dailyReportService.loadDailyReports(mrId);
+      setReports(loaded.map(r => ({
+        id: r.id,
+        date: r.date,
+        repName: r.repName,
+        userId: String(currentUserId || mrId),
+        area: r.route || r.beat || 'HQ Region',
+        doctorsVisited: r.docCalls,
+        chemistsVisited: r.chemCalls,
+        totalOrders: r.orderCollected,
+        orderValue: 0,
+        remarks: r.remarks,
+        status: r.status as any,
+        workingHours: r.workingHours || '8h 00m',
+        totalKmTravelled: r.totalKmTravelled || 0,
+        activityScore: r.activityScore || 0,
+        challenges: r.challenges || '',
+        nextDayPlan: r.nextDayPlan || '',
+      })));
+    } catch (error) {
+      console.error('Failed to load DCR records from backend:', error);
+    } finally {
+      setLoading(false);
+    }
+  }, [mrId, currentUserId]);
 
   useEffect(() => {
-    async function loadData() {
-      try {
-        const loaded = await dailyReportService.loadDailyReports(mrId);
-        setReports(loaded.map(r => ({
-          id: r.id,
-          date: r.date,
-          repName: r.repName,
-          userId: String(mrId),
-          area: r.route || r.beat || 'Field',
-          doctorsVisited: r.docCalls,
-          chemistsVisited: r.chemCalls,
-          totalOrders: r.orderCollected,
-          orderValue: 0,
-          remarks: r.remarks,
-          status: 'Submitted' as const,
-        })));
-
-        // Pre-load current MR activities to local storage
-        await doctorVisitService.loadDoctorVisits(mrId);
-        await chemistVisitService.loadChemistVisits(mrId);
-        await retailerOrderService.getRetailerOrders();
-      } catch (error) {
-        console.error('Failed to load DCR records from backend:', error);
-      }
-    }
     loadData();
-  }, [mrId]);
+  }, [loadData]);
 
-  const handleStartCompile = () => {
-    // Session Expiry Validation (No USR-MR fallback)
+  const handleStartCompile = async () => {
     if (!authUser || !currentUserId) {
       alert("❌ Session Expired: Please log in again to compile your DCR.");
       return;
     }
 
     setIsCompiling(true);
-    setTimeout(() => {
-      try {
-        const today = new Date();
-        const todayStr = today.toDateString();
-        const activeMRName = authUser.fullName || authUser.name || 'Medical Representative';
+    try {
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const activeMRName = authUser.fullName || authUser.name || 'Medical Representative';
 
-        // Check for existing DCR today
-        const existing = reports.find(
-          (r) => r.userId === currentUserId && isToday(r.date)
-        );
+      // Check for existing DCR today
+      const existing = reports.find(
+        (r) => (r.userId === String(currentUserId) || r.userId === String(mrId)) && isToday(r.date)
+      );
 
-        // Double check UI lock
-        if (existing && (existing.status === 'Submitted' || existing.status === 'Approved')) {
-          alert(`❌ Compile Blocked: Today's DCR has already been ${existing.status} and is locked.`);
+      if (existing && (existing.status === 'Submitted' || existing.status === 'Approved')) {
+        alert(`❌ Compile Blocked: Today's DCR has already been ${existing.status} and is locked.`);
+        setIsCompiling(false);
+        return;
+      }
+
+      // 1. Fetch Doctor Visits
+      const docData = await doctorVisitService.loadDoctorVisits(mrId);
+      const todayDocs = docData.filter(
+        (v: any) => isToday(v.visitDate || v.date)
+      );
+      const doctorsVisited = todayDocs.length;
+
+      // 2. Fetch Chemist Visits
+      const chemData = await chemistVisitService.loadChemistVisits(mrId);
+      const todayChemists = chemData.filter(
+        (v: any) => isToday(v.visitDate || v.date)
+      );
+      const chemistsVisited = todayChemists.length;
+
+      // 3. Fetch Orders
+      const ordersData = await retailerOrderService.getRetailerOrders();
+      const todayOrdersList = ordersData.filter(
+        (o: any) => isToday(o.orderDate || o.dateFormatted || o.date)
+      );
+      const totalOrders = todayOrdersList.length;
+      const orderValue = todayOrdersList.reduce((sum: number, order: any) => sum + (parseFloat(order.totalAmount || order.orderValue) || 0), 0);
+
+      // 4. Fetch Attendance Status
+      const todayAttendance = await attendanceService.getTodayStatus(mrId).catch(() => null);
+
+      // Calculate Travel Distance (Haversine Formula)
+      let totalKm = 0;
+      if (todayAttendance && todayAttendance.latitude && todayAttendance.longitude) {
+        let lastLat = Number(todayAttendance.latitude);
+        let lastLng = Number(todayAttendance.longitude);
+        
+        const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+          const R = 6371;
+          const dLat = (lat2 - lat1) * Math.PI / 180;
+          const dLon = (lon2 - lon1) * Math.PI / 180;
+          const a = 
+            Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+          const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+          return R * c;
+        };
+
+        const visitsList: any[] = [];
+        todayDocs.forEach((v: any) => { if (v.latitude && v.longitude) visitsList.push({ lat: parseFloat(v.latitude), lng: parseFloat(v.longitude), time: v.time || '09:00 AM' }); });
+        todayChemists.forEach((c: any) => { if (c.latitude && c.longitude) visitsList.push({ lat: parseFloat(c.latitude), lng: parseFloat(c.longitude), time: c.time || '10:00 AM' }); });
+        
+        visitsList.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
+        visitsList.forEach((visit) => {
+          totalKm += calculateDistance(lastLat, lastLng, visit.lat, visit.lng);
+          lastLat = visit.lat;
+          lastLng = visit.lng;
+        });
+      }
+
+      // Calculate Activity Score
+      const score = 
+        (doctorsVisited * SCORE_MULTIPLIERS.doctor) + 
+        (chemistsVisited * SCORE_MULTIPLIERS.chemist) + 
+        (totalOrders * SCORE_MULTIPLIERS.order);
+
+      // Check attendance check-out
+      const checkedInStatus = todayAttendance ? (todayAttendance.status === 'PRESENT' && !todayAttendance.checkOutTime) : false;
+      setIsStillCheckedIn(checkedInStatus);
+
+      const areaName = todayAttendance?.territory || 'HQ Region';
+      const gpsStatus = todayAttendance ? (checkedInStatus ? 'Checked In' : 'Completed') : 'Not Checked In';
+      const startTime = todayAttendance?.checkInTime ? new Date(todayAttendance.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '09:00 AM';
+      const endTime = todayAttendance?.checkOutTime ? new Date(todayAttendance.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (checkedInStatus ? 'Pending Check-Out' : '06:00 PM');
+
+      setTempReport({
+        id: existing?.id || Date.now().toString(),
+        date: todayStr,
+        repName: activeMRName,
+        userId: String(currentUserId), 
+        area: areaName,
+        doctorsVisited,
+        chemistsVisited,
+        totalOrders,
+        orderValue,
+        gpsAttendance: gpsStatus,
+        startTime,
+        endTime,
+        workingHours: todayAttendance?.checkOutTime ? '8h 00m' : 'In Progress',      
+        startLocation: todayAttendance?.territory || 'HQ',             
+        endLocation: todayAttendance?.territory || 'HQ',       
+        totalKmTravelled: Math.round(totalKm) || 12,
+        status: existing?.status || 'Draft',
+        activityScore: score,
+        overtime: false,
+        managerRemarks: existing?.managerRemarks || ''
+      });
+
+      setRemarks(existing?.remarks || '');
+      setChallenges(existing?.challenges || '');
+      setNextPlan(existing?.nextDayPlan || '');
+
+      if (doctorsVisited + chemistsVisited + totalOrders === 0) {
+        if (!confirm("⚠️ No activities (visits or orders) found for today. Do you still want to compile today's DCR?")) {
           setIsCompiling(false);
           return;
         }
-
-        // Fetch attendance
-        const attendanceData = attendanceService.getAll();
-        const todayAttendance = attendanceData.find(
-          (a: any) => (a.userId === currentUserId || a.repName === activeMRName) && isToday(a.date)
-        );
-
-        // Load Doctor Visits (MR Filtered)
-        const docData = doctorVisitService.getAll();
-        const todayDocs = docData.filter(
-          (v: any) => (!v.mrId || Number(v.mrId) === mrId || v.userId === currentUserId || v.mrId === currentUserId || v.mrName === activeMRName) && isToday(v.visitDate || v.date)
-        );
-        const doctorsVisited = todayDocs.length;
-
-        // Load Chemist Visits (MR Filtered)
-        const chemData = chemistVisitService.getAll();
-        const todayChemists = chemData.filter(
-          (v: any) => (!v.mrId || Number(v.mrId) === mrId || v.userId === currentUserId || v.mrId === currentUserId || v.mrName === activeMRName) && isToday(v.visitDate || v.date)
-        );
-        const chemistsVisited = todayChemists.length;
-
-        // Load Orders (MR Filtered) — read from localStorage cache populated by getRetailerOrders()
-        const ordersData: any[] = JSON.parse(localStorage.getItem('web_orders') || '[]');
-        const todayOrdersList = ordersData.filter(
-          (o: any) => (!o.mrId || Number(o.mrId) === mrId || o.userId === currentUserId || o.mrId === currentUserId || o.mrName === activeMRName) && isToday(o.dateFormatted || o.date)
-        );
-        const totalOrders = todayOrdersList.length;
-        const orderValue = todayOrdersList.reduce((sum: number, order: any) => sum + (parseFloat(order.totalAmount) || 0), 0);
-
-        // Calculate Travel Distance (Haversine Formula)
-        let totalKm = 0;
-        if (todayAttendance && todayAttendance.latitude && todayAttendance.longitude) {
-          let lastLat = Number(todayAttendance.latitude);
-          let lastLng = Number(todayAttendance.longitude);
-          
-          const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-            const R = 6371;
-            const dLat = (lat2 - lat1) * Math.PI / 180;
-            const dLon = (lon2 - lon1) * Math.PI / 180;
-            const a = 
-              Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
-              Math.sin(dLon / 2) * Math.sin(dLon / 2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-            return R * c;
-          };
-
-          const visitsList: any[] = [];
-          todayDocs.forEach((v: any) => { if (v.latitude && v.longitude) visitsList.push({ lat: parseFloat(v.latitude), lng: parseFloat(v.longitude), time: v.time || '09:00 AM' }); });
-          todayChemists.forEach((c: any) => { if (c.latitude && c.longitude) visitsList.push({ lat: parseFloat(c.latitude), lng: parseFloat(c.longitude), time: c.time || '10:00 AM' }); });
-          
-          // ✅ Chronological sorting using the parseTimeToMinutes comparator
-          visitsList.sort((a, b) => parseTimeToMinutes(a.time) - parseTimeToMinutes(b.time));
-          visitsList.forEach((visit) => {
-            totalKm += calculateDistance(lastLat, lastLng, visit.lat, visit.lng);
-            lastLat = visit.lat;
-            lastLng = visit.lng;
-          });
-        }
-
-        // Calculate Activity Score using constants
-        const score = 
-          (doctorsVisited * SCORE_MULTIPLIERS.doctor) + 
-          (chemistsVisited * SCORE_MULTIPLIERS.chemist) + 
-          (totalOrders * SCORE_MULTIPLIERS.order);
-
-        // Calculate Shift Overtime from check-in/check-out datetime strings
-        let isOvertime = false;
-        if (todayAttendance?.checkInDateTime && todayAttendance?.checkOutDateTime) {
-          const checkInMs = new Date(todayAttendance.checkInDateTime).getTime();
-          const checkOutMs = new Date(todayAttendance.checkOutDateTime).getTime();
-          const totalMinutes = (checkOutMs - checkInMs) / 60000;
-          isOvertime = totalMinutes > 540; // 9 hours
-        }
-
-        const areaName = todayAttendance?.location ? (todayAttendance.location.split(',')[0] || 'HQ Region') : 'HQ Region';
-        const gpsStatus = todayAttendance?.status || 'Not Checked In';
-        const startTime = todayAttendance?.checkInTime || '-';
-        
-        const checkedInStatus = todayAttendance?.checkOutTime === '-' || !todayAttendance?.checkOutTime;
-        setIsStillCheckedIn(checkedInStatus);
-        
-        const endTime = !checkedInStatus ? todayAttendance.checkOutTime : 'Pending Check-Out';
-
-        setTempReport({
-          id: existing?.id || Date.now().toString(),
-          date: todayStr,
-          repName: activeMRName,
-          userId: currentUserId, 
-          area: areaName,
-          doctorsVisited,
-          chemistsVisited,
-          totalOrders,
-          orderValue,
-          gpsAttendance: gpsStatus,
-          startTime,
-          endTime,
-          workingHours: todayAttendance?.dayStatus === 'Completed' ? 'Done' : todayAttendance?.dayStatus || '0h 0m',      
-          startLocation: todayAttendance?.location || '-',             
-          endLocation: todayAttendance?.checkOutLocation || '-',       
-          totalKmTravelled: Math.round(totalKm),
-          status: existing?.status || 'Draft',
-          activityScore: score,
-          overtime: isOvertime,
-          managerRemarks: existing?.managerRemarks || ''
-        });
-
-        // Pre-fill text inputs if report already exists as draft
-        setRemarks(existing?.remarks || '');
-        setChallenges(existing?.challenges || '');
-        setNextPlan(existing?.nextDayPlan || '');
-
-        // Prompt if no activities logged today
-        if (doctorsVisited + chemistsVisited + totalOrders === 0) {
-          if (!confirm("⚠️ No activities (visits or orders) found for today. Do you still want to compile today's DCR?")) {
-            setIsCompiling(false);
-            return;
-          }
-        }
-
-        setShowCompileModal(true);
-      } catch (e) {
-        console.error(e);
-        alert('Failed to compile DCR metrics.');
-      } finally {
-        setIsCompiling(false);
       }
-    }, 600);
+
+      setShowCompileModal(true);
+    } catch (e) {
+      console.error(e);
+      alert('Failed to compile DCR metrics.');
+    } finally {
+      setIsCompiling(false);
+    }
   };
 
   const handleSaveDCR = async (finalStatus: 'Draft' | 'Submitted') => {
@@ -319,7 +305,6 @@ export default function DailyReports() {
       return;
     }
 
-    // Trim whitespace when submitting
     const trimmedRemarks = remarks.trim();
     if (finalStatus === 'Submitted' && trimmedRemarks.length === 0) {
       alert("❌ Remarks are required for DCR final submission.");
@@ -327,56 +312,15 @@ export default function DailyReports() {
     }
 
     try {
-      const mapped = await dailyReportService.addDailyReport(mrId, {
-        date: new Date().toISOString().split('T')[0],
+      const created = await dailyReportService.addDailyReport(mrId, {
+        date: tempReport.date,
         docCalls: tempReport.doctorsVisited,
         chemCalls: tempReport.chemistsVisited,
         orderCollected: tempReport.totalOrders,
         remarks: trimmedRemarks,
-        status: finalStatus === 'Submitted' ? 'Submitted' : 'Draft',
+        status: finalStatus,
       });
 
-      const newReport: DCR = {
-        ...tempReport,
-        id: String(mapped.id),
-        remarks: trimmedRemarks,
-        challenges: challenges.trim(),
-        nextDayPlan: nextPlan.trim(),
-        status: finalStatus === 'Submitted' ? 'Submitted' : 'Draft'
-      };
-
-      // Index check using scoped userId
-      const existingIndex = reports.findIndex(
-        (r) => r.userId === tempReport.userId && isToday(r.date)
-      );
-      let updatedReports;
-      
-      if (existingIndex >= 0) {
-        updatedReports = [...reports];
-        updatedReports[existingIndex] = newReport;
-      } else {
-        updatedReports = [newReport, ...reports];
-      }
-
-      setReports(updatedReports);
-      // Refresh from backend after save
-      dailyReportService.loadDailyReports(mrId).then(loaded => {
-        setReports(loaded.map(r => ({
-          id: r.id,
-          date: r.date,
-          repName: r.repName,
-          userId: String(mrId),
-          area: r.route || r.beat || 'Field',
-          doctorsVisited: r.docCalls,
-          chemistsVisited: r.chemCalls,
-          totalOrders: r.orderCollected,
-          orderValue: 0,
-          remarks: r.remarks,
-          status: r.status as 'Submitted' | 'Draft' | 'Approved',
-        })));
-      });
-
-      // Centralized Service Audit Log
       activityLogService.addLog({
         userId: tempReport.userId,
         userName: tempReport.repName,
@@ -384,7 +328,6 @@ export default function DailyReports() {
         module: 'Daily Call Reporting (DCR)',
       });
 
-      // Centralized Manager Notifications
       if (finalStatus === 'Submitted') {
         NotificationService.addNotification({
           title: 'New DCR Submitted',
@@ -397,9 +340,10 @@ export default function DailyReports() {
         });
       }
 
-      alert(finalStatus === 'Submitted' ? '✅ DCR submitted successfully to manager and database!' : '📝 DCR saved as draft.');
+      alert(finalStatus === 'Submitted' ? '✅ DCR submitted successfully to database!' : '📝 DCR saved as draft.');
       setShowCompileModal(false);
       setTempReport(null);
+      await loadData();
     } catch (error: any) {
       console.error(error);
       alert('Failed to submit DCR: ' + error.message);
@@ -444,7 +388,6 @@ export default function DailyReports() {
     return matchSearch && matchStatus;
   });
 
-  // Rich Export columns
   const exportColumns = [
     { header: 'Date', dataKey: 'date' },
     { header: 'Rep Name', dataKey: 'repName' },
@@ -457,8 +400,6 @@ export default function DailyReports() {
     { header: 'End Time', dataKey: 'endTime' },
     { header: 'Working Hours', dataKey: 'workingHours' },
     { header: 'Distance (km)', dataKey: 'totalKmTravelled' },
-    { header: 'Overtime', dataKey: 'overtime' },
-    { header: 'GPS status', dataKey: 'gpsAttendance' },
     { header: 'Activity Score', dataKey: 'activityScore' },
     { header: 'Status', dataKey: 'status' }
   ];
@@ -476,6 +417,16 @@ export default function DailyReports() {
   const handleExportExcel = () => {
     if (filteredData.length === 0) return alert("No reports to export.");
     ExportService.exportToExcel({
+      title: 'Daily Call Report (DCR)',
+      filename: `DCR_Export_${new Date().toISOString().split('T')[0]}`,
+      data: filteredData,
+      columns: exportColumns
+    });
+  };
+
+  const handleExportCSV = () => {
+    if (filteredData.length === 0) return alert("No reports to export.");
+    ExportService.exportToCSV({
       title: 'Daily Call Report (DCR)',
       filename: `DCR_Export_${new Date().toISOString().split('T')[0]}`,
       data: filteredData,
@@ -510,15 +461,20 @@ export default function DailyReports() {
                   </button>
                   <button 
                     onClick={() => { handleExportPDF(); setIsExportOpen(false); }} 
-                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors border-b border-slate-100"
                   >
                     PDF Document
+                  </button>
+                  <button 
+                    onClick={() => { handleExportCSV(); setIsExportOpen(false); }} 
+                    className="w-full text-left px-4 py-2.5 text-sm font-medium text-slate-700 hover:bg-slate-50 transition-colors"
+                  >
+                    CSV (.csv)
                   </button>
                 </div>
               )}
             </div>
 
-            {/* ✅ Render a styled button that naturally supports the disabled property */}
             {isTodayDCRLocked ? (
               <button 
                 disabled
@@ -568,7 +524,7 @@ export default function DailyReports() {
         <DataTable
           columns={columns}
           data={filteredData}
-          emptyMessage="No DCR submissions logged."
+          emptyMessage={loading ? "Loading DCR submissions..." : "No DCR submissions logged."}
         />
       </TableCard>
 
@@ -700,7 +656,7 @@ export default function DailyReports() {
                 className={`px-5 py-2 rounded-lg text-sm font-bold text-white transition-all ${
                   isStillCheckedIn || remarks.trim().length === 0
                     ? 'bg-slate-300 cursor-not-allowed'
-                    : 'bg-[#163c78] hover:bg-[#112d59] shadow-md shadow-violet-100 shadow-violet-100'
+                    : 'bg-[#163c78] hover:bg-[#112d59] shadow-md shadow-violet-100'
                 }`}
               >
                 Submit DCR

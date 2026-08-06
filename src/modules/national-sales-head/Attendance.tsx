@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { PageHeader, FilterBar, SearchInput, TableCard, DataTable, Badge, ActionButton, SummaryCard } from './components/shared';
 import { Download, Eye, Users, UserCheck, UserX, Clock, MapPin } from 'lucide-react';
-import CheckIn from '../gps/CheckIn';
 import { exportToCSV } from '../../utils/exportUtils';
 import { Modal } from '../../components/ui/Modal';
+import { attendanceService } from '../../services/attendanceService';
 
 // Mock Data for Team Attendance
 const MOCK_TEAM_ATTENDANCE = [
@@ -41,7 +41,7 @@ const MOCK_TEAM_ATTENDANCE = [
     checkInTime: '09:45 AM',
     checkOutTime: '-',
     workingHours: '-',
-    status: 'Late',
+    status: 'Present',
     gpsStatus: 'Verified',
     checkInCoords: '18.5204° N, 73.8567° E',
     checkOutCoords: '-',
@@ -129,7 +129,7 @@ const MOCK_TEAM_ATTENDANCE = [
     checkInTime: '10:15 AM',
     checkOutTime: '-',
     workingHours: '-',
-    status: 'Late',
+    status: 'Present',
     gpsStatus: 'Verified',
     checkInCoords: '21.1702° N, 72.8311° E',
     checkOutCoords: '-',
@@ -143,6 +143,49 @@ const MOCK_TEAM_ATTENDANCE = [
 
 export default function Attendance() {
   const [activeTab, setActiveTab] = useState<'my-attendance' | 'team-attendance'>('my-attendance');
+  const [myRecords, setMyRecords] = useState<any[]>([]);
+
+  React.useEffect(() => {
+    const fetchMyRecords = async () => {
+      try {
+        let authUser = null;
+        try {
+          const authUserString = localStorage.getItem('authUser');
+          authUser = authUserString ? JSON.parse(authUserString) : null;
+        } catch { }
+        
+        let isManager = false;
+        if (authUser) {
+          const userRole = authUser.roleId || authUser.role;
+          const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
+          if (managementRoles.includes(userRole)) {
+            isManager = true;
+          }
+        }
+
+        const rawMrId = localStorage.getItem('mrId');
+        
+        if (!isManager && rawMrId) {
+          const mrId = Number(rawMrId);
+          const data = await attendanceService.loadAttendance(mrId);
+          setMyRecords(data);
+        } else {
+          // Managers load from scoped localStorage
+          const userId = authUser?.id || 'default';
+          const scopedKey = `web_attendance_records_${userId}`;
+          const stored = localStorage.getItem(scopedKey);
+          if (stored) {
+            setMyRecords(JSON.parse(stored));
+          }
+        }
+      } catch (e) {
+        console.error("Failed to load personal attendance records:", e);
+      }
+    };
+    if (activeTab === 'my-attendance') {
+      fetchMyRecords();
+    }
+  }, [activeTab]);
   
   // Team Attendance State
   const [search, setSearch] = useState('');
@@ -163,7 +206,7 @@ export default function Attendance() {
       row.reportingRsm.toLowerCase().includes(s) ||
       row.state.toLowerCase().includes(s) ||
       row.designation.toLowerCase().includes(s);
-      
+
     const matchesStatus = filters.status === 'All' || row.status === filters.status;
 
     return matchesSearch && matchesStatus;
@@ -259,8 +302,30 @@ export default function Attendance() {
       <div className="mt-4">
         {activeTab === 'my-attendance' ? (
           <div>
-            <h3 className="text-lg font-bold text-slate-800 mb-4">Daily Check-In</h3>
-            <CheckIn />
+            <h3 className="text-lg font-bold text-slate-800 mb-4">My Attendance History</h3>
+            <TableCard>
+              <DataTable 
+                columns={[
+                  { key: 'date', label: 'Date', render: (row: any) => <span className="font-semibold text-slate-900">{row.date}</span> },
+                  { key: 'checkInTime', label: 'Check In', render: (row: any) => <span className="text-emerald-600 font-medium">{row.checkInTime}</span> },
+                  { key: 'checkOutTime', label: 'Check Out', render: (row: any) => <span className="text-rose-600 font-medium">{row.checkOutTime}</span> },
+                  { key: 'location', label: 'Start Location' },
+                  {
+                    key: 'status',
+                    label: 'Status',
+                    render: (row: any) => {
+                      const currentStatus = row.dayStatus || row.status;
+                      const variant = currentStatus === 'Present' || currentStatus === 'Completed' ? 'success' : 
+                                      currentStatus === 'Absent' || currentStatus === 'Missed Check-Out' || currentStatus === 'Auto Closed' ? 'danger' : 
+                                      currentStatus === 'Half Day' || currentStatus === 'Pending Checkout' ? 'warning' : 'neutral';
+                      return <Badge variant={variant as any}>{currentStatus}</Badge>;
+                    }
+                  }
+                ]}
+                data={myRecords}
+                emptyMessage="No attendance records found."
+              />
+            </TableCard>
           </div>
         ) : (
           <div>
@@ -294,7 +359,6 @@ export default function Attendance() {
                   <option value="All">All Status</option>
                   <option value="Present">Present</option>
                   <option value="Absent">Absent</option>
-                  <option value="Late">Late</option>
                   <option value="Half Day">Half Day</option>
                   <option value="On Leave">On Leave</option>
                 </select>
@@ -310,7 +374,7 @@ export default function Attendance() {
             </div>
 
             {/* Summary Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
               <SummaryCard
                 title="Present Today"
                 value={presentCount.toString()}
@@ -324,13 +388,6 @@ export default function Attendance() {
                 icon={<UserX className="w-6 h-6" />}
                 colorClass="text-rose-600"
                 bgClass="bg-rose-50"
-              />
-              <SummaryCard
-                title="Late Check-ins"
-                value={lateCount.toString()}
-                icon={<Clock className="w-6 h-6" />}
-                colorClass="text-amber-600"
-                bgClass="bg-amber-50"
               />
               <SummaryCard
                 title="Attendance %"

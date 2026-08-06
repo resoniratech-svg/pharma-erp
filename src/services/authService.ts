@@ -11,7 +11,7 @@ export const DEMO_CREDENTIALS: Record<string, string> = {
   'retailer@pharmaerp.com': 'Retailer',
   'mr@pharmaerp.com': 'Medical Representative',
   'nsh@pharmaerp.com': 'National Sales Head',
-
+  'nsm@pharmaerp.com': 'National Sales Head',
   'rsm@pharmaerp.com': 'Regional Sales Manager',
   'asm@pharmaerp.com': 'Area Sales Manager',
 };
@@ -181,27 +181,44 @@ export class AuthService {
   }
   async login(email: string, password: string, force = false): Promise<UserRecord> {
     try {
-      const { user, mappedRoleId } = await this.localLogin(email, password);
+      const response = await apiRequest<{ success: boolean; data: any }>('/auth/login', {
+        method: 'POST',
+        bodyData: { email, password }
+      });
 
-      // Map local user to frontend UserRecord format
+      if (!response.success || !response.data) {
+        throw new Error('Invalid email or password.');
+      }
+
+      const { token, user, mr, employee } = response.data;
+
+      // Map backend user to frontend UserRecord format
       const userRecord: UserRecord = {
         id: String(user.id),
         fullName: user.name,
         email: user.email,
-        roleId: mappedRoleId,
-        mobile: user.mobile || '',
-        employeeCode: user.id,
-        linkedDistributorCode: user.linkedDistributorCode || '',
-        department: 'Management',
-        password: password, 
+        roleId: user.role,
+        mobile: '',
+        employeeCode: employee ? employee.employeeCode : (mr ? mr.mrCode : ((user as any).linkedRetailerCode || '')),
+        linkedDistributorCode: (user as any).linkedDistributorCode || '',
+        department: employee ? 'Sales Hierarchy' : (mr ? 'Sales & Marketing' : 'Management'),
+        password: password, // Keep the entered password for compatibility with settings
       };
-
-      const token = 'mock-jwt-token-' + Date.now();
 
       localStorage.setItem('authToken', token);
       localStorage.setItem('authUser', JSON.stringify(userRecord));
-      localStorage.setItem('activeRole', mappedRoleId);
+      localStorage.setItem('activeRole', user.role);
       localStorage.setItem('userId', String(user.id));
+      if (employee) {
+        localStorage.setItem('employeeId', String(employee.id));
+        localStorage.setItem('employeeCode', employee.employeeCode || '');
+        localStorage.setItem('employeeDesignation', employee.designation || '');
+      }
+      if (mr) {
+        localStorage.setItem('mrId', String(mr.id));
+        localStorage.setItem('mrCode', mr.mrCode);
+        localStorage.setItem('mrTerritory', mr.territory || '');
+      }
 
       return userRecord;
     } catch (err: any) {
@@ -224,6 +241,9 @@ export class AuthService {
     localStorage.removeItem('activeRole');
     localStorage.removeItem('workspaceRole');
     localStorage.removeItem('userId');
+    localStorage.removeItem('employeeId');
+    localStorage.removeItem('employeeCode');
+    localStorage.removeItem('employeeDesignation');
     localStorage.removeItem('mrId');
     localStorage.removeItem('mrCode');
     localStorage.removeItem('mrTerritory');

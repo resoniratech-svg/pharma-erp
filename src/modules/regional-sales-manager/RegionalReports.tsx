@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { PageHeader, TableCard, DataTable, ActionButton } from './components/shared';
-import { Download, FileText, FileSpreadsheet } from 'lucide-react';
+import { Download, FileText, FileSpreadsheet, Loader2 } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { rsmService } from '../../services/rsmService';
 import { exportToCSV, exportToExcel, exportToPDF } from '../../utils/exportUtils';
@@ -16,6 +16,7 @@ export default function RegionalReports() {
   const [generateModalOpen, setGenerateModalOpen] = useState(false);
   const [selectedReport, setSelectedReport] = useState<any>(null);
   const [format, setFormat] = useState('pdf');
+  const [generating, setGenerating] = useState(false);
 
   const handleOpenGenerate = (report: any) => {
     setSelectedReport(report);
@@ -23,15 +24,16 @@ export default function RegionalReports() {
     setGenerateModalOpen(true);
   };
 
-  const handleGenerate = () => {
+  const handleGenerate = async () => {
     if (!selectedReport) return;
     
     let exportData: any[] = [];
     let columns: any[] = [];
 
     try {
+      setGenerating(true);
       if (selectedReport.id === 'RPT-REG-01' || selectedReport.id === 'RPT-REG-03') {
-        const summaries = rsmService.getTargetSummaries();
+        const summaries = await rsmService.getTargetSummaries();
         exportData = summaries.map(s => ({
           allocationId: s.parentAllocation.id,
           targetType: s.parentAllocation.targetType,
@@ -47,12 +49,12 @@ export default function RegionalReports() {
           { key: 'remainingAmount', label: 'Remaining' },
         ];
       } else if (selectedReport.id === 'RPT-REG-02') {
-        exportData = rsmService.getTeamPerformance();
+        exportData = await rsmService.getTeamPerformance();
         columns = [
           { key: 'asmId', label: 'Employee Code' },
           { key: 'asmName', label: 'ASM Name' },
-          { key: 'totalAllocated', label: 'Total Allocated' },
-          { key: 'totalAchievement', label: 'Total Achievement' },
+          { key: 'allocatedTarget', label: 'Total Allocated' },
+          { key: 'achievement', label: 'Total Achievement' },
           { key: 'achievementPercentage', label: 'Achievement %' }
         ];
       } else {
@@ -63,7 +65,7 @@ export default function RegionalReports() {
         ];
       }
 
-      const filename = `${selectedReport.name.replace(/\s+/g, '_')}_2026-07-30`;
+      const filename = `${selectedReport.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}`;
       
       if (format === 'pdf') {
         exportToPDF(exportData, columns, `${filename}.pdf`, selectedReport.name);
@@ -72,12 +74,13 @@ export default function RegionalReports() {
       } else {
         exportToCSV(exportData, columns, `${filename}.csv`);
       }
+      setGenerateModalOpen(false);
     } catch (e) {
       console.error("Failed to generate report:", e);
       alert("Failed to generate report.");
+    } finally {
+      setGenerating(false);
     }
-
-    setGenerateModalOpen(false);
   };
 
   const columns = [
@@ -98,7 +101,7 @@ export default function RegionalReports() {
     <div className="p-6">
       <PageHeader 
         title="Regional Reports" 
-        subtitle="Generate production-level reports for your assigned region."
+        subtitle="Generate production-level reports for your assigned region (Database Integrated)."
       />
 
       <TableCard>
@@ -113,7 +116,9 @@ export default function RegionalReports() {
         footer={
           <div className="flex justify-end gap-3 w-full">
             <ActionButton variant="secondary" onClick={() => setGenerateModalOpen(false)}>Cancel</ActionButton>
-            <ActionButton variant="primary" onClick={handleGenerate}>Confirm & Download</ActionButton>
+            <ActionButton variant="primary" onClick={handleGenerate} disabled={generating}>
+              {generating ? 'Generating...' : 'Confirm & Download'}
+            </ActionButton>
           </div>
         }
       >

@@ -275,9 +275,13 @@ const ROLE_NAV_MAP: Record<string, NavItem[]> = {
       ]
     },
     {
-      label: 'Attendance',
+      label: 'GPS & Attendance',
       icon: Clock,
-      path: '/workspace/national-sales-head/attendance',
+      subItems: [
+        { label: 'Check In', path: '/workspace/gps/check-in' },
+        { label: 'Check Out', path: '/workspace/gps/check-out' },
+        { label: 'Attendance', path: '/workspace/national-sales-head/attendance' },
+      ],
     },
     {
       label: 'Settings',
@@ -302,9 +306,13 @@ const ROLE_NAV_MAP: Record<string, NavItem[]> = {
       ]
     },
     {
-      label: 'Attendance',
+      label: 'GPS & Attendance',
       icon: Clock,
-      path: '/workspace/regional-sales-manager/attendance',
+      subItems: [
+        { label: 'Check In', path: '/workspace/gps/check-in' },
+        { label: 'Check Out', path: '/workspace/gps/check-out' },
+        { label: 'Attendance', path: '/workspace/regional-sales-manager/attendance' },
+      ],
     },
     {
       label: 'Settings',
@@ -327,9 +335,13 @@ const ROLE_NAV_MAP: Record<string, NavItem[]> = {
       ]
     },
     {
-      label: 'Attendance',
+      label: 'GPS & Attendance',
       icon: Clock,
-      path: '/workspace/area-sales-manager/attendance',
+      subItems: [
+        { label: 'Check In', path: '/workspace/gps/check-in' },
+        { label: 'Check Out', path: '/workspace/gps/check-out' },
+        { label: 'Attendance', path: '/workspace/area-sales-manager/attendance' },
+      ],
     },
     {
       label: 'Settings',
