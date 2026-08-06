@@ -193,11 +193,12 @@ export class AuthService {
       const { token, user, mr, employee } = response.data;
 
       // Map backend user to frontend UserRecord format
+      const mappedRole = user.role === 'ADMIN' ? 'COMPANY_ADMIN' : user.role;
       const userRecord: UserRecord = {
         id: String(user.id),
         fullName: user.name,
         email: user.email,
-        roleId: user.role,
+        roleId: mappedRole,
         mobile: '',
         employeeCode: employee ? employee.employeeCode : (mr ? mr.mrCode : ((user as any).linkedRetailerCode || '')),
         linkedDistributorCode: (user as any).linkedDistributorCode || '',
@@ -207,7 +208,7 @@ export class AuthService {
 
       localStorage.setItem('authToken', token);
       localStorage.setItem('authUser', JSON.stringify(userRecord));
-      localStorage.setItem('activeRole', user.role);
+      localStorage.setItem('activeRole', mappedRole);
       localStorage.setItem('userId', String(user.id));
       if (employee) {
         localStorage.setItem('employeeId', String(employee.id));
