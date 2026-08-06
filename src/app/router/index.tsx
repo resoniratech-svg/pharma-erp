@@ -182,6 +182,7 @@ import DispatchMonitoring from '../../modules/super-admin/DispatchMonitoring';
 import FranchiseMonitoring from '../../modules/super-admin/FranchiseMonitoring';
 import SuperAdminNotificationCenter from '../../modules/super-admin/NotificationCenter';
 import UserActivityLogs from '../../modules/super-admin/UserActivityLogs';
+import ExportOrderMonitoring from '../../modules/super-admin/ExportOrderMonitoring';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 import ResetPassword from '../../pages/ResetPassword';
 
@@ -350,6 +351,7 @@ export const router = createBrowserRouter([
           { path: 'pending-payment-tracking', element: <PendingPaymentTracking /> },
           { path: 'dispatch-monitoring', element: <DispatchMonitoring /> },
           { path: 'franchise-monitoring', element: <FranchiseMonitoring /> },
+          { path: 'export-order-monitoring', element: <ExportOrderMonitoring /> },
           { path: 'notification-center', element: <SuperAdminNotificationCenter /> },
           { path: 'user-activity-logs', element: <UserActivityLogs /> },
         ],
