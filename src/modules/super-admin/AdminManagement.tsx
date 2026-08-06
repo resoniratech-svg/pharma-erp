@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { Download, ChevronDown, Eye, EyeOff, Shield, X, Check, Search } from 'lucide-react';
+import { Download, ChevronDown, Eye, EyeOff, Shield, X, Check, Search, Trash2 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
 import { apiRequest } from '../../services/apiClient';
@@ -259,19 +259,48 @@ export default function AdminManagement() {
     },
     {
       key: 'id',
-      label: 'Modules',
+      label: 'Actions',
       render: (row) => (
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            setSelectedAdminForPermissions(row);
-            setTempPermissions([...(row.subscription?.purchasedModules || [])]);
-          }}
-          className="p-2 text-[#163c78] hover:bg-[#163c78]/10 rounded-lg transition-colors flex items-center justify-center border border-transparent hover:border-violet-100"
-          title="Manage Modules"
-        >
-          <Shield className="w-5 h-5" />
-        </button>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              setSelectedAdminForPermissions(row);
+              setTempPermissions([...(row.subscription?.purchasedModules || [])]);
+            }}
+            className="p-2 text-[#163c78] hover:bg-[#163c78]/10 rounded-lg transition-colors flex items-center justify-center border border-transparent hover:border-violet-100"
+            title="Manage Modules"
+          >
+            <Shield className="w-5 h-5" />
+          </button>
+          <button
+            onClick={async (e) => {
+              e.stopPropagation();
+              if (!window.confirm(`Are you sure you want to delete ${row.adminName}?`)) return;
+
+              // Delete from backend API if it's a real company ID
+              if (!row.id.startsWith('ADM-NEW')) {
+                const companyId = parseInt(row.id.replace('ADM-', ''), 10);
+                if (!isNaN(companyId)) {
+                  try {
+                    await apiRequest(`/companies/${companyId}`, { method: 'DELETE' });
+                  } catch (err) {
+                    console.warn("Failed to delete company from backend:", err);
+                  }
+                }
+              }
+
+              // Remove from frontend state
+              const updatedAdmins = admins.filter(a => a.id !== row.id);
+              setAdmins(updatedAdmins);
+              localStorage.setItem('companyAdmins', JSON.stringify(updatedAdmins));
+            }}
+            className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors flex items-center justify-center border border-transparent hover:border-red-100"
+            title="Delete Admin"
+          >
+            <Trash2 className="w-5 h-5" />
+          </button>
+        </div>
       )
     }
   ];
