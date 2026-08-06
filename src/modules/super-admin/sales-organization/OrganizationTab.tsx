@@ -1,16 +1,31 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ChevronRight, ChevronDown, User, Shield, Users, Eye, X } from 'lucide-react';
 import { salesOrganizationService } from '../../../services/salesOrganizationService';
 import type { OrganizationNode } from './types';
 import { SearchInput, ActionButton, Badge, FilterBar } from '../components/shared';
 
 export default function OrganizationTab() {
-  const treeData = salesOrganizationService.getOrganizationTree();
+  const [treeData, setTreeData] = useState<OrganizationNode | null>(null);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [expandedNodes, setExpandedNodes] = useState<Record<string, boolean>>({
     'root-owner': true,
   });
   const [selectedNode, setSelectedNode] = useState<OrganizationNode | null>(null);
+
+  useEffect(() => {
+    const fetchTree = async () => {
+      try {
+        const data = await salesOrganizationService.getOrganizationTree();
+        setTreeData(data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchTree();
+  }, []);
 
   const toggleNode = (nodeId: string) => {
     setExpandedNodes((prev) => ({
@@ -20,6 +35,7 @@ export default function OrganizationTab() {
   };
 
   const handleExpandAll = () => {
+    if (!treeData) return;
     const newExpanded: Record<string, boolean> = {};
     const traverse = (node: OrganizationNode) => {
       newExpanded[node.id] = true;
@@ -133,6 +149,14 @@ export default function OrganizationTab() {
       </div>
     );
   };
+
+  if (loading) {
+    return <div className="p-8 text-center text-slate-500">Loading organization tree...</div>;
+  }
+
+  if (!treeData) {
+    return <div className="p-8 text-center text-rose-500">Failed to load tree data.</div>;
+  }
 
   return (
     <div>

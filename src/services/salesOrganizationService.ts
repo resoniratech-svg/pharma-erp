@@ -5,24 +5,24 @@ import type { Employee, Territory, SalesTarget, OrganizationNode } from '../modu
 
 class SalesOrganizationService {
   // --- Employees CRUD ---
-  getEmployees(): Employee[] {
+  async getEmployees(): Promise<Employee[]> {
     return employeeService.getEmployees();
   }
 
-  addEmployee(emp: Omit<Employee, 'id'>): Employee {
+  async addEmployee(emp: any): Promise<Employee> {
     return employeeService.addEmployee(emp);
   }
 
-  updateEmployee(id: string, updated: Partial<Employee>): Employee | null {
+  async updateEmployee(id: string, updated: any): Promise<Employee | null> {
     return employeeService.updateEmployee(id, updated);
   }
 
-  deactivateEmployee(id: string): boolean {
+  async deactivateEmployee(id: string): Promise<boolean> {
     return employeeService.deactivateEmployee(id);
   }
 
   // --- Hierarchy Tree Helper ---
-  getOrganizationTree(): OrganizationNode {
+  async getOrganizationTree(): Promise<OrganizationNode> {
     return employeeService.getOrganizationTree();
   }
 

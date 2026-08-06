@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Eye, Edit2, UserX, X, ChevronDown } from 'lucide-react';
 import { salesOrganizationService } from '../../../services/salesOrganizationService';
 import type { Employee, Designation } from './types';
@@ -17,9 +17,12 @@ import {
 import type { Column } from '../components/shared';
 
 export default function EmployeesTab() {
-  const [employees, setEmployees] = useState<Employee[]>(() =>
-    salesOrganizationService.getEmployees()
-  );
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    reloadEmployees();
+  }, []);
   const [search, setSearch] = useState('');
   const [designationFilter, setDesignationFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -46,13 +49,21 @@ export default function EmployeesTab() {
 
   const [errors, setErrors] = useState<Record<string, string>>({});
 
-  const reloadEmployees = () => {
-    setEmployees(salesOrganizationService.getEmployees());
+  const reloadEmployees = async () => {
+    setLoading(true);
+    try {
+      const data = await salesOrganizationService.getEmployees();
+      setEmployees(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Dynamically compute Reports To options based on chosen designation
   const getReportsToOptions = (designation: Designation): string[] => {
-    const allEmps = salesOrganizationService.getEmployees();
+    const allEmps = employees;
     let options: string[] = [];
     switch (designation) {
       case 'Medical Representative':
@@ -163,7 +174,7 @@ export default function EmployeesTab() {
   // Helper to generate the next unique Employee Code based on Designation
   const generateNextEmployeeCode = (designation: Designation): string => {
     const prefix = DESIGNATION_PREFIX[designation] || 'EMP-MR-';
-    const allEmps = salesOrganizationService.getEmployees();
+    const allEmps = employees;
 
     let maxSeq = 0;
     allEmps.forEach((emp) => {
@@ -235,7 +246,7 @@ export default function EmployeesTab() {
     });
   };
 
-  const handleSubmitForm = (e: React.FormEvent) => {
+  const handleSubmitForm = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!validateForm()) {
       return;
@@ -256,9 +267,9 @@ export default function EmployeesTab() {
 
     try {
       if (editingEmployee) {
-        salesOrganizationService.updateEmployee(editingEmployee.id, payload);
+        await salesOrganizationService.updateEmployee(editingEmployee.id, payload);
       } else {
-        salesOrganizationService.addEmployee(payload);
+        await salesOrganizationService.addEmployee(payload);
       }
 
       // Persist custom reporting manager if it's new
@@ -286,10 +297,10 @@ export default function EmployeesTab() {
     }
   };
 
-  const handleDeactivate = (emp: Employee) => {
+  const handleDeactivate = async (emp: Employee) => {
     if (window.confirm(`Are you sure you want to deactivate ${emp.employeeName}?`)) {
       try {
-        salesOrganizationService.deactivateEmployee(emp.id);
+        await salesOrganizationService.deactivateEmployee(emp.id);
         reloadEmployees();
       } catch (err: any) {
         alert(err.message || 'An error occurred while deactivating.');
@@ -422,7 +433,11 @@ export default function EmployeesTab() {
 
       {/* Table */}
       <TableCard>
-        <DataTable columns={columns} data={filteredEmployees} emptyMessage="No employees found." />
+        {loading ? (
+          <div className="p-8 text-center text-slate-500 font-medium">Loading employees...</div>
+        ) : (
+          <DataTable columns={columns} data={filteredEmployees} emptyMessage="No employees found." />
+        )}
       </TableCard>
 
       {/* Create / Edit Modal Form */}
