@@ -34,4 +34,9 @@ router.get(
   controller.getMrPerformance
 );
 
+router.get(
+  "/product-profitability",
+  controller.getProductProfitability
+);
+
 module.exports = router;

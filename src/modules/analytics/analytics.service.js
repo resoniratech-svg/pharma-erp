@@ -18,4 +18,7 @@ module.exports = {
 
   getMrPerformanceService:
     repo.getMrPerformanceRepo,
+
+  getProductProfitabilityService:
+    repo.getProductProfitabilityRepo,
 };
