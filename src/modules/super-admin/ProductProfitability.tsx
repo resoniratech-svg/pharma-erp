@@ -9,11 +9,11 @@ import {
   DataTable,
   Badge,
   SummaryCard,
-  ActionButton,
-  LoadingSpinner
+  ActionButton
 } from './components/shared';
 import { type Column } from './components/shared';
-import { analyticsService, ProductProfitabilityData } from '../../services/analyticsService';
+import { analyticsService } from '../../services/analyticsService';
+import type { ProductProfitabilityData } from '../../services/analyticsService';
 
 const formatCurrency = (amount: number) => {
   if (amount >= 10000000) return `₹ ${(amount / 10000000).toFixed(2)} Cr`;
@@ -320,7 +320,7 @@ export default function ProductProfitability() {
         <TableCard>
           <div className="product-profitability-table-container">
             {isLoading ? (
-              <div className="flex justify-center items-center p-12"><LoadingSpinner size="lg" /></div>
+              <div className="flex justify-center items-center p-12 text-slate-500">Loading...</div>
             ) : (
               <DataTable columns={columns} data={filteredData} />
             )}
