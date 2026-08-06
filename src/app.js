@@ -238,6 +238,11 @@ app.get('/', (req, res) => {
     message: 'Pharma ERP Backend Running'
   });
 });
+
+app.post('/api/activity-logs', (req, res) => {
+  res.status(200).json({ success: true, message: 'Activity logged successfully' });
+});
+
 app.use("/api/auth", authRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/test", testRoutes);
