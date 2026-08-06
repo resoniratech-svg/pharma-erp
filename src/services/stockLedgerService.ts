@@ -40,19 +40,19 @@ export const stockLedgerService = {
     );
   },
 
-  addRecord(record: any) {
-    const records = this.getAll();
+  async addRecord(record: any) {
+    const records = await this.getAll();
 
     records.unshift(record);
 
     this.saveAll(records);
   },
 
-  deleteRecord(id: string) {
-    const records = this.getAll();
+  async deleteRecord(id: string) {
+    const records = await this.getAll();
 
     const filtered = records.filter(
-      (record) => record.id !== id
+      (record: any) => record.id !== id
     );
 
     this.saveAll(filtered);

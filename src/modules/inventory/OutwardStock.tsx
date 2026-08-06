@@ -486,7 +486,7 @@ export default function OutwardStock() {
     return { totalItems, totalQuantity, totalValue };
   }, [formProducts]);
 
-  const handleSaveDispatch = () => {
+  const handleSaveDispatch = async () => {
     const trimmedClient = formData.client.trim();
     const trimmedRef = formData.referenceNumber.trim();
     
@@ -579,72 +579,70 @@ export default function OutwardStock() {
       alert("Failed to find valid Product ID or Batch ID in database. Please ensure product and batch exist.");
       return;
     }
+    const success = await outwardStockService.add(newRecord);
+    if (success) {
+      const records = await outwardStockService.getAll();
+      setOutwardRecords(records.map(r => ({
+        id: r.id || '',
+        dispatchNo: r.dispatchNo,
+        date: r.date,
+        client: r.client,
+        warehouseId: String(r.warehouseId),
+        warehouseCode: '',
+        warehouseName: '',
+        referenceNumber: r.referenceNumber,
+        itemsCount: r.itemsCount,
+        totalQuantity: r.totalQuantity,
+        totalValue: r.totalValue,
+        status: (r.status as Outward['status']) || 'Processing',
+        products: [],
+        createdBy: '',
+        createdDate: r.date,
+        lastUpdatedBy: '',
+        lastUpdatedDate: r.date,
+      })));
 
-    outwardStockService.add(newRecord).then(async success => {
-      if (success) {
-        const records = await outwardStockService.getAll();
-        setOutwardRecords(records.map(r => ({
-          id: r.id || '',
-          dispatchNo: r.dispatchNo,
-          date: r.date,
-          client: r.client,
-          warehouseId: String(r.warehouseId),
-          warehouseCode: '',
-          warehouseName: '',
-          referenceNumber: r.referenceNumber,
-          itemsCount: r.itemsCount,
-          totalQuantity: r.totalQuantity,
-          totalValue: r.totalValue,
-          status: (r.status as Outward['status']) || 'Processing',
-          products: [],
-          createdBy: '',
-          createdDate: r.date,
-          lastUpdatedBy: '',
-          lastUpdatedDate: r.date,
-        })));
-      } else {
-        alert("Failed to save dispatch to backend");
+      // Keeping local ledger log for dashboard mockup compatibility
+      for (const item of formProducts) {
+        const product = productService
+          .getProducts()
+          .find((p) => p.name === item.product);
+
+        const stock = inventoryService.getAll().find(
+          (s) =>
+            s.batchNo === item.batchNo && s.warehouseId === formData.warehouseId,
+        );
+
+        await stockLedgerService.addRecord({
+          id: Date.now().toString() + Math.random().toString(),
+          transactionNo: newDispatchNo,
+          transactionDate: new Date().toISOString(),
+          productCode: product?.code ?? "",
+          productName: item.product,
+          batchNo: item.batchNo,
+          transactionType: "OUTWARD",
+          inQty: 0,
+          outQty: Number(item.dispatchQty),
+          balanceQty: stock?.availableQty ?? 0,
+          remarks: "Dispatch",
+        });
       }
-    });
 
-    // Keeping local ledger log for dashboard mockup compatibility
-    formProducts.forEach((item) => {
-      const product = productService
-        .getProducts()
-        .find((p) => p.name === item.product);
+      const currentUser = authService.getCurrentUser();
 
-      const stock = inventoryService.getAll().find(
-        (s) =>
-          s.batchNo === item.batchNo && s.warehouseId === formData.warehouseId,
-      );
-
-      stockLedgerService.addRecord({
-        id: Date.now().toString() + Math.random().toString(),
-        transactionNo: newDispatchNo,
-        transactionDate: new Date().toISOString(),
-        productCode: product?.code ?? "",
-        productName: item.product,
-        batchNo: item.batchNo,
-        transactionType: "OUTWARD",
-        inQty: 0,
-        outQty: Number(item.dispatchQty),
-        balanceQty: stock?.availableQty ?? 0,
-        remarks: "Dispatch",
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: "Created Outward Dispatch",
+        module: "Outward Stock",
+        details: `Dispatched ${autoCalculatedMetrics.totalQuantity} units to ${trimmedClient} via ${newDispatchNo}`,
       });
-    });
 
-    const currentUser = authService.getCurrentUser();
-
-    activityLogService.addLog({
-      userId: currentUser?.id,
-      userName: currentUser?.fullName,
-      action: "Created Dispatch",
-      module: "Outward Stock",
-    });
-
-    setShowCreateModal(false);
-    setFormProducts([]);
-    alert("Dispatch created successfully!");
+      setShowCreateModal(false);
+      alert("Dispatch recorded successfully!");
+    } else {
+      alert("Failed to save dispatch to backend");
+    }
   };
 
   return (

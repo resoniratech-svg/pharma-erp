@@ -654,34 +654,24 @@ export default function InwardStock() {
     }
 
 
-    formProducts.forEach((item) => {
+    for (const item of formProducts) {
        const product = products.find((p) => p.name === item.product);
        const inventoryRecord = inventoryService.getByBatch(item.batchNo)[0];
 
-      stockLedgerService.addRecord({
+      await stockLedgerService.addRecord({
         id: Date.now().toString(),
-
         transactionNo: `GRN-${Date.now()}`,
-
         transactionDate: new Date().toISOString(),
-
         productCode: product?.code ?? "",
-
         productName: item.product,
-
         batchNo: item.batchNo,
-
         transactionType: "INWARD",
-
         inQty: Number(item.quantity),
-
         outQty: 0,
-
         balanceQty: inventoryRecord?.availableQty ?? Number(item.quantity),
-
         remarks: "Goods Received Note",
       });
-    });
+    }
 
     activityLogService.addLog({
       userId: currentUser?.id,

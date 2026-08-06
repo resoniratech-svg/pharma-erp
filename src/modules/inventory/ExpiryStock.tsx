@@ -248,7 +248,7 @@ export default function ExpiryStock() {
     return `${yyyy}${mm}${dd}`;
   };
 
-  const handleDispose = (record: CalculatedExpiryStock) => {
+  const handleDispose = async (record: CalculatedExpiryStock) => {
     const inventoryRecords = inventoryService.getAll();
 
     const updatedInventory = inventoryRecords.map((item) => {
@@ -268,7 +268,7 @@ export default function ExpiryStock() {
 
     inventoryService.saveAll(updatedInventory);
 
-    stockLedgerService.addRecord({
+    await stockLedgerService.addRecord({
       id: Date.now().toString(),
       date: new Date().toISOString(),
       productCode: record.productCode,
