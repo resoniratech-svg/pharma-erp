@@ -34,11 +34,23 @@ export default function CentralLogin() {
           purchasedModules: [],
           user: userRecord
         };
-      } else if (userRecord.roleId === 'COMPANY_ADMIN') {
+      } else if (userRecord.roleId === 'COMPANY_ADMIN' || userRecord.roleId === 'ADMIN') {
+        const storedAdmins = localStorage.getItem('companyAdmins');
+        const companyAdmins = storedAdmins ? JSON.parse(storedAdmins) : [];
+        const companyAdmin = companyAdmins.find((ca: any) => ca.email.toLowerCase() === email.trim().toLowerCase());
+
+        const defaultModules = [
+          'Dashboard', 'Product Management', 'Inventory & Warehouse Management',
+          'C&F Management', 'Distributor Portal', 'Retailer Ordering System',
+          'Billing', 'Accounting & Finance', 'CRM', 'Medical Representative',
+          'NSM (National Sales Manager)', 'RSM (Regional Sales Manager)',
+          'ASM (Area Sales Manager)', 'GPS & Attendance', 'Settings'
+        ];
+
         authPayload = {
           role: 'COMPANY_ADMIN',
-          tenantId: null, // Set if applicable
-          purchasedModules: [],
+          tenantId: companyAdmin ? companyAdmin.companyCode : null,
+          purchasedModules: companyAdmin?.subscription?.purchasedModules || defaultModules,
           user: userRecord
         };
       } else {
