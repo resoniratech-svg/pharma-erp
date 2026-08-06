@@ -71,6 +71,9 @@ const erpModules = [
   'Accounting & Finance',
   'CRM',
   'Medical Representative',
+  'NSM (National Sales Manager)',
+  'RSM (Regional Sales Manager)',
+  'ASM (Area Sales Manager)',
   'GPS & Attendance',
   'Settings'
 ];
@@ -347,6 +350,7 @@ export default function AdminManagement() {
           code: `COMP-${Date.now().toString().slice(-4)}`,
           email: formEmail.trim(),
           contactPerson: formName.trim(),
+          adminPassword: formPassword,
           status: 'Active'
         })
       });
