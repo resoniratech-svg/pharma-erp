@@ -17,6 +17,8 @@ router.get("/:id", authMiddleware, controller.getTourPlanById);
 router.put("/:id", authMiddleware, controller.updateTourPlan);
 router.delete("/:id", authMiddleware, controller.deleteTourPlan);
 router.put("/:id/approve", authMiddleware, controller.approveTourPlan);
+router.put("/:id/reject", authMiddleware, controller.rejectTourPlan);
 router.put("/:id/complete", authMiddleware, controller.completeTourPlan);
+router.get("/asm/team", authMiddleware, controller.getASMTourPlans);
 
 module.exports = router;

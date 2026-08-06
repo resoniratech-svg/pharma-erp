@@ -8,4 +8,5 @@ module.exports = {
   deleteDailyReportService: repo.deleteDailyReportRepo,
   getDailyReportsByMrService: repo.getDailyReportsByMrRepo,
   getDailyReportsByDateService: repo.getDailyReportsByDateRepo,
+  getASMDailyReportsService: repo.getASMDailyReportsRepo,
 };

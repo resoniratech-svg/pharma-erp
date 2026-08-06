@@ -231,6 +231,54 @@ const getTodaySchedule = async (
 
 };
 
+const getASMTourPlans = async (req, res) => {
+  try {
+    let employeeId = null;
+    if (req.user) {
+      const employee = await prisma.employee.findUnique({
+        where: { userId: req.user.id }
+      });
+      if (employee) {
+        employeeId = employee.id;
+      }
+    }
+    
+    // Fallback for testing: pick the first ASM if none is logged in
+    if (!employeeId) {
+      const asm = await prisma.employee.findFirst({
+        where: { designation: "Area Sales Manager", status: "Active" }
+      });
+      if (asm) employeeId = asm.id;
+    }
+
+    if (!employeeId) {
+      throw new Error("Could not determine ASM employee ID");
+    }
+
+    const data = await service.getASMTourPlansService(employeeId);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+const rejectTourPlan = async (req, res) => {
+  try {
+    const { remarks } = req.body;
+    const data = await service.rejectTourPlanService(req.params.id, remarks);
+
+    res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   createTourPlan,
   getAllTourPlans,
@@ -240,6 +288,8 @@ module.exports = {
   getTourPlansByMr,
   getTourPlansByDate,
   approveTourPlan,
+  rejectTourPlan,
   completeTourPlan,
   getTodaySchedule,
+  getASMTourPlans,
 };

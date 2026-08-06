@@ -11,5 +11,6 @@ router.put("/:id", authMiddleware, controller.updateDailyReport);
 router.delete("/:id", authMiddleware, controller.deleteDailyReport);
 router.get("/mr/:mrId", authMiddleware, controller.getDailyReportsByMr);
 router.get("/date/:date", authMiddleware, controller.getDailyReportsByDate);
+router.get("/asm/team", authMiddleware, controller.getASMDailyReports);
 
 module.exports = router;

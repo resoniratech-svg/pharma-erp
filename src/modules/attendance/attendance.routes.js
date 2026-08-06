@@ -40,4 +40,10 @@ router.get(
   controller.getAttendanceByMR
 );
 
+router.get(
+  "/asm/team",
+  authMiddleware,
+  controller.getASMTeamAttendance
+);
+
 module.exports = router;

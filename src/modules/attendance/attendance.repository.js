@@ -82,7 +82,11 @@ const getAttendanceByMRRepo =
         mrId,
       },
       include: {
-        mr: true,
+        mr: {
+          include: {
+            employee: true
+          }
+        },
       },
       orderBy: {
         id: "desc",
@@ -91,10 +95,34 @@ const getAttendanceByMRRepo =
 
   };
 
+const getASMTeamAttendanceRepo = async (asmEmployeeId) => {
+  return prisma.attendance.findMany({
+    where: {
+      mr: {
+        employee: {
+          reportsToId: asmEmployeeId,
+          designation: 'Medical Representative'
+        }
+      }
+    },
+    include: {
+      mr: {
+        include: {
+          employee: true
+        }
+      }
+    },
+    orderBy: {
+      id: "desc"
+    }
+  });
+};
+
 module.exports = {
   checkInRepo,
   checkOutRepo,
   getAttendancesRepo,
   getAttendanceByIdRepo,
   getAttendanceByMRRepo,
+  getASMTeamAttendanceRepo,
 };

@@ -4,7 +4,7 @@ const service = require("./attendance.service");
 const checkIn =
   async (req, res) => {
     try {
-      if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN')) {
+      if (req.user && ['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
         const dummyRecord = {
           id: 999900 + Math.floor(Math.random() * 100),
           mrId: 2,
@@ -25,9 +25,20 @@ const checkIn =
 
       let mrId = Number(req.body.mrId);
       if (req.user && req.user.id) {
-        const mr = await prisma.mR.findUnique({
+        let mr = await prisma.mR.findUnique({
           where: { userId: req.user.id },
         });
+        if (!mr && ['NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER'].includes(req.user.role)) {
+          mr = await prisma.mR.create({
+            data: {
+              mrCode: `MGR-${req.user.id}`,
+              name: req.user.name || req.user.role,
+              mobile: req.user.mobile || '0000000000',
+              userId: req.user.id,
+              status: 'ACTIVE'
+            }
+          });
+        }
         if (mr) {
           mrId = mr.id;
         }
@@ -56,7 +67,7 @@ const checkIn =
 const checkOut =
   async (req, res) => {
     try {
-      if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN')) {
+      if (req.user && ['SUPER_ADMIN', 'ADMIN'].includes(req.user.role)) {
         const dummyRecord = {
           id: Number(req.params.id) || 999900,
           mrId: 2,
@@ -76,9 +87,20 @@ const checkOut =
       if (isNaN(attendanceId)) {
         let mrId = 1;
         if (req.user && req.user.id) {
-          const mr = await prisma.mR.findUnique({
+          let mr = await prisma.mR.findUnique({
             where: { userId: req.user.id },
           });
+          if (!mr && ['NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER'].includes(req.user.role)) {
+            mr = await prisma.mR.create({
+              data: {
+                mrCode: `MGR-${req.user.id}`,
+                name: req.user.name || req.user.role,
+                mobile: req.user.mobile || '0000000000',
+                userId: req.user.id,
+                status: 'ACTIVE'
+              }
+            });
+          }
           if (mr) mrId = mr.id;
         }
         
@@ -195,10 +217,42 @@ const getAttendanceByMR =
 
   };
 
+const getASMTeamAttendance = async (req, res) => {
+  try {
+    let employeeId = null;
+    if (req.user) {
+      const employee = await prisma.employee.findUnique({
+        where: { userId: req.user.id }
+      });
+      if (employee) {
+        employeeId = employee.id;
+      }
+    }
+    
+    // Fallback for testing: pick the first ASM if none is logged in
+    if (!employeeId) {
+      const asm = await prisma.employee.findFirst({
+        where: { designation: "Area Sales Manager", status: "Active" }
+      });
+      if (asm) employeeId = asm.id;
+    }
+
+    if (!employeeId) {
+      throw new Error("Could not determine ASM employee ID");
+    }
+
+    const result = await service.getASMTeamAttendanceService(employeeId);
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   checkIn,
   checkOut,
   getAttendances,
   getAttendanceById,
   getAttendanceByMR,
+  getASMTeamAttendance,
 };

@@ -1,5 +1,8 @@
 const authRoutes = require("./modules/auth/auth.routes");
 const userRoutes = require("./modules/users/user.routes");
+const salesOrganizationRoutes = require("./modules/salesOrganization/employee.routes");
+const targetAllocationRoutes = require("./modules/targetAllocation/targetAllocation.routes");
+const hierarchyDashboardRoutes = require("./modules/hierarchyDashboard/dashboard.routes");
 
 const express = require("express");
 const cors = require("cors");
@@ -79,6 +82,8 @@ const dispatchRoutes =
 require(
 "./modules/dispatch/dispatch.routes"
 );
+
+const exportOrderRoutes = require("./modules/exportOrder/exportOrder.routes");
 
 const transportChallanRoutes =
 require(
@@ -216,6 +221,7 @@ app.use(cors());
 app.use(express.json({ limit: "50mb" }));
 
 app.use("/api/company", companyRoutes);
+app.use("/api/companies", companyRoutes);
 
 app.use("/api/modules", moduleRoutes);
 app.use("/api/features", featureRoutes);
@@ -319,6 +325,11 @@ app.use(
 app.use(
   "/api/dispatches",
   dispatchRoutes
+);
+
+app.use(
+  "/api/export-orders",
+  exportOrderRoutes
 );
 
 app.use(
@@ -495,6 +506,10 @@ app.get("/test", async (req, res) => {
 app.use("/api/distributors", distributorRoutes);
 app.use("/api/hospitals", hospitalRoutes);
 app.use("/api/territory", territoryRoutes);
+
+app.use("/api/sales-organization", salesOrganizationRoutes);
+app.use("/api/target-allocations", targetAllocationRoutes);
+app.use("/api/dashboard", hierarchyDashboardRoutes);
 
 app.use(
   "/api/permissions",

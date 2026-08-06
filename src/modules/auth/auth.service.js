@@ -59,6 +59,7 @@ const loginUser = async (
     },
     include: {
       mr: true,
+      employee: true,
     },
   });
 
@@ -105,6 +106,8 @@ const loginUser = async (
       role: user.role,
       email: user.email,
       companyId: user.companyId,
+      employeeId: user.employee ? user.employee.id : null,
+      employeeCode: user.employee ? user.employee.employeeCode : null,
       deviceId,
     },
     process.env.JWT_SECRET,
@@ -123,7 +126,22 @@ const loginUser = async (
       role: user.role,
       linkedDistributorCode: user.linkedDistributorCode,
       linkedRetailerCode: user.linkedRetailerCode,
+      employeeId: user.employee ? user.employee.id : null,
+      employeeCode: user.employee ? user.employee.employeeCode : null,
     },
+    employee: user.employee
+      ? {
+          id: user.employee.id,
+          employeeCode: user.employee.employeeCode,
+          name: user.employee.name,
+          designation: user.employee.designation,
+          headquarters: user.employee.headquarters,
+          states: user.employee.states,
+          zone: user.employee.zone,
+          region: user.employee.region,
+          area: user.employee.area,
+        }
+      : null,
     mr: user.mr
       ? {
           id: user.mr.id,

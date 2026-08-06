@@ -1,7 +1,24 @@
 const {
   createCompany,
+  getAllCompanies,
+  deleteCompany,
   getCompanyFeatures,
 } = require("./company.service");
+
+const getAll = async (req, res) => {
+  try {
+    const companies = await getAllCompanies();
+    res.status(200).json({
+      success: true,
+      data: companies,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
 
 const create = async (req, res) => {
   try {
@@ -9,8 +26,25 @@ const create = async (req, res) => {
 
     res.status(201).json({
       success: true,
-      message: "Company created successfully",
+      message: "Company and Admin created successfully",
       data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const remove = async (req, res) => {
+  try {
+    const companyId = Number(req.params.id);
+    await deleteCompany(companyId);
+
+    res.status(200).json({
+      success: true,
+      message: "Company and associated admin deleted successfully",
     });
   } catch (error) {
     res.status(400).json({
@@ -23,9 +57,7 @@ const create = async (req, res) => {
 const getFeatures = async (req, res) => {
   try {
     const companyId = Number(req.params.id);
-
-    const features =
-      await getCompanyFeatures(companyId);
+    const features = await getCompanyFeatures(companyId);
 
     res.status(200).json({
       success: true,
@@ -40,6 +72,8 @@ const getFeatures = async (req, res) => {
 };
 
 module.exports = {
+  getAll,
   create,
+  remove,
   getFeatures,
 };

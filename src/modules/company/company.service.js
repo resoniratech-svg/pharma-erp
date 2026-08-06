@@ -1,31 +1,29 @@
 const {
   createCompanyWithAdmin,
+  getAllCompanies: repoGetAllCompanies,
+  deleteCompany: repoDeleteCompany,
+  getCompanyFeatures: repoGetCompanyFeatures,
 } = require("./company.repository");
 
 const createCompany = async (data) => {
   return createCompanyWithAdmin(data);
 };
 
-module.exports = {
-  createCompany,
+const getAllCompanies = async () => {
+  return repoGetAllCompanies();
 };
 
-const prisma = require("../../config/db");
+const deleteCompany = async (id) => {
+  return repoDeleteCompany(id);
+};
 
-const getCompanyFeatures = async (
-  companyId
-) => {
-  return prisma.companyFeaturePermission.findMany({
-    where: {
-      companyId,
-    },
-    include: {
-      feature: true,
-    },
-  });
+const getCompanyFeatures = async (companyId) => {
+  return repoGetCompanyFeatures(companyId);
 };
 
 module.exports = {
   createCompany,
+  getAllCompanies,
+  deleteCompany,
   getCompanyFeatures,
 };

@@ -45,10 +45,15 @@ const getAttendanceByMRService =
 
   };
 
+const getASMTeamAttendanceService = async (asmEmployeeId) => {
+  return repository.getASMTeamAttendanceRepo(asmEmployeeId);
+};
+
 module.exports = {
   checkInService,
   checkOutService,
   getAttendancesService,
   getAttendanceByIdService,
   getAttendanceByMRService,
+  getASMTeamAttendanceService,
 };

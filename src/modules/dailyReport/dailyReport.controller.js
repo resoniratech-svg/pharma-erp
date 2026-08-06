@@ -99,6 +99,37 @@ const getDailyReportsByDate = async (req, res) => {
   });
 };
 
+const getASMDailyReports = async (req, res) => {
+  try {
+    let employeeId = null;
+    if (req.user) {
+      const employee = await prisma.employee.findUnique({
+        where: { userId: req.user.id }
+      });
+      if (employee) {
+        employeeId = employee.id;
+      }
+    }
+    
+    // Fallback for testing: pick the first ASM if none is logged in
+    if (!employeeId) {
+      const asm = await prisma.employee.findFirst({
+        where: { designation: "Area Sales Manager", status: "Active" }
+      });
+      if (asm) employeeId = asm.id;
+    }
+
+    if (!employeeId) {
+      throw new Error("Could not determine ASM employee ID");
+    }
+
+    const data = await service.getASMDailyReportsService(employeeId);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   createDailyReport,
   getAllDailyReports,
@@ -107,4 +138,5 @@ module.exports = {
   deleteDailyReport,
   getDailyReportsByMr,
   getDailyReportsByDate,
+  getASMDailyReports,
 };

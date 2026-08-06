@@ -25,6 +25,7 @@ model User {
   linkedRetailerCode    String?
   approvedCreditNotes   CreditNote[] @relation("ApprovedCreditNotes")
   mr                    MR?
+  employee              Employee?
   branch                Branch?      @relation(fields: [branchId], references: [id])
   company               Company?     @relation(fields: [companyId], references: [id])
 }
@@ -1060,6 +1061,29 @@ model Composition {
   updatedAt        DateTime @updatedAt @default(now())
 }
 
+model ExportOrder {
+  id                 Int       @id @default(autoincrement())
+  orderNumber        String    @unique
+  invoiceNumber      String?
+  buyerName          String
+  destinationCountry String
+  destinationPort    String?
+  portOfLoading      String?
+  shippingMode       String    @default("Ocean Cargo")
+  containerOrAwbNo   String?
+  orderValueUSD      Float     @default(0)
+  orderValueINR      Float     @default(0)
+  orderDate          DateTime  @default(now())
+  eta                DateTime?
+  customsStatus      String    @default("Cleared")
+  status             String    @default("In Transit")
+  itemsSummary       String?
+  incoterm           String    @default("CIF")
+  companyId          Int?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt @default(now())
+}
+
 enum Role {
   ADMIN
   WAREHOUSE_MANAGER
@@ -1068,4 +1092,79 @@ enum Role {
   RETAILER
   MEDICAL_REPRESENTATIVE
   SUPER_ADMIN
+  NATIONAL_SALES_HEAD
+  REGIONAL_SALES_MANAGER
+  AREA_SALES_MANAGER
+}
+
+model Employee {
+  id                    Int                 @id @default(autoincrement())
+  employeeCode          String              @unique
+  name                  String
+  designation           String              // "National Sales Head", "Regional Sales Manager", "Area Sales Manager", "Medical Representative"
+  reportsToId           Int?
+  reportsTo             String?
+  zone                  String?
+  region                String?
+  area                  String?
+  headquarters          String?
+  states                String[]            @default([])
+  mobile                String?
+  email                 String?             @unique
+  gender                String?
+  dob                   DateTime?
+  joiningDate           DateTime            @default(now())
+  status                String              @default("Active")
+  userId                Int?                @unique
+  user                  User?               @relation(fields: [userId], references: [id])
+  manager               Employee?           @relation("EmployeeHierarchy", fields: [reportsToId], references: [id])
+  subordinates          Employee[]          @relation("EmployeeHierarchy")
+  nationalTargetsCreated NationalTarget[]   @relation("NationalTargetCreator")
+  allocationsReceived   TargetAllocation[]  @relation("AllocatedToEmployee")
+  allocationsGiven      TargetAllocation[]  @relation("AllocatedByEmployee")
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt @default(now())
+}
+
+model NationalTarget {
+  id                  Int                @id @default(autoincrement())
+  targetCode          String             @unique
+  financialYear       String
+  planningPeriod      String             @default("Annual") // "Annual", "Quarterly", "Monthly"
+  targetType          String             @default("Sales Value") // "Sales Value", "Sales Volume", "Both"
+  targetAmount        Decimal            @default(0)
+  startDate           DateTime
+  endDate             DateTime
+  remarks             String?
+  createdByEmployeeId Int?
+  status              String             @default("Active") // "Draft", "Active", "Inactive"
+  creator             Employee?          @relation("NationalTargetCreator", fields: [createdByEmployeeId], references: [id])
+  allocations         TargetAllocation[] @relation("NationalTargetAllocations")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt @default(now())
+}
+
+model TargetAllocation {
+  id                    Int               @id @default(autoincrement())
+  allocationCode        String            @unique
+  nationalTargetId      Int?
+  sourceAllocationId    Int?
+  financialYear         String
+  allocationPeriod      String            @default("Annual") // "Annual", "Quarterly", "Monthly"
+  allocatedToEmployeeId Int
+  allocatedByEmployeeId Int?
+  targetAmount          Decimal           @default(0)
+  achievedAmount        Decimal           @default(0)
+  startDate             DateTime
+  endDate               DateTime
+  allocationDate        DateTime          @default(now())
+  remarks               String?
+  status                String            @default("Active") // "Active", "Draft", "Validated", "Cancelled", "Pending"
+  nationalTarget        NationalTarget?   @relation("NationalTargetAllocations", fields: [nationalTargetId], references: [id])
+  sourceAllocation      TargetAllocation? @relation("AllocationHierarchy", fields: [sourceAllocationId], references: [id])
+  childAllocations      TargetAllocation[] @relation("AllocationHierarchy")
+  allocatedTo           Employee          @relation("AllocatedToEmployee", fields: [allocatedToEmployeeId], references: [id])
+  allocatedBy           Employee?         @relation("AllocatedByEmployee", fields: [allocatedByEmployeeId], references: [id])
+  createdAt             DateTime          @default(now())
+  updatedAt             DateTime          @updatedAt @default(now())
 }

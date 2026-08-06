@@ -264,6 +264,17 @@ const approveTourPlanRepo = async (id) => {
   });
 };
 
+const rejectTourPlanRepo = async (id) => {
+  return prisma.tourPlan.update({
+    where: {
+      id: Number(id),
+    },
+    data: {
+      status: "REJECTED",
+    },
+  });
+};
+
 const completeTourPlanRepo = async (id) => {
   return prisma.tourPlan.update({
     where: {
@@ -272,6 +283,35 @@ const completeTourPlanRepo = async (id) => {
     data: {
       status: "COMPLETED",
     },
+  });
+};
+
+const getASMTourPlansRepo = async (asmEmployeeId) => {
+  return prisma.tourPlan.findMany({
+    where: {
+      mr: {
+        employee: {
+          reportsToId: asmEmployeeId,
+          designation: 'Medical Representative'
+        }
+      }
+    },
+    include: {
+      mr: {
+        include: {
+          employee: true
+        }
+      },
+      tourPlanDoctors: {
+        include: { doctor: true }
+      },
+      tourPlanChemists: {
+        include: { chemist: true }
+      }
+    },
+    orderBy: {
+      tourDate: "desc"
+    }
   });
 };
 
@@ -284,6 +324,8 @@ module.exports = {
   getTourPlansByMrRepo,
   getTourPlansByDateRepo,
   approveTourPlanRepo,
+  rejectTourPlanRepo,
   completeTourPlanRepo,
   getTodayScheduleRepo,
+  getASMTourPlansRepo,
 };

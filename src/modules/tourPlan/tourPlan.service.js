@@ -46,12 +46,32 @@ const getTourPlansByDateService = async (
   );
 };
 
-const approveTourPlanService = async (
-  id
-) => {
-  return repository.approveTourPlanRepo(
-    id
-  );
+const notificationService = require("../notification/notification.service");
+
+const approveTourPlanService = async (id) => {
+  const plan = await repository.approveTourPlanRepo(id);
+  if (plan && plan.mrId) {
+    await notificationService.createNotificationService({
+      mrId: plan.mrId,
+      title: "Tour Plan Approved",
+      message: `Your tour plan for ${new Date(plan.tourDate).toLocaleDateString()} has been approved.`,
+      type: "ALERT"
+    });
+  }
+  return plan;
+};
+
+const rejectTourPlanService = async (id, remarks) => {
+  const plan = await repository.rejectTourPlanRepo(id);
+  if (plan && plan.mrId) {
+    await notificationService.createNotificationService({
+      mrId: plan.mrId,
+      title: "Tour Plan Rejected",
+      message: `Your tour plan for ${new Date(plan.tourDate).toLocaleDateString()} was rejected. Remarks: ${remarks || 'None'}`,
+      type: "ALERT"
+    });
+  }
+  return plan;
 };
 
 const completeTourPlanService = async (
@@ -72,6 +92,10 @@ const getTodayScheduleService = async (
 
 };
 
+const getASMTourPlansService = async (asmId) => {
+  return repository.getASMTourPlansRepo(asmId);
+};
+
 module.exports = {
   createTourPlanService,
   getAllTourPlansService,
@@ -81,6 +105,8 @@ module.exports = {
   getTourPlansByMrService,
   getTourPlansByDateService,
   approveTourPlanService,
+  rejectTourPlanService,
   completeTourPlanService,
   getTodayScheduleService,
+  getASMTourPlansService,
 };

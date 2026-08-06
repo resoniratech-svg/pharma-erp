@@ -83,6 +83,29 @@ const getDailyReportsByDateRepo = async (date) => {
   });
 };
 
+const getASMDailyReportsRepo = async (asmEmployeeId) => {
+  return prisma.dailyReport.findMany({
+    where: {
+      mr: {
+        employee: {
+          reportsToId: asmEmployeeId,
+          designation: 'Medical Representative'
+        }
+      }
+    },
+    include: {
+      mr: {
+        include: {
+          employee: true
+        }
+      }
+    },
+    orderBy: {
+      reportDate: "desc"
+    }
+  });
+};
+
 module.exports = {
   createDailyReportRepo,
   getAllDailyReportsRepo,
@@ -91,4 +114,5 @@ module.exports = {
   deleteDailyReportRepo,
   getDailyReportsByMrRepo,
   getDailyReportsByDateRepo,
+  getASMDailyReportsRepo,
 };
