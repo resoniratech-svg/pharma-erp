@@ -9,27 +9,17 @@ import {
   DataTable,
   Badge,
   SummaryCard,
-  ActionButton
+  ActionButton,
+  LoadingSpinner
 } from './components/shared';
 import { type Column } from './components/shared';
+import { analyticsService, ProductProfitabilityData } from '../../services/analyticsService';
 
-interface ProductProfit {
-  id: string;
-  productCode: string;
-  productName: string;
-  category: string;
-  division: string;
-  branch: string;
-  quantitySold: number;
-  revenue: string;
-  avgCogs: string;
-  avgSellingPrice: string;
-  grossMargin: string;
-  profitAmount: string;
-  trend: 'Up' | 'Down' | 'Stable';
-}
-
-const mockData: any[] = [];
+const formatCurrency = (amount: number) => {
+  if (amount >= 10000000) return `₹ ${(amount / 10000000).toFixed(2)} Cr`;
+  if (amount >= 100000) return `₹ ${(amount / 100000).toFixed(2)} L`;
+  return `₹ ${amount.toLocaleString()}`;
+};
 
 export default function ProductProfitability() {
   const [search, setSearch] = useState('');
@@ -45,6 +35,24 @@ export default function ProductProfitability() {
 
   const [isExportOpen, setIsExportOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  
+  const [data, setData] = useState<ProductProfitabilityData[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      try {
+        const result = await analyticsService.getProductProfitability();
+        setData(result);
+      } catch (error) {
+        console.error("Error loading product profitability:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadData();
+  }, []);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -56,16 +64,16 @@ export default function ProductProfitability() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const columns: Column<ProductProfit>[] = [
+  const columns: Column<ProductProfitabilityData>[] = [
     { key: 'productCode', label: 'Product Code', render: (row) => <span className="font-mono text-xs text-slate-500 bg-slate-100 px-2 py-1 rounded">{row.productCode}</span> },
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-semibold text-slate-900">{row.productName}</span> },
     { key: 'category', label: 'Category' },
     { key: 'quantitySold', label: 'Quantity Sold', render: (row) => <span className="text-slate-700">{row.quantitySold.toLocaleString()}</span> },
-    { key: 'revenue', label: 'Revenue', render: (row) => <span className="font-bold text-slate-700">{row.revenue}</span> },
-    { key: 'avgCogs', label: 'Avg. COGS' },
-    { key: 'avgSellingPrice', label: 'Avg. Selling Price' },
-    { key: 'grossMargin', label: 'Gross Margin %', render: (row) => <span className="font-bold text-[#163c78]">{row.grossMargin}</span> },
-    { key: 'profitAmount', label: 'Profit Amount', render: (row) => <span className="font-bold text-emerald-600">{row.profitAmount}</span> },
+    { key: 'revenue', label: 'Revenue', render: (row) => <span className="font-bold text-slate-700">{formatCurrency(row.revenue)}</span> },
+    { key: 'avgCogs', label: 'Avg. COGS', render: (row) => <span className="text-slate-700">₹ {row.avgCogs.toFixed(2)}</span> },
+    { key: 'avgSellingPrice', label: 'Avg. Selling Price', render: (row) => <span className="text-slate-700">₹ {row.avgSellingPrice.toFixed(2)}</span> },
+    { key: 'grossMargin', label: 'Gross Margin %', render: (row) => <span className="font-bold text-[#163c78]">{row.grossMargin.toFixed(1)}%</span> },
+    { key: 'profitAmount', label: 'Profit Amount', render: (row) => <span className="font-bold text-emerald-600">{formatCurrency(row.profitAmount)}</span> },
     {
       key: 'trend',
       label: 'Trend',
@@ -76,7 +84,7 @@ export default function ProductProfitability() {
     }
   ];
 
-  const filteredData = mockData.filter((item) => {
+  const filteredData = data.filter((item) => {
     let match = true;
     if (search) match = match && item.productName.toLowerCase().includes(search.toLowerCase());
     if (category) match = match && item.category === category;
@@ -84,6 +92,27 @@ export default function ProductProfitability() {
     if (branch) match = match && item.branch === branch;
     return match;
   });
+
+  // Calculate KPIs
+  const totalRevenue = filteredData.reduce((sum, item) => sum + item.revenue, 0);
+  const totalProfit = filteredData.reduce((sum, item) => sum + item.profitAmount, 0);
+  const avgMargin = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0;
+  
+  let highestMarginProduct = { name: 'N/A', margin: 0 };
+  let lowestMarginProduct = { name: 'N/A', margin: Infinity };
+  
+  filteredData.forEach(item => {
+    if (item.grossMargin > highestMarginProduct.margin) {
+      highestMarginProduct = { name: item.productName, margin: item.grossMargin };
+    }
+    if (item.grossMargin < lowestMarginProduct.margin) {
+      lowestMarginProduct = { name: item.productName, margin: item.grossMargin };
+    }
+  });
+  
+  if (lowestMarginProduct.margin === Infinity) {
+    lowestMarginProduct.margin = 0;
+  }
 
   const getExportData = () => {
     const timestamp = new Date().toLocaleString();
@@ -111,11 +140,11 @@ export default function ProductProfitability() {
       row.productName,
       row.category,
       row.quantitySold.toString(),
-      row.revenue,
-      row.avgCogs,
-      row.avgSellingPrice,
-      row.grossMargin,
-      row.profitAmount,
+      row.revenue.toString(),
+      row.avgCogs.toString(),
+      row.avgSellingPrice.toString(),
+      row.grossMargin.toString(),
+      row.profitAmount.toString(),
       row.trend
     ]);
 
@@ -281,16 +310,20 @@ export default function ProductProfitability() {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
-        <SummaryCard title="Total Product Revenue" value="₹ 118.4 Cr" icon={<IndianRupee className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
-        <SummaryCard title="Average Gross Margin %" value="38.5%" icon={<Percent className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
-        <SummaryCard title="Highest Margin Product" value="Amoxicillin 250mg" subtitle="Margin: 51.1%" icon={<TrendingUp className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
-        <SummaryCard title="Lowest Margin Product" value="Surgical Masks (Box)" subtitle="Margin: 10.0%" icon={<TrendingDown className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
+        <SummaryCard title="Total Product Revenue" value={formatCurrency(totalRevenue)} icon={<IndianRupee className="w-6 h-6" />} colorClass="text-blue-600" bgClass="bg-blue-100" />
+        <SummaryCard title="Average Gross Margin %" value={`${avgMargin.toFixed(1)}%`} icon={<Percent className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-violet-100" />
+        <SummaryCard title="Highest Margin Product" value={highestMarginProduct.name} subtitle={`Margin: ${highestMarginProduct.margin.toFixed(1)}%`} icon={<TrendingUp className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-100" />
+        <SummaryCard title="Lowest Margin Product" value={lowestMarginProduct.name} subtitle={`Margin: ${lowestMarginProduct.margin.toFixed(1)}%`} icon={<TrendingDown className="w-6 h-6" />} colorClass="text-rose-600" bgClass="bg-rose-100" />
       </div>
 
       <div className="mb-6">
         <TableCard>
           <div className="product-profitability-table-container">
-            <DataTable columns={columns} data={filteredData} />
+            {isLoading ? (
+              <div className="flex justify-center items-center p-12"><LoadingSpinner size="lg" /></div>
+            ) : (
+              <DataTable columns={columns} data={filteredData} />
+            )}
           </div>
         </TableCard>
       </div>
