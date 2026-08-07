@@ -3,10 +3,12 @@ import { PageHeader, FilterBar, SearchInput, SelectFilter, TableCard, DataTable,
 import { Users, Eye, Edit2, Plus, Target, Clock, TrendingUp, Download, ChevronDown, Table as TableIcon, FileText } from 'lucide-react';
 import { Drawer } from '../../components/ui/Drawer';
 import { Modal } from '../../components/ui/Modal';
+import { employeeService } from '../../services/employeeService';
 import { asmService } from '../../services/asmService';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { StateSelector } from '../super-admin/components/StateSelector';
 
 export default function MRManagement() {
   const [employees, setEmployees] = useState<any[]>([]);
@@ -27,27 +29,63 @@ export default function MRManagement() {
     state: '',
     hq: '',
     territory: '',
+    area: '',
     password: '',
     confirmPassword: '',
-    status: 'Active',
+    status: 'Active' as 'Active' | 'Inactive',
     accountStatus: 'Active',
     joiningDate: '',
     remarks: ''
   });
 
-  const loggedInAsm = "Current ASM User"; 
-  const generatedEmpCode = selectedEmp ? selectedEmp.id || selectedEmp.employeeCode : `MR${String(employees.length + 1).padStart(3, '0')}`;
+  const { currentName, currentEmpId } = employeeService.getLoggedInEmployee();
+  const loggedInAsm = currentName !== 'Super Admin' ? currentName : "Current ASM User"; 
+  
+  // Get inherited territory from logged in user
+  const inheritedTerritoryObj = employeeService.getInheritedTerritory(currentEmpId);
+  const inheritedZone = inheritedTerritoryObj.zone;
+  const inheritedRegion = inheritedTerritoryObj.region;
+  const inheritedState = inheritedTerritoryObj.state;
+  const inheritedTerritory = inheritedTerritoryObj.territory;
+  const inheritedArea = inheritedTerritoryObj.area;
+  
+  // Use global generator for code
+  const generatedEmpCode = selectedEmp 
+    ? (selectedEmp.employeeCode || selectedEmp.id) 
+    : employeeService.generateNextEmployeeCode('Medical Representative');
+
+  const loadData = async () => {
+    try {
+      const { isSuperAdmin, currentEmpId } = employeeService.getLoggedInEmployee();
+      const data = await employeeService.getEmployees({
+        designation: 'Medical Representative',
+        ...(isSuperAdmin ? {} : { reportsToId: currentEmpId })
+      });
+      const mapped = data.map(emp => ({
+        id: emp.id,
+        employeeCode: emp.employeeCode,
+        employeeName: emp.employeeName,
+        mobile: (emp as any).mobile || '',
+        email: (emp as any).email || '',
+        gender: (emp as any).gender || '',
+        dob: (emp as any).dob || '',
+        state: (emp as any).state || '',
+        headquarters: emp.headquarters || '',
+        territory: (emp as any).territory || '',
+        area: emp.area || '',
+        status: emp.status,
+        accountStatus: (emp as any).accountStatus || 'Active',
+        joiningDate: emp.joiningDate || '',
+        remarks: (emp as any).remarks || ''
+      }));
+      setEmployees(mapped.reverse());
+    } catch (e) {
+      console.warn("Failed to load MRs", e);
+    }
+  };
 
   useEffect(() => {
-    const loadMRs = async () => {
-      try {
-        const data = await asmService.getReportingMRs();
-        setEmployees(data.reverse());
-      } catch (e) {
-        console.warn("Failed to load reporting MRs", e);
-      }
-    };
-    loadMRs();
+    loadData();
   }, []);
 
   const filteredData = employees.filter(row => {
@@ -70,7 +108,7 @@ export default function MRManagement() {
     setSelectedEmp(row);
     setNewMr({
       name: row.employeeName || '', mobile: row.mobile || '', email: row.email || '', gender: row.gender || 'Male', dob: row.dob || '',
-      state: row.state || '', hq: row.headquarters || '', territory: row.territory || '', 
+      state: row.state || '', hq: row.headquarters || '', territory: row.territory || '', area: row.area || '',
       password: '', confirmPassword: '', status: row.status || 'Active', accountStatus: row.accountStatus || 'Active', joiningDate: row.joiningDate || '', remarks: row.remarks || ''
     });
     setModalOpen(true);
@@ -79,7 +117,7 @@ export default function MRManagement() {
   const handleAdd = () => {
     setSelectedEmp(null);
     setNewMr({
-      name: '', mobile: '', email: '', gender: 'Male', dob: '', state: '', hq: '', territory: '', 
+      name: '', mobile: '', email: '', gender: 'Male', dob: '', state: inheritedState || '', hq: '', territory: '', area: '', 
       password: '', confirmPassword: '', status: 'Active', accountStatus: 'Active', joiningDate: '', remarks: ''
     });
     setModalOpen(true);
@@ -92,10 +130,37 @@ export default function MRManagement() {
       return;
     }
     
-    const trimmedState = newMr.state.trim();
-    if (!trimmedState) {
-       alert("State is required");
-       return;
+    const { currentName: currentUser, currentEmpId } = employeeService.getLoggedInEmployee();
+
+    if (selectedEmp) {
+      employeeService.updateEmployee(selectedEmp.id, {
+        employeeName: newMr.name,
+        mobile: newMr.mobile,
+        email: newMr.email,
+        state: newMr.state,
+        territory: newMr.territory,
+        area: newMr.area,
+        headquarters: newMr.hq,
+        status: newMr.status,
+      });
+    } else {
+      employeeService.addEmployee({
+        employeeCode: generatedEmpCode,
+        employeeName: newMr.name,
+        mobile: newMr.mobile,
+        email: newMr.email,
+        designation: 'Medical Representative',
+        reportsTo: currentUser !== 'Super Admin' ? currentUser : 'Owner / Super Admin',
+        reportsToId: currentEmpId || undefined,
+        zone: inheritedZone,
+        region: inheritedRegion,
+        state: newMr.state,
+        territory: newMr.territory,
+        area: newMr.area,
+        headquarters: newMr.hq,
+        status: newMr.status as any,
+        joiningDate: newMr.joiningDate || new Date().toISOString().split('T')[0]
+      });
     }
 
     try {
@@ -135,9 +200,7 @@ export default function MRManagement() {
         alert('MR Created successfully');
       }
       setModalOpen(false);
-      // reload
-      const data = await asmService.getReportingMRs();
-      setEmployees(data.reverse());
+      await loadData();
     } catch (e: any) {
       alert(e.message || "Failed to save MR");
     }
@@ -203,8 +266,7 @@ export default function MRManagement() {
     { key: 'employeeName', label: 'MR Name', render: (row: any) => <span className="font-semibold text-slate-800">{row.employeeName}</span> },
     { key: 'headquarters', label: 'HQ', render: (row: any) => row.headquarters || '-' },
     { key: 'territory', label: 'Territory', render: (row: any) => row.territory || '-' },
-    { key: 'mobile', label: 'Mobile', render: (row: any) => row.mobile || '-' },
-    { key: 'status', label: 'Status', render: (row: any) => <Badge variant={row.status === 'Active' ? 'success' : 'error'}>{row.status}</Badge> },
+    { key: 'status', label: 'Status', render: (row: any) => <Badge variant={row.status === 'Active' ? 'success' : 'neutral'}>{row.status}</Badge> },
     {
       key: 'actions',
       label: 'Action',
@@ -221,7 +283,7 @@ export default function MRManagement() {
     }
   ];
 
-  const uniqueTerritories = ['All Territories', ...Array.from(new Set(employees.map(e => e.territory).filter(Boolean)))];
+  // const uniqueTerritories = ['All Territories', ...Array.from(new Set(employees.map(e => e.territory).filter(Boolean)))];
 
   return (
     <div className="p-6">
@@ -332,8 +394,9 @@ export default function MRManagement() {
                 <div className="space-y-1">
                   <DrawerField label="Reporting ASM" value={loggedInAsm} />
                   <DrawerField label="State" value={selectedEmp.state || '-'} />
-                  <DrawerField label="Headquarters" value={selectedEmp.headquarters || '-'} />
                   <DrawerField label="Territory" value={selectedEmp.territory || '-'} />
+                  <DrawerField label="Area" value={selectedEmp.area || '-'} />
+                  <DrawerField label="Headquarters" value={selectedEmp.headquarters || '-'} />
                 </div>
               </div>
 
@@ -473,55 +536,49 @@ export default function MRManagement() {
             <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">2. Territory Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Zone</label>
+                <input 
+                  type="text" 
+                  value={inheritedZone}
+                  disabled 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Region</label>
+                <input 
+                  type="text" 
+                  value={inheritedRegion}
+                  disabled 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed" 
+                />
+              </div>
+              <div className="relative">
                 <label className="block text-sm font-medium text-slate-700 mb-2">State *</label>
-                <select 
+                <StateSelector 
+                  value={newMr.state} 
+                  onChange={(val) => setNewMr({ ...newMr, state: val })} 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Territory *</label>
+                <input 
+                  type="text"
                   required
-                  value={newMr.state}
-                  onChange={e => setNewMr({...newMr, state: e.target.value})}
+                  value={newMr.territory}
+                  onChange={e => setNewMr({...newMr, territory: e.target.value})}
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
-                >
-                  <option value="" disabled>Select State</option>
-                  <optgroup label="States">
-                    <option value="Andhra Pradesh">Andhra Pradesh</option>
-                    <option value="Arunachal Pradesh">Arunachal Pradesh</option>
-                    <option value="Assam">Assam</option>
-                    <option value="Bihar">Bihar</option>
-                    <option value="Chhattisgarh">Chhattisgarh</option>
-                    <option value="Goa">Goa</option>
-                    <option value="Gujarat">Gujarat</option>
-                    <option value="Haryana">Haryana</option>
-                    <option value="Himachal Pradesh">Himachal Pradesh</option>
-                    <option value="Jharkhand">Jharkhand</option>
-                    <option value="Karnataka">Karnataka</option>
-                    <option value="Kerala">Kerala</option>
-                    <option value="Madhya Pradesh">Madhya Pradesh</option>
-                    <option value="Maharashtra">Maharashtra</option>
-                    <option value="Manipur">Manipur</option>
-                    <option value="Meghalaya">Meghalaya</option>
-                    <option value="Mizoram">Mizoram</option>
-                    <option value="Nagaland">Nagaland</option>
-                    <option value="Odisha">Odisha</option>
-                    <option value="Punjab">Punjab</option>
-                    <option value="Rajasthan">Rajasthan</option>
-                    <option value="Sikkim">Sikkim</option>
-                    <option value="Tamil Nadu">Tamil Nadu</option>
-                    <option value="Telangana">Telangana</option>
-                    <option value="Tripura">Tripura</option>
-                    <option value="Uttar Pradesh">Uttar Pradesh</option>
-                    <option value="Uttarakhand">Uttarakhand</option>
-                    <option value="West Bengal">West Bengal</option>
-                  </optgroup>
-                  <optgroup label="Union Territories">
-                    <option value="Andaman and Nicobar Islands">Andaman and Nicobar Islands</option>
-                    <option value="Chandigarh">Chandigarh</option>
-                    <option value="Dadra and Nagar Haveli and Daman and Diu">Dadra and Nagar Haveli and Daman and Diu</option>
-                    <option value="Delhi (NCT)">Delhi (NCT)</option>
-                    <option value="Jammu and Kashmir">Jammu and Kashmir</option>
-                    <option value="Ladakh">Ladakh</option>
-                    <option value="Lakshadweep">Lakshadweep</option>
-                    <option value="Puducherry">Puducherry</option>
-                  </optgroup>
-                </select>
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Area *</label>
+                <input 
+                  type="text"
+                  required
+                  value={newMr.area}
+                  onChange={e => setNewMr({...newMr, area: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Headquarters (HQ) *</label>
@@ -533,16 +590,6 @@ export default function MRManagement() {
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Territory / Area</label>
-                <input 
-                  type="text"
-                  value={newMr.territory}
-                  onChange={e => setNewMr({...newMr, territory: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
-                />
-              </div>
-              <div className="hidden md:block"></div>
             </div>
           </div>
 
@@ -615,7 +662,7 @@ export default function MRManagement() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Employment Status</label>
                 <select 
                   value={newMr.status}
-                  onChange={e => setNewMr({...newMr, status: e.target.value})}
+                  onChange={e => setNewMr({...newMr, status: e.target.value as 'Active' | 'Inactive'})}
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]"
                 >
                   <option value="Active">Active</option>

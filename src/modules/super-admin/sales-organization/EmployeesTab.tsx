@@ -3,6 +3,7 @@ import { Plus, Eye, Edit2, UserX, X, ChevronDown } from 'lucide-react';
 import { salesOrganizationService } from '../../../services/salesOrganizationService';
 import type { Employee, Designation } from './types';
 import { DESIGNATIONS, STATUS_OPTIONS } from './constants';
+import { StateSelector } from '../components/StateSelector';
 import {
   DataTable,
   TableCard,
@@ -41,6 +42,8 @@ export default function EmployeesTab() {
     reportsTo: '',
     zone: '',
     region: '',
+    state: '',
+    territory: '',
     area: '',
     headquarters: '',
     joiningDate: new Date().toISOString().split('T')[0],
@@ -141,6 +144,14 @@ export default function EmployeesTab() {
       newErrors.region = 'Region is required.';
     }
 
+    if (!formData.state.trim()) {
+      newErrors.state = 'State is required.';
+    }
+
+    if (!formData.territory.trim()) {
+      newErrors.territory = 'Territory is required.';
+    }
+
     if (!formData.area.trim()) {
       newErrors.area = 'Area is required.';
     }
@@ -197,14 +208,20 @@ export default function EmployeesTab() {
     const initialDesignation: Designation = 'Medical Representative';
     const reportsOptions = getReportsToOptions(initialDesignation);
     const autoCode = generateNextEmployeeCode(initialDesignation);
+    
+    const defaultManagerName = reportsOptions[0] || 'Owner / Super Admin';
+    const allEmps = salesOrganizationService.getEmployees();
+    const defaultManager = allEmps.find(e => e.employeeName === defaultManagerName);
 
     setFormData({
       employeeCode: autoCode,
       employeeName: '',
       designation: initialDesignation,
-      reportsTo: reportsOptions[0] || 'Owner / Super Admin',
-      zone: '',
-      region: '',
+      reportsTo: defaultManagerName,
+      zone: defaultManager?.zone || '',
+      region: defaultManager?.region || '',
+      state: defaultManager?.state || '',
+      territory: '',
       area: '',
       headquarters: '',
       joiningDate: new Date().toISOString().split('T')[0],
@@ -223,6 +240,8 @@ export default function EmployeesTab() {
       reportsTo: emp.reportsTo,
       zone: emp.zone,
       region: emp.region,
+      state: emp.state,
+      territory: emp.territory,
       area: emp.area,
       headquarters: emp.headquarters || '',
       joiningDate: emp.joiningDate,
@@ -233,6 +252,10 @@ export default function EmployeesTab() {
 
   const handleDesignationChange = (newDesignation: Designation) => {
     const options = getReportsToOptions(newDesignation);
+    const defaultManagerName = options[0] || 'Owner / Super Admin';
+    const allEmps = salesOrganizationService.getEmployees();
+    const defaultManager = allEmps.find(e => e.employeeName === defaultManagerName);
+
     setFormData((prev) => {
       const nextCode = editingEmployee
         ? prev.employeeCode
@@ -241,7 +264,10 @@ export default function EmployeesTab() {
         ...prev,
         designation: newDesignation,
         employeeCode: nextCode,
-        reportsTo: options[0] || 'Owner / Super Admin',
+        reportsTo: defaultManagerName,
+        zone: editingEmployee ? prev.zone : (defaultManager?.zone || ''),
+        region: editingEmployee ? prev.region : (defaultManager?.region || ''),
+        state: editingEmployee ? prev.state : (defaultManager?.state || '')
       };
     });
   };
@@ -259,6 +285,8 @@ export default function EmployeesTab() {
       reportsTo: formData.reportsTo,
       zone: formData.zone.trim(),
       region: formData.region.trim(),
+      state: formData.state.trim(),
+      territory: formData.territory.trim(),
       area: formData.area.trim(),
       headquarters: formData.headquarters.trim(),
       joiningDate: formData.joiningDate,
@@ -572,7 +600,15 @@ export default function EmployeesTab() {
                                 key={rep}
                                 className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
                                 onClick={() => {
-                                  setFormData({ ...formData, reportsTo: rep });
+                                  const allEmps = salesOrganizationService.getEmployees();
+                                  const manager = allEmps.find(e => e.employeeName === rep);
+                                  setFormData({ 
+                                    ...formData, 
+                                    reportsTo: rep,
+                                    zone: !editingEmployee ? (manager?.zone || formData.zone) : formData.zone,
+                                    region: !editingEmployee ? (manager?.region || formData.region) : formData.region,
+                                    state: !editingEmployee ? (manager?.state || formData.state) : formData.state
+                                  });
                                   setShowReportsToDropdown(false);
                                 }}
                               >
@@ -645,6 +681,35 @@ export default function EmployeesTab() {
                     />
                     {errors.region && (
                       <p className="text-xs text-rose-600 font-medium mt-1">{errors.region}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-800">State *</label>
+                    <StateSelector 
+                      value={formData.state} 
+                      onChange={(val) => setFormData({ ...formData, state: val })} 
+                    />
+                    {errors.state && (
+                      <p className="mt-1 text-xs text-rose-600 font-medium">{errors.state}</p>
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-1 text-slate-800">Territory *</label>
+                    <input
+                      type="text"
+                      className={`w-full border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 ${
+                        errors.territory
+                          ? 'border-rose-400 focus:ring-rose-500/30'
+                          : 'border-slate-200 focus:ring-violet-500/30 focus:border-violet-500'
+                      }`}
+                      placeholder="e.g. West Delhi"
+                      value={formData.territory}
+                      onChange={(e) => setFormData({ ...formData, territory: e.target.value })}
+                    />
+                    {errors.territory && (
+                      <p className="text-xs text-rose-600 font-medium mt-1">{errors.territory}</p>
                     )}
                   </div>
 

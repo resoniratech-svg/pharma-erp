@@ -4,12 +4,16 @@ import { Plus, Edit2, Eye, X, Loader2 } from 'lucide-react';
 import { Modal } from '../../components/ui/Modal';
 import { employeeService } from '../../services/employeeService';
 import { authService } from '../../services/authService';
+import { StateSelector } from '../super-admin/components/StateSelector';
 
 export default function RSMManagement() {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [stateFilter, setStateFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState('');
+  const [stateSearch, setStateSearch] = useState('');
   
   // Master list of available states that can be expanded dynamically
   const [availableStates, setAvailableStates] = useState<string[]>([
@@ -18,20 +22,19 @@ export default function RSMManagement() {
 
   const [rsmData, setRsmData] = useState<any[]>([]);
 
+
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isViewModalOpen, setIsViewModalOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [viewingRsm, setViewingRsm] = useState<any | null>(null);
 
-  // Multi-select state
-  const [isStateDropdownOpen, setIsStateDropdownOpen] = useState(false);
-  const [stateSearch, setStateSearch] = useState('');
-
   const [newRsm, setNewRsm] = useState({
     name: '',
     mobile: '',
     email: '',
+    state: '',
     states: [] as string[],
+    territory: '',
     hq: '',
     area: '',
     password: '',
@@ -41,7 +44,16 @@ export default function RSMManagement() {
   });
 
   const currentUser = authService.getCurrentUser();
-  const loggedInNsm = currentUser ? `${currentUser.fullName || 'NSM'} (National Sales Head)` : "National Sales Head";
+  const { currentName, currentEmpId, isSuperAdmin } = employeeService.getLoggedInEmployee();
+  const loggedInNsm = currentName !== 'Super Admin' ? currentName : (currentUser ? `${currentUser.fullName || 'NSM'} (National Sales Head)` : "National Sales Head");
+  
+  const inheritedTerritoryObj = employeeService.getInheritedTerritory(currentEmpId);
+  const inheritedZone = inheritedTerritoryObj.zone;
+  const inheritedRegion = inheritedTerritoryObj.region;
+
+  const generatedEmpCode = editingId 
+    ? (rsmData.find(r => r.id === editingId)?.employeeCode || '') 
+    : employeeService.generateNextEmployeeCode('Regional Sales Manager');
 
   useEffect(() => {
     loadRSMs();
@@ -52,7 +64,8 @@ export default function RSMManagement() {
       setLoading(true);
       setError(null);
       const employees = await employeeService.getEmployees({
-        designation: 'Regional Sales Manager'
+        designation: 'Regional Sales Manager',
+        ...(isSuperAdmin ? {} : { reportsToId: currentEmpId })
       });
       
       const mapped = employees.map(emp => ({
@@ -61,16 +74,17 @@ export default function RSMManagement() {
         name: emp.employeeName,
         mobile: (emp as any).mobile || '',
         email: (emp as any).email || '',
+        state: (emp as any).state || '',
         states: (emp as any).states && (emp as any).states.length > 0 ? (emp as any).states : (emp.area ? [emp.area] : []),
         hq: emp.headquarters || '',
         area: emp.area || '',
+        territory: (emp as any).territory || '',
         status: emp.status || 'Active',
         joiningDate: emp.joiningDate || '',
       })).reverse();
 
       setRsmData(mapped);
 
-      // Collect states from loaded data
       const existingStates = new Set(availableStates);
       mapped.forEach(r => {
         if (r.states && Array.isArray(r.states)) {
@@ -86,14 +100,15 @@ export default function RSMManagement() {
     }
   };
 
+  const loadData = () => loadRSMs(); // Keep backward compatibility just in case
+
   const openAddModal = () => {
     setEditingId(null);
     setNewRsm({
-      name: '', mobile: '', email: '', states: [], hq: '', area: '', 
+      name: '', mobile: '', email: '', states: [], state: inheritedTerritoryObj.state || '', territory: '', hq: '', area: '', 
       password: '', confirmPassword: '', status: 'Active', 
       joiningDate: new Date().toISOString().split('T')[0]
     });
-    setStateSearch('');
     setIsAddModalOpen(true);
   };
 
@@ -104,10 +119,9 @@ export default function RSMManagement() {
     
     setNewRsm({
       name: rsm.name || '', mobile: rsm.mobile || '', email: rsm.email || '', 
-      states: [...rsmStates], hq: rsm.hq || '', area: rsm.area || '', 
-      password: '', confirmPassword: '', status: rsm.status || 'Active', joiningDate: rsm.joiningDate || ''
+      state: rsm.state || '', states: rsmStates, territory: rsm.territory || '', hq: rsm.hq || '', area: rsm.area || '', 
+      password: '', confirmPassword: '', status: (rsm.status || 'Active') as 'Active' | 'Inactive', joiningDate: rsm.joiningDate || ''
     });
-    setStateSearch('');
     setIsAddModalOpen(true);
   };
 
@@ -118,12 +132,20 @@ export default function RSMManagement() {
 
   const handleAddSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (newRsm.states.length === 0) {
+    if (!newRsm.state.trim()) {
       alert("Please select at least one State.");
+      return;
+    }
+    if (!newRsm.territory?.trim() && (!newRsm.states || newRsm.states.length === 0) && !newRsm.state?.trim()) {
+      alert("Territory or States are required.");
       return;
     }
     if (!editingId && (!newRsm.password || newRsm.password !== newRsm.confirmPassword)) {
       alert("Passwords do not match or is empty");
+      return;
+    }
+    if (editingId && newRsm.password && newRsm.password !== newRsm.confirmPassword) {
+      alert("Passwords do not match");
       return;
     }
     
@@ -135,24 +157,33 @@ export default function RSMManagement() {
           mobile: newRsm.mobile,
           email: newRsm.email,
           states: newRsm.states,
+          state: newRsm.state,
+          territory: newRsm.territory,
           headquarters: newRsm.hq,
           area: newRsm.area,
-          status: newRsm.status,
+          status: newRsm.status as any,
           joiningDate: newRsm.joiningDate,
           ...(newRsm.password ? { password: newRsm.password } : {}),
         });
       } else {
         await employeeService.addEmployee({
+          employeeCode: generatedEmpCode,
           employeeName: newRsm.name,
           designation: 'Regional Sales Manager',
+          reportsTo: currentName !== 'Super Admin' ? currentName : 'Owner / Super Admin',
+          reportsToId: currentEmpId || undefined,
+          zone: inheritedZone,
+          region: inheritedRegion,
           mobile: newRsm.mobile,
           email: newRsm.email,
           password: newRsm.password,
           states: newRsm.states,
+          state: newRsm.state,
+          territory: newRsm.territory,
           headquarters: newRsm.hq,
           area: newRsm.area,
-          status: newRsm.status,
-          joiningDate: newRsm.joiningDate,
+          status: newRsm.status as any,
+          joiningDate: newRsm.joiningDate || new Date().toISOString().split('T')[0],
         });
       }
 
@@ -166,8 +197,8 @@ export default function RSMManagement() {
   };
 
   // State Multiselect Logic
-  const filteredStates = availableStates.filter(s => s.toLowerCase().includes(stateSearch.toLowerCase()));
-  const isSearchStateNew = stateSearch.trim() !== '' && !availableStates.some(s => s.toLowerCase() === stateSearch.trim().toLowerCase());
+  const filteredStates = availableStates.filter(s => s.toLowerCase().includes((typeof stateSearch !== 'undefined' ? stateSearch : '').toLowerCase()));
+  const isSearchStateNew = typeof stateSearch !== 'undefined' && stateSearch.trim() !== '' && !availableStates.some(s => s.toLowerCase() === stateSearch.trim().toLowerCase());
 
   const handleStateSelect = (stateName: string) => {
     if (newRsm.states.includes(stateName)) {
@@ -178,6 +209,7 @@ export default function RSMManagement() {
   };
 
   const handleCreateState = () => {
+    if (typeof stateSearch === 'undefined') return;
     const newState = stateSearch.trim();
     if (!newState) return;
     
@@ -191,15 +223,22 @@ export default function RSMManagement() {
         setNewRsm({ ...newRsm, states: [...newRsm.states, actualState] });
       }
     }
-    setStateSearch('');
   };
 
   const filteredData = rsmData.filter(row => {
     const rowStates = row.states || (row.state ? [row.state] : []);
     const statesMatch = rowStates.some((s: string) => s.toLowerCase().includes(search.toLowerCase()));
-    return (row.name || '').toLowerCase().includes(search.toLowerCase()) || 
-           (row.employeeCode || '').toLowerCase().includes(search.toLowerCase()) || 
-           statesMatch;
+    
+    const hqMatch = (row.hq || '').toLowerCase().includes(search.toLowerCase());
+    const nameMatch = (row.name || '').toLowerCase().includes(search.toLowerCase());
+    const codeMatch = (row.employeeCode || '').toLowerCase().includes(search.toLowerCase());
+    
+    const matchesSearch = statesMatch || hqMatch || nameMatch || codeMatch;
+    
+    const matchesState = stateFilter ? rowStates.includes(stateFilter) : true;
+    const matchesStatus = statusFilter ? row.status === statusFilter : true;
+    
+    return matchesSearch && matchesState && matchesStatus;
   });
 
   const columns = [
@@ -248,7 +287,7 @@ export default function RSMManagement() {
       />
 
       <FilterBar>
-        <SearchInput value={search} onChange={setSearch} placeholder="Search by name, code or state..." />
+        <SearchInput value={search} onChange={setSearch} placeholder="Search by name, code, state or HQ..." />
       </FilterBar>
 
       {error && (
@@ -268,7 +307,6 @@ export default function RSMManagement() {
         )}
       </TableCard>
 
-      {/* Add / Edit Modal */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
@@ -276,7 +314,6 @@ export default function RSMManagement() {
         className="max-w-4xl w-full"
       >
         <form onSubmit={handleAddSubmit} className="space-y-6 mt-2">
-          {/* 1. Basic Information */}
           <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
             <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">1. Basic Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
@@ -284,7 +321,7 @@ export default function RSMManagement() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Employee Code</label>
                 <input 
                   type="text" 
-                  value={editingId ? (rsmData.find(r => r.id === editingId)?.employeeCode || `EMP-${editingId}`) : 'Auto-generated by server'}
+                  value={generatedEmpCode}
                   disabled 
                   className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed text-sm" 
                 />
@@ -336,90 +373,49 @@ export default function RSMManagement() {
             </div>
           </div>
 
-          {/* 2. Territory Information */}
           <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
             <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">2. Territory Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
               
-              <div className="relative">
-                <label className="block text-sm font-medium text-slate-700 mb-2">States *</label>
-                <div 
-                  className="w-full min-h-[46px] px-3 py-2 border border-slate-300 rounded-lg bg-white cursor-text flex flex-wrap gap-2 items-center focus-within:ring-2 focus-within:ring-[#163c78] focus-within:border-[#163c78]"
-                  onClick={() => setIsStateDropdownOpen(true)}
-                >
-                  {newRsm.states.map(state => (
-                    <span key={state} className="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-slate-100 text-slate-700 text-xs font-medium border border-slate-200">
-                      {state}
-                      <button 
-                        type="button" 
-                        onClick={(e) => { e.stopPropagation(); handleStateSelect(state); }} 
-                        className="hover:text-rose-500 hover:bg-slate-200 rounded-full p-0.5 ml-0.5 transition-colors"
-                      >
-                        <X className="w-3 h-3" />
-                      </button>
-                    </span>
-                  ))}
-                  <input
-                    type="text"
-                    className="flex-1 min-w-[120px] outline-none text-sm bg-transparent"
-                    placeholder={newRsm.states.length === 0 ? "Search or add states..." : ""}
-                    value={stateSearch}
-                    onChange={e => {
-                      setStateSearch(e.target.value);
-                      setIsStateDropdownOpen(true);
-                    }}
-                    onFocus={() => setIsStateDropdownOpen(true)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        if (isSearchStateNew) {
-                          handleCreateState();
-                        } else if (filteredStates.length > 0) {
-                          handleStateSelect(filteredStates[0]);
-                          setStateSearch('');
-                        }
-                      }
-                    }}
-                  />
-                </div>
-                
-                {isStateDropdownOpen && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setIsStateDropdownOpen(false)}></div>
-                    <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-lg z-20 max-h-60 overflow-y-auto">
-                      {isSearchStateNew && (
-                        <div 
-                          className="px-4 py-2 hover:bg-slate-50 cursor-pointer border-b border-slate-100 flex items-center text-sm font-medium text-[#163c78]"
-                          onClick={() => handleCreateState()}
-                        >
-                          <Plus className="w-4 h-4 mr-2" />
-                          Create "{stateSearch.trim()}"
-                        </div>
-                      )}
-                      {filteredStates.map(state => (
-                        <div 
-                          key={state} 
-                          className="px-4 py-2 hover:bg-slate-50 cursor-pointer flex items-center text-sm text-slate-700"
-                          onClick={() => handleStateSelect(state)}
-                        >
-                          <input 
-                            type="checkbox" 
-                            className="mr-3 rounded border-slate-300 text-[#163c78] focus:ring-[#163c78]"
-                            checked={newRsm.states.includes(state)}
-                            onChange={() => {}} 
-                            onClick={(e) => e.stopPropagation()} 
-                          />
-                          {state}
-                        </div>
-                      ))}
-                      {filteredStates.length === 0 && !isSearchStateNew && (
-                        <div className="px-4 py-3 text-sm text-slate-500 text-center">No states found</div>
-                      )}
-                    </div>
-                  </>
-                )}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Zone</label>
+                <input 
+                  type="text" 
+                  value={inheritedZone}
+                  disabled 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed" 
+                />
               </div>
-
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Region</label>
+                <input 
+                  type="text" 
+                  value={inheritedRegion}
+                  disabled 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed" 
+                />
+              </div>
+                
+              <div className="relative">
+                <label className="block text-sm font-medium text-slate-700 mb-2">State *</label>
+                <StateSelector 
+                  value={newRsm.state} 
+                  onChange={(val) => setNewRsm({ ...newRsm, state: val })} 
+                />
+              </div>
+                
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Territory *</label>
+                <input 
+                  type="text"
+                  required
+                  value={newRsm.territory}
+                  onChange={e => setNewRsm({...newRsm, territory: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                  placeholder="Enter territory name"
+                />
+              </div>
+                
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Headquarters *</label>
                 <input 
@@ -538,7 +534,6 @@ export default function RSMManagement() {
           isOpen={isViewModalOpen}
           onClose={() => setIsViewModalOpen(false)}
           title="Regional Sales Manager Details"
-          size="lg"
         >
           <div className="space-y-6">
             {/* 1. Basic Information */}
@@ -563,7 +558,7 @@ export default function RSMManagement() {
                 <div>
                   <span className="block text-xs text-slate-500 font-semibold mb-1">State(s)</span>
                   <span className="text-sm font-medium">
-                    {viewingRsm.states ? viewingRsm.states.join(', ') : (viewingRsm.state || '-')}
+                    {viewingRsm.state || '-'}
                   </span>
                 </div>
                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Headquarters</span><span className="text-sm font-medium">{viewingRsm.hq || '-'}</span></div>
