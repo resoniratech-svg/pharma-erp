@@ -426,6 +426,22 @@ export default function Orders() {
     return maxSeq + 1;
   };
 
+  const handleUpdateCartQuantity = (id: string, newQuantity: number) => {
+    if (newQuantity < 1) newQuantity = 1;
+    const updatedCart = cartItems.map(item => {
+      if (item.id === id) {
+        return {
+          ...item,
+          quantity: newQuantity,
+          lineTotal: newQuantity * item.unitPrice
+        };
+      }
+      return item;
+    });
+    setCartItems(updatedCart);
+    localStorage.setItem('pharma_erp_retailer_cart', JSON.stringify(updatedCart));
+  };
+
   const handlePlaceOrder = () => {
     if (cartItems.length === 0) {
       alert("Your order sheet is completely empty. Please pull items from the catalog first.");
@@ -640,7 +656,19 @@ export default function Orders() {
   const cartColumns: Column<OrderItem>[] = [
     { key: 'productName', label: 'Product Name', render: (row) => <span className="font-medium text-slate-900">{row.productName}</span> },
     { key: 'productCode', label: 'Product Code', render: (row) => <span className="text-slate-600 text-xs">{row.productCode}</span> },
-    { key: 'quantity', label: 'Quantity', render: (row) => <span className="text-slate-600">{row.quantity}</span> },
+    { 
+      key: 'quantity', 
+      label: 'Quantity', 
+      render: (row) => (
+        <input 
+          type="number" 
+          min="1" 
+          className="w-20 px-2 py-1 border border-slate-200 rounded text-sm focus:outline-none focus:border-violet-500 text-slate-700" 
+          value={row.quantity}
+          onChange={(e) => handleUpdateCartQuantity(row.id, parseInt(e.target.value) || 1)}
+        />
+      ) 
+    },
     { key: 'unitPrice', label: 'Unit Price', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
     { key: 'schemeBenefit', label: 'Scheme Benefit', render: (row) => <span className="text-emerald-600 text-sm">{row.schemeBenefit || '-'}</span> },
     { key: 'lineTotal', label: 'Line Total', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
