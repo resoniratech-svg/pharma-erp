@@ -1,5 +1,6 @@
 import {
   ROLE_SUPER_ADMIN,
+  ROLE_COMPANY_ADMIN,
   ROLE_WAREHOUSE_MANAGER,
   ROLE_ACCOUNTANT,
   ROLE_DISTRIBUTOR,
@@ -27,6 +28,10 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'Accounting & Finance',
     'GPS & Location Tracking',
     'Alerts & Notifications',
+    'Settings',
+  ],
+  [ROLE_COMPANY_ADMIN]: [
+    'Dashboard',
     'Settings',
   ],
   [ROLE_NATIONAL_SALES_HEAD]: [
