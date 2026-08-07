@@ -395,7 +395,7 @@ export default function RetailerMaster() {
                       type="text"
                       maxLength={10}
                       value={formData.mobileNumber}
-                      onChange={(e) => setFormData({...formData, mobileNumber: e.target.value})}
+                      onChange={(e) => setFormData({...formData, mobileNumber: e.target.value.replace(/\\D/g, '').slice(0, 10)})}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
                     />
                   </div>

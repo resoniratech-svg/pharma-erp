@@ -1070,7 +1070,7 @@ export default function OutwardStock() {
                       type="text"
                       maxLength={10}
                       value={formData.driverMobile}
-                      onChange={(e) => setFormData({ ...formData, driverMobile: e.target.value.replace(/\D/g, '') })}
+                      onChange={(e) => setFormData({ ...formData, driverMobile: e.target.value.replace(/\D/g, '').slice(0, 10) })}
                       className="w-full border border-slate-200 rounded-lg px-3 py-2"
                       placeholder="e.g. 9876543210"
                     />

@@ -1429,7 +1429,8 @@ export default function DispatchTracking() {
                     type="text"
                     placeholder="9999988888"
                     value={shipmentForm.driverMobile}
-                    onChange={(e) => setShipmentForm({ ...shipmentForm, driverMobile: e.target.value })}
+                    onChange={(e) => setShipmentForm({ ...shipmentForm, driverMobile: e.target.value.replace(/\\D/g, '').slice(0, 10) })}
+                    maxLength={10}
                     className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 text-slate-700 focus:outline-none focus:border-violet-400 bg-white"
                   />
                 </div>
@@ -1779,7 +1780,7 @@ export default function DispatchTracking() {
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-slate-600 whitespace-nowrap block">Driver Mobile Number</label>
-                    <input type="text" className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 bg-white" value={dispatchFormData.driverMobile} onChange={e => setDispatchFormData({...dispatchFormData, driverMobile: e.target.value})} />
+                    <input type="text" className="w-full text-sm border border-slate-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 bg-white" value={dispatchFormData.driverMobile} onChange={e => setDispatchFormData({...dispatchFormData, driverMobile: e.target.value.replace(/\\D/g, '').slice(0, 10)})} maxLength={10} />
                   </div>
                   <div className="space-y-1.5">
                     <label className="text-xs font-medium text-slate-600 whitespace-nowrap block">Freight Paid By</label>

@@ -381,7 +381,8 @@ export default function DoctorCRM() {
                     type="tel"
                     placeholder="10-digit number"
                     value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    onChange={(e) => setFormData({ ...formData, phone: e.target.value.replace(/\\D/g, '').slice(0, 10) })}
+                    maxLength={10}
                     className="w-full pl-9 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:ring-2 focus:ring-violet-600 focus:border-[#163c78] outline-none"
                   />
                 </div>

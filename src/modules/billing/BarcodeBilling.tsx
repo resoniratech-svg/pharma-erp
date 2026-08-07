@@ -771,7 +771,7 @@ export default function BarcodeBilling() {
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Mobile Number</label>
-                <input type="text" placeholder="9876543210" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 text-slate-900" value={mobileNumber} onChange={e => setMobileNumber(e.target.value)} />
+                <input type="text" placeholder="9876543210" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 text-slate-900" value={mobileNumber} onChange={e => setMobileNumber(e.target.value.replace(/\\D/g, '').slice(0, 10))} maxLength={10} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">GSTIN (Optional)</label>

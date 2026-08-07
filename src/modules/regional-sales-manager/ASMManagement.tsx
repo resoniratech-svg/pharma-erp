@@ -311,7 +311,8 @@ export default function ASMManagement() {
                   required
                   pattern="[0-9]{10}"
                   value={newAsm.mobile}
-                  onChange={e => setNewAsm({...newAsm, mobile: e.target.value})}
+                  onChange={e => setNewAsm({...newAsm, mobile: e.target.value.replace(/\\D/g, '').slice(0, 10)})}
+                  maxLength={10}
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
                 />
               </div>
