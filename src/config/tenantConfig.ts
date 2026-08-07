@@ -22,7 +22,10 @@ export const AVAILABLE_MODULES: ErpModule[] = [
   { moduleId: 'MOD_CRM', moduleCode: 'CRM', moduleName: 'CRM', description: 'Customer relationship', enabled: true },
   { moduleId: 'MOD_MR', moduleCode: 'MR', moduleName: 'Medical Representative', description: 'MR tracking and visits', enabled: true },
   { moduleId: 'MOD_GPS', moduleCode: 'GPS', moduleName: 'GPS & Attendance', description: 'Location tracking', enabled: true },
-  { moduleId: 'MOD_SET', moduleCode: 'SETTINGS', moduleName: 'Settings', description: 'System configuration', enabled: true }
+  { moduleId: 'MOD_SET', moduleCode: 'SETTINGS', moduleName: 'Settings', description: 'System configuration', enabled: true },
+  { moduleId: 'MOD_NSM', moduleCode: 'NSM', moduleName: 'NSM (National Sales Manager)', description: 'National level sales', enabled: true },
+  { moduleId: 'MOD_RSM', moduleCode: 'RSM', moduleName: 'RSM (Regional Sales Manager)', description: 'Regional level sales', enabled: true },
+  { moduleId: 'MOD_ASM', moduleCode: 'ASM', moduleName: 'ASM (Area Sales Manager)', description: 'Area level sales', enabled: true }
 ];
 
 // 2. Explicit mapping from purchased modules (using their string names for now, but easily adaptable to IDs) 
@@ -34,7 +37,10 @@ export const WORKSPACE_MODULE_MAPPING: Record<string, string[]> = {
   'ACCOUNTANT': ['Accounting & Finance', 'Billing'],
   'DISTRIBUTOR': ['Distributor Portal'],
   'RETAILER': ['Retailer Ordering System'],
-  'MEDICAL_REPRESENTATIVE': ['Medical Representative', 'CRM', 'GPS & Attendance']
+  'MEDICAL_REPRESENTATIVE': ['Medical Representative', 'CRM', 'GPS & Attendance'],
+  'NATIONAL_SALES_HEAD': ['NSM (National Sales Manager)'],
+  'REGIONAL_SALES_MANAGER': ['RSM (Regional Sales Manager)'],
+  'AREA_SALES_MANAGER': ['ASM (Area Sales Manager)']
 };
 
 /**
