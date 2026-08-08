@@ -15,17 +15,17 @@ model User {
   role                  Role
   isActive              Boolean      @default(true)
   createdAt             DateTime     @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt             DateTime     @default(now()) @updatedAt
   branchId              Int?
   companyId             Int?
   currentDeviceId       String?
-  mobile                String?
-  profileImage          String?
   linkedDistributorCode String?
   linkedRetailerCode    String?
+  mobile                String?
+  profileImage          String?
   approvedCreditNotes   CreditNote[] @relation("ApprovedCreditNotes")
-  mr                    MR?
   employee              Employee?
+  mr                    MR?
   branch                Branch?      @relation(fields: [branchId], references: [id])
   company               Company?     @relation(fields: [companyId], references: [id])
 }
@@ -38,7 +38,7 @@ model Company {
   address         String?
   isActive        Boolean                    @default(true)
   createdAt       DateTime                   @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt       DateTime                   @default(now()) @updatedAt
   branches        Branch[]
   permissions     CompanyFeaturePermission[]
   products        Product[]
@@ -56,7 +56,7 @@ model Branch {
   companyId Int
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
   company   Company  @relation(fields: [companyId], references: [id])
   users     User[]
 }
@@ -66,7 +66,7 @@ model Module {
   name        String    @unique
   description String?
   createdAt   DateTime  @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
   features    Feature[]
 }
 
@@ -76,7 +76,7 @@ model Feature {
   description     String?
   moduleId        Int
   createdAt       DateTime                   @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt       DateTime                   @default(now()) @updatedAt
   permissions     CompanyFeaturePermission[]
   module          Module                     @relation(fields: [moduleId], references: [id])
   rolePermissions RolePermission[]
@@ -88,7 +88,7 @@ model CompanyFeaturePermission {
   featureId Int
   enabled   Boolean  @default(true)
   createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt DateTime @default(now()) @updatedAt
   company   Company  @relation(fields: [companyId], references: [id])
   feature   Feature  @relation(fields: [featureId], references: [id])
 
@@ -110,7 +110,7 @@ model ProductCategory {
   name        String    @unique
   description String?
   createdAt   DateTime  @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt   DateTime  @default(now()) @updatedAt
   products    Product[]
 }
 
@@ -127,7 +127,7 @@ model Product {
   ptd                    Float?
   companyId              Int
   createdAt              DateTime                @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt              DateTime                @default(now()) @updatedAt
   minStock               Int
   batchTracking          Boolean                 @default(false)
   brandName              String?
@@ -142,10 +142,10 @@ model Product {
   scheme                 String?
   sellingPrice           Float?
   status                 String                  @default("Active")
-  barcode                String?
   totalUnits             String?
   type                   String?
   unitsPerPack           String?
+  barcode                String?
   batches                Batch[]
   creditNoteItems        CreditNoteItem[]
   invoiceItems           InvoiceItem[]
@@ -166,9 +166,9 @@ model Batch {
   manufacturingDate      DateTime
   expiryDate             DateTime
   quantity               Int
-  remarks                String?
   createdAt              DateTime                @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt              DateTime                @default(now()) @updatedAt
+  remarks                String?
   product                Product                 @relation(fields: [productId], references: [id])
   creditNoteItems        CreditNoteItem[]
   dispatches             Dispatch[]
@@ -196,7 +196,7 @@ model Warehouse {
   address       String?
   companyId     Int
   createdAt     DateTime       @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt     DateTime       @default(now()) @updatedAt
   branch        String         @default("Default Branch")
   city          String?
   contactPerson String?
@@ -255,42 +255,42 @@ model WarehouseTransferItem {
 }
 
 model Dispatch {
-  id                Int                @id @default(autoincrement())
-  batchId           Int?
-  warehouseId       Int?
-  customerName      String?
-  quantity          Int?
-  dispatchDate      DateTime           @default(now())
-  status            String             @default("PENDING")
-  remarks           String?
-  createdAt         DateTime           @default(now())
-  createdBy         String?
-  createdDate       String?
-  dispatchNo        String?
-  dispatchType      String?
-  driverMobile      String?
-  driverName        String?
-  lrNumber          String?
-  orderId           String?
-  products          Json?
-  sourceWarehouse   String?
-  totalItems        Int?
-  totalQuantity     Int?
-  transporter       String?
-  vehicleNumber     String?
+  id                 Int                @id @default(autoincrement())
+  batchId            Int?
+  warehouseId        Int?
+  customerName       String?
+  quantity           Int?
+  dispatchDate       DateTime           @default(now())
+  status             String             @default("PENDING")
+  remarks            String?
+  createdAt          DateTime           @default(now())
+  createdBy          String?
+  createdDate        String?
+  dispatchNo         String?
+  dispatchType       String?
+  driverMobile       String?
+  driverName         String?
+  lrNumber           String?
+  orderId            String?
+  products           Json?
+  sourceWarehouse    String?
+  totalItems         Int?
+  totalQuantity      Int?
+  transporter        String?
+  vehicleNumber      String?
+  actualDeliveryDate String?
+  podDesignation     String?
+  podFileName        String?
+  podFileType        String?
+  podFileUrl         String?
+  podReceivedBy      String?
+  podRemarks         String?
   podStatus          String?
   podUploadedBy      String?
   podUploadedDate    String?
-  podReceivedBy      String?
-  podDesignation     String?
-  podFileUrl         String?
-  podFileName        String?
-  podFileType        String?
-  podRemarks         String?
-  actualDeliveryDate String?
-  batch             Batch?             @relation(fields: [batchId], references: [id])
-  warehouse         Warehouse?         @relation(fields: [warehouseId], references: [id])
-  transportChallans TransportChallan[]
+  batch              Batch?             @relation(fields: [batchId], references: [id])
+  warehouse          Warehouse?         @relation(fields: [warehouseId], references: [id])
+  transportChallans  TransportChallan[]
 }
 
 model TransportChallan {
@@ -375,46 +375,45 @@ model Retailer {
   name              String
   code              String          @unique
   mobile            String
-  contactPerson     String?
   email             String?
   address           String?
   gstNumber         String?
   drugLicenseNumber String?
   isActive          Boolean         @default(true)
   createdAt         DateTime        @default(now())
+  contactPerson     String?
   creditNotes       CreditNote[]
   invoices          Invoice[]
-  ledgers           Ledger[]
   stockist          Stockist        @relation(fields: [stockistId], references: [id])
   orders            RetailerOrder[]
 }
 
 model Invoice {
-  id                 Int                 @id @default(autoincrement())
+  id                 Int           @id @default(autoincrement())
   retailerId         Int
-  invoiceNumber      String              @unique
-  invoiceDate        DateTime            @default(now())
+  invoiceNumber      String        @unique
+  invoiceDate        DateTime      @default(now())
   subTotal           Float
   gstAmount          Float
   totalAmount        Float
-  status             String              @default("PENDING")
-  createdAt          DateTime            @default(now())
+  status             String        @default("PENDING")
+  createdAt          DateTime      @default(now())
   ackDate            DateTime?
   ackNo              String?
   cancellationReason String?
   cancelledAt        DateTime?
   irnGeneratedOn     DateTime?
   irnNumber          String?
-  irnStatus          String              @default("PENDING")
+  irnStatus          String        @default("PENDING")
   jsonPayload        Json?
   nicErrorCode       String?
   nicErrorDesc       String?
-  nicStatus          String?             @default("PENDING")
+  nicStatus          String?       @default("PENDING")
   signedQrCode       String?
+  outstandingAmount  Float         @default(0)
   creditNotes        CreditNote[]
-  retailer           Retailer            @relation(fields: [retailerId], references: [id])
+  retailer           Retailer      @relation(fields: [retailerId], references: [id])
   invoiceItems       InvoiceItem[]
-  paymentCollections PaymentCollection[]
 }
 
 model InvoiceItem {
@@ -460,45 +459,52 @@ model RetailerOrderItem {
   retailerOrder   RetailerOrder @relation(fields: [retailerOrderId], references: [id])
 }
 
-model PaymentCollection {
-  id             Int      @id @default(autoincrement())
-  invoiceId      Int
-  amount         Float
-  paymentMode    String
-  transactionRef String?
-  paymentDate    DateTime @default(now())
-  remarks        String?
-  createdAt      DateTime @default(now())
-  invoice        Invoice  @relation(fields: [invoiceId], references: [id])
+model AccountGroup {
+  id          Int             @id @default(autoincrement())
+  name        String          @unique
+  nature      String
+  description String?
+  ledgers     AccountLedger[]
 }
 
-model Ledger {
-  id              Int      @id @default(autoincrement())
-  retailerId      Int
-  transactionType String
-  referenceNumber String
-  debit           Float    @default(0)
-  credit          Float    @default(0)
-  balance         Float
-  remarks         String?
-  createdAt       DateTime @default(now())
-  retailer        Retailer @relation(fields: [retailerId], references: [id])
+model AccountLedger {
+  id             Int                 @id @default(autoincrement())
+  name           String
+  groupId        Int
+  openingBalance Float               @default(0)
+  balanceType    String              @default("DR")
+  isActive       Boolean             @default(true)
+  retailerId     Int?                @unique
+  stockistId     Int?                @unique
+  group          AccountGroup        @relation(fields: [groupId], references: [id])
+  transactions   LedgerTransaction[]
 }
 
-model Expense {
-  id          Int      @id @default(autoincrement())
-  expenseType String
-  amount      Float
-  remarks     String?
-  expenseDate DateTime @default(now())
+model Voucher {
+  id            Int                 @id @default(autoincrement())
+  voucherNumber String              @unique
+  voucherType   String
+  voucherDate   DateTime            @default(now())
+  amount        Float
+  narration     String?
+  referenceType String?
+  referenceId   Int?
+  paymentMode   String?
+  paymentRef    String?
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  createdBy     Int?
+  transactions  LedgerTransaction[]
 }
 
-model Income {
-  id         Int      @id @default(autoincrement())
-  incomeType String
-  amount     Float
-  remarks    String?
-  incomeDate DateTime @default(now())
+model LedgerTransaction {
+  id        Int           @id @default(autoincrement())
+  voucherId Int
+  ledgerId  Int
+  type      String
+  amount    Float
+  ledger    AccountLedger @relation(fields: [ledgerId], references: [id])
+  voucher   Voucher       @relation(fields: [voucherId], references: [id], onDelete: Cascade)
 }
 
 model MR {
@@ -585,35 +591,35 @@ model Attendance {
 }
 
 model DoctorVisit {
-  id                Int      @id @default(autoincrement())
+  id                Int       @id @default(autoincrement())
   mrId              Int
   doctorId          Int
-  visitDate         DateTime @default(now())
+  visitDate         DateTime  @default(now())
   remarks           String?
   productsDiscussed String?
   samplesGiven      Int?
   latitude          Float?
   longitude         Float?
+  createdAt         DateTime  @default(now())
   nextFollowUpDate  DateTime?
-  createdAt         DateTime @default(now())
-  doctor            Doctor   @relation(fields: [doctorId], references: [id])
-  mr                MR       @relation(fields: [mrId], references: [id])
+  doctor            Doctor    @relation(fields: [doctorId], references: [id])
+  mr                MR        @relation(fields: [mrId], references: [id])
 }
 
 model ChemistVisit {
-  id                Int      @id @default(autoincrement())
+  id                Int       @id @default(autoincrement())
   mrId              Int
   chemistId         Int
-  visitDate         DateTime @default(now())
+  visitDate         DateTime  @default(now())
   remarks           String?
   productsDiscussed String?
   orderValue        Float?
   latitude          Float?
   longitude         Float?
+  createdAt         DateTime  @default(now())
   nextFollowUpDate  DateTime?
-  createdAt         DateTime @default(now())
-  chemist           Chemist  @relation(fields: [chemistId], references: [id])
-  mr                MR       @relation(fields: [mrId], references: [id])
+  chemist           Chemist   @relation(fields: [chemistId], references: [id])
+  mr                MR        @relation(fields: [mrId], references: [id])
 }
 
 model TourPlan {
@@ -734,18 +740,18 @@ model FollowUp {
   doctorId     Int?
   chemistId    Int?
   meetingId    Int?
-  leadId       Int?
   title        String
-  type         String?
-  method       String?
   remarks      String?
   followUpDate DateTime
   status       String   @default("PENDING")
   createdAt    DateTime @default(now())
+  leadId       Int?
+  method       String?
+  type         String?
   chemist      Chemist? @relation(fields: [chemistId], references: [id])
   doctor       Doctor?  @relation(fields: [doctorId], references: [id])
-  meeting      Meeting? @relation(fields: [meetingId], references: [id])
   lead         Lead?    @relation(fields: [leadId], references: [id])
+  meeting      Meeting? @relation(fields: [meetingId], references: [id])
   mr           MR       @relation(fields: [mrId], references: [id])
 }
 
@@ -762,8 +768,8 @@ model Activity {
 }
 
 model Lead {
-  id           Int      @id @default(autoincrement())
-  leadCode     String   @unique
+  id           Int        @id @default(autoincrement())
+  leadCode     String     @unique
   name         String
   type         String
   mobile       String?
@@ -771,11 +777,11 @@ model Lead {
   address      String?
   territory    String?
   source       String?
-  status       String   @default("NEW")
+  status       String     @default("NEW")
   assignedMrId Int?
   createdAt    DateTime   @default(now())
-  assignedMr   MR?        @relation(fields: [assignedMrId], references: [id])
   followUps    FollowUp[]
+  assignedMr   MR?        @relation(fields: [assignedMrId], references: [id])
 }
 
 model LeaveRequest {
@@ -822,8 +828,8 @@ model Distributor {
   contactPerson String?
   createdAt     DateTime     @default(now())
   email         String?
-  state         String?
   status        String       @default("Active")
+  state         String?
   creditNotes   CreditNote[]
 }
 
@@ -868,10 +874,10 @@ model InwardStock {
   totalValue    Float             @default(0.0)
   status        String            @default("Completed")
   remarks       String?
-  createdBy     String?
-  updatedBy     String?
-  updatedAt DateTime @updatedAt @default(now())
   createdAt     DateTime          @default(now())
+  createdBy     String?
+  updatedAt     DateTime          @default(now()) @updatedAt
+  updatedBy     String?
   supplier      Supplier          @relation(fields: [supplierId], references: [id])
   warehouse     Warehouse         @relation(fields: [warehouseId], references: [id])
   items         InwardStockItem[]
@@ -893,24 +899,24 @@ model InwardStockItem {
 }
 
 model OutwardStock {
-  id              Int                @id @default(autoincrement())
-  dispatchNo      String             @unique
-  date            DateTime           @default(now())
-  client          String
-  warehouseId     Int
-  referenceNumber String?
-  itemsCount      Int                @default(0)
-  totalQuantity   Int                @default(0)
-  totalValue      Float              @default(0.0)
+  id                   Int                @id @default(autoincrement())
+  dispatchNo           String             @unique
+  date                 DateTime           @default(now())
+  client               String
+  warehouseId          Int
+  referenceNumber      String?
+  itemsCount           Int                @default(0)
+  totalQuantity        Int                @default(0)
+  totalValue           Float              @default(0.0)
   status               String             @default("Dispatched")
   remarks              String?
-  transporter          String?
-  lrNumber             String?
-  vehicleNumber        String?
-  driverName           String?
-  driverMobile         String?
-  expectedDeliveryDate DateTime?
   createdAt            DateTime           @default(now())
+  expectedDeliveryDate DateTime?
+  lrNumber             String?
+  transporter          String?
+  vehicleNumber        String?
+  driverMobile         String?
+  driverName           String?
   warehouse            Warehouse          @relation(fields: [warehouseId], references: [id])
   items                OutwardStockItem[]
 }
@@ -934,7 +940,7 @@ model HSNCode {
   status      String   @default("Active")
   remarks     String?
   createdAt   DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
 }
 
 model GSTRecord {
@@ -946,7 +952,7 @@ model GSTRecord {
   createdBy     String?
   lastUpdatedBy String?
   createdAt     DateTime  @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt     DateTime  @default(now()) @updatedAt
   remarks       String?
   status        String    @default("Active")
 }
@@ -957,29 +963,29 @@ model PackingType {
   description String
   status      String   @default("Active")
   createdAt   DateTime @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt   DateTime @default(now()) @updatedAt
   name        String   @default("")
   uom         String   @default("")
 }
 
 model PricingMaster {
-  id            Int       @id @default(autoincrement())
-  productId     Int
-  mrp           Float
-  ptr           Float
-  pts           Float
-  margin        Float
+  id             Int       @id @default(autoincrement())
+  productId      Int
+  mrp            Float
+  ptr            Float
+  pts            Float
+  margin         Float
   effectiveDate  DateTime?
-  effectiveTo    String?
-  remarks        String?
-  revisionReason String?
-  previousMrp    Float?
   createdAt      DateTime  @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt      DateTime  @default(now()) @updatedAt
   batchId        Int?
   status         String    @default("Active")
-  batch         Batch?    @relation(fields: [batchId], references: [id])
-  product       Product   @relation(fields: [productId], references: [id])
+  effectiveTo    String?
+  previousMrp    Float?
+  remarks        String?
+  revisionReason String?
+  batch          Batch?    @relation(fields: [batchId], references: [id])
+  product        Product   @relation(fields: [productId], references: [id])
 }
 
 model SchemeMaster {
@@ -993,7 +999,7 @@ model SchemeMaster {
   endDate             DateTime?
   status              String    @default("Active")
   createdAt           DateTime  @default(now())
-  updatedAt DateTime @updatedAt @default(now())
+  updatedAt           DateTime  @default(now()) @updatedAt
   batchId             Int?
   applicableSelection String    @default("")
   applicableTo        String    @default("All Products")
@@ -1058,7 +1064,7 @@ model Composition {
   status           String   @default("Active")
   createdBy        String?
   createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt @default(now())
+  updatedAt        DateTime @default(now()) @updatedAt
 }
 
 model ExportOrder {
@@ -1081,7 +1087,92 @@ model ExportOrder {
   incoterm           String    @default("CIF")
   companyId          Int?
   createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt @default(now())
+  updatedAt          DateTime  @default(now()) @updatedAt
+}
+
+model Employee {
+  id                     Int                @id @default(autoincrement())
+  employeeCode           String             @unique
+  name                   String
+  designation            String
+  reportsToId            Int?
+  reportsTo              String?
+  zone                   String?
+  region                 String?
+  area                   String?
+  headquarters           String?
+  states                 String[]           @default([])
+  mobile                 String?
+  email                  String?            @unique
+  gender                 String?
+  dob                    DateTime?
+  joiningDate            DateTime           @default(now())
+  status                 String             @default("Active")
+  userId                 Int?               @unique
+  createdAt              DateTime           @default(now())
+  updatedAt              DateTime           @default(now()) @updatedAt
+  manager                Employee?          @relation("EmployeeHierarchy", fields: [reportsToId], references: [id])
+  subordinates           Employee[]         @relation("EmployeeHierarchy")
+  user                   User?              @relation(fields: [userId], references: [id])
+  nationalTargetsCreated NationalTarget[]   @relation("NationalTargetCreator")
+  allocationsGiven       TargetAllocation[] @relation("AllocatedByEmployee")
+  allocationsReceived    TargetAllocation[] @relation("AllocatedToEmployee")
+}
+
+model NationalTarget {
+  id                  Int                @id @default(autoincrement())
+  targetCode          String             @unique
+  financialYear       String
+  planningPeriod      String             @default("Annual")
+  targetType          String             @default("Sales Value")
+  targetAmount        Decimal            @default(0)
+  startDate           DateTime
+  endDate             DateTime
+  remarks             String?
+  createdByEmployeeId Int?
+  status              String             @default("Active")
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @default(now()) @updatedAt
+  creator             Employee?          @relation("NationalTargetCreator", fields: [createdByEmployeeId], references: [id])
+  allocations         TargetAllocation[] @relation("NationalTargetAllocations")
+}
+
+model TargetAllocation {
+  id                    Int                @id @default(autoincrement())
+  allocationCode        String             @unique
+  nationalTargetId      Int?
+  sourceAllocationId    Int?
+  financialYear         String
+  allocationPeriod      String             @default("Annual")
+  allocatedToEmployeeId Int
+  allocatedByEmployeeId Int?
+  targetAmount          Decimal            @default(0)
+  achievedAmount        Decimal            @default(0)
+  startDate             DateTime
+  endDate               DateTime
+  allocationDate        DateTime           @default(now())
+  remarks               String?
+  status                String             @default("Active")
+  createdAt             DateTime           @default(now())
+  updatedAt             DateTime           @default(now()) @updatedAt
+  allocatedBy           Employee?          @relation("AllocatedByEmployee", fields: [allocatedByEmployeeId], references: [id])
+  allocatedTo           Employee           @relation("AllocatedToEmployee", fields: [allocatedToEmployeeId], references: [id])
+  nationalTarget        NationalTarget?    @relation("NationalTargetAllocations", fields: [nationalTargetId], references: [id])
+  sourceAllocation      TargetAllocation?  @relation("AllocationHierarchy", fields: [sourceAllocationId], references: [id])
+  childAllocations      TargetAllocation[] @relation("AllocationHierarchy")
+}
+
+model Commission {
+  id               Int      @id @default(autoincrement())
+  repId            Int
+  month            String
+  salesAchieved    Float
+  commissionRate   Float
+  commissionAmount Float
+  status           String   @default("Calculated")
+  territory        String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 }
 
 enum Role {
@@ -1095,76 +1186,4 @@ enum Role {
   NATIONAL_SALES_HEAD
   REGIONAL_SALES_MANAGER
   AREA_SALES_MANAGER
-}
-
-model Employee {
-  id                    Int                 @id @default(autoincrement())
-  employeeCode          String              @unique
-  name                  String
-  designation           String              // "National Sales Head", "Regional Sales Manager", "Area Sales Manager", "Medical Representative"
-  reportsToId           Int?
-  reportsTo             String?
-  zone                  String?
-  region                String?
-  area                  String?
-  headquarters          String?
-  states                String[]            @default([])
-  mobile                String?
-  email                 String?             @unique
-  gender                String?
-  dob                   DateTime?
-  joiningDate           DateTime            @default(now())
-  status                String              @default("Active")
-  userId                Int?                @unique
-  user                  User?               @relation(fields: [userId], references: [id])
-  manager               Employee?           @relation("EmployeeHierarchy", fields: [reportsToId], references: [id])
-  subordinates          Employee[]          @relation("EmployeeHierarchy")
-  nationalTargetsCreated NationalTarget[]   @relation("NationalTargetCreator")
-  allocationsReceived   TargetAllocation[]  @relation("AllocatedToEmployee")
-  allocationsGiven      TargetAllocation[]  @relation("AllocatedByEmployee")
-  createdAt             DateTime            @default(now())
-  updatedAt             DateTime            @updatedAt @default(now())
-}
-
-model NationalTarget {
-  id                  Int                @id @default(autoincrement())
-  targetCode          String             @unique
-  financialYear       String
-  planningPeriod      String             @default("Annual") // "Annual", "Quarterly", "Monthly"
-  targetType          String             @default("Sales Value") // "Sales Value", "Sales Volume", "Both"
-  targetAmount        Decimal            @default(0)
-  startDate           DateTime
-  endDate             DateTime
-  remarks             String?
-  createdByEmployeeId Int?
-  status              String             @default("Active") // "Draft", "Active", "Inactive"
-  creator             Employee?          @relation("NationalTargetCreator", fields: [createdByEmployeeId], references: [id])
-  allocations         TargetAllocation[] @relation("NationalTargetAllocations")
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt @default(now())
-}
-
-model TargetAllocation {
-  id                    Int               @id @default(autoincrement())
-  allocationCode        String            @unique
-  nationalTargetId      Int?
-  sourceAllocationId    Int?
-  financialYear         String
-  allocationPeriod      String            @default("Annual") // "Annual", "Quarterly", "Monthly"
-  allocatedToEmployeeId Int
-  allocatedByEmployeeId Int?
-  targetAmount          Decimal           @default(0)
-  achievedAmount        Decimal           @default(0)
-  startDate             DateTime
-  endDate               DateTime
-  allocationDate        DateTime          @default(now())
-  remarks               String?
-  status                String            @default("Active") // "Active", "Draft", "Validated", "Cancelled", "Pending"
-  nationalTarget        NationalTarget?   @relation("NationalTargetAllocations", fields: [nationalTargetId], references: [id])
-  sourceAllocation      TargetAllocation? @relation("AllocationHierarchy", fields: [sourceAllocationId], references: [id])
-  childAllocations      TargetAllocation[] @relation("AllocationHierarchy")
-  allocatedTo           Employee          @relation("AllocatedToEmployee", fields: [allocatedToEmployeeId], references: [id])
-  allocatedBy           Employee?         @relation("AllocatedByEmployee", fields: [allocatedByEmployeeId], references: [id])
-  createdAt             DateTime          @default(now())
-  updatedAt             DateTime          @updatedAt @default(now())
 }

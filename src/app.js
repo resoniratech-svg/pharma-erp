@@ -121,11 +121,8 @@ require(
 const retailerOrderItemRoutes =
   require("./modules/retailerOrderItem/retailerOrderItem.routes");
 
-  const paymentCollectionRoutes =
-  require("./modules/paymentCollection/paymentCollection.routes");
-
-  const ledgerRoutes =
-require("./modules/ledger/ledger.routes");
+  const financeRoutes = 
+  require("./modules/finance/finance.routes");
 
 const creditNoteRoutes =
 require("./modules/creditNote/creditNote.routes");
@@ -382,15 +379,10 @@ app.use(
   retailerOrderItemRoutes
 );
 
-app.use(
-  "/api/payment-collections",
-  paymentCollectionRoutes
-);
-
-app.use(
-  "/api/ledgers",
-  ledgerRoutes
-);
+  app.use(
+    "/api/finance",
+    financeRoutes
+  );
 
 app.use(
   "/api/credit-notes",
