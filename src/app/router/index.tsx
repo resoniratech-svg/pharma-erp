@@ -184,6 +184,13 @@ import DispatchMonitoring from '../../modules/super-admin/DispatchMonitoring';
 import FranchiseMonitoring from '../../modules/super-admin/FranchiseMonitoring';
 import SuperAdminNotificationCenter from '../../modules/super-admin/NotificationCenter';
 import UserActivityLogs from '../../modules/super-admin/UserActivityLogs';
+
+import ExportDashboard from '../../modules/exports/ExportDashboard';
+import CurrencyAndPricing from '../../modules/exports/CurrencyAndPricing';
+import ExportCustomers from '../../modules/exports/ExportCustomers';
+import ExportOrders from '../../modules/exports/ExportOrders';
+import ShippingAndDocs from '../../modules/exports/ShippingAndDocs';
+
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 import ResetPassword from '../../pages/ResetPassword';
 
@@ -561,7 +568,22 @@ export const router = createBrowserRouter([
           { path: 'bank-reco', element: <BankReconciliation /> },
           { path: 'gst-reports', element: <GSTReports /> },
         ],
-      },
+      }
+    ],
+  },
+  {
+    path: '/workspace/export-operations',
+    element: <MainLayout />,
+    children: [
+      {
+        children: [
+          { path: 'dashboard', element: <ExportDashboard /> },
+          { path: 'currency-pricing', element: <CurrencyAndPricing /> },
+          { path: 'customers', element: <ExportCustomers /> },
+          { path: 'orders', element: <ExportOrders /> },
+          { path: 'shipping-docs', element: <ShippingAndDocs /> },
+        ],
+      }
     ],
   },
   {

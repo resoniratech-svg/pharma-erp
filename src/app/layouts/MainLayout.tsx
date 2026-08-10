@@ -31,6 +31,7 @@ import {
   CheckSquare,
   Target,
   Clock,
+  Globe,
 } from 'lucide-react';
 import { hasPermission } from '../../constants/permissions';
 import { normalizePurchasedModules } from '../../config/tenantConfig';
@@ -68,6 +69,17 @@ const NavModules = {
       { label: 'Pending Payment Tracking', path: '/workspace/super-admin/pending-payment-tracking' },
       { label: 'Dispatch Monitoring', path: '/workspace/super-admin/dispatch-monitoring' },
       { label: 'User Activity Logs', path: '/workspace/super-admin/user-activity-logs' },
+    ],
+  },
+  ExportOperations: {
+    label: 'Export & Global Operations',
+    icon: Globe,
+    subItems: [
+      { label: 'Export Dashboard', path: '/workspace/export-operations/dashboard' },
+      { label: 'Currency & Pricing', path: '/workspace/export-operations/currency-pricing' },
+      { label: 'Export Customers', path: '/workspace/export-operations/customers' },
+      { label: 'Export Orders & Invoicing', path: '/workspace/export-operations/orders' },
+      { label: 'Shipping & Docs', path: '/workspace/export-operations/shipping-docs' },
     ],
   },
   ProductManagement: {
@@ -259,6 +271,7 @@ const ROLE_NAV_MAP: Record<string, NavItem[]> = {
     NavModules.CRM,
     NavModules.Accounting,
     NavModules.Billing,
+    NavModules.ExportOperations,
     NavModules.Alerts,
     NavModules.Settings,
   ],
