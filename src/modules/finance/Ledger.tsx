@@ -98,7 +98,9 @@ export default function LedgerBook() {
       const group = await financeService.createLedgerGroup(newGroupData);
       const allGroups = await financeService.getLedgerGroups();
       setGroups(allGroups);
-      setFormData({ ...formData, groupId: group.id });
+      if (group && group.id) {
+        setFormData({ ...formData, groupId: group.id });
+      }
       setIsAddingGroup(false);
       setNewGroupData({ name: '', nature: 'Asset' });
     } catch (error) {

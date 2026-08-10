@@ -86,6 +86,19 @@ export const financeService = {
     }
   },
 
+  createLedgerGroup: async (data: { name: string; nature: string }): Promise<any> => {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any }>('/finance/groups', {
+        method: 'POST',
+        body: JSON.stringify(data),
+      });
+      return response?.success ? response.data : null;
+    } catch (error) {
+      console.error('Error creating ledger group:', error);
+      throw error;
+    }
+  },
+
   getLedgers: async (): Promise<Ledger[]> => {
     try {
       const response = await apiRequest<{ success: boolean; data: Ledger[] }>('/finance/ledgers');
