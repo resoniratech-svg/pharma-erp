@@ -1067,28 +1067,6 @@ model Composition {
   updatedAt        DateTime @default(now()) @updatedAt
 }
 
-model ExportOrder {
-  id                 Int       @id @default(autoincrement())
-  orderNumber        String    @unique
-  invoiceNumber      String?
-  buyerName          String
-  destinationCountry String
-  destinationPort    String?
-  portOfLoading      String?
-  shippingMode       String    @default("Ocean Cargo")
-  containerOrAwbNo   String?
-  orderValueUSD      Float     @default(0)
-  orderValueINR      Float     @default(0)
-  orderDate          DateTime  @default(now())
-  eta                DateTime?
-  customsStatus      String    @default("Cleared")
-  status             String    @default("In Transit")
-  itemsSummary       String?
-  incoterm           String    @default("CIF")
-  companyId          Int?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @default(now()) @updatedAt
-}
 
 model Employee {
   id                     Int                @id @default(autoincrement())

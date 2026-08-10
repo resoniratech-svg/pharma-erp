@@ -83,7 +83,6 @@ require(
 "./modules/dispatch/dispatch.routes"
 );
 
-const exportOrderRoutes = require("./modules/exportOrder/exportOrder.routes");
 
 const transportChallanRoutes =
 require(
@@ -329,10 +328,6 @@ app.use(
   dispatchRoutes
 );
 
-app.use(
-  "/api/export-orders",
-  exportOrderRoutes
-);
 
 app.use(
   "/api/transport-challans",
