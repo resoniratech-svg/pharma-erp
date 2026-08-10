@@ -13,6 +13,8 @@ export interface Employee {
   reportsToId?: string;
   zone: string;
   region: string;
+  state: string;
+  territory: string;
   area: string;
   headquarters: string;
   joiningDate: string;

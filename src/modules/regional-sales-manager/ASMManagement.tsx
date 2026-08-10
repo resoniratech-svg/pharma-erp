@@ -4,6 +4,7 @@ import { Plus, Edit2, Eye, Users, UserCheck, UserX, MapPin, Loader2 } from 'luci
 import { Modal } from '../../components/ui/Modal';
 import { employeeService } from '../../services/employeeService';
 import type { Employee } from '../super-admin/sales-organization/types';
+import { StateSelector } from '../super-admin/components/StateSelector';
 
 export default function ASMManagement() {
   const [search, setSearch] = useState('');
@@ -37,6 +38,7 @@ export default function ASMManagement() {
     state: '',
     hq: '',
     territory: '',
+    area: '',
     password: '',
     confirmPassword: '',
     status: 'Active',
@@ -45,14 +47,28 @@ export default function ASMManagement() {
     remarks: ''
   });
 
-  const loggedInRsm = "Regional Sales Manager";
+  const { currentName, currentEmpId } = employeeService.getLoggedInEmployee();
+  const loggedInRsm = currentName !== 'Super Admin' ? currentName : "Arun Kumar (Regional Sales Manager)";
+
+  const inheritedTerritoryObj = employeeService.getInheritedTerritory(currentEmpId);
+  const inheritedZone = inheritedTerritoryObj.zone;
+  const inheritedRegion = inheritedTerritoryObj.region;
+  const inheritedState = inheritedTerritoryObj.state;
+
+  const generatedEmpCode = editingId 
+    ? (asmData.find(a => a.id === editingId)?.employeeCode || '') 
+    : employeeService.generateNextEmployeeCode('Area Sales Manager');
 
   const loadData = async () => {
     try {
       setLoading(true);
       setErrorMsg('');
-      const data = await employeeService.getEmployees({ designation: 'Area Sales Manager' });
-      setAsmData(data.reverse());
+      const { isSuperAdmin } = employeeService.getLoggedInEmployee();
+      const employees = await employeeService.getEmployees({
+        designation: 'Area Sales Manager',
+        ...(isSuperAdmin ? {} : { reportsToId: currentEmpId })
+      });
+      setAsmData(employees.reverse());
     } catch (e: any) {
       console.error(e);
       setErrorMsg(e.message || 'Failed to load ASMs from database');
@@ -68,11 +84,11 @@ export default function ASMManagement() {
   const openAddModal = () => {
     setEditingId(null);
     setNewAsm({
-      name: '', mobile: '', email: '', gender: 'Male', dob: '', state: '', hq: '', territory: '', 
+      name: '', mobile: '', email: '', gender: 'Male', dob: '', state: inheritedState || '', hq: '', territory: '', area: '',
       password: '', confirmPassword: '', status: 'Active', accountStatus: 'Active', 
       joiningDate: new Date().toISOString().split('T')[0], remarks: ''
     });
-    setStateSearch('');
+    setStateSearch(inheritedState || '');
     setErrorMsg('');
     setIsAddModalOpen(true);
   };
@@ -86,17 +102,18 @@ export default function ASMManagement() {
       email: anyAsm.email || '', 
       gender: anyAsm.gender || 'Male', 
       dob: anyAsm.dob || '',
-      state: (asm.states && asm.states[0]) || asm.region || '', 
+      state: anyAsm.state || '', 
       hq: asm.headquarters || '', 
-      territory: asm.area || '', 
+      territory: anyAsm.territory || '', 
+      area: asm.area || '', 
       password: '', 
       confirmPassword: '', 
-      status: asm.status || 'Active', 
-      accountStatus: asm.status || 'Active', 
-      joiningDate: asm.joiningDate || '', 
+      status: asm.status, 
+      accountStatus: anyAsm.accountStatus || 'Active', 
+      joiningDate: asm.joiningDate || '',
       remarks: anyAsm.remarks || ''
     });
-    setStateSearch((asm.states && asm.states[0]) || asm.region || '');
+    setStateSearch(((asm as any).states && (asm as any).states[0]) || asm.region || '');
     setErrorMsg('');
     setIsAddModalOpen(true);
   };
@@ -124,45 +141,64 @@ export default function ASMManagement() {
       return;
     }
     
-    const trimmedState = newAsm.state.trim();
-    if (!trimmedState) {
-       alert("State is required");
-       return;
+    if (!newAsm.territory.trim()) {
+      alert("Territory is required");
+      return;
     }
     
     try {
       setSaving(true);
       setErrorMsg('');
+      
+      const { currentName: currentUser, currentEmpId } = employeeService.getLoggedInEmployee();
 
-      if (editingId) {
-        await employeeService.updateEmployee(editingId, {
-          employeeName: newAsm.name,
-          designation: 'Area Sales Manager',
-          email: newAsm.email,
-          mobile: newAsm.mobile,
-          password: newAsm.password || undefined,
-          states: [trimmedState],
-          headquarters: newAsm.hq,
-          region: trimmedState,
-          area: newAsm.territory,
-          joiningDate: newAsm.joiningDate,
-          status: newAsm.status as 'Active' | 'Inactive',
-        });
-      } else {
-        await employeeService.addEmployee({
-          employeeName: newAsm.name,
-          designation: 'Area Sales Manager',
-          email: newAsm.email,
-          mobile: newAsm.mobile,
-          password: newAsm.password || 'Welcome@123',
-          states: [trimmedState],
-          headquarters: newAsm.hq,
-          region: trimmedState,
-          area: newAsm.territory,
-          joiningDate: newAsm.joiningDate,
-          status: newAsm.status as 'Active' | 'Inactive',
-        });
-      }
+        if (editingId) {
+          await employeeService.updateEmployee(editingId, {
+            employeeName: newAsm.name,
+            designation: 'Area Sales Manager',
+            email: newAsm.email,
+            mobile: newAsm.mobile,
+            gender: newAsm.gender,
+            dob: newAsm.dob,
+            remarks: newAsm.remarks,
+            password: newAsm.password || undefined,
+            states: [newAsm.state],
+            state: newAsm.state,
+            territory: newAsm.territory,
+            headquarters: newAsm.hq,
+            region: inheritedRegion,
+            zone: inheritedZone,
+            area: newAsm.area,
+            joiningDate: newAsm.joiningDate,
+            status: newAsm.status as 'Active' | 'Inactive',
+          } as any);
+        } else {
+          const addedAsm = await employeeService.addEmployee({
+            employeeCode: generatedEmpCode,
+            employeeName: newAsm.name,
+            designation: 'Area Sales Manager',
+            email: newAsm.email,
+            mobile: newAsm.mobile,
+            password: newAsm.password || 'Welcome@123',
+            reportsTo: currentUser !== 'Super Admin' ? currentUser : 'Owner / Super Admin',
+            reportsToId: currentEmpId || undefined,
+            states: [newAsm.state],
+            state: newAsm.state,
+            territory: newAsm.territory,
+            headquarters: newAsm.hq,
+            region: inheritedRegion,
+            zone: inheritedZone,
+            area: newAsm.area,
+            joiningDate: newAsm.joiningDate,
+            status: newAsm.status as 'Active' | 'Inactive',
+          });
+
+          await employeeService.updateEmployee(addedAsm.id, {
+            gender: newAsm.gender,
+            dob: newAsm.dob,
+            remarks: newAsm.remarks,
+          } as any);
+        }
 
       await loadData();
       setIsAddModalOpen(false);
@@ -184,7 +220,7 @@ export default function ASMManagement() {
       (anyRow.email || '').toLowerCase().includes(s) ||
       (row.headquarters || '').toLowerCase().includes(s);
 
-    const rowState = (row.states && row.states[0]) || row.region || '';
+    const rowState = ((row as any).states && (row as any).states[0]) || row.region || '';
     const matchesState = filters.state === 'All' || rowState === filters.state;
     const matchesStatus = filters.status === 'All' || row.status === filters.status;
     
@@ -194,7 +230,7 @@ export default function ASMManagement() {
   const columns = [
     { key: 'id', label: 'Employee Code', render: (row: Employee) => row.employeeCode || `ASM-${row.id}` },
     { key: 'name', label: 'ASM Name', render: (row: Employee) => row.employeeName },
-    { key: 'state', label: 'State', render: (row: Employee) => (row.states && row.states[0]) || row.region || '-' },
+    { key: 'state', label: 'State', render: (row: Employee) => ((row as any).states && (row as any).states[0]) || row.region || '-' },
     { key: 'hq', label: 'Headquarters', render: (row: Employee) => row.headquarters || '-' },
     {
       key: 'status',
@@ -289,7 +325,7 @@ export default function ASMManagement() {
                 <label className="block text-sm font-medium text-slate-700 mb-2">Employee Code</label>
                 <input 
                   type="text" 
-                  value={editingId ? `ASM-${editingId}` : "Auto-generated on save"}
+                  value={generatedEmpCode}
                   disabled 
                   className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-500 cursor-not-allowed" 
                 />
@@ -373,44 +409,50 @@ export default function ASMManagement() {
           <div className="bg-slate-50 p-6 rounded-xl border border-slate-200">
             <h3 className="text-sm font-bold text-slate-800 mb-5 uppercase tracking-wider border-b border-slate-200 pb-2">2. Territory Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Zone</label>
+                <input 
+                  type="text" 
+                  value={inheritedZone}
+                  disabled 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Region</label>
+                <input 
+                  type="text" 
+                  value={inheritedRegion}
+                  disabled 
+                  className="w-full px-4 py-2.5 bg-slate-100 border border-slate-200 rounded-lg text-slate-700 font-medium cursor-not-allowed" 
+                />
+              </div>
               <div className="relative">
                 <label className="block text-sm font-medium text-slate-700 mb-2">State *</label>
-                <div className="relative">
-                  <input 
-                    type="text"
-                    required
-                    value={isStateDropdownOpen ? stateSearch : newAsm.state}
-                    onChange={(e) => {
-                       setStateSearch(e.target.value);
-                       setNewAsm({ ...newAsm, state: e.target.value });
-                       if (!isStateDropdownOpen) setIsStateDropdownOpen(true);
-                    }}
-                    onFocus={() => {
-                       setStateSearch(newAsm.state);
-                       setIsStateDropdownOpen(true);
-                    }}
-                    onBlur={() => {
-                       setTimeout(() => {
-                         setIsStateDropdownOpen(false);
-                       }, 200);
-                    }}
-                    placeholder="Search or select state..."
-                    className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]"
-                  />
-                  {isStateDropdownOpen && (
-                    <div className="absolute z-10 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                      {availableStates.filter(s => s.toLowerCase().includes(stateSearch.toLowerCase())).map(s => (
-                        <div 
-                          key={s}
-                          className="px-4 py-2.5 hover:bg-slate-50 cursor-pointer text-sm text-slate-700 transition-colors"
-                          onMouseDown={() => handleSelectState(s)}
-                        >
-                          {s}
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                <StateSelector 
+                  value={newAsm.state} 
+                  onChange={(val) => setNewAsm({ ...newAsm, state: val })} 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Territory *</label>
+                <input 
+                  type="text"
+                  required
+                  value={newAsm.territory}
+                  onChange={e => setNewAsm({...newAsm, territory: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-2">Area *</label>
+                <input 
+                  type="text"
+                  required
+                  value={newAsm.area}
+                  onChange={e => setNewAsm({...newAsm, area: e.target.value})}
+                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
+                />
               </div>
               <div>
                 <label className="block text-sm font-medium text-slate-700 mb-2">Headquarters (HQ) *</label>
@@ -422,15 +464,7 @@ export default function ASMManagement() {
                   className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
                 />
               </div>
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Territory / Area (Optional)</label>
-                <input 
-                  type="text"
-                  value={newAsm.territory}
-                  onChange={e => setNewAsm({...newAsm, territory: e.target.value})}
-                  className="w-full px-4 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]" 
-                />
-              </div>
+              <div className="hidden md:block"></div>
             </div>
           </div>
 
@@ -520,20 +554,21 @@ export default function ASMManagement() {
         {viewingAsm && (
           <div className="flex flex-col h-full">
             <div className="space-y-1">
-              <DrawerField label="Employee Code" value={viewingAsm.id} />
-              <DrawerField label="Employee Name" value={viewingAsm.name} />
-              <DrawerField label="Mobile Number" value={viewingAsm.mobile} />
-              <DrawerField label="Email Address" value={viewingAsm.email} />
-              <DrawerField label="Gender" value={viewingAsm.gender || '-'} />
-              <DrawerField label="Date of Birth" value={viewingAsm.dob || '-'} />
+              <DrawerField label="Employee Code" value={viewingAsm.employeeCode || viewingAsm.id} />
+              <DrawerField label="Employee Name" value={viewingAsm.employeeName || '-'} />
+              <DrawerField label="Mobile Number" value={(viewingAsm as any).mobile || '-'} />
+              <DrawerField label="Email Address" value={(viewingAsm as any).email || '-'} />
+              <DrawerField label="Gender" value={(viewingAsm as any).gender || '-'} />
+              <DrawerField label="Date of Birth" value={(viewingAsm as any).dob || '-'} />
 
               <div className="py-3 mt-2 border-t border-slate-100">
                 <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Employment Information</p>
                 <div className="space-y-1">
-                  <DrawerField label="Joining Date" value={viewingAsm.joiningDate} />
-                  <DrawerField label="State" value={viewingAsm.state} />
-                  <DrawerField label="Headquarters" value={viewingAsm.hq} />
+                  <DrawerField label="Joining Date" value={viewingAsm.joiningDate || '-'} />
+                  <DrawerField label="State" value={(viewingAsm as any).state || '-'} />
+                  <DrawerField label="Headquarters" value={viewingAsm.headquarters || '-'} />
                   <DrawerField label="Territory" value={viewingAsm.territory || '-'} />
+                  <DrawerField label="Area" value={viewingAsm.area || '-'} />
                   <DrawerField label="Reporting RSM" value={loggedInRsm} />
                   <DrawerField label="Employment Status" value={
                     <Badge variant={viewingAsm.status === 'Active' ? 'success' : 'neutral'}>{viewingAsm.status}</Badge>
@@ -545,7 +580,7 @@ export default function ASMManagement() {
                 <p className="text-xs font-bold text-slate-800 uppercase tracking-wider mb-3">Audit Information</p>
                 <div className="space-y-1">
                   <DrawerField label="Created Date" value={viewingAsm.joiningDate || 'N/A'} />
-                  <DrawerField label="Remarks" value={viewingAsm.remarks || '-'} />
+                  <DrawerField label="Remarks" value={(viewingAsm as any).remarks || '-'} />
                 </div>
               </div>
             </div>

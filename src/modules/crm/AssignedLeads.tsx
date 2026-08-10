@@ -1,107 +1,4 @@
-// import { useState } from 'react';
-// import { Plus, Download, Filter, User } from 'lucide-react';
-// import {
-//   PageHeader,
-//   FilterBar,
-//   SearchInput,
-//   SelectFilter,
-//   ActionButton,
-//   TableCard,
-//   DataTable,
-//   Badge,
-// } from './components/shared';
-// import { type Column } from './components/shared';
-
-// interface Lead {
-//   id: string;
-//   name: string;
-//   type: string;
-//   source: string;
-//   contact: string;
-//   status: 'New' | 'Contacted' | 'Qualified' | 'Lost';
-// }
-
-// const mockData: any[] = [];
-
-// export default function Leads() {
-//   const [search, setSearch] = useState('');
-//   const [statusFilter, setStatusFilter] = useState('');
-
-//   const columns: Column<Lead>[] = [
-//     { key: 'name', label: 'Lead Name', render: (row) => <span className="font-semibold text-slate-900">{row.name}</span> },
-//     { key: 'type', label: 'Type' },
-//     { key: 'contact', label: 'Contact Info' },
-//     { key: 'source', label: 'Source' },
-//     {
-//       key: 'status',
-//       label: 'Status',
-//       render: (row) => {
-//         const variant = row.status === 'Qualified' ? 'success' : row.status === 'New' ? 'info' : row.status === 'Contacted' ? 'warning' : 'neutral';
-//         return <Badge variant={variant}>{row.status}</Badge>;
-//       },
-//     },
-//     {
-//       key: 'action',
-//       label: '',
-//       render: () => <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1"><User className="w-4 h-4" /></ActionButton>
-//     }
-//   ];
-
-//   const filteredData = mockData.filter((item) => {
-//     const matchSearch = item.name.toLowerCase().includes(search.toLowerCase());
-//     const matchStatus = statusFilter ? item.status === statusFilter : true;
-//     return matchSearch && matchStatus;
-//   });
-
-//   return (
-//     <div className="animate-in fade-in duration-500">
-//       <PageHeader
-//         title="Lead Creation"
-//         subtitle="Track and manage potential doctors, distributors, and retail partners."
-//         actions={
-//           <>
-//             <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />}>Export Leads</ActionButton>
-//             <ActionButton icon={<Plus className="w-4 h-4" />}>Add Lead</ActionButton>
-//           </>
-//         }
-//       />
-
-//       <FilterBar>
-//         <SearchInput value={search} onChange={setSearch} placeholder="Search leads..." />
-//         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
-//         <div className="flex items-center gap-2">
-//           <Filter className="w-4 h-4 text-slate-400" />
-//           <span className="text-sm font-medium text-slate-600">Filters:</span>
-//         </div>
-//         <SelectFilter
-//           value={statusFilter}
-//           onChange={setStatusFilter}
-//           options={[
-//             { label: 'New', value: 'New' },
-//             { label: 'Contacted', value: 'Contacted' },
-//             { label: 'Qualified', value: 'Qualified' },
-//             { label: 'Lost', value: 'Lost' },
-//           ]}
-//           placeholder="All Status"
-//         />
-//       </FilterBar>
-
-//       <TableCard>
-//         <DataTable
-//           columns={columns}
-//           data={filteredData}
-//           emptyMessage="No leads found."
-//         />
-//       </TableCard>
-//     </div>
-//   );
-// }
-
-
-// // /////////////////////////////////////////////////////////////////////////////////
-
-
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Plus, Download, Filter, User, Users, Target, PhoneCall, CheckCircle2, ChevronDown, Eye, X } from 'lucide-react';
 import {
   PageHeader,
@@ -155,7 +52,7 @@ interface Lead {
   _dbId?: string;
 }
 
-export default function Leads() {
+export default function AssignedLeads() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
@@ -262,6 +159,9 @@ export default function Leads() {
       let visibleLeads = apiLeads;
       if (!isSuperAdmin) {
         visibleLeads = apiLeads.filter(l => {
+          if (currentRole === 'MEDICAL_REPRESENTATIVE' || currentRole === 'ROLE_MEDICAL_REPRESENTATIVE') {
+            return l.assignedMrName === currentName || (l.assignedMrId && l.assignedMrId.toString() === currentEmpId);
+          }
           // If lead has creator ID, match it. Else fallback to assigned name matching for legacy leads
           if (l.createdByEmpId) {
             return l.createdByEmpId === currentEmpId;
@@ -292,7 +192,17 @@ export default function Leads() {
         assignedTo: l.assignedMrName || '',
         _dbId: l.id,
       }));
-      setLeads(mapped as any);
+      if (mapped.length === 0 && (currentRole === 'MEDICAL_REPRESENTATIVE' || currentRole === 'ROLE_MEDICAL_REPRESENTATIVE')) {
+        const mockAssignedLeads = [
+          { id: 'LEAD-1001', leadCode: 'LEAD-1001', name: 'Dr. Ramesh Kumar', type: 'Doctor', contact: '9876543210', territory: 'Hyderabad', status: 'New', followUpDate: '12-08-2026', source: 'Direct Visit', createdAt: '10/08/2026', createdBy: 'Admin', _dbId: 'm1' },
+          { id: 'LEAD-1002', leadCode: 'LEAD-1002', name: 'Sri Medicals', type: 'Retailer', contact: '9876543211', territory: 'Karimnagar', status: 'Contacted', followUpDate: '14-08-2026', source: 'Direct Visit', createdAt: '10/08/2026', createdBy: 'Admin', _dbId: 'm2' },
+          { id: 'LEAD-1003', leadCode: 'LEAD-1003', name: 'ABC Distributors', type: 'Distributor', contact: '9876543212', territory: 'Warangal', status: 'Qualified', followUpDate: '16-08-2026', source: 'Direct Visit', createdAt: '10/08/2026', createdBy: 'Admin', _dbId: 'm3' },
+          { id: 'LEAD-1004', leadCode: 'LEAD-1004', name: 'City Care Hospital', type: 'Hospital', contact: '9876543213', territory: 'Hyderabad', status: 'New', followUpDate: '-', source: 'Direct Visit', createdAt: '10/08/2026', createdBy: 'Admin', _dbId: 'm4' },
+        ];
+        setLeads(mockAssignedLeads as any);
+      } else {
+        setLeads(mapped as any);
+      }
     }).catch((err) => console.error('Failed to load leads:', err));
   }, []);
 
@@ -472,41 +382,29 @@ export default function Leads() {
 
   const columns: Column<Lead>[] = [
     { key: 'id', label: 'Lead ID', render: (row) => <span className="text-xs font-mono text-slate-500">{row.id}</span> },
-    { key: 'name', label: 'Lead Name', render: (row) => (
-        <div>
-           <span className="font-semibold text-slate-900 block">{row.name}</span>
-           <span className="text-[10px] text-slate-400">
-             Created: {row.createdAt ? row.createdAt.split(',')[0] : 'N/A'}
-           </span>
-        </div>
-      ) 
-    },
+    { key: 'name', label: 'Lead Name', render: (row) => <span className="font-semibold text-slate-900 block">{row.name}</span> },
     { key: 'type', label: 'Type' },
     { key: 'contact', label: 'Contact Info' },
-    { key: 'territory', label: 'Territory', render: (row) => <span>{row.territory || 'Unassigned'}</span> }, 
+    { key: 'territory', label: 'Territory', render: (row) => <span>{row.territory || 'Unassigned'}</span> },
     {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        let variant: 'neutral' | 'info' | 'warning' | 'success' | 'danger' | 'purple' = 'neutral';
+        let variant = 'neutral';
         if (row.status === 'New') variant = 'info';
         else if (row.status === 'Assigned') variant = 'purple';
         else if (row.status === 'Contacted') variant = 'warning';
         else if (row.status === 'Qualified') variant = 'success';
         else if (row.status === 'Lost') variant = 'danger';
-        
-        return <Badge variant={variant}>{row.status}</Badge>;
+        return <Badge variant={variant as any}>{row.status}</Badge>;
       },
     },
+    { key: 'followUp', label: 'Next Follow-Up', render: (row) => <span className="text-sm">{row.followUpDate || '-'}</span> },
     {
       key: 'action',
       label: 'ACTIONS',
       render: (row) => (
-        <ActionButton 
-          variant="ghost" 
-          className="text-[#163c78] text-xs px-2 py-1"
-          onClick={() => setSelectedLead(row)}
-        >
+        <ActionButton variant="ghost" className="text-[#163c78] text-xs px-2 py-1" onClick={() => setSelectedLead(row)}>
           <Eye className="w-4 h-4" />
         </ActionButton>
       )
@@ -522,53 +420,30 @@ export default function Leads() {
                         safeAssigned.toLowerCase().includes(search.toLowerCase()) ||
                         safeTerritory.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
-    const matchType = typeFilter ? item.type === typeFilter : true;
-
-    let matchDate = true;
-    if (dateFrom && item.leadDate) {
-      matchDate = matchDate && new Date(item.leadDate) >= new Date(dateFrom);
-    }
-    if (dateTo && item.leadDate) {
-      matchDate = matchDate && new Date(item.leadDate) <= new Date(dateTo);
-    }
-
-    return matchSearch && matchStatus && matchType && matchDate;
+    return matchSearch && matchStatus;
   });
 
   const totalLeads = leads.length;
   const newLeads = leads.filter(l => l.status === 'New').length;
-  const qualifiedLeads = leads.filter(l => l.status === 'Qualified').length;
-  const contactedLeads = leads.filter(l => l.status === 'Contacted').length;
+  const followUpsDue = leads.filter(l => l.followUpDate && l.followUpDate !== '-').length;
 
   return (
     <div className="animate-in fade-in duration-500 min-h-[calc(100vh-140px)] flex flex-col">
       <PageHeader
-        title="Lead Creation & Tracking"
-        subtitle="Track and manage potential doctors, distributors, and retail partners in your CRM pipeline."
+        title="Assigned Leads"
+        subtitle="View and manage leads assigned to you."
         actions={
           <>
             <ActionButton onClick={handleExportLeads} variant="secondary" icon={<Download className="w-4 h-4" />}>Export Leads</ActionButton>
-            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => {
-                setEditMode(false);
-                setEditingLeadId(null);
-                setFormData({
-                  name: '', type: 'Distributor', contactPerson: '', contact: '',
-                  state: '', district: '', city: '', territory: '',
-                  status: 'New', leadDate: new Date().toISOString().split('T')[0],
-                  source: 'Direct Visit', assignedTo: '', priority: 'Medium', followUpDate: '',
-                  dealValue: undefined,
-                });
-                setIsModalOpen(true);
-              }}>Add Lead</ActionButton>
+            
           </>
         }
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <SummaryCard title="Total Leads" value={totalLeads.toString()} subtitle="All recorded leads" icon={<Users className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-[#163c78]/10" />
+        <SummaryCard title="Total Assigned" value={totalLeads.toString()} subtitle="Currently assigned leads" icon={<Users className="w-6 h-6" />} colorClass="text-[#163c78]" bgClass="bg-[#163c78]/10" />
         <SummaryCard title="New Leads" value={newLeads.toString()} subtitle="Awaiting first contact" icon={<Target className="w-6 h-6" />} colorClass="text-sky-600" bgClass="bg-sky-50" />
-        <SummaryCard title="Contacted" value={contactedLeads.toString()} subtitle="Currently in pipeline" icon={<PhoneCall className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-50" />
-        <SummaryCard title="Qualified" value={qualifiedLeads.toString()} subtitle="Ready for conversion" icon={<CheckCircle2 className="w-6 h-6" />} colorClass="text-emerald-600" bgClass="bg-emerald-50" />
+        <SummaryCard title="Follow-Ups Due" value={followUpsDue.toString()} subtitle="Pending follow-ups" icon={<PhoneCall className="w-6 h-6" />} colorClass="text-amber-600" bgClass="bg-amber-50" />
       </div>
 
       <div className="flex-1 flex flex-col">
@@ -579,46 +454,12 @@ export default function Leads() {
             <Filter className="w-4 h-4 text-slate-400" />
             <span className="text-sm font-medium text-slate-600">Filters:</span>
           </div>
-          <SelectFilter
-            value={statusFilter}
-            onChange={setStatusFilter}
-            options={[
-              { label: 'New', value: 'New' },
-              { label: 'Assigned', value: 'Assigned' },
-              { label: 'Contacted', value: 'Contacted' },
-              { label: 'Qualified', value: 'Qualified' },
-              { label: 'Lost', value: 'Lost' },
-            ]}
-            placeholder="All Status"
-          />
-          <SelectFilter
-            value={typeFilter}
-            onChange={setTypeFilter}
-            options={[
-              { label: 'Distributor', value: 'Distributor' },
-              { label: 'Retailer', value: 'Retailer' },
-            ]}
-            placeholder="Lead Type"
-          />
-          <div className="flex items-center gap-2 ml-2">
-            <input 
-              type="date" 
-              value={dateFrom} 
-              onChange={(e) => setDateFrom(e.target.value)}
-              className="text-sm border border-slate-200 rounded-md px-3 py-1.5 outline-none focus:ring-2 focus:ring-[#163c78]/20 focus:border-[#163c78]"
-            />
-            <span className="text-slate-400 text-sm">to</span>
-            <input 
-              type="date" 
-              value={dateTo} 
-              onChange={(e) => setDateTo(e.target.value)}
-              className="text-sm border border-slate-200 rounded-md px-3 py-1.5 outline-none focus:ring-2 focus:ring-[#163c78]/20 focus:border-[#163c78]"
-            />
-          </div>
+          
+          
         </FilterBar>
 
         <TableCard>
-          <DataTable columns={columns} data={filteredData} emptyMessage="No leads found. Click 'Add Lead' to create a new record." />
+          <DataTable columns={columns} data={filteredData} emptyMessage="No assigned leads found. Leads assigned to you will appear here." />
         </TableCard>
       </div>
 
@@ -1006,29 +847,6 @@ export default function Leads() {
               <DrawerField label="Created At" value={selectedLead.createdAt || "N/A"} />
             </div>
             <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3">
-              <ActionButton className="min-w-[140px]" onClick={() => {
-                setFormData({
-                  name: selectedLead.name,
-                  type: selectedLead.type,
-                  contactPerson: selectedLead.contactPerson || '',
-                  contact: selectedLead.contact,
-                  state: selectedLead.state || '',
-                  district: selectedLead.district || '',
-                  city: selectedLead.city || '',
-                  territory: selectedLead.territory || '',
-                  status: selectedLead.status,
-                  leadDate: selectedLead.leadDate || new Date().toISOString().split('T')[0],
-                  source: selectedLead.source,
-                  assignedTo: selectedLead.assignedTo || '',
-                  priority: selectedLead.priority || '',
-                  followUpDate: selectedLead.followUpDate || '',
-                  dealValue: undefined,
-                });
-                setEditMode(true);
-                setEditingLeadId(selectedLead._dbId || null);
-                setIsModalOpen(true);
-                setSelectedLead(null);
-              }}>Edit Lead</ActionButton>
               <ActionButton variant="secondary" onClick={() => setSelectedLead(null)}>Close</ActionButton>
             </div>
           </div>

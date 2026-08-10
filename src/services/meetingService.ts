@@ -1,5 +1,3 @@
-import { apiRequest } from './apiClient';
-
 export interface MRMeeting {
   id: string;
   title: string;
@@ -20,110 +18,84 @@ export interface MRMeeting {
   outcome: string;
 }
 
-let meetingsCache: MRMeeting[] = [];
+const STORAGE_KEY = 'crm_meetings';
 
-try {
-  // Memory cache only, localStorage removed to prevent state mismatch
-} catch (e) {
-  console.error("Failed to parse cached meetings:", e);
+function getLocalMeetings(): MRMeeting[] {
+  const stored = localStorage.getItem(STORAGE_KEY);
+  if (!stored) return [];
+  try {
+    return JSON.parse(stored) as MRMeeting[];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalMeetings(meetings: MRMeeting[]) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(meetings));
 }
 
 export const meetingService = {
   getAll(): MRMeeting[] {
-    return meetingsCache;
+    return getLocalMeetings();
   },
 
   async loadMeetings(mrId: number): Promise<MRMeeting[]> {
-    try {
-      const response = await apiRequest<{ success: boolean; data: any[] }>(`/meetings/mr/${mrId}`);
-      if (response.success && Array.isArray(response.data)) {
-        meetingsCache = response.data.map(m => ({
-          id: String(m.id),
-          title: m.title || "Meeting",
-          type: 'Cycle Meeting',
-          organizer: m.mr?.name || "Medical Representative",
-          location: 'Office',
-          meetingMode: 'Offline',
-          date: m.meetingDate ? m.meetingDate.split('T')[0] : new Date().toISOString().split('T')[0],
-          time: m.meetingDate ? new Date(m.meetingDate).toTimeString().slice(0, 5) : "10:00",
-          rawTime: '10:00',
-          priority: 'Medium',
-          reminder: '15 Minutes',
-          status: m.status ? m.status.charAt(0).toUpperCase() + m.status.slice(1).toLowerCase() as any : 'Scheduled',
-          agenda: m.description || "",
-          participants: '',
-          attendeesCount: 0,
-          followUpDate: '',
-          outcome: '',
-        }));
-      }
-    } catch (err) {
-      console.error("Failed to load meetings from backend:", err);
-    }
-    return meetingsCache;
+    return getLocalMeetings();
   },
 
   async addMeeting(mrId: number, meeting: Partial<MRMeeting> & { doctorId?: number; chemistId?: number }): Promise<MRMeeting> {
-    const dbPayload = {
-      mrId,
-      doctorId: meeting.doctorId || null,
-      chemistId: meeting.chemistId || null,
-      title: meeting.title || "Meeting",
-      description: meeting.agenda || "",
-      meetingDate: meeting.date ? new Date(meeting.date + 'T' + (meeting.time || '10:00') + ':00').toISOString() : new Date().toISOString(),
-    };
-
-    const response = await apiRequest<{ success: boolean; data: any }>('/meetings', {
-      method: 'POST',
-      bodyData: dbPayload,
-    });
-
-    if (!response.success || !response.data) {
-      throw new Error('Failed to create meeting');
-    }
-
-    const created = response.data;
+    const meetings = getLocalMeetings();
+    const newId = String(Date.now());
+    
     const mapped: MRMeeting = {
-      id: String(created.id),
-      title: created.title,
+      id: newId,
+      title: meeting.title || "Meeting",
       type: meeting.type || 'Cycle Meeting',
-      organizer: created.mr?.name || meeting.organizer || "Medical Representative",
+      organizer: meeting.organizer || "Medical Representative",
       location: meeting.location || 'Office',
       meetingMode: meeting.meetingMode || 'Offline',
-      date: created.meetingDate ? created.meetingDate.split('T')[0] : new Date().toISOString().split('T')[0],
-      time: created.meetingDate ? new Date(created.meetingDate).toTimeString().slice(0, 5) : "10:00",
-      rawTime: meeting.time || '10:00',
+      date: meeting.date || new Date().toISOString().split('T')[0],
+      time: meeting.time || "10:00",
+      rawTime: meeting.rawTime || meeting.time || '10:00',
       priority: meeting.priority || 'Medium',
       reminder: meeting.reminder || '15 Minutes',
       status: 'Scheduled',
-      agenda: created.description || "",
+      agenda: meeting.agenda || "",
       participants: meeting.participants || '',
       attendeesCount: meeting.attendeesCount || 0,
       followUpDate: meeting.followUpDate || '',
       outcome: meeting.outcome || '',
     };
-
-    meetingsCache = [mapped, ...meetingsCache];
+    
+    meetings.push(mapped);
+    saveLocalMeetings(meetings);
     return mapped;
   },
 
+  async updateMeeting(id: number | string, data: Partial<MRMeeting>): Promise<boolean> {
+    const meetings = getLocalMeetings();
+    const index = meetings.findIndex(m => m.id === String(id));
+    if (index === -1) return false;
+    
+    meetings[index] = { ...meetings[index], ...data };
+    saveLocalMeetings(meetings);
+    return true;
+  },
+
+  async deleteMeeting(id: number | string): Promise<boolean> {
+    const meetings = getLocalMeetings();
+    const filtered = meetings.filter(m => m.id !== String(id));
+    if (meetings.length === filtered.length) return false;
+    
+    saveLocalMeetings(filtered);
+    return true;
+  },
+
   async completeMeeting(id: number | string): Promise<boolean> {
-    const response = await apiRequest<{ success: boolean }>(`/meetings/${id}/complete`, {
-      method: 'PATCH',
-    });
-    if (response.success) {
-      meetingsCache = meetingsCache.map(m => m.id === String(id) ? { ...m, status: 'Completed' } : m);
-    }
-    return response.success;
+    return this.updateMeeting(id, { status: 'Completed' });
   },
 
   async cancelMeeting(id: number | string): Promise<boolean> {
-    const response = await apiRequest<{ success: boolean }>(`/meetings/${id}/cancel`, {
-      method: 'PATCH',
-    });
-    if (response.success) {
-      meetingsCache = meetingsCache.map(m => m.id === String(id) ? { ...m, status: 'Cancelled' } : m);
-    }
-    return response.success;
+    return this.updateMeeting(id, { status: 'Cancelled' });
   }
 };

@@ -134,6 +134,142 @@
 //   const compileActivityLogs = () => {
 //     const compiled: UnifiedActivity[] = [];
 //     const todayStr = new Date().toISOString().split('T')[0];
+// import { useState } from 'react';
+// import { Download } from 'lucide-react';
+// import {
+//   PageHeader,
+//   FilterBar,
+//   SearchInput,
+//   SelectFilter,
+//   TableCard,
+//   DataTable,
+//   Badge,
+// } from './components/shared';
+// import { type Column } from './components/shared';
+
+// interface ActivityLog {
+//   id: string;
+//   date: string;
+//   user: string;
+//   action: string;
+//   entity: string;
+//   type: 'Email' | 'Call' | 'Meeting' | 'Note';
+// }
+
+// const mockData: any[] = [];
+
+// export default function Activities() {
+//   const [search, setSearch] = useState('');
+//   const [typeFilter, setTypeFilter] = useState('');
+
+//   const columns: Column<ActivityLog>[] = [
+//     { key: 'date', label: 'Date & Time', render: (row) => <span className="text-slate-600">{row.date}</span> },
+//     { key: 'user', label: 'User', render: (row) => <span className="font-medium text-slate-900">{row.user}</span> },
+//     { key: 'action', label: 'Action Taken' },
+//     { key: 'entity', label: 'Related To' },
+//     {
+//       key: 'type',
+//       label: 'Type',
+//       render: (row) => {
+//         const variant = row.type === 'Email' ? 'info' : row.type === 'Call' ? 'success' : row.type === 'Meeting' ? 'purple' : 'neutral';
+//         return <Badge variant={variant}>{row.type}</Badge>;
+//       },
+//     },
+//   ];
+
+//   const filteredData = mockData.filter((item) => {
+//     const matchSearch = item.entity.toLowerCase().includes(search.toLowerCase()) || item.user.toLowerCase().includes(search.toLowerCase());
+//     const matchType = typeFilter ? item.type === typeFilter : true;
+//     return matchSearch && matchType;
+//   });
+
+//   return (
+//     <div className="animate-in fade-in duration-500">
+//       <PageHeader
+//         title="Activity Tracking"
+//         subtitle="Audit log of all interactions and updates across the CRM."
+//         actions={
+//           <button className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 bg-white hover:bg-slate-50 text-slate-700 border border-slate-200">
+//             <Download className="w-4 h-4" /> Export Log
+//           </button>
+//         }
+//       />
+
+//       <FilterBar>
+//         <SearchInput value={search} onChange={setSearch} placeholder="Search user or entity..." />
+//         <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
+//         <SelectFilter
+//           value={typeFilter}
+//           onChange={setTypeFilter}
+//           options={[
+//             { label: 'Email', value: 'Email' },
+//             { label: 'Call', value: 'Call' },
+//             { label: 'Meeting', value: 'Meeting' },
+//             { label: 'Note', value: 'Note' },
+//           ]}
+//           placeholder="All Types"
+//         />
+//       </FilterBar>
+
+//       <TableCard>
+//         <DataTable
+//           columns={columns}
+//           data={filteredData}
+//           emptyMessage="No activities found."
+//         />
+//       </TableCard>
+//     </div>
+//   );
+// }
+//////////////////////////////////////////////////////////////////j////////////////////
+
+// import { useState, useEffect } from 'react';
+// import { 
+//   Activity, Calendar, MapPin, ShoppingCart, Users, 
+//   CheckCircle2, Clock, Filter, Download, Banknote
+// } from 'lucide-react';
+// import {
+//   PageHeader,
+//   FilterBar,
+//   SearchInput,
+//   ActionButton,
+//   TableCard,
+//   DataTable,
+//   Badge,
+// } from '../mr/components/shared'; 
+// import { type Column } from '../mr/components/shared';
+
+// interface UnifiedActivity {
+//   id: string;
+//   type: 'visit' | 'order' | 'expense' | 'attendance' | 'meeting';
+//   title: string;
+//   subtitle: string;
+//   date: string;
+//   time: string;
+// }
+
+// export default function ActivityTracking() {
+//   const [search, setSearch] = useState('');
+//   const [activities, setActivities] = useState<UnifiedActivity[]>([]);
+//   const [filterType, setFilterType] = useState('All');
+
+//   useEffect(() => {
+//     compileActivityLogs();
+//   }, []);
+
+//   const safeJsonParse = (data: string | null, fallback: any) => {
+//     if (!data) return fallback;
+//     try {
+//       return JSON.parse(data);
+//     } catch (err) {
+//       console.log('safeJsonParse error:', err);
+//       return fallback;
+//     }
+//   };
+
+//   const compileActivityLogs = () => {
+//     const compiled: UnifiedActivity[] = [];
+//     const todayStr = new Date().toISOString().split('T')[0];
 
 //     // 1. Fetch Doctor Visits
 //     const docs = localStorage.getItem('@doctor_visits');
@@ -398,6 +534,7 @@ import {
 } from './components/shared'; 
 import { type Column } from './components/shared';
 import { crmService } from '../../services/crmService';
+import { employeeService } from '../../services/employeeService';
 
 interface UnifiedActivity {
   id: string;
@@ -413,21 +550,89 @@ export default function ActivityTracking() {
   const [search, setSearch] = useState('');
   const [activities, setActivities] = useState<UnifiedActivity[]>([]);
   const [filterType, setFilterType] = useState('All');
+  const [filterDate, setFilterDate] = useState('');
 
   useEffect(() => {
-    // Load localStorage data immediately
-    compileActivityLogs([]);
+    const loadData = async () => {
+      const activeRole = localStorage.getItem('activeRole');
+      const authUserStr = localStorage.getItem('authUser');
+      const authUser = authUserStr ? JSON.parse(authUserStr) : null;
+      
+      const allEmployees = employeeService.getLocalEmployees();
+      
+      let currentRole = 'Super Admin';
+      let currentName = 'Super Admin';
+      let currentEmpId = '';
 
-    // Then fetch backend API data and merge
-    Promise.all([
-      crmService.getActivities(),
-      crmService.getFollowUps(),
-    ]).then(([apiActivities, apiFollowUps]) => {
-      compileActivityLogs([], apiActivities, apiFollowUps);
-    }).catch((err) => console.error('Failed to load backend activities:', err));
-  }, []);
-  
+      if (authUser) {
+        currentRole = authUser.roleId || authUser.role || 'SUPER_ADMIN';
+        currentName = authUser.fullName || authUser.name || authUser.adminName || 'Super Admin';
+        currentEmpId = authUser.id || authUser.employeeId || '';
+      } else if (activeRole) {
+        currentRole = activeRole;
+        if (activeRole === 'SUPER_ADMIN') {
+          currentName = 'Super Admin';
+        } else {
+          let targetDesignation = '';
+          if (activeRole === 'NATIONAL_SALES_HEAD') targetDesignation = 'National Sales Head';
+          else if (activeRole === 'REGIONAL_SALES_MANAGER') targetDesignation = 'Regional Sales Manager';
+          else if (activeRole === 'AREA_SALES_MANAGER') targetDesignation = 'Area Sales Manager';
+          else if (activeRole === 'MEDICAL_REPRESENTATIVE') targetDesignation = 'Medical Representative';
+          
+          if (targetDesignation) {
+            const mockEmp = allEmployees.find(e => e.designation === targetDesignation && e.status === 'Active');
+            if (mockEmp) {
+              currentName = mockEmp.employeeName;
+              currentEmpId = mockEmp.id;
+            }
+          }
+        }
+      }
+
+      if (!currentEmpId && currentName !== 'Super Admin') {
+         const loggedInEmp = allEmployees.find(e => e.employeeName === currentName);
+         if (loggedInEmp) currentEmpId = loggedInEmp.id;
+      }
+
+      const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
+      const subordinates = employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
+      const subNames = subordinates.map(s => s.employeeName);
+      const subIds = subordinates.map(s => s.id);
+
+      const auth = {
+        isSuperAdmin,
+        isAuthorizedName: (name: string) => !name || isSuperAdmin || name === currentName || subNames.includes(name),
+        isAuthorizedId: (id: string | number) => !id || isSuperAdmin || String(id) === currentEmpId || subIds.includes(String(id)),
+        filterAny: function(item: any) {
+          if (!this) return true;
+          if (this.isSuperAdmin) return true;
+          if (item.mrId) return this.isAuthorizedId(item.mrId);
+          if (item.userId) return this.isAuthorizedId(item.userId);
+          if (item.employeeId) return this.isAuthorizedId(item.employeeId);
+          if (item.createdByEmpId) return this.isAuthorizedId(item.createdByEmpId);
+          if (item.user) return this.isAuthorizedName(item.user);
+          if (item.organizer) return this.isAuthorizedName(item.organizer);
+          if (item.createdBy) return this.isAuthorizedName(item.createdBy);
+          if (item.assignedMrName) return this.isAuthorizedName(item.assignedMrName);
+          return true;
+        }
+      };
+
+      compileActivityLogs([], [], [], auth);
+
+      try {
+        const [apiActivities, apiFollowUps] = await Promise.all([
+          crmService.getActivities(),
+          crmService.getFollowUps(),
+        ]);
+        compileActivityLogs([], apiActivities, apiFollowUps, auth);
+      } catch (err) {
+        console.error('Failed to load backend activities:', err);
+      }
+    };
     
+    loadData();
+  }, []);
 
   const safeJsonParse = (data: string | null, fallback: any) => {
     if (!data) return fallback;
@@ -455,12 +660,17 @@ export default function ActivityTracking() {
     }
   };
 
-  const compileActivityLogs = (_unused: any[] = [], apiActivities: any[] = [], apiFollowUps: any[] = []) => {
+  const compileActivityLogs = (_unused: any[] = [], apiActivities: any[] = [], apiFollowUps: any[] = [], auth?: any) => {
     const compiled: UnifiedActivity[] = [];
     const todayStr = new Date().toISOString().split('T')[0];
+    
+    const applyFilter = (list: any[]) => {
+       if (!auth) return list;
+       return list.filter(item => auth.filterAny(item));
+    };
 
     // --- Backend API Activities ---
-    apiActivities.forEach((a) => {
+    applyFilter(apiActivities).forEach((a) => {
       const dateStr = a.activityDate ? new Date(a.activityDate).toLocaleDateString('en-GB') : todayStr;
       const timeStr = a.activityDate ? new Date(a.activityDate).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }) : '09:00 AM';
       compiled.push({
@@ -475,7 +685,7 @@ export default function ActivityTracking() {
     });
 
     // --- Backend API Follow-Ups ---
-    apiFollowUps.forEach((f) => {
+    applyFilter(apiFollowUps).forEach((f) => {
       const dateStr = f.followUpDate ? new Date(f.followUpDate).toLocaleDateString('en-GB') : todayStr;
       compiled.push({
         id: `api-fu-${f.id}`,
@@ -489,7 +699,7 @@ export default function ActivityTracking() {
     });
 
     // 1. Fetch Doctor Visits
-    const docsList = safeJsonParse(localStorage.getItem('mr_doctor_visits'), []);
+    const docsList = applyFilter(safeJsonParse(localStorage.getItem('mr_doctor_visits'), []));
     docsList.forEach((d: any) => {
       compiled.push({
         id: `doc-${d.id || Date.now() + Math.random()}`,
@@ -506,7 +716,7 @@ export default function ActivityTracking() {
           id: `fup-${d.id || Date.now() + Math.random()}`,
           type: 'followup',
           title: `Follow-Up Scheduled: Dr. ${d.doctorName}`,
-          subtitle: `Scheduled for: ${d.followUpDate}. Reason: ${d.notes || 'General Check-in'}`,
+          subtitle: `Scheduled for: ${d.followUpDate}. Reason: ${d.followUpReason || 'None'}`,
           date: d.date || todayStr, 
           time: d.time || '10:05 AM',
           timestamp: createTimestamp(d.date || todayStr, d.time || '10:05 AM') + 1000
@@ -515,7 +725,7 @@ export default function ActivityTracking() {
     });
 
     // 2. Fetch Chemist Visits
-    const chemistsList = safeJsonParse(localStorage.getItem('mr_chemist_visits'), []);
+    const chemistsList = applyFilter(safeJsonParse(localStorage.getItem('mr_chemist_visits'), []));
     chemistsList.forEach((c: any) => {
       compiled.push({
         id: `chem-${c.id || Date.now() + Math.random()}`,
@@ -529,13 +739,13 @@ export default function ActivityTracking() {
     });
 
     // 3. Fetch Orders
-    const ordersList = safeJsonParse(localStorage.getItem('mr_orders'), []);
+    const ordersList = applyFilter(safeJsonParse(localStorage.getItem('mr_orders'), []));
     ordersList.forEach((o: any) => {
       compiled.push({
         id: `ord-${o.id || Date.now() + Math.random()}`,
         type: 'order',
         title: `Order Booked: ${o.orderNumber || 'N/A'}`,
-        subtitle: `Customer: ${o.customerName}. Product: ${o.productName} (Qty: ${o.quantity}). Amount: ₹${o.totalAmount}`,
+        subtitle: `Customer: ${o.customerName}. Product: ${o.productName || 'Multiple'} (Qty: ${o.quantity || '1'}). Amount: ₹${o.totalAmount}`,
         date: o.dateFormatted ? o.dateFormatted.split(' ')[0] : todayStr,
         time: o.dateFormatted ? o.dateFormatted.split(' ')[1] : '02:00 PM',
         timestamp: createTimestamp(o.dateFormatted?.split(' ')[0] || todayStr, o.dateFormatted?.split(' ')[1] || '02:00 PM')
@@ -543,7 +753,7 @@ export default function ActivityTracking() {
     });
 
     // 4. Fetch Expenses
-    const expensesList = safeJsonParse(localStorage.getItem('mr_expenses'), []);
+    const expensesList = applyFilter(safeJsonParse(localStorage.getItem('mr_expenses'), []));
     expensesList.forEach((e: any) => {
       compiled.push({
         id: `exp-${e.id || Date.now() + Math.random()}`,
@@ -582,13 +792,13 @@ export default function ActivityTracking() {
     }
 
     // 6. Meetings
-    const webMeetingsList = safeJsonParse(localStorage.getItem('crm_meetings'), []);
+    const webMeetingsList = applyFilter(safeJsonParse(localStorage.getItem('crm_meetings'), []));
     webMeetingsList.forEach((m: any) => {
       compiled.push({
         id: `meet-web-${m.id || Date.now() + Math.random()}`,
         type: 'meeting',
         title: `Meeting Scheduled: ${m.title}`,
-        subtitle: `Client: ${m.client} at ${m.venue}. Status: ${m.status}`,
+        subtitle: `Client: ${m.client} at ${m.venue}. Status: ${m.status || 'Pending'}`,
         date: m.date || todayStr,
         time: m.time || m.rawTime || '11:00 AM',
         timestamp: createTimestamp(m.date || todayStr, m.time || m.rawTime || '11:00 AM')
@@ -596,7 +806,7 @@ export default function ActivityTracking() {
     });
 
     // 7. DCR Reports
-    const dcrList = safeJsonParse(localStorage.getItem('mr_daily_reports'), []);
+    const dcrList = applyFilter(safeJsonParse(localStorage.getItem('mr_daily_reports'), []));
     dcrList.forEach((d: any) => {
       compiled.push({
         id: `dcr-${d.id || Date.now()}`,
@@ -610,7 +820,7 @@ export default function ActivityTracking() {
     });
 
     // 8. Target Achievements
-    const targetsList = safeJsonParse(localStorage.getItem('mr_targets'), []);
+    const targetsList = applyFilter(safeJsonParse(localStorage.getItem('mr_targets'), []));
     targetsList.forEach((t: any) => {
       if (t.achieved >= t.goal) {
         compiled.push({
@@ -626,7 +836,7 @@ export default function ActivityTracking() {
     });
 
     // 9. Master Web CRM Activity Audit Log
-    const crmLogs = safeJsonParse(localStorage.getItem('crm_activities'), []);
+    const crmLogs = applyFilter(safeJsonParse(localStorage.getItem('crm_activities'), []));
     crmLogs.forEach((log: any) => {
       let datePart = todayStr;
       let timePart = '12:00 PM';
@@ -656,7 +866,6 @@ export default function ActivityTracking() {
     compiled.sort((a, b) => b.timestamp - a.timestamp);
     setActivities(compiled);
   };
-
   const handleExport = () => {
     if (activities.length === 0) return alert("No data to export!");
     const headers = ['Log Type', 'Title', 'Details', 'Date', 'Time'];
@@ -748,7 +957,17 @@ export default function ActivityTracking() {
     const matchesSearch = item.title.toLowerCase().includes(search.toLowerCase()) || 
                           item.subtitle.toLowerCase().includes(search.toLowerCase());
     const matchesType = filterType === 'All' || item.type === filterType;
-    return matchesSearch && matchesType;
+    let matchesDate = true;
+    if (filterDate) {
+      if (item.timestamp) {
+         const itemDateObj = new Date(item.timestamp);
+         if (!isNaN(itemDateObj.getTime())) {
+            const itemDateStr = itemDateObj.toISOString().split('T')[0];
+            matchesDate = itemDateStr === filterDate;
+         }
+      }
+    }
+    return matchesSearch && matchesType && matchesDate;
   });
 
   return (
@@ -756,7 +975,7 @@ export default function ActivityTracking() {
       <PageHeader
         title="Activity Tracking & Audit Log"
         subtitle="Unified audit trail of MR field activities and Web CRM updates."
-        actions={<ActionButton onClick={handleExport} variant="secondary" icon={<Download className="w-4 h-4" />}>Export Log</ActionButton>}
+        actions={<ActionButton variant="secondary" icon={<Download className="w-4 h-4" />}>Export Log</ActionButton>}
       />
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
@@ -820,6 +1039,15 @@ export default function ActivityTracking() {
                 <option value="target">Targets</option>
                 <option value="crm">CRM Events</option>
               </select>
+            </div>
+            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 hidden sm:flex">
+              <Calendar className="w-4 h-4 text-slate-400" />
+              <input 
+                type="date"
+                className="text-sm text-slate-700 bg-transparent outline-none cursor-pointer py-2"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+              />
             </div>
           </div>
         </FilterBar>

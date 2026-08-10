@@ -181,7 +181,7 @@
 
 
 import { useState, useEffect } from 'react';
-import { Download, Filter, Users, UserPlus, UserMinus, Percent, UserCircle } from 'lucide-react';
+import { Download, Filter, Users, UserPlus, UserMinus, Percent, UserCircle, ShieldAlert } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -195,8 +195,12 @@ import {
   Drawer,
 } from './components/shared';
 import { type Column } from './components/shared';
+import { leadService } from '../../services/leadService';
+import { employeeService } from '../../services/employeeService';
+import type { OrganizationNode, Employee } from '../super-admin/sales-organization/types';
 
-// ✅ ChatGPT Polish 1: Interface for History to remove 'any'
+
+// âœ… ChatGPT Polish 1: Interface for History to remove 'any'
 interface LeadAssignmentHistory {
   id: string;
   leadId: string;
@@ -234,15 +238,38 @@ interface Lead {
   assignedDate?: string;
   priority?: 'High' | 'Medium' | 'Low';
   assignedBy?: string; 
+  _dbId?: string;
 }
 
 export default function LeadAssignment() {
+  const activeRole = localStorage.getItem('activeRole');
+  const authUserStr = localStorage.getItem('authUser');
+  const authUser = authUserStr ? JSON.parse(authUserStr) : null;
+  const currentRole = authUser ? (authUser.roleId || authUser.role || 'SUPER_ADMIN') : (activeRole || 'SUPER_ADMIN');
+
+  if (currentRole === 'MEDICAL_REPRESENTATIVE' || currentRole === 'ROLE_MEDICAL_REPRESENTATIVE') {
+    return (
+      <div className="flex flex-col items-center justify-center py-20 animate-in fade-in zoom-in duration-300">
+        <div className="w-20 h-20 bg-rose-100 rounded-full flex items-center justify-center mb-6">
+          <ShieldAlert className="w-10 h-10 text-rose-600" />
+        </div>
+        <h2 className="text-3xl font-black text-slate-900 tracking-tight mb-3">Access Denied</h2>
+        <p className="text-slate-500 text-lg mb-8 max-w-md text-center">
+          You don't have permission to view <strong>Lead Assignment</strong>.
+        </p>
+      </div>
+    );
+  }
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [mrList, setMrList] = useState<string[]>([]);
+  const [mrList, setMrList] = useState<{name: string, label: string}[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
+  const [selectedDesignation, setSelectedDesignation] = useState<string>('');
+  const [allowedDesignations, setAllowedDesignations] = useState<string[]>([]);
+  const [allSubordinates, setAllSubordinates] = useState<Employee[]>([]);
   const [assignForm, setAssignForm] = useState({
     assignedTo: '',
     priority: 'Medium' as 'High' | 'Medium' | 'Low'
@@ -250,33 +277,125 @@ export default function LeadAssignment() {
 
   useEffect(() => {
     loadLeads();
-  }, []);
-
-  const loadLeads = () => {
+  }, []);  const loadLeads = () => {
     try {
-      const stored = localStorage.getItem('crm_leads');
-      if (stored) {
-        setLeads(JSON.parse(stored));
-      }
+      const activeRole = localStorage.getItem('activeRole');
+      const authUserStr = localStorage.getItem('authUser');
+      const authUser = authUserStr ? JSON.parse(authUserStr) : null;
       
-      const storedUsers = localStorage.getItem('app_users');
-      if (storedUsers) {
-        const users = JSON.parse(storedUsers);
-        const onlyMRs = users
-          .filter((u: any) => u.role === 'Medical Representative' && u.status === 'Active')
-          .map((u: any) => u.name);
-        
-        setMrList(onlyMRs.length > 0 ? onlyMRs : ['No Active MRs Found']);
+      const allEmployees = employeeService.getLocalEmployees();
+      
+      let currentRole = 'Super Admin';
+      let currentName = 'Super Admin';
+      let currentEmpId = '';
+
+      if (authUser) {
+        currentRole = authUser.roleId || authUser.role || 'SUPER_ADMIN';
+        currentName = authUser.fullName || authUser.name || authUser.adminName || 'Super Admin';
+        currentEmpId = authUser.id || authUser.employeeId || '';
+      } else if (activeRole) {
+        currentRole = activeRole;
+        if (activeRole === 'SUPER_ADMIN') {
+          currentName = 'Super Admin';
+        } else {
+          let targetDesignation = '';
+          if (activeRole === 'NATIONAL_SALES_HEAD') targetDesignation = 'National Sales Head';
+          else if (activeRole === 'REGIONAL_SALES_MANAGER') targetDesignation = 'Regional Sales Manager';
+          else if (activeRole === 'AREA_SALES_MANAGER') targetDesignation = 'Area Sales Manager';
+          else if (activeRole === 'MEDICAL_REPRESENTATIVE') targetDesignation = 'Medical Representative';
+          
+          if (targetDesignation) {
+            const mockEmp = allEmployees.find(e => e.designation === targetDesignation && e.status === 'Active');
+            if (mockEmp) {
+              currentName = mockEmp.employeeName;
+              currentEmpId = mockEmp.id;
+            }
+          }
+        }
       }
+
+      if (!currentEmpId && currentName !== 'Super Admin') {
+         const loggedInEmp = allEmployees.find(e => e.employeeName === currentName);
+         if (loggedInEmp) currentEmpId = loggedInEmp.id;
+      }
+
+      const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
+
+      // Determine Allowed Designations
+      let allowedDesigArr: string[] = [];
+      if (isSuperAdmin) {
+        allowedDesigArr = ['National Sales Head', 'Regional Sales Manager', 'Area Sales Manager', 'Medical Representative'];
+      } else if (currentRole === 'NATIONAL_SALES_HEAD' || currentRole === 'National Sales Head') {
+        allowedDesigArr = ['Regional Sales Manager', 'Area Sales Manager', 'Medical Representative'];
+      } else if (currentRole === 'REGIONAL_SALES_MANAGER' || currentRole === 'Regional Sales Manager') {
+        allowedDesigArr = ['Area Sales Manager', 'Medical Representative'];
+      } else if (currentRole === 'AREA_SALES_MANAGER' || currentRole === 'Area Sales Manager') {
+        allowedDesigArr = ['Medical Representative'];
+      }
+      setAllowedDesignations(allowedDesigArr);
+      if (allowedDesigArr.length > 0) setSelectedDesignation(allowedDesigArr[0]);
+
+      // Fetch Subordinates Hierarchy
+      const subordinates = employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
+      setAllSubordinates(subordinates);
+
+      // Fetch Leads
+      leadService.getAll().then((apiLeads) => {
+        let visibleLeads = apiLeads;
+        if (!isSuperAdmin) {
+           const subNames = subordinates.map(s => s.employeeName);
+           const subIds = subordinates.map(s => s.id);
+           visibleLeads = apiLeads.filter(l => {
+             const createdMatch = (l.createdByEmpId && (l.createdByEmpId === currentEmpId || subIds.includes(l.createdByEmpId))) || 
+                                  (!l.createdByEmpId && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName)));
+             const assignedMatch = l.assignedTo && (l.assignedTo === currentName || subNames.includes(l.assignedTo));
+             return createdMatch || assignedMatch;
+           });
+        }
+
+        const mapped = visibleLeads.map((l) => ({
+          id: l.leadCode || l.id,
+          name: l.name,
+          type: l.type,
+          source: l.source || 'Direct Visit',
+          contact: l.mobile || l.email || '',
+          territory: l.territory || '',
+          createdBy: l.createdByName || l.assignedMrName || '',
+          createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-GB') : '',
+          status: (l.status === 'NEW' ? 'New' : l.status === 'CONTACTED' ? 'Contacted' :
+            l.status === 'QUALIFIED' ? 'Qualified' : l.status === 'CONVERTED' ? 'Qualified' :
+            l.status === 'ASSIGNED' ? 'Assigned' : l.status === 'LOST' ? 'Lost' : 'New') as Lead['status'],
+          assignedTo: l.assignedMrName || '',
+          assignedDate: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-GB') : '',
+          priority: (l.priority || 'Medium') as 'High' | 'Medium' | 'Low',
+          assignedBy: '',
+          _dbId: l.id,
+        }));
+        setLeads(mapped as any);
+      });
     } catch (error) {
       console.error("Failed to load leads:", error);
     }
   };
 
+  useEffect(() => {
+    if (selectedDesignation && allSubordinates.length > 0) {
+      const filtered = allSubordinates
+        .filter(emp => emp.status === 'Active' && emp.designation === selectedDesignation)
+        .map(emp => ({
+          name: emp.employeeName,
+          label: `${emp.employeeName} (${emp.designation}) - ${emp.employeeCode}`
+        }));
+      setMrList(filtered);
+    } else {
+      setMrList([]);
+    }
+  }, [selectedDesignation, allSubordinates]);
+
   const openAssignDrawer = (lead: Lead) => {
     setSelectedLead(lead);
     setAssignForm({
-      assignedTo: lead.assignedTo || mrList[0] || '',
+      assignedTo: lead.assignedTo || (mrList.length > 0 ? mrList[0].name : ''),
       priority: lead.priority || 'Medium'
     });
     setIsDrawerOpen(true);
@@ -284,7 +403,7 @@ export default function LeadAssignment() {
 
   const handleCloseDrawer = () => {
     setIsDrawerOpen(false);
-    // ✅ ChatGPT Polish 4 & 5: Clear state when closing/cancelling
+    // âœ… ChatGPT Polish 4 & 5: Clear state when closing/cancelling
     setSelectedLead(null);
     setAssignForm({ assignedTo: '', priority: 'Medium' });
   };
@@ -322,9 +441,29 @@ export default function LeadAssignment() {
     });
 
     setLeads(updatedLeads);
-    localStorage.setItem('crm_leads', JSON.stringify(updatedLeads));
+    
+    if (selectedLead._dbId) {
+       leadService.update(selectedLead._dbId, {
+         assignedMrName: assignForm.assignedTo,
+         priority: assignForm.priority,
+         status: selectedLead.status === 'New' ? 'ASSIGNED' : undefined
+       }).catch(err => console.error("Failed to update in leadService", err));
+    }
 
     try {
+      // âœ… Activity Timeline Integration
+      const timelineLogs = JSON.parse(localStorage.getItem('crm_activities') || '[]');
+      const newLog = {
+        id: `act-${Date.now()}`,
+        action: 'Lead Assigned',
+        entity: selectedLead.name,
+        user: managerName,
+        type: 'Note',
+        date: todayStr,
+        details: `Assigned to ${assignForm.assignedTo} with ${assignForm.priority} priority.`
+      };
+      localStorage.setItem('crm_activities', JSON.stringify([newLog, ...timelineLogs]));
+
       const existingHistory: LeadAssignmentHistory[] = JSON.parse(localStorage.getItem('crm_lead_assignments') || '[]');
       const historyRecord: LeadAssignmentHistory = {
         id: generateAssignmentId(existingHistory),
@@ -378,23 +517,33 @@ export default function LeadAssignment() {
     { 
       key: 'assignedTo', 
       label: 'Assigned To',
-      render: (row) => (
-        <span className={`font-medium flex items-center gap-1 ${!row.assignedTo ? 'text-slate-400 italic' : 'text-violet-700'}`}>
-          {!row.assignedTo ? 'Unassigned' : (
-            <>
-              <UserCircle className="w-4 h-4" />
-              {row.assignedTo}
-            </>
-          )}
-        </span>
-      )
+      render: (row) => {
+        let label = row.assignedTo;
+        if (row.assignedTo) {
+           const emps = employeeService.getLocalEmployees();
+           const match = emps.find(e => e.employeeName === row.assignedTo);
+           if (match) {
+              label = `${match.employeeName} (${match.designation})`;
+           }
+        }
+        return (
+          <span className={`font-medium flex items-center gap-1 ${!row.assignedTo ? 'text-slate-400 italic' : 'text-violet-700'}`}>
+            {!row.assignedTo ? 'Unassigned' : (
+              <>
+                <UserCircle className="w-4 h-4" />
+                {label}
+              </>
+            )}
+          </span>
+        )
+      }
     },
     { key: 'assignedDate', label: 'Assigned Date', render: (row) => <span className="text-sm">{row.assignedDate ? row.assignedDate.split(',')[0] : '-'}</span> },
     {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        // ✅ ChatGPT Polish 2: Strict TypeScript Union type instead of 'any'
+        // âœ… ChatGPT Polish 2: Strict TypeScript Union type instead of 'any'
         let variant: 'neutral' | 'info' | 'warning' | 'success' | 'danger' | 'purple' = 'neutral';
         if (row.status === 'New') variant = 'info';
         else if (row.status === 'Assigned') variant = 'purple';
@@ -449,7 +598,7 @@ export default function LeadAssignment() {
     const safeAssigned = item.assignedTo || 'Unassigned';
     const s = search.toLowerCase();
     
-    // ✅ ChatGPT Polish 3: Better Search functionality (ID, Territory, Source)
+    // âœ… ChatGPT Polish 3: Better Search functionality (ID, Territory, Source)
     const matchSearch = item.name.toLowerCase().includes(s) || 
                         safeAssigned.toLowerCase().includes(s) ||
                         item.id.toLowerCase().includes(s) ||
@@ -517,21 +666,39 @@ export default function LeadAssignment() {
                 <p className="text-xs text-slate-500 font-medium mb-1">LEAD DETAILS</p>
                 <p className="font-semibold text-slate-900">{selectedLead.name}</p>
                 <p className="text-sm text-slate-600 mt-1">Territory: {selectedLead.territory || 'Unassigned'}</p>
-              </div>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Designation</label>
+                  <select
+                    className="w-full px-3 py-2 mb-4 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    value={selectedDesignation}
+                    onChange={(e) => {
+                      setSelectedDesignation(e.target.value);
+                      setAssignForm({...assignForm, assignedTo: ''});
+                    }}
+                    required
+                  >
+                    <option value="" disabled>Select Designation</option>
+                    {allowedDesignations.map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
 
-              <div>
-                <label className="block text-sm font-medium text-slate-700 mb-2">Assign To Medical Representative *</label>
-                <select 
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
-                  value={assignForm.assignedTo}
-                  onChange={(e) => setAssignForm({...assignForm, assignedTo: e.target.value})}
-                  required
-                >
-                  <option value="" disabled>Select a Representative</option>
-                  {mrList.map(mr => (
-                    <option key={mr} value={mr}>{mr}</option>
-                  ))}
-                </select>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Assign To Employee *</label>
+                  <input
+                    list="employee-options"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
+                    placeholder="Select or type to search employee..."
+                    value={assignForm.assignedTo}
+                    onChange={(e) => setAssignForm({...assignForm, assignedTo: e.target.value})}
+                    required
+                  />
+                  <datalist id="employee-options">
+                    {mrList.length === 0 && <option value="" disabled>No eligible users available for assignment</option>}
+                    {mrList.map(mr => (
+                      <option key={mr.name} value={mr.name}>{mr.label}</option>
+                    ))}
+                  </datalist>
+                </div>
               </div>
 
               <div>

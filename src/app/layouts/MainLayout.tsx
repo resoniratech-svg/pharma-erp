@@ -36,7 +36,7 @@ import {
 import { hasPermission } from '../../constants/permissions';
 import { normalizePurchasedModules } from '../../config/tenantConfig';
 import NotificationDropdown from '../../components/NotificationDropdown';
-import { ROLE_SUPER_ADMIN, ROLE_WAREHOUSE_MANAGER, ROLE_ACCOUNTANT, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_MEDICAL_REPRESENTATIVE, ROLE_TRANSPORT_STAFF, ROLES } from '../../constants/roles';
+import { ROLE_SUPER_ADMIN, ROLE_WAREHOUSE_MANAGER, ROLE_ACCOUNTANT, ROLE_DISTRIBUTOR, ROLE_RETAILER, ROLE_MEDICAL_REPRESENTATIVE, ROLE_TRANSPORT_STAFF, ROLE_AREA_SALES_MANAGER, ROLES } from '../../constants/roles';
 import mjLogo from '../../assets/logo/pharmaLOGO.png';
 
 import { productService } from '../../services/productService';
@@ -68,6 +68,7 @@ const NavModules = {
       { label: 'Live Stock Monitoring', path: '/workspace/super-admin/live-stock-monitoring' },
       { label: 'Pending Payment Tracking', path: '/workspace/super-admin/pending-payment-tracking' },
       { label: 'Dispatch Monitoring', path: '/workspace/super-admin/dispatch-monitoring' },
+      { label: 'Export Order Monitoring', path: '/workspace/super-admin/export-order-monitoring' },
       { label: 'User Activity Logs', path: '/workspace/super-admin/user-activity-logs' },
     ],
   },
@@ -199,26 +200,22 @@ const NavModules = {
       { label: 'Follow-Up Management', path: '/workspace/crm/follow-ups' },
       { label: 'Meeting Scheduling', path: '/workspace/crm/meetings' },
       { label: 'Activity Tracking', path: '/workspace/crm/activities' },
-      { label: 'Lead Conversion Tracking', path: '/workspace/crm/lead-conversion-tracking' },
-      { label: 'Doctor/Hospital CRM', path: '/workspace/crm/doctors' },
-      { label: 'Distributor Onboarding CRM', path: '/workspace/crm/distributors' },
-      { label: 'Sales Activity Monitoring', path: '/workspace/crm/pipeline' },
+      { label: 'Lead Conversion', path: '/workspace/crm/lead-conversion-tracking' },
     ],
   },
   Accounting: {
     label: 'Accounting & Finance',
     icon: Calculator,
     subItems: [
-      { label: 'Cash Book', path: '/workspace/finance/cash-book' },
-      { label: 'Bank Book', path: '/workspace/finance/bank-book' },
-      { label: 'Journal Book', path: '/workspace/finance/journal' },
-      { label: 'Ledger', path: '/workspace/finance/ledger' },
-      { label: 'Trial Balance', path: '/workspace/finance/trial-balance' },
+      { label: 'Party Ledger', path: '/workspace/finance/ledger' },
+      { label: 'Outstanding Tracking', path: '/workspace/finance/outstanding' },
+      { label: 'Outstanding Aging', path: '/workspace/finance/aging' },
+      { label: 'Payment Tracking', path: '/workspace/finance/payments' },
+      { label: 'Commission System', path: '/workspace/finance/commission' },
       { label: 'Profit & Loss', path: '/workspace/finance/pnl' },
       { label: 'Balance Sheet', path: '/workspace/finance/balance-sheet' },
-      { label: 'Commission System', path: '/workspace/finance/commission' },
-      { label: 'Bank Reconciliation', path: '/workspace/finance/bank-reco' },
       { label: 'GST Reports', path: '/workspace/finance/gst-reports' },
+      { label: 'Bank Reconciliation', path: '/workspace/finance/bank-reco' },
     ],
   },
   Billing: {
@@ -288,6 +285,19 @@ const ROLE_NAV_MAP: Record<string, NavItem[]> = {
       ]
     },
     {
+      label: 'CRM',
+        icon: HeartHandshake,
+        subItems: [
+          { label: 'Lead Creation', path: '/workspace/crm/leads' },
+          { label: 'Lead Assignment', path: '/workspace/crm/lead-assignment' },
+          { label: 'Lead Pipeline', path: '/workspace/crm/lead-pipeline-tracking' },
+          { label: 'Follow-Up Management', path: '/workspace/crm/follow-ups' },
+          { label: 'Meeting Scheduling', path: '/workspace/crm/meetings' },
+          { label: 'Activity Timeline', path: '/workspace/crm/activities' },
+          { label: 'Lead Conversion', path: '/workspace/crm/lead-conversion-tracking' },
+        ]
+    },
+    {
       label: 'GPS & Attendance',
       icon: Clock,
       subItems: [
@@ -319,6 +329,19 @@ const ROLE_NAV_MAP: Record<string, NavItem[]> = {
       ]
     },
     {
+      label: 'CRM',
+        icon: HeartHandshake,
+        subItems: [
+          { label: 'Lead Creation', path: '/workspace/crm/leads' },
+          { label: 'Lead Assignment', path: '/workspace/crm/lead-assignment' },
+          { label: 'Lead Pipeline', path: '/workspace/crm/lead-pipeline-tracking' },
+          { label: 'Follow-Up Management', path: '/workspace/crm/follow-ups' },
+          { label: 'Meeting Scheduling', path: '/workspace/crm/meetings' },
+          { label: 'Activity Timeline', path: '/workspace/crm/activities' },
+          { label: 'Lead Conversion', path: '/workspace/crm/lead-conversion-tracking' },
+        ]
+    },
+    {
       label: 'GPS & Attendance',
       icon: Clock,
       subItems: [
@@ -346,6 +369,19 @@ const ROLE_NAV_MAP: Record<string, NavItem[]> = {
         { label: 'Daily Activities', path: '/workspace/area-sales-manager/daily-activities' },
         { label: 'Tour Planning', path: '/workspace/area-sales-manager/tour-planning' }
       ]
+    },
+    {
+      label: 'CRM',
+        icon: HeartHandshake,
+        subItems: [
+          { label: 'Lead Creation', path: '/workspace/crm/leads' },
+          { label: 'Lead Assignment', path: '/workspace/crm/lead-assignment' },
+          { label: 'Lead Pipeline', path: '/workspace/crm/lead-pipeline-tracking' },
+          { label: 'Follow-Up Management', path: '/workspace/crm/follow-ups' },
+          { label: 'Meeting Scheduling', path: '/workspace/crm/meetings' },
+          { label: 'Activity Timeline', path: '/workspace/crm/activities' },
+          { label: 'Lead Conversion', path: '/workspace/crm/lead-conversion-tracking' },
+        ]
     },
     {
       label: 'GPS & Attendance',
@@ -689,16 +725,15 @@ export function MainLayout() {
 
               if (item.label === 'Accounting & Finance') {
                 const financeOrder = [
-                  'Cash Book',
-                  'Bank Book',
-                  'Journal Book',
-                  'Ledger',
-                  'Trial Balance',
+                  'Party Ledger',
+                  'Payment Tracking',
+                  'Outstanding Tracking',
+                  'Outstanding Aging',
                   'Profit & Loss',
                   'Balance Sheet',
+                  'GST Reports',
                   'Commission System',
                   'Bank Reconciliation',
-                  'GST Reports',
                 ];
                 item.subItems = (item.subItems || [])
                   .filter(sub => financeOrder.includes(sub.label))
@@ -870,9 +905,56 @@ const activeStyle =
                           }
                         }
                       }
+
+                      // Hide Lead Conversion/Assignment from ASM and MR in CRM
+                      if (item.label === 'CRM' || item.label === 'Pre-Sales CRM') {
+                        if (activeRole === ROLE_AREA_SALES_MANAGER || activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
+                          if (sub.label === 'Lead Conversion') {
+                            return false;
+                          }
+                        }
+                        if (activeRole === ROLE_MEDICAL_REPRESENTATIVE) {
+                          if (sub.label === 'Lead Assignment') {
+                            return false;
+                          }
+                        }
+                      }
+
                       return true;
                     }).map((sub) => {
                       const isSubActive = isPathActive(sub.path);
+                      
+                      if (activeRole === ROLE_MEDICAL_REPRESENTATIVE && sub.path.includes('/workspace/crm/leads')) {
+                        return (
+                          <div key={sub.path + '-wrapper'} className="contents">
+                            <Link
+                              to="/workspace/crm/my-leads"
+                              style={isPathActive('/workspace/crm/my-leads') ? { color: PRIMARY_HEX } : {}}
+                              className={`flex items-center gap-2 py-2 text-sm font-medium transition-colors ${
+                                isPathActive('/workspace/crm/my-leads')
+                                  ? 'text-primary font-semibold'
+                                  : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                            >
+                              {sub.icon && <sub.icon className="w-4 h-4 flex-shrink-0" />}
+                              My Leads
+                            </Link>
+                            <Link
+                              to={sub.path}
+                              style={isSubActive ? { color: PRIMARY_HEX } : {}}
+                              className={`flex items-center gap-2 py-2 text-sm font-medium transition-colors ${
+                                isSubActive
+                                  ? 'text-primary font-semibold'
+                                  : 'text-slate-500 hover:text-slate-900'
+                              }`}
+                            >
+                              {sub.icon && <sub.icon className="w-4 h-4 flex-shrink-0" />}
+                              Lead Creation
+                            </Link>
+                          </div>
+                        );
+                      }
+
                       return (
                         <Link
                           key={sub.path}
