@@ -151,6 +151,12 @@ const getGroupsRepo = async () => {
   return prisma.accountGroup.findMany();
 };
 
+const createGroupRepo = async (data) => {
+  return prisma.accountGroup.create({
+    data
+  });
+};
+
 const getLedgerStatementRepo = async (ledgerId) => {
   return prisma.ledgerTransaction.findMany({
     where: { ledgerId: parseInt(ledgerId) },
@@ -190,6 +196,7 @@ const updateCommissionStatusRepo = async (id, status) => {
 
 module.exports = {
   getGroupsRepo,
+  createGroupRepo,
   createVoucherRepo,
   getVouchersRepo,
   getTrialBalanceRepo,

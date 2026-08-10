@@ -65,6 +65,15 @@ const getGroups = async (req, res, next) => {
   }
 };
 
+const createGroup = async (req, res, next) => {
+  try {
+    const data = await service.createGroupService(req.body);
+    res.status(201).json(formatResponse(true, 'Group created successfully', data));
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getLedgerStatement = async (req, res, next) => {
   try {
     const data = await service.getLedgerStatementService(req.params.id);
@@ -118,6 +127,7 @@ module.exports = {
   getProfitLoss,
   getBalanceSheet,
   getGroups,
+  createGroup,
   getLedgers,
   getLedgerStatement,
   createLedger,

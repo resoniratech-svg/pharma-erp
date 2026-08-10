@@ -81,6 +81,13 @@ const getGroupsService = async () => {
   return repo.getGroupsRepo();
 };
 
+const createGroupService = async (data) => {
+  if (!data.name || !data.nature) {
+    throw new Error("Group name and nature are required");
+  }
+  return repo.createGroupRepo(data);
+};
+
 const getLedgerStatementService = async (ledgerId) => {
   return repo.getLedgerStatementRepo(ledgerId);
 };
@@ -108,6 +115,7 @@ module.exports = {
   getProfitLossService,
   getBalanceSheetService,
   getGroupsService,
+  createGroupService,
   getLedgersService,
   getLedgerStatementService,
   createLedgerService,

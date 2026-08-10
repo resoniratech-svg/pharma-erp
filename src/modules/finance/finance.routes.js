@@ -11,6 +11,7 @@ router.post('/ledgers', controller.createLedger);
 router.get('/ledgers', controller.getLedgers);
 router.get('/ledgers/:id/statement', controller.getLedgerStatement);
 router.get('/groups', controller.getGroups);
+router.post('/groups', controller.createGroup);
 
 // Reports
 router.get('/reports/trial-balance', controller.getTrialBalance);
