@@ -67,7 +67,6 @@ const NavModules = {
       { label: 'Live Stock Monitoring', path: '/workspace/super-admin/live-stock-monitoring' },
       { label: 'Pending Payment Tracking', path: '/workspace/super-admin/pending-payment-tracking' },
       { label: 'Dispatch Monitoring', path: '/workspace/super-admin/dispatch-monitoring' },
-      { label: 'Export Order Monitoring', path: '/workspace/super-admin/export-order-monitoring' },
       { label: 'User Activity Logs', path: '/workspace/super-admin/user-activity-logs' },
     ],
   },
