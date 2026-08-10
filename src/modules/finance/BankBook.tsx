@@ -66,11 +66,11 @@ export default function BankBook() {
       vouchers.forEach(v => {
         if (v.voucherType === 'RECEIPT' || v.voucherType === 'PAYMENT') {
           // Check if any transaction hits a bank account
-          const bankTx = v.transactions.find(t => banks.some(b => b.id === String(t.ledgerId)));
+          const bankTx = v.transactions.find(t => banks.some(b => String(b.id) === String(t.ledgerId)));
           if (bankTx) {
             const opposingTx = v.transactions.find(t => t.id !== bankTx.id) || v.transactions[0];
             const opposingLedgerName = allLedgers.find(l => String(l.id) === String(opposingTx?.ledgerId))?.name || 'Unknown';
-            const bankAccountName = banks.find(b => b.id === String(bankTx.ledgerId))?.name || 'Unknown Bank';
+            const bankAccountName = banks.find(b => String(b.id) === String(bankTx.ledgerId))?.name || 'Unknown Bank';
 
             bankVouchers.push({
               id: String(v.id),
