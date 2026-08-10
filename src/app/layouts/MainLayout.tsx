@@ -198,15 +198,16 @@ const NavModules = {
     label: 'Accounting & Finance',
     icon: Calculator,
     subItems: [
-      { label: 'Party Ledger', path: '/workspace/finance/ledger' },
-      { label: 'Outstanding Tracking', path: '/workspace/finance/outstanding' },
-      { label: 'Outstanding Aging', path: '/workspace/finance/aging' },
-      { label: 'Payment Tracking', path: '/workspace/finance/payments' },
-      { label: 'Commission System', path: '/workspace/finance/commission' },
+      { label: 'Cash Book', path: '/workspace/finance/cash-book' },
+      { label: 'Bank Book', path: '/workspace/finance/bank-book' },
+      { label: 'Journal Book', path: '/workspace/finance/journal' },
+      { label: 'Ledger', path: '/workspace/finance/ledger' },
+      { label: 'Trial Balance', path: '/workspace/finance/trial-balance' },
       { label: 'Profit & Loss', path: '/workspace/finance/pnl' },
       { label: 'Balance Sheet', path: '/workspace/finance/balance-sheet' },
-      { label: 'GST Reports', path: '/workspace/finance/gst-reports' },
+      { label: 'Commission System', path: '/workspace/finance/commission' },
       { label: 'Bank Reconciliation', path: '/workspace/finance/bank-reco' },
+      { label: 'GST Reports', path: '/workspace/finance/gst-reports' },
     ],
   },
   Billing: {
@@ -676,15 +677,16 @@ export function MainLayout() {
 
               if (item.label === 'Accounting & Finance') {
                 const financeOrder = [
-                  'Party Ledger',
-                  'Payment Tracking',
-                  'Outstanding Tracking',
-                  'Outstanding Aging',
+                  'Cash Book',
+                  'Bank Book',
+                  'Journal Book',
+                  'Ledger',
+                  'Trial Balance',
                   'Profit & Loss',
                   'Balance Sheet',
-                  'GST Reports',
                   'Commission System',
                   'Bank Reconciliation',
+                  'GST Reports',
                 ];
                 item.subItems = (item.subItems || [])
                   .filter(sub => financeOrder.includes(sub.label))

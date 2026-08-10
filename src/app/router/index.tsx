@@ -139,18 +139,20 @@ import DistributorCRM from '../../modules/crm/DistributorCRM';
 import SalesPipeline from '../../modules/crm/SalesPipeline';
 
 // Finance Module
-import PartyLedger from '../../modules/finance/PartyLedger';
-import Outstanding from '../../modules/finance/Outstanding';
-import AgingReports from '../../modules/finance/AgingReports';
-import FinancePayments from '../../modules/finance/Payments';
+import CashBook from '../../modules/finance/CashBook';
+import BankBook from '../../modules/finance/BankBook';
+import JournalBook from '../../modules/finance/JournalBook';
+import Ledger from '../../modules/finance/Ledger';
+import TrialBalance from '../../modules/finance/TrialBalance';
 import Commission from '../../modules/finance/Commission';
 import ProfitLoss from '../../modules/finance/ProfitLoss';
 import BalanceSheet from '../../modules/finance/BalanceSheet';
 import GSTReports from '../../modules/finance/GSTReports';
+import BankReconciliation from '../../modules/finance/BankReconciliation';
+
 import HelpSupport from '../../pages/HelpSupport';
 import ChangePassword from '../../pages/ChangePassword';
 import MyProfile from '../../pages/MyProfile';
-import BankReconciliation from '../../modules/finance/BankReconciliation';
 
 // Notifications Module
 import PaymentAlerts from '../../modules/notifications/PaymentAlerts';
@@ -550,17 +552,18 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute moduleLabel="Accounting & Finance" />,
         children: [
-          { path: 'ledger', element: <PartyLedger /> },
-          { path: 'outstanding', element: <Outstanding /> },
-          { path: 'aging', element: <AgingReports /> },
-          { path: 'payments', element: <FinancePayments /> },
-          { path: 'commission', element: <Commission /> },
+          { path: 'cash-book', element: <CashBook /> },
+          { path: 'bank-book', element: <BankBook /> },
+          { path: 'journal', element: <JournalBook /> },
+          { path: 'ledger', element: <Ledger /> },
+          { path: 'trial-balance', element: <TrialBalance /> },
           { path: 'pnl', element: <ProfitLoss /> },
           { path: 'balance-sheet', element: <BalanceSheet /> },
-          { path: 'gst-reports', element: <GSTReports /> },
+          { path: 'commission', element: <Commission /> },
           { path: 'bank-reco', element: <BankReconciliation /> },
+          { path: 'gst-reports', element: <GSTReports /> },
         ],
-      }
+      },
     ],
   },
   {
