@@ -143,6 +143,9 @@ const getLedgersRepo = async () => {
   return prisma.accountLedger.findMany({
     include: {
       group: true
+    },
+    orderBy: {
+      id: 'desc'
     }
   });
 };
