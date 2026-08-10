@@ -202,7 +202,7 @@ export default function EmployeesTab() {
     return `${prefix}${nextSeq.toString().padStart(3, '0')}`;
   };
 
-  const handleOpenAddModal = () => {
+  const handleOpenAddModal = async () => {
     setEditingEmployee(null);
     setErrors({});
     const initialDesignation: Designation = 'Medical Representative';
@@ -210,7 +210,7 @@ export default function EmployeesTab() {
     const autoCode = generateNextEmployeeCode(initialDesignation);
     
     const defaultManagerName = reportsOptions[0] || 'Owner / Super Admin';
-    const allEmps = salesOrganizationService.getEmployees();
+    const allEmps = await salesOrganizationService.getEmployees();
     const defaultManager = allEmps.find(e => e.employeeName === defaultManagerName);
 
     setFormData({
@@ -250,10 +250,10 @@ export default function EmployeesTab() {
     setShowModal(true);
   };
 
-  const handleDesignationChange = (newDesignation: Designation) => {
+  const handleDesignationChange = async (newDesignation: Designation) => {
     const options = getReportsToOptions(newDesignation);
     const defaultManagerName = options[0] || 'Owner / Super Admin';
-    const allEmps = salesOrganizationService.getEmployees();
+    const allEmps = await salesOrganizationService.getEmployees();
     const defaultManager = allEmps.find(e => e.employeeName === defaultManagerName);
 
     setFormData((prev) => {
@@ -599,8 +599,8 @@ export default function EmployeesTab() {
                               <div
                                 key={rep}
                                 className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
-                                onClick={() => {
-                                  const allEmps = salesOrganizationService.getEmployees();
+                                onClick={async () => {
+                                  const allEmps = await salesOrganizationService.getEmployees();
                                   const manager = allEmps.find(e => e.employeeName === rep);
                                   setFormData({ 
                                     ...formData, 

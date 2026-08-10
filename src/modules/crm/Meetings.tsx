@@ -438,6 +438,7 @@ import {
 import { type Column } from './components/shared';
 import { meetingService } from '../../services/meetingService';
 import { leadService } from '../../services/leadService';
+import { employeeService } from '../../services/employeeService';
 
 const generateMeetingId = (history: CRMMeeting[]) => {
   if (history.length === 0) return 'MT-0001';
@@ -503,30 +504,89 @@ export default function CrmMeetings() {
   const [agenda, setAgenda] = useState('');
 
   useEffect(() => {
-    // Load leads from DB for the dropdown
-    leadService.getAll().then((apiLeads) => {
-      setLeads(apiLeads.map((l) => ({ id: l.leadCode || l.id, name: l.name })));
-    }).catch(console.error);
+    const loadData = async () => {
+      try {
+        const activeRole = localStorage.getItem('activeRole');
+        const authUserStr = localStorage.getItem('authUser');
+        const authUser = authUserStr ? JSON.parse(authUserStr) : null;
+        
+        const allEmployees = employeeService.getLocalEmployees();
+        
+        let currentRole = 'Super Admin';
+        let currentName = 'Super Admin';
+        let currentEmpId = '';
 
-    // Load meetings from DB
-    meetingService.getAll().forEach(() => {});
-    const cached = meetingService.getAll();
-    if (cached.length > 0) {
-      setMeetings(cached.map((m) => ({
-        id: m.id,
-        leadId: '',
-        title: m.title,
-        meetingType: m.type || 'Doctor Group Meet',
-        client: m.organizer,
-        participants: m.participants,
-        venue: m.location,
-        date: m.date,
-        time: m.time,
-        rawTime: m.rawTime,
-        status: m.status,
-        agenda: m.agenda,
-      })));
-    }
+        if (authUser) {
+          currentRole = authUser.roleId || authUser.role || 'SUPER_ADMIN';
+          currentName = authUser.fullName || authUser.name || authUser.adminName || 'Super Admin';
+          currentEmpId = authUser.id || authUser.employeeId || '';
+        } else if (activeRole) {
+          currentRole = activeRole;
+          if (activeRole === 'SUPER_ADMIN') {
+            currentName = 'Super Admin';
+          } else {
+            let targetDesignation = '';
+            if (activeRole === 'NATIONAL_SALES_HEAD') targetDesignation = 'National Sales Head';
+            else if (activeRole === 'REGIONAL_SALES_MANAGER') targetDesignation = 'Regional Sales Manager';
+            else if (activeRole === 'AREA_SALES_MANAGER') targetDesignation = 'Area Sales Manager';
+            else if (activeRole === 'MEDICAL_REPRESENTATIVE') targetDesignation = 'Medical Representative';
+            
+            if (targetDesignation) {
+              const mockEmp = allEmployees.find(e => e.designation === targetDesignation && e.status === 'Active');
+              if (mockEmp) {
+                currentName = mockEmp.employeeName;
+                currentEmpId = mockEmp.id;
+              }
+            }
+          }
+        }
+
+        if (!currentEmpId && currentName !== 'Super Admin') {
+           const loggedInEmp = allEmployees.find(e => e.employeeName === currentName);
+           if (loggedInEmp) currentEmpId = loggedInEmp.id;
+        }
+
+        const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
+        const subordinates = employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
+        const subNames = subordinates.map(s => s.employeeName);
+        const subIds = subordinates.map(s => s.id);
+
+        const apiLeads = await leadService.getAll();
+        
+        let visibleLeads = apiLeads;
+        if (!isSuperAdmin) {
+             visibleLeads = apiLeads.filter(l => {
+               const createdMatch = (l.createdByEmpId && (l.createdByEmpId === currentEmpId || subIds.includes(l.createdByEmpId))) || 
+                                    (!l.createdByEmpId && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName)));
+               const assignedMatchReal = l.assignedMrName && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName));
+               return createdMatch || assignedMatchReal;
+             });
+        }
+        setLeads(visibleLeads.map((l) => ({ id: l.leadCode || l.id, name: l.name })));
+
+        // Load meetings from DB
+        const cached = meetingService.getAll();
+        if (cached.length > 0) {
+          setMeetings(cached.map((m) => ({
+            id: m.id,
+            leadId: '',
+            title: m.title,
+            meetingType: m.type || 'Doctor Group Meet',
+            client: m.organizer,
+            participants: m.participants,
+            venue: m.location,
+            date: m.date,
+            time: m.time,
+            rawTime: m.rawTime,
+            status: m.status,
+            agenda: m.agenda,
+          })));
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    loadData();
   }, []);
 
   const getManagerName = () => {

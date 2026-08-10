@@ -67,6 +67,7 @@ const NavModules = {
       { label: 'Live Stock Monitoring', path: '/workspace/super-admin/live-stock-monitoring' },
       { label: 'Pending Payment Tracking', path: '/workspace/super-admin/pending-payment-tracking' },
       { label: 'Dispatch Monitoring', path: '/workspace/super-admin/dispatch-monitoring' },
+      { label: 'Export Order Monitoring', path: '/workspace/super-admin/export-order-monitoring' },
       { label: 'User Activity Logs', path: '/workspace/super-admin/user-activity-logs' },
     ],
   },
@@ -194,16 +195,15 @@ const NavModules = {
     label: 'Accounting & Finance',
     icon: Calculator,
     subItems: [
-      { label: 'Cash Book', path: '/workspace/finance/cash-book' },
-      { label: 'Bank Book', path: '/workspace/finance/bank-book' },
-      { label: 'Journal Book', path: '/workspace/finance/journal' },
-      { label: 'Ledger', path: '/workspace/finance/ledger' },
-      { label: 'Trial Balance', path: '/workspace/finance/trial-balance' },
+      { label: 'Party Ledger', path: '/workspace/finance/ledger' },
+      { label: 'Outstanding Tracking', path: '/workspace/finance/outstanding' },
+      { label: 'Outstanding Aging', path: '/workspace/finance/aging' },
+      { label: 'Payment Tracking', path: '/workspace/finance/payments' },
+      { label: 'Commission System', path: '/workspace/finance/commission' },
       { label: 'Profit & Loss', path: '/workspace/finance/pnl' },
       { label: 'Balance Sheet', path: '/workspace/finance/balance-sheet' },
-      { label: 'Commission System', path: '/workspace/finance/commission' },
-      { label: 'Bank Reconciliation', path: '/workspace/finance/bank-reco' },
       { label: 'GST Reports', path: '/workspace/finance/gst-reports' },
+      { label: 'Bank Reconciliation', path: '/workspace/finance/bank-reco' },
     ],
   },
   Billing: {
@@ -712,16 +712,15 @@ export function MainLayout() {
 
               if (item.label === 'Accounting & Finance') {
                 const financeOrder = [
-                  'Cash Book',
-                  'Bank Book',
-                  'Journal Book',
-                  'Ledger',
-                  'Trial Balance',
+                  'Party Ledger',
+                  'Payment Tracking',
+                  'Outstanding Tracking',
+                  'Outstanding Aging',
                   'Profit & Loss',
                   'Balance Sheet',
+                  'GST Reports',
                   'Commission System',
                   'Bank Reconciliation',
-                  'GST Reports',
                 ];
                 item.subItems = (item.subItems || [])
                   .filter(sub => financeOrder.includes(sub.label))

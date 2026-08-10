@@ -14,6 +14,9 @@ export interface Lead {
   assignedMrId: number | null;
   assignedMrName: string;
   createdAt: string;
+  createdByEmpId?: string;
+  createdByRole?: string;
+  createdByName?: string;
   contactPerson?: string;
   leadDate?: string;
   state?: string;
@@ -21,6 +24,8 @@ export interface Lead {
   city?: string;
   priority?: string;
   followUpDate?: string;
+  conversionDate?: string;
+  convertedBy?: string;
 }
 
 const STORAGE_KEY = 'local_leads';
@@ -65,6 +70,11 @@ export const leadService = {
     priority?: string;
     followUpDate?: string;
     assignedTo?: string;
+    creatorInfo?: {
+      empId: string;
+      role: string;
+      name: string;
+    };
   }): Promise<Lead> {
     const leads = getLocalLeads();
     const newId = String(Date.now());
@@ -84,6 +94,9 @@ export const leadService = {
       assignedMrId: null,
       assignedMrName: data.assignedTo || '',
       createdAt: new Date().toISOString(),
+      createdByEmpId: data.creatorInfo?.empId,
+      createdByRole: data.creatorInfo?.role,
+      createdByName: data.creatorInfo?.name,
       contactPerson: data.contactPerson,
       leadDate: data.leadDate,
       state: data.state,

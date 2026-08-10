@@ -11,6 +11,7 @@ export interface FollowUp {
   leadId?: number;
   type?: string;
   method?: string;
+  nextFollowUpDate?: string;
   createdAt: string;
 }
 
@@ -50,6 +51,7 @@ export const followUpService = {
     leadId?: number;
     type?: string;
     method?: string;
+    nextFollowUpDate?: string;
   }): Promise<FollowUp> {
     const items = getLocalFollowUps();
     const newId = String(Date.now());
@@ -67,6 +69,7 @@ export const followUpService = {
       leadId: data.leadId,
       type: data.type || '',
       method: data.method || '',
+      nextFollowUpDate: data.nextFollowUpDate ? new Date(data.nextFollowUpDate).toISOString().split('T')[0] : undefined,
       createdAt: new Date().toISOString(),
     };
     

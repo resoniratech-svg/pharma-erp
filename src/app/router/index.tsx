@@ -128,6 +128,7 @@ import MeetingLocationTracking from '../../modules/gps/MeetingLocationTracking';
 
 // CRM Module
 import Leads from '../../modules/crm/Leads';
+  import AssignedLeads from '../../modules/crm/AssignedLeads';
 import LeadAssignment from '../../modules/crm/LeadAssignment';
 import LeadPipelineTracking from '../../modules/crm/LeadPipelineTracking';
 import LeadConversionTracking from '../../modules/crm/LeadConversionTracking';
@@ -139,20 +140,18 @@ import DistributorCRM from '../../modules/crm/DistributorCRM';
 import SalesPipeline from '../../modules/crm/SalesPipeline';
 
 // Finance Module
-import CashBook from '../../modules/finance/CashBook';
-import BankBook from '../../modules/finance/BankBook';
-import JournalBook from '../../modules/finance/JournalBook';
-import Ledger from '../../modules/finance/Ledger';
-import TrialBalance from '../../modules/finance/TrialBalance';
+import PartyLedger from '../../modules/finance/PartyLedger';
+import Outstanding from '../../modules/finance/Outstanding';
+import AgingReports from '../../modules/finance/AgingReports';
+import FinancePayments from '../../modules/finance/Payments';
 import Commission from '../../modules/finance/Commission';
 import ProfitLoss from '../../modules/finance/ProfitLoss';
 import BalanceSheet from '../../modules/finance/BalanceSheet';
 import GSTReports from '../../modules/finance/GSTReports';
-import BankReconciliation from '../../modules/finance/BankReconciliation';
-
 import HelpSupport from '../../pages/HelpSupport';
 import ChangePassword from '../../pages/ChangePassword';
 import MyProfile from '../../pages/MyProfile';
+import BankReconciliation from '../../modules/finance/BankReconciliation';
 
 // Notifications Module
 import PaymentAlerts from '../../modules/notifications/PaymentAlerts';
@@ -184,6 +183,7 @@ import DispatchMonitoring from '../../modules/super-admin/DispatchMonitoring';
 import FranchiseMonitoring from '../../modules/super-admin/FranchiseMonitoring';
 import SuperAdminNotificationCenter from '../../modules/super-admin/NotificationCenter';
 import UserActivityLogs from '../../modules/super-admin/UserActivityLogs';
+import ExportOrderMonitoring from '../../modules/super-admin/ExportOrderMonitoring';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 import ResetPassword from '../../pages/ResetPassword';
 
@@ -352,6 +352,7 @@ export const router = createBrowserRouter([
           { path: 'pending-payment-tracking', element: <PendingPaymentTracking /> },
           { path: 'dispatch-monitoring', element: <DispatchMonitoring /> },
           { path: 'franchise-monitoring', element: <FranchiseMonitoring /> },
+          { path: 'export-order-monitoring', element: <ExportOrderMonitoring /> },
           { path: 'notification-center', element: <SuperAdminNotificationCenter /> },
           { path: 'user-activity-logs', element: <UserActivityLogs /> },
         ],
@@ -530,6 +531,7 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute moduleLabel="Pre-Sales CRM" />,
         children: [
           { path: 'leads', element: <Leads /> },
+          { path: 'my-leads', element: <AssignedLeads /> },
           { path: 'lead-assignment', element: <LeadAssignment /> },
           { path: 'lead-pipeline-tracking', element: <LeadPipelineTracking /> },
           { path: 'follow-ups', element: <FollowUps /> },
@@ -550,18 +552,17 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute moduleLabel="Accounting & Finance" />,
         children: [
-          { path: 'cash-book', element: <CashBook /> },
-          { path: 'bank-book', element: <BankBook /> },
-          { path: 'journal', element: <JournalBook /> },
-          { path: 'ledger', element: <Ledger /> },
-          { path: 'trial-balance', element: <TrialBalance /> },
+          { path: 'ledger', element: <PartyLedger /> },
+          { path: 'outstanding', element: <Outstanding /> },
+          { path: 'aging', element: <AgingReports /> },
+          { path: 'payments', element: <FinancePayments /> },
+          { path: 'commission', element: <Commission /> },
           { path: 'pnl', element: <ProfitLoss /> },
           { path: 'balance-sheet', element: <BalanceSheet /> },
-          { path: 'commission', element: <Commission /> },
-          { path: 'bank-reco', element: <BankReconciliation /> },
           { path: 'gst-reports', element: <GSTReports /> },
+          { path: 'bank-reco', element: <BankReconciliation /> },
         ],
-      },
+      }
     ],
   },
   {
@@ -609,3 +610,4 @@ export const router = createBrowserRouter([
     ],
   },
 ]);
+
