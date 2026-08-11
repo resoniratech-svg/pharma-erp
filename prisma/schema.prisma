@@ -1091,6 +1091,8 @@ model Employee {
   area                   String?
   headquarters           String?
   states                 String[]           @default([])
+  territory              String?
+  remarks                String?
   mobile                 String?
   email                  String?            @unique
   gender                 String?

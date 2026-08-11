@@ -80,6 +80,8 @@ const createEmployeeService = async (data) => {
     mobile: data.mobile || null,
     email: data.email || null,
     gender: data.gender || null,
+    territory: data.territory || null,
+    remarks: data.remarks || null,
     dob: data.dob ? new Date(data.dob) : null,
     joiningDate: data.joiningDate ? new Date(data.joiningDate) : new Date(),
     status: data.status || "Active",
@@ -183,6 +185,8 @@ const updateEmployeeService = async (id, data) => {
   if (data.area !== undefined) payload.area = data.area;
   if (data.headquarters !== undefined || data.hq !== undefined) payload.headquarters = data.headquarters || data.hq;
   if (data.states !== undefined) payload.states = data.states;
+  if (data.territory !== undefined) payload.territory = data.territory;
+  if (data.remarks !== undefined) payload.remarks = data.remarks;
   if (data.mobile !== undefined) payload.mobile = data.mobile;
   if (data.email !== undefined) payload.email = data.email;
   if (data.gender !== undefined) payload.gender = data.gender;
