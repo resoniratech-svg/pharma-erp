@@ -152,14 +152,12 @@ import CashBook from '../../modules/finance/CashBook';
 import BankBook from '../../modules/finance/BankBook';
 import JournalBook from '../../modules/finance/JournalBook';
 import TrialBalance from '../../modules/finance/TrialBalance';
-import Commission from '../../modules/finance/Commission';
 import ProfitLoss from '../../modules/finance/ProfitLoss';
 import BalanceSheet from '../../modules/finance/BalanceSheet';
 import GSTReports from '../../modules/finance/GSTReports';
 import HelpSupport from '../../pages/HelpSupport';
 import ChangePassword from '../../pages/ChangePassword';
 import MyProfile from '../../pages/MyProfile';
-import BankReconciliation from '../../modules/finance/BankReconciliation';
 
 // Notifications Module
 import PaymentAlerts from '../../modules/notifications/PaymentAlerts';
@@ -579,11 +577,9 @@ export const router = createBrowserRouter([
           { path: 'bank-book', element: <BankBook /> },
           { path: 'journal-book', element: <JournalBook /> },
           { path: 'trial-balance', element: <TrialBalance /> },
-          { path: 'commission', element: <Commission /> },
           { path: 'pnl', element: <ProfitLoss /> },
           { path: 'balance-sheet', element: <BalanceSheet /> },
           { path: 'gst-reports', element: <GSTReports /> },
-          { path: 'bank-reco', element: <BankReconciliation /> },
         ],
       }
     ],
