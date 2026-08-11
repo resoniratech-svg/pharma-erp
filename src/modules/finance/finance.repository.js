@@ -128,13 +128,24 @@ const getTrialBalanceRepo = async () => {
       balance += (credit - debit);
     }
 
+    let finalDebit = 0;
+    let finalCredit = 0;
+
+    if (ledger.balanceType === 'DR') {
+      if (balance > 0) finalDebit = balance;
+      else if (balance < 0) finalCredit = Math.abs(balance);
+    } else {
+      if (balance > 0) finalCredit = balance;
+      else if (balance < 0) finalDebit = Math.abs(balance);
+    }
+
     return {
       id: ledger.id,
       name: ledger.name,
       group: ledger.group.name,
       nature: ledger.group.nature,
-      debit: balance > 0 && ledger.balanceType === 'DR' ? balance : 0,
-      credit: balance > 0 && ledger.balanceType === 'CR' ? balance : 0
+      debit: finalDebit,
+      credit: finalCredit
     };
   });
 };

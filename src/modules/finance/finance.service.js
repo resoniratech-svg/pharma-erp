@@ -33,8 +33,8 @@ const getProfitLossService = async () => {
   const trialBalance = await repo.getTrialBalanceRepo();
   
   // Filter for Income and Expenses
-  const incomes = trialBalance.filter(l => l.nature === 'INCOME');
-  const expenses = trialBalance.filter(l => l.nature === 'EXPENSE');
+  const incomes = trialBalance.filter(l => (l.nature || '').toUpperCase() === 'INCOME');
+  const expenses = trialBalance.filter(l => (l.nature || '').toUpperCase() === 'EXPENSE');
 
   const totalIncome = incomes.reduce((sum, l) => sum + (l.credit || 0), 0);
   const totalExpense = expenses.reduce((sum, l) => sum + (l.debit || 0), 0);
@@ -55,8 +55,8 @@ const getBalanceSheetService = async () => {
   const pnl = await getProfitLossService();
   
   // Filter for Assets, Liabilities, Equity
-  const assets = trialBalance.filter(l => l.nature === 'ASSET');
-  const liabilities = trialBalance.filter(l => l.nature === 'LIABILITY' || l.nature === 'EQUITY');
+  const assets = trialBalance.filter(l => (l.nature || '').toUpperCase() === 'ASSET');
+  const liabilities = trialBalance.filter(l => (l.nature || '').toUpperCase() === 'LIABILITY' || (l.nature || '').toUpperCase() === 'EQUITY');
 
   const totalAssets = assets.reduce((sum, l) => sum + (l.debit || 0), 0);
   let totalLiabilities = liabilities.reduce((sum, l) => sum + (l.credit || 0), 0);
