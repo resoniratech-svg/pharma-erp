@@ -780,6 +780,17 @@ model Lead {
   source       String?
   status       String     @default("NEW")
   assignedMrId Int?
+  
+  contactPerson String?
+  leadDate      String?
+  state         String?
+  district      String?
+  city          String?
+  priority      String?
+  followUpDate  String?
+  assignedTo    String?
+  creatorInfo   String?
+
   createdAt    DateTime   @default(now())
   followUps    FollowUp[]
   assignedMr   MR?        @relation(fields: [assignedMrId], references: [id])
