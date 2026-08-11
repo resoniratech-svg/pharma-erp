@@ -1227,6 +1227,19 @@ model ExportOrder {
   trackingNumber      String?
   totalAmount         Float    @default(0)
   totalAmountINR      Float    @default(0)
+  
+  buyerName           String?
+  containerOrAwbNo    String?
+  customsStatus       String?
+  destinationCountry  String?
+  eta                 DateTime?
+  incoterm            String?
+  invoiceNumber       String?
+  itemsSummary        String?
+  orderDate           DateTime?
+  orderValueINR       Float?
+  orderValueUSD       Float?
+
   createdAt           DateTime @default(now())
   updatedAt           DateTime @default(now()) @updatedAt
 
