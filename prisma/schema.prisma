@@ -1217,9 +1217,9 @@ model ExportCustomer {
 model ExportOrder {
   id                  Int      @id @default(autoincrement())
   orderNumber         String   @unique
-  customerId          Int
-  currencyId          Int
-  exchangeRateApplied Float
+  customerId          Int?
+  currencyId          Int?
+  exchangeRateApplied Float?
   status              String   @default("Draft") // Draft, Processing, Shipped, Cleared
   shippingMode        String?
   portOfLoading       String?
@@ -1230,8 +1230,8 @@ model ExportOrder {
   createdAt           DateTime @default(now())
   updatedAt           DateTime @default(now()) @updatedAt
 
-  customer  ExportCustomer   @relation(fields: [customerId], references: [id])
-  currency  CurrencyMaster   @relation(fields: [currencyId], references: [id])
+  customer  ExportCustomer?   @relation(fields: [customerId], references: [id])
+  currency  CurrencyMaster?   @relation(fields: [currencyId], references: [id])
   documents ExportDocument[]
 }
 
