@@ -1,5 +1,7 @@
 export const getApiUrl = () => {
-  return import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+  const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+  const deployedApiUrl = 'https://pharma-erp-pharma-backend.rrh5yv.easypanel.host/api';
+  return isLocal ? 'http://localhost:5000/api' : deployedApiUrl;
 };
 
 export const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
