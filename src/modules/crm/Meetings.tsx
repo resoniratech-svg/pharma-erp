@@ -547,7 +547,7 @@ export default function CrmMeetings() {
         }
 
         const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
-        const subordinates = employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
+        const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
         const subNames = subordinates.map(s => s.employeeName);
         const subIds = subordinates.map(s => s.id);
 

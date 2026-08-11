@@ -349,8 +349,19 @@ class EmployeeService {
     );
   }
 
-  getAllSubordinates(managerId: string, managerName: string, isSuperAdmin: boolean): Employee[] {
-    const allEmployees = this.getLocalEmployees();
+  async getAllSubordinates(managerId: string, managerName: string, isSuperAdmin: boolean): Promise<Employee[]> {
+    let allEmployees = this.getLocalEmployees();
+    
+    // Fetch live employees from backend
+    try {
+      const res = await apiRequest<{ success: boolean; data: any[] }>('/sales-organization/employees');
+      if (res.success && res.data) {
+        allEmployees = res.data.map(item => this.mapBackendToEmployee(item));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(allEmployees));
+      }
+    } catch (err) {
+      console.error("Failed to fetch live employees from backend", err);
+    }
     
     if (isSuperAdmin) {
       return allEmployees;
@@ -366,12 +377,12 @@ class EmployeeService {
       visited.add(key);
 
       const directReports = allEmployees.filter(emp => 
-        (emp.reportsToId && emp.reportsToId === currentId) || 
+        (emp.reportsToId && String(emp.reportsToId) === String(currentId)) || 
         (!emp.reportsToId && emp.reportsTo && emp.reportsTo === currentName)
       );
 
       for (const emp of directReports) {
-        if (!subordinates.find(s => s.id === emp.id)) {
+        if (!subordinates.find(s => String(s.id) === String(emp.id))) {
           subordinates.push(emp);
           traverse(emp.id, emp.employeeName);
         }

@@ -277,7 +277,7 @@ export default function LeadAssignment() {
 
   useEffect(() => {
     loadLeads();
-  }, []);  const loadLeads = () => {
+  }, []);  const loadLeads = async () => {
     try {
       const activeRole = localStorage.getItem('activeRole');
       const authUserStr = localStorage.getItem('authUser');
@@ -336,7 +336,7 @@ export default function LeadAssignment() {
       if (allowedDesigArr.length > 0) setSelectedDesignation(allowedDesigArr[0]);
 
       // Fetch Subordinates Hierarchy
-      const subordinates = employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
+      const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
       setAllSubordinates(subordinates);
 
       // Fetch Leads
