@@ -47,7 +47,7 @@ export default function LeadPipelineTracking() {
       if (authUser) {
         currentRole = authUser.roleId || authUser.role || 'SUPER_ADMIN';
         currentName = authUser.fullName || authUser.name || authUser.adminName || 'Super Admin';
-        currentEmpId = authUser.id || authUser.employeeId || '';
+        currentEmpId = authUser.employeeId || '';
       } else if (activeRole) {
         currentRole = activeRole;
         if (activeRole === 'SUPER_ADMIN') {
