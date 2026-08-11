@@ -157,6 +157,7 @@ model Product {
   retailerOrderItems     RetailerOrderItem[]
   schemeMasters          SchemeMaster[]
   warehouseTransferItems WarehouseTransferItem[]
+  countryPricings        CountryPricing[]
 }
 
 model Batch {
@@ -1067,7 +1068,6 @@ model Composition {
   updatedAt        DateTime @default(now()) @updatedAt
 }
 
-
 model Employee {
   id                     Int                @id @default(autoincrement())
   employeeCode           String             @unique
@@ -1164,4 +1164,85 @@ enum Role {
   NATIONAL_SALES_HEAD
   REGIONAL_SALES_MANAGER
   AREA_SALES_MANAGER
+}
+
+// ==========================================
+// EXPORT & GLOBAL OPERATIONS MODULE
+// ==========================================
+
+model CurrencyMaster {
+  id              Int              @id @default(autoincrement())
+  code            String           @unique // e.g. USD, EUR, GBP
+  name            String
+  exchangeRate    Float // Rate against base currency (INR)
+  isActive        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @default(now()) @updatedAt
+  countryPricing  CountryPricing[]
+  exportCustomers ExportCustomer[]
+  exportOrders    ExportOrder[]
+}
+
+model CountryPricing {
+  id         Int      @id @default(autoincrement())
+  country    String
+  productId  Int
+  price      Float
+  currencyId Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @default(now()) @updatedAt
+
+  product  Product        @relation(fields: [productId], references: [id])
+  currency CurrencyMaster @relation(fields: [currencyId], references: [id])
+
+  @@unique([country, productId])
+}
+
+model ExportCustomer {
+  id              Int      @id @default(autoincrement())
+  name            String
+  country         String
+  iecCode         String? // Import Export Code
+  currencyId      Int
+  billingAddress  String?
+  shippingAddress String?
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @default(now()) @updatedAt
+
+  currency     CurrencyMaster @relation(fields: [currencyId], references: [id])
+  exportOrders ExportOrder[]
+}
+
+model ExportOrder {
+  id                  Int      @id @default(autoincrement())
+  orderNumber         String   @unique
+  customerId          Int
+  currencyId          Int
+  exchangeRateApplied Float
+  status              String   @default("Draft") // Draft, Processing, Shipped, Cleared
+  shippingMode        String?
+  portOfLoading       String?
+  destinationPort     String?
+  trackingNumber      String?
+  totalAmount         Float    @default(0)
+  totalAmountINR      Float    @default(0)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @default(now()) @updatedAt
+
+  customer  ExportCustomer   @relation(fields: [customerId], references: [id])
+  currency  CurrencyMaster   @relation(fields: [currencyId], references: [id])
+  documents ExportDocument[]
+}
+
+model ExportDocument {
+  id           Int      @id @default(autoincrement())
+  orderId      Int
+  documentType String // e.g. Invoice, Packing List, FDA Cert, GMP Cert, Bill of Lading
+  fileUrl      String // Path on the server
+  status       String   @default("Uploaded")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @default(now()) @updatedAt
+
+  order ExportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
