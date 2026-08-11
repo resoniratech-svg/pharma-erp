@@ -139,11 +139,19 @@ import DoctorCRM from '../../modules/crm/DoctorCRM';
 import DistributorCRM from '../../modules/crm/DistributorCRM';
 import SalesPipeline from '../../modules/crm/SalesPipeline';
 
+// Export Operations Module
+import ExportDashboard from '../../modules/exports/ExportDashboard';
+import CurrencyAndPricing from '../../modules/exports/CurrencyAndPricing';
+import ExportCustomers from '../../modules/exports/ExportCustomers';
+import ExportOrders from '../../modules/exports/ExportOrders';
+import ShippingAndDocs from '../../modules/exports/ShippingAndDocs';
+
 // Finance Module
-import PartyLedger from '../../modules/finance/PartyLedger';
-import Outstanding from '../../modules/finance/Outstanding';
-import AgingReports from '../../modules/finance/AgingReports';
-import FinancePayments from '../../modules/finance/Payments';
+import Ledger from '../../modules/finance/Ledger';
+import CashBook from '../../modules/finance/CashBook';
+import BankBook from '../../modules/finance/BankBook';
+import JournalBook from '../../modules/finance/JournalBook';
+import TrialBalance from '../../modules/finance/TrialBalance';
 import Commission from '../../modules/finance/Commission';
 import ProfitLoss from '../../modules/finance/ProfitLoss';
 import BalanceSheet from '../../modules/finance/BalanceSheet';
@@ -183,7 +191,6 @@ import DispatchMonitoring from '../../modules/super-admin/DispatchMonitoring';
 import FranchiseMonitoring from '../../modules/super-admin/FranchiseMonitoring';
 import SuperAdminNotificationCenter from '../../modules/super-admin/NotificationCenter';
 import UserActivityLogs from '../../modules/super-admin/UserActivityLogs';
-import ExportOrderMonitoring from '../../modules/super-admin/ExportOrderMonitoring';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 import ResetPassword from '../../pages/ResetPassword';
 
@@ -352,7 +359,6 @@ export const router = createBrowserRouter([
           { path: 'pending-payment-tracking', element: <PendingPaymentTracking /> },
           { path: 'dispatch-monitoring', element: <DispatchMonitoring /> },
           { path: 'franchise-monitoring', element: <FranchiseMonitoring /> },
-          { path: 'export-order-monitoring', element: <ExportOrderMonitoring /> },
           { path: 'notification-center', element: <SuperAdminNotificationCenter /> },
           { path: 'user-activity-logs', element: <UserActivityLogs /> },
         ],
@@ -543,19 +549,36 @@ export const router = createBrowserRouter([
           { path: 'lead-conversion-tracking', element: <LeadConversionTracking /> },
         ],
       }
-    ],
-  },
-  {
-    path: '/workspace/finance',
+      ],
+    },
+    {
+      path: '/workspace/export-operations',
+      element: <MainLayout />,
+      children: [
+        {
+          element: <ProtectedRoute moduleLabel="Export & Global Operations" />,
+          children: [
+            { path: 'dashboard', element: <ExportDashboard /> },
+            { path: 'currency-pricing', element: <CurrencyAndPricing /> },
+            { path: 'customers', element: <ExportCustomers /> },
+            { path: 'orders', element: <ExportOrders /> },
+            { path: 'shipping-docs', element: <ShippingAndDocs /> },
+          ],
+        }
+      ],
+    },
+    {
+      path: '/workspace/finance',
     element: <MainLayout />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="Accounting & Finance" />,
         children: [
-          { path: 'ledger', element: <PartyLedger /> },
-          { path: 'outstanding', element: <Outstanding /> },
-          { path: 'aging', element: <AgingReports /> },
-          { path: 'payments', element: <FinancePayments /> },
+          { path: 'ledger', element: <Ledger /> },
+          { path: 'cash-book', element: <CashBook /> },
+          { path: 'bank-book', element: <BankBook /> },
+          { path: 'journal-book', element: <JournalBook /> },
+          { path: 'trial-balance', element: <TrialBalance /> },
           { path: 'commission', element: <Commission /> },
           { path: 'pnl', element: <ProfitLoss /> },
           { path: 'balance-sheet', element: <BalanceSheet /> },

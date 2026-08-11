@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient';
+
 export interface Activity {
   id: string;
   mrId: number;
@@ -46,10 +48,28 @@ function getLocalFollowUps(): FollowUp[] {
 
 export const crmService = {
   async getActivities(): Promise<Activity[]> {
+    try {
+      const res = await apiRequest<{ success: boolean; data: Activity[] }>('/activities');
+      if (res.success && res.data) {
+        localStorage.setItem(ACTIVITIES_KEY, JSON.stringify(res.data));
+        return res.data;
+      }
+    } catch (e) {
+      console.error(e);
+    }
     return getLocalActivities();
   },
 
   async getFollowUps(): Promise<FollowUp[]> {
+    try {
+      const res = await apiRequest<{ success: boolean; data: FollowUp[] }>('/follow-ups');
+      if (res.success && res.data) {
+        localStorage.setItem(FOLLOWUPS_KEY, JSON.stringify(res.data));
+        return res.data;
+      }
+    } catch (e) {
+      console.error(e);
+    }
     return getLocalFollowUps();
   }
 };

@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient';
+
 export interface MRMeeting {
   id: string;
   title: string;
@@ -40,55 +42,66 @@ export const meetingService = {
   },
 
   async loadMeetings(mrId: number): Promise<MRMeeting[]> {
+    try {
+      const res = await apiRequest<{ success: boolean; data: MRMeeting[] }>(`/meetings?mrId=${mrId}`);
+      if (res.success && res.data) {
+        saveLocalMeetings(res.data);
+        return res.data;
+      }
+    } catch (e) {
+      console.error(e);
+    }
     return getLocalMeetings();
   },
 
   async addMeeting(mrId: number, meeting: Partial<MRMeeting> & { doctorId?: number; chemistId?: number }): Promise<MRMeeting> {
-    const meetings = getLocalMeetings();
-    const newId = String(Date.now());
-    
-    const mapped: MRMeeting = {
-      id: newId,
-      title: meeting.title || "Meeting",
-      type: meeting.type || 'Cycle Meeting',
-      organizer: meeting.organizer || "Medical Representative",
-      location: meeting.location || 'Office',
-      meetingMode: meeting.meetingMode || 'Offline',
-      date: meeting.date || new Date().toISOString().split('T')[0],
-      time: meeting.time || "10:00",
-      rawTime: meeting.rawTime || meeting.time || '10:00',
-      priority: meeting.priority || 'Medium',
-      reminder: meeting.reminder || '15 Minutes',
-      status: 'Scheduled',
-      agenda: meeting.agenda || "",
-      participants: meeting.participants || '',
-      attendeesCount: meeting.attendeesCount || 0,
-      followUpDate: meeting.followUpDate || '',
-      outcome: meeting.outcome || '',
-    };
-    
-    meetings.push(mapped);
-    saveLocalMeetings(meetings);
-    return mapped;
+    try {
+      const res = await apiRequest<{ success: boolean; data: MRMeeting }>('/meetings', {
+        method: 'POST',
+        bodyData: { ...meeting, mrId }
+      });
+      if (res.success && res.data) {
+        const meetings = getLocalMeetings();
+        meetings.push(res.data);
+        saveLocalMeetings(meetings);
+        return res.data;
+      }
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+    throw new Error('Failed to create meeting');
   },
 
   async updateMeeting(id: number | string, data: Partial<MRMeeting>): Promise<boolean> {
-    const meetings = getLocalMeetings();
-    const index = meetings.findIndex(m => m.id === String(id));
-    if (index === -1) return false;
-    
-    meetings[index] = { ...meetings[index], ...data };
-    saveLocalMeetings(meetings);
-    return true;
+    try {
+      const res = await apiRequest<{ success: boolean; data: MRMeeting }>(`/meetings/${id}`, {
+        method: 'PUT',
+        bodyData: data
+      });
+      if (res.success && res.data) {
+        const meetings = getLocalMeetings();
+        const index = meetings.findIndex(m => String(m.id) === String(id));
+        if (index !== -1) {
+          meetings[index] = res.data;
+          saveLocalMeetings(meetings);
+        }
+        return true;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
   },
 
   async deleteMeeting(id: number | string): Promise<boolean> {
-    const meetings = getLocalMeetings();
-    const filtered = meetings.filter(m => m.id !== String(id));
-    if (meetings.length === filtered.length) return false;
-    
-    saveLocalMeetings(filtered);
-    return true;
+    try {
+      const res = await apiRequest<{ success: boolean }>(`/meetings/${id}`, { method: 'DELETE' });
+      if (res.success) return true;
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
   },
 
   async completeMeeting(id: number | string): Promise<boolean> {

@@ -246,12 +246,13 @@ export default function RSMManagement() {
     { key: 'name', label: 'RSM Name' },
     { 
       key: 'states', 
-      label: 'State (Territory)',
+      label: 'State(s)',
       render: (row: any) => {
         const states = row.states || (row.state ? [row.state] : []);
         return states.length > 0 ? states.join(', ') : (row.area || '-');
       }
     },
+    { key: 'territory', label: 'Territory', render: (row: any) => row.territory || '-' },
     { key: 'hq', label: 'Headquarters', render: (row: any) => row.hq || '-' },
     {
       key: 'status',

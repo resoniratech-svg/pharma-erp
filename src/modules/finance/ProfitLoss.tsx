@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Download, Printer } from 'lucide-react';
 import { PageHeader, FilterBar, SelectFilter, ActionButton } from './components/shared';
 import { financeService } from '../../services/financeService';
@@ -46,7 +46,7 @@ export default function ProfitLoss() {
     }
   };
 
-  const formatCurrency = (val: number) => `,1 ${val.toLocaleString('en-IN')}`;
+  const formatCurrency = (val: number) => `₹${val.toLocaleString('en-IN')}`;
 
   const totalIncome = incomes.reduce((acc, curr) => acc + curr.amount, 0);
   const totalExpenses = expenses.reduce((acc, curr) => acc + curr.amount, 0);
@@ -164,3 +164,4 @@ export default function ProfitLoss() {
     </div>
   );
 }
+

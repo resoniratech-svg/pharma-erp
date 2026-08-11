@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Download, Printer } from 'lucide-react';
 import { PageHeader, FilterBar, SelectFilter, ActionButton, DataTable } from './components/shared';
 import { type Column } from './components/shared';
@@ -43,7 +43,7 @@ export default function TrialBalance() {
     }
   };
 
-  const formatCurrency = (val: number) => val === 0 ? '-' : `,1 ${val.toLocaleString('en-IN')}`;
+  const formatCurrency = (val: number) => val === 0 ? '-' : `₹${val.toLocaleString('en-IN')}`;
 
   const columns: Column<TrialBalanceItem>[] = [
     { key: 'ledgerName', label: 'Ledger Name', render: (row) => <span className="font-medium text-slate-800">{row.ledgerName}</span> },
@@ -116,11 +116,11 @@ export default function TrialBalance() {
               <div className="flex gap-16 pr-12">
                 <div className="flex flex-col items-end w-32">
                   <span className="text-xs text-slate-500 mb-1">Total Debit</span>
-                  <span className="font-bold text-[#163c78] border-b-2 border-double border-[#163c78]">{totalDebit === 0 ? '-' : `,1 ${totalDebit.toLocaleString('en-IN')}`}</span>
+                  <span className="font-bold text-[#163c78] border-b-2 border-double border-[#163c78]">{totalDebit === 0 ? '-' : `₹${totalDebit.toLocaleString('en-IN')}`}</span>
                 </div>
                 <div className="flex flex-col items-end w-32">
                   <span className="text-xs text-slate-500 mb-1">Total Credit</span>
-                  <span className="font-bold text-[#163c78] border-b-2 border-double border-[#163c78]">{totalCredit === 0 ? '-' : `,1 ${totalCredit.toLocaleString('en-IN')}`}</span>
+                  <span className="font-bold text-[#163c78] border-b-2 border-double border-[#163c78]">{totalCredit === 0 ? '-' : `₹${totalCredit.toLocaleString('en-IN')}`}</span>
                 </div>
               </div>
             </div>
@@ -135,3 +135,4 @@ export default function TrialBalance() {
     </div>
   );
 }
+

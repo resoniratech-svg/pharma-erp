@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient';
+
 export type LeadStatus = 'NEW' | 'CONTACTED' | 'ASSIGNED' | 'QUALIFIED' | 'CONVERTED' | 'LOST';
 
 export interface Lead {
@@ -46,12 +48,27 @@ function saveLocalLeads(leads: Lead[]) {
 
 export const leadService = {
   async getAll(): Promise<Lead[]> {
+    try {
+      const res = await apiRequest<{ success: boolean; data: Lead[] }>('/leads');
+      if (res.success && res.data) {
+        saveLocalLeads(res.data);
+        return res.data;
+      }
+    } catch (e) {
+      console.error(e);
+    }
     return getLocalLeads();
   },
 
   async getById(id: string): Promise<Lead | null> {
+    try {
+      const res = await apiRequest<{ success: boolean; data: Lead }>(`/leads/${id}`);
+      if (res.success && res.data) return res.data;
+    } catch (e) {
+      console.error(e);
+    }
     const leads = getLocalLeads();
-    return leads.find(l => l.id === id) || null;
+    return leads.find(l => String(l.id) === String(id)) || null;
   },
 
   async create(data: {
@@ -76,49 +93,43 @@ export const leadService = {
       name: string;
     };
   }): Promise<Lead> {
-    const leads = getLocalLeads();
-    const newId = String(Date.now());
-    const leadCode = `LEAD-${newId.slice(-4)}`;
-    
-    const newLead: Lead = {
-      id: newId,
-      leadCode,
-      name: data.name || '',
-      type: data.type || 'Doctor',
-      mobile: data.mobile || '',
-      email: data.email || '',
-      address: data.address || '',
-      territory: data.territory || '',
-      source: data.source || '',
-      status: 'NEW',
-      assignedMrId: null,
-      assignedMrName: data.assignedTo || '',
-      createdAt: new Date().toISOString(),
-      createdByEmpId: data.creatorInfo?.empId,
-      createdByRole: data.creatorInfo?.role,
-      createdByName: data.creatorInfo?.name,
-      contactPerson: data.contactPerson,
-      leadDate: data.leadDate,
-      state: data.state,
-      district: data.district,
-      city: data.city,
-      priority: data.priority,
-      followUpDate: data.followUpDate,
-    };
-    
-    leads.push(newLead);
-    saveLocalLeads(leads);
-    return newLead;
+    try {
+      const res = await apiRequest<{ success: boolean; data: Lead }>('/leads', {
+        method: 'POST',
+        bodyData: data
+      });
+      if (res.success && res.data) {
+        const leads = getLocalLeads();
+        leads.push(res.data);
+        saveLocalLeads(leads);
+        return res.data;
+      }
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+    throw new Error('Failed to create lead');
   },
 
   async update(id: string, updates: Partial<Lead>): Promise<Lead | null> {
-    const leads = getLocalLeads();
-    const index = leads.findIndex(l => l.id === id);
-    if (index === -1) return null;
-    
-    leads[index] = { ...leads[index], ...updates };
-    saveLocalLeads(leads);
-    return leads[index];
+    try {
+      const res = await apiRequest<{ success: boolean; data: Lead }>(`/leads/${id}`, {
+        method: 'PUT',
+        bodyData: updates
+      });
+      if (res.success && res.data) {
+        const leads = getLocalLeads();
+        const idx = leads.findIndex(l => String(l.id) === String(id));
+        if (idx !== -1) {
+          leads[idx] = res.data;
+          saveLocalLeads(leads);
+        }
+        return res.data;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
   },
 
   async updateStatus(id: string, status: LeadStatus): Promise<Lead | null> {
@@ -126,20 +137,38 @@ export const leadService = {
   },
 
   async assign(id: string, mrId: number): Promise<Lead | null> {
-    const mrName = `MR-${mrId}`; // Mock MR name based on ID
-    return this.update(id, { assignedMrId: mrId, assignedMrName: mrName });
+    try {
+      const res = await apiRequest<{ success: boolean; data: Lead }>(`/leads/${id}/assign`, {
+        method: 'PATCH',
+        bodyData: { mrId }
+      });
+      if (res.success && res.data) return res.data;
+    } catch (e) {
+      console.error(e);
+    }
+    return this.update(id, { assignedMrId: mrId, assignedMrName: `MR-${mrId}` }); // Fallback
   },
 
   async convert(id: string): Promise<Lead | null> {
+    try {
+      const res = await apiRequest<{ success: boolean; data: Lead }>(`/leads/${id}/convert`, {
+        method: 'PATCH'
+      });
+      if (res.success && res.data) return res.data;
+    } catch (e) {
+      console.error(e);
+    }
     return this.update(id, { status: 'CONVERTED' });
   },
 
   async delete(id: string): Promise<boolean> {
-    const leads = getLocalLeads();
-    const filtered = leads.filter(l => l.id !== id);
-    if (leads.length === filtered.length) return false;
-    saveLocalLeads(filtered);
-    return true;
+    try {
+      const res = await apiRequest<{ success: boolean }>(`/leads/${id}`, { method: 'DELETE' });
+      if (res.success) return true;
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
   },
 };
 

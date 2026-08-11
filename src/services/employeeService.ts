@@ -55,6 +55,23 @@ class EmployeeService {
   }
 
   async getEmployees(params?: { designation?: string; reportsToId?: string | number; status?: string }): Promise<Employee[]> {
+    try {
+      const qs = new URLSearchParams();
+      if (params?.designation) qs.append('designation', params.designation);
+      if (params?.reportsToId) qs.append('reportsToId', String(params.reportsToId));
+      if (params?.status) qs.append('status', params.status);
+
+      const response = await apiRequest<{ success: boolean; data: Employee[] }>(`/sales-organization/employees?${qs.toString()}`);
+      if (response.success && response.data) {
+        // Sync local cache with backend data to keep sync functions working
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(response.data));
+        return response.data;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch from backend, falling back to local cache', error);
+    }
+    
+    // Fallback logic
     let emps = this.getLocalEmployees();
     let madeFixes = false;
 
@@ -86,6 +103,14 @@ class EmployeeService {
   }
 
   async getEmployeeById(id: string | number): Promise<Employee | undefined> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: Employee }>(`/sales-organization/employees/${id}`);
+      if (response.success && response.data) {
+        return response.data;
+      }
+    } catch (error) {
+      console.warn('Failed to fetch from backend, falling back to local cache', error);
+    }
     const emps = this.getLocalEmployees();
     return emps.find(e => String(e.id) === String(id));
   }
@@ -109,40 +134,22 @@ class EmployeeService {
     status?: 'Active' | 'Inactive';
     employeeCode?: string;
   }): Promise<Employee> {
-    let resolvedReportsToId = emp.reportsToId ? String(emp.reportsToId) : undefined;
-    
-    // Auto-resolve reportsToId if missing but name is provided
-    if (!resolvedReportsToId && emp.reportsTo && emp.reportsTo !== 'Owner / Super Admin') {
-      const emps = this.getLocalEmployees();
-      const manager = emps.find(e => e.employeeName === emp.reportsTo);
-      if (manager) {
-        resolvedReportsToId = String(manager.id);
+    try {
+      const response = await apiRequest<{ success: boolean; data: Employee }>('/sales-organization/employees', {
+        method: 'POST',
+        bodyData: emp
+      });
+      
+      if (response.success && response.data) {
+        this.updateLocalCache(response.data);
+        return response.data;
       }
+    } catch (error) {
+      console.error('Failed to create employee on backend:', error);
+      throw error;
     }
 
-    const newEmp: Employee = {
-      id: Date.now().toString(),
-      employeeCode: emp.employeeCode || this.generateNextEmployeeCode(emp.designation),
-      employeeName: emp.employeeName,
-      designation: emp.designation,
-      reportsTo: emp.reportsTo || 'Owner / Super Admin',
-      reportsToId: resolvedReportsToId,
-      zone: emp.zone || '',
-      region: emp.region || '',
-      state: emp.state || '',
-      territory: emp.territory || '',
-      area: emp.area || '',
-      headquarters: emp.headquarters || '',
-      status: emp.status || 'Active',
-      joiningDate: emp.joiningDate || new Date().toISOString().split('T')[0],
-      ...(emp.states ? { states: emp.states } : {}),
-      ...(emp.email ? { email: emp.email } : {}),
-      ...(emp.mobile ? { mobile: emp.mobile } : {}),
-      ...(emp.password ? { password: emp.password } : {}),
-    } as any;
-
-    this.updateLocalCache(newEmp);
-    return newEmp;
+    throw new Error('Failed to create employee');
   }
 
   buildOrganizationTree(): OrganizationNode {
@@ -215,25 +222,22 @@ class EmployeeService {
   }
 
   async updateEmployee(id: string | number, updated: Partial<Employee & { email?: string; mobile?: string; states?: string[]; password?: string }>): Promise<Employee | null> {
-    const emps = this.getLocalEmployees();
-    const idx = emps.findIndex(e => String(e.id) === String(id));
-    if (idx === -1) throw new Error('Employee not found');
-    
-    const existing = emps[idx];
+    try {
+      const response = await apiRequest<{ success: boolean; data: Employee }>(`/sales-organization/employees/${id}`, {
+        method: 'PUT',
+        bodyData: updated
+      });
 
-    let resolvedReportsToId = updated.reportsToId ? String(updated.reportsToId) : existing.reportsToId;
-    if (updated.reportsTo && updated.reportsTo !== 'Owner / Super Admin') {
-       if (updated.reportsTo !== existing.reportsTo) {
-          const manager = emps.find(e => e.employeeName === updated.reportsTo);
-          if (manager) resolvedReportsToId = String(manager.id);
-       }
-    } else if (updated.reportsTo === 'Owner / Super Admin') {
-       resolvedReportsToId = undefined;
+      if (response.success && response.data) {
+        this.updateLocalCache(response.data);
+        return response.data;
+      }
+    } catch (error) {
+      console.error('Failed to update employee on backend:', error);
+      throw error;
     }
 
-    const newEmp = { ...existing, ...updated, reportsToId: resolvedReportsToId };
-    this.updateLocalCache(newEmp as Employee);
-    return newEmp as Employee;
+    return null;
   }
 
   async deactivateEmployee(id: string | number): Promise<boolean> {

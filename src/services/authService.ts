@@ -210,35 +210,44 @@ export class AuthService {
   }
   async login(email: string, password: string, force = false): Promise<UserRecord> {
     try {
-      // Bypass the API request and use the existing local mock logic
-      const { user, mappedRoleId } = await this.localLogin(email, password);
+      const response = await apiRequest<{ success: boolean; data: any }>('/auth/login', {
+        method: 'POST',
+        bodyData: { email, password }
+      });
 
-      // Map local user to UserRecord format
+      if (!response.success || !response.data) {
+        throw new Error('Invalid email or password.');
+      }
+
+      const { token, user, mr, employee } = response.data;
+
+      // Map backend user to frontend UserRecord format
+      const mappedRole = user.role === 'ADMIN' ? 'COMPANY_ADMIN' : user.role;
       const userRecord: UserRecord = {
         id: String(user.id),
-        fullName: user.name || user.fullName || '',
-        email: user.email || email,
-        roleId: mappedRoleId,
-        mobile: user.mobile || '',
-        employeeCode: user.employeeCode || '',
-        linkedDistributorCode: user.linkedDistributorCode || '',
-        department: user.department || 'Management',
-        password: password,
+        fullName: user.name,
+        email: user.email,
+        roleId: mappedRole,
+        mobile: '',
+        employeeCode: employee ? employee.employeeCode : (mr ? mr.mrCode : ((user as any).linkedRetailerCode || '')),
+        linkedDistributorCode: (user as any).linkedDistributorCode || '',
+        department: employee ? 'Sales Hierarchy' : (mr ? 'Sales & Marketing' : 'Management'),
+        password: password, // Keep the entered password for compatibility with settings
       };
 
-      // Set standard frontend auth tokens
-      localStorage.setItem('authToken', 'mock-local-token-12345');
+      localStorage.setItem('authToken', token);
       localStorage.setItem('authUser', JSON.stringify(userRecord));
-      localStorage.setItem('activeRole', mappedRoleId);
+      localStorage.setItem('activeRole', mappedRole);
       localStorage.setItem('userId', String(user.id));
-      
-      // Optional: Set specific entity variables if they exist in local mock data
-      if (user.employeeCode) {
-        localStorage.setItem('employeeCode', user.employeeCode);
+      if (employee) {
+        localStorage.setItem('employeeId', String(employee.id));
+        localStorage.setItem('employeeCode', employee.employeeCode || '');
+        localStorage.setItem('employeeDesignation', employee.designation || '');
       }
-      if (user.mrCode) {
-        localStorage.setItem('mrCode', user.mrCode);
-        localStorage.setItem('mrTerritory', user.territory || '');
+      if (mr) {
+        localStorage.setItem('mrId', String(mr.id));
+        localStorage.setItem('mrCode', mr.mrCode);
+        localStorage.setItem('mrTerritory', mr.territory || '');
       }
 
       return userRecord;

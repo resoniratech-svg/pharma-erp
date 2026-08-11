@@ -954,8 +954,10 @@ export default function ActivityTracking() {
   ];
 
   const filteredData = activities.filter((item) => {
-    const matchesSearch = item.title.toLowerCase().includes(search.toLowerCase()) || 
-                          item.subtitle.toLowerCase().includes(search.toLowerCase());
+    const title = item.title || '';
+    const subtitle = item.subtitle || '';
+    const matchesSearch = title.toLowerCase().includes(search.toLowerCase()) || 
+                          subtitle.toLowerCase().includes(search.toLowerCase());
     const matchesType = filterType === 'All' || item.type === filterType;
     let matchesDate = true;
     if (filterDate) {

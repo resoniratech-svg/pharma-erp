@@ -1,9 +1,9 @@
-export const getBaseUrl = () => {
-  return import.meta.env.VITE_API_URL || 'https://pharma-erp-pharma-backend.rrh5yv.easypanel.host/api';
+export const getApiUrl = () => {
+  return import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 };
 
 export const apiRequest = async (endpoint: string, options: RequestInit = {}) => {
-  const baseUrl = getBaseUrl();
+  const baseUrl = getApiUrl();
   const token = localStorage.getItem('authToken');
 
   const headers: HeadersInit = {

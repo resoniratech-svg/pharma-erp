@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Eye, Download, Printer, Plus, X } from 'lucide-react';
 import { PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton, DataTable, Badge } from './components/shared';
 import { type Column } from './components/shared';
@@ -190,8 +190,8 @@ export default function LedgerBook() {
     }
   };
 
-  const formatCurrency = (val: number, type: 'DR' | 'CR') => `,1 ${val.toLocaleString('en-IN')} ${type}`;
-  const formatAmount = (val: number) => val === 0 ? '-' : `,1 ${val.toLocaleString('en-IN')}`;
+  const formatCurrency = (val: number, type: 'DR' | 'CR') => `₹${val.toLocaleString('en-IN')} ${type}`;
+  const formatAmount = (val: number) => val === 0 ? '-' : `₹${val.toLocaleString('en-IN')}`;
 
   const filteredData = data.filter(item => item.name.toLowerCase().includes(search.toLowerCase()) || item.group.toLowerCase().includes(search.toLowerCase()));
 
@@ -369,3 +369,4 @@ export default function LedgerBook() {
     </div>
   );
 }
+

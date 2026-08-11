@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Download, Printer } from 'lucide-react';
 import { PageHeader, FilterBar, SelectFilter, ActionButton } from './components/shared';
 import { financeService } from '../../services/financeService';
@@ -49,7 +49,7 @@ export default function BalanceSheet() {
     }
   };
 
-  const formatCurrency = (val: number) => `,1 ${val.toLocaleString('en-IN')}`;
+  const formatCurrency = (val: number) => `₹${val.toLocaleString('en-IN')}`;
 
   const totalLiabilities = liabilities.reduce((acc, curr) => acc + curr.amount, 0) + (netProfit > 0 ? netProfit : 0);
   const totalAssets = assets.reduce((acc, curr) => acc + curr.amount, 0) + (netProfit < 0 ? Math.abs(netProfit) : 0);
@@ -166,3 +166,4 @@ export default function BalanceSheet() {
     </div>
   );
 }
+

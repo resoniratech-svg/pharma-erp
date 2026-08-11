@@ -19,6 +19,7 @@ export const ROLE_PERMISSIONS: Record<string, string[]> = {
     'Product Management',
     'Inventory & Warehouse Management',
     'C&F Management',
+    'Export & Global Operations',
     'Distributor/Stockist Portal',
     'Retailer Ordering System',
     'MR (Medical Representative)',

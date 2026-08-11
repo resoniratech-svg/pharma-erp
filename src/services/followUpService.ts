@@ -1,3 +1,5 @@
+import { apiRequest } from './apiClient';
+
 export interface FollowUp {
   id: string;
   title: string;
@@ -33,10 +35,25 @@ function saveLocalFollowUps(items: FollowUp[]) {
 
 export const followUpService = {
   async getAll(): Promise<FollowUp[]> {
+    try {
+      const res = await apiRequest<{ success: boolean; data: FollowUp[] }>('/follow-ups');
+      if (res.success && res.data) {
+        saveLocalFollowUps(res.data);
+        return res.data;
+      }
+    } catch (e) {
+      console.error(e);
+    }
     return getLocalFollowUps();
   },
 
   async getByMr(mrId: number): Promise<FollowUp[]> {
+    try {
+      const res = await apiRequest<{ success: boolean; data: FollowUp[] }>(`/follow-ups?mrId=${mrId}`);
+      if (res.success && res.data) return res.data;
+    } catch (e) {
+      console.error(e);
+    }
     return getLocalFollowUps().filter(f => f.mrId === mrId);
   },
 
@@ -53,47 +70,52 @@ export const followUpService = {
     method?: string;
     nextFollowUpDate?: string;
   }): Promise<FollowUp> {
-    const items = getLocalFollowUps();
-    const newId = String(Date.now());
-    
-    const newFollowUp: FollowUp = {
-      id: newId,
-      title: data.title || '',
-      remarks: data.remarks || '',
-      followUpDate: data.followUpDate ? new Date(data.followUpDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-      status: 'PENDING',
-      mrId: data.mrId,
-      doctorId: data.doctorId,
-      chemistId: data.chemistId,
-      meetingId: data.meetingId,
-      leadId: data.leadId,
-      type: data.type || '',
-      method: data.method || '',
-      nextFollowUpDate: data.nextFollowUpDate ? new Date(data.nextFollowUpDate).toISOString().split('T')[0] : undefined,
-      createdAt: new Date().toISOString(),
-    };
-    
-    items.push(newFollowUp);
-    saveLocalFollowUps(items);
-    return newFollowUp;
+    try {
+      const res = await apiRequest<{ success: boolean; data: FollowUp }>('/follow-ups', {
+        method: 'POST',
+        bodyData: data
+      });
+      if (res.success && res.data) {
+        const items = getLocalFollowUps();
+        items.push(res.data);
+        saveLocalFollowUps(items);
+        return res.data;
+      }
+    } catch (e) {
+      console.error(e);
+      throw e;
+    }
+    throw new Error('Failed to create follow-up');
   },
 
   async update(id: string, updates: Partial<FollowUp>): Promise<FollowUp | null> {
-    const items = getLocalFollowUps();
-    const index = items.findIndex(f => f.id === id);
-    if (index === -1) return null;
-    
-    items[index] = { ...items[index], ...updates };
-    saveLocalFollowUps(items);
-    return items[index];
+    try {
+      const res = await apiRequest<{ success: boolean; data: FollowUp }>(`/follow-ups/${id}`, {
+        method: 'PUT',
+        bodyData: updates
+      });
+      if (res.success && res.data) {
+        const items = getLocalFollowUps();
+        const index = items.findIndex(f => String(f.id) === String(id));
+        if (index !== -1) {
+          items[index] = res.data;
+          saveLocalFollowUps(items);
+        }
+        return res.data;
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    return null;
   },
 
   async delete(id: string): Promise<boolean> {
-    const items = getLocalFollowUps();
-    const filtered = items.filter(f => f.id !== id);
-    if (items.length === filtered.length) return false;
-    
-    saveLocalFollowUps(filtered);
-    return true;
+    try {
+      const res = await apiRequest<{ success: boolean }>(`/follow-ups/${id}`, { method: 'DELETE' });
+      if (res.success) return true;
+    } catch (e) {
+      console.error(e);
+    }
+    return false;
   },
 };

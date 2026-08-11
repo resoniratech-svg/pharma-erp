@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+﻿import { useState, useEffect } from 'react';
 import { Plus, Eye, Edit, Trash2, Printer } from 'lucide-react';
 import { PageHeader, FilterBar, SearchInput, ActionButton, DataTable, Drawer, DrawerField } from './components/shared';
 import { type Column } from './components/shared';
@@ -87,7 +87,7 @@ export default function JournalBook() {
            item.creditLedger.toLowerCase().includes(search.toLowerCase());
   });
 
-  const formatCurrency = (val: number) => `,1 ${val.toLocaleString('en-IN')}`;
+  const formatCurrency = (val: number) => `₹${val.toLocaleString('en-IN')}`;
 
   const handleSave = async () => {
     if (!formData.debitLedgerId || !formData.creditLedgerId || !formData.amount) {
@@ -237,3 +237,4 @@ export default function JournalBook() {
     </div>
   );
 }
+
