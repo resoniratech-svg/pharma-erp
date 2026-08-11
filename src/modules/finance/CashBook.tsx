@@ -1,4 +1,4 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Eye, Edit, Trash2, Printer } from 'lucide-react';
 import { PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton, DataTable, Drawer, DrawerField, Badge } from './components/shared';
 import { type Column } from './components/shared';
@@ -149,7 +149,7 @@ export default function CashBook() {
     { key: 'actions', label: 'Actions', render: (row) => (
       <div className="flex items-center gap-2">
         <button onClick={() => { setViewVoucher(row); setIsDrawerOpen(true); }} className="p-1 text-slate-400 hover:text-[#163c78]" title="View"><Eye className="w-4 h-4" /></button>
-        <button className="p-1 text-slate-400 hover:text-violet-600" title="Print"><Printer className="w-4 h-4" /></button>
+        <button onClick={() => { setViewVoucher(row); setIsDrawerOpen(true); setTimeout(() => window.print(), 100); }} className="p-1 text-slate-400 hover:text-violet-600 print:hidden" title="Print"><Printer className="w-4 h-4" /></button>
       </div>
     )}
   ];

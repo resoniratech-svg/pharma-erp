@@ -87,3 +87,19 @@ body {
   border-radius: 9999px !important;
 }
 
+@media print {
+  aside, header {
+    display: none !important;
+  }
+  main {
+    padding: 0 !important;
+    margin: 0 !important;
+    overflow: visible !important;
+  }
+  button {
+    display: none !important;
+  }
+  .print\:hidden {
+    display: none !important;
+  }
+}

@@ -1,8 +1,9 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Eye, Download, Printer, Plus, X } from 'lucide-react';
 import { PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton, DataTable, Badge } from './components/shared';
 import { type Column } from './components/shared';
 import { financeService, type Ledger, type LedgerTransaction } from '../../services/financeService';
+import { exportToCSV } from '../../utils/exportUtils';
 
 interface LedgerSummary {
   id: string;
@@ -217,20 +218,37 @@ export default function LedgerBook() {
     { key: 'balance', label: 'Balance', render: (row) => <span className="font-semibold text-slate-900">{formatCurrency(row.balance, row.balanceType)}</span> }
   ];
 
+  const handleExport = () => {
+    if (!selectedLedger) return;
+    const exportColumns = [
+      { key: 'date', label: 'Date' },
+      { key: 'particulars', label: 'Particulars' },
+      { key: 'voucherType', label: 'Voucher Type' },
+      { key: 'voucherNo', label: 'Vch No' },
+      { key: 'debit', label: 'Debit' },
+      { key: 'credit', label: 'Credit' },
+      { key: 'balanceFormatted', label: 'Balance' }
+    ];
+    const exportData = transactions.map(t => ({
+      ...t,
+      balanceFormatted: `${t.balance} ${t.balanceType}`
+    }));
+    exportToCSV(exportData, exportColumns, `Ledger_${selectedLedger.name.replace(/\s+/g, '_')}.csv`);
+  };
+
   if (selectedLedger) {
     return (
       <div className="animate-in slide-in-from-right duration-300">
         <div className="flex items-center gap-4 mb-6">
-          <button onClick={() => setSelectedLedger(null)} className="text-slate-500 hover:text-slate-800 font-medium text-sm">&larr; Back to Ledgers</button>
+          <button onClick={() => setSelectedLedger(null)} className="text-slate-500 hover:text-slate-800 font-medium text-sm print:hidden">&larr; Back to Ledgers</button>
         </div>
-
         <PageHeader 
-          title={`${selectedLedger.name} Statement`} 
+          title={`${selectedLedger.name} Statement`}
           subtitle={`Group: ${selectedLedger.group}`}
           actions={
             <div className="flex gap-3">
-              <ActionButton variant="secondary" icon={<Printer className="w-4 h-4" />}>Print</ActionButton>
-              <ActionButton icon={<Download className="w-4 h-4" />}>Export to Excel</ActionButton>
+              <ActionButton variant="secondary" icon={<Printer className="w-4 h-4" />} onClick={() => window.print()}>Print</ActionButton>
+              <ActionButton icon={<Download className="w-4 h-4" />} onClick={handleExport}>Export to Excel</ActionButton>
             </div>
           }
         />

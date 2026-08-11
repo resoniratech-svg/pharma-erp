@@ -1,8 +1,9 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, Printer } from 'lucide-react';
 import { PageHeader, FilterBar, SelectFilter, ActionButton, DataTable } from './components/shared';
 import { type Column } from './components/shared';
 import { financeService } from '../../services/financeService';
+import { exportToCSV } from '../../utils/exportUtils';
 
 interface TrialBalanceItem {
   id: string;
@@ -54,6 +55,20 @@ export default function TrialBalance() {
   const totalDebit = data.reduce((sum, item) => sum + item.debit, 0);
   const totalCredit = data.reduce((sum, item) => sum + item.credit, 0);
 
+  const handleExport = () => {
+    const exportColumns = [
+      { key: 'ledgerName', label: 'Ledger Name' },
+      { key: 'debit', label: 'Debit (INR)' },
+      { key: 'credit', label: 'Credit (INR)' }
+    ];
+    // Create a copy of data and add the totals row at the end
+    const exportData = [
+      ...data,
+      { ledgerName: 'Total', debit: totalDebit, credit: totalCredit }
+    ];
+    exportToCSV(exportData, exportColumns, `Trial_Balance_${fy}.csv`);
+  };
+
   return (
     <div className="animate-in fade-in duration-500">
       <PageHeader 
@@ -61,8 +76,8 @@ export default function TrialBalance() {
         subtitle="Statement of all ledger balances"
         actions={
           <div className="flex gap-3">
-            <ActionButton variant="secondary" icon={<Printer className="w-4 h-4" />}>Print</ActionButton>
-            <ActionButton icon={<Download className="w-4 h-4" />}>Export to Excel</ActionButton>
+            <ActionButton variant="secondary" icon={<Printer className="w-4 h-4" />} onClick={() => window.print()}>Print</ActionButton>
+            <ActionButton icon={<Download className="w-4 h-4" />} onClick={handleExport}>Export to CSV</ActionButton>
           </div>
         }
       />

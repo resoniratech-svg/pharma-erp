@@ -1,7 +1,8 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, Printer } from 'lucide-react';
 import { PageHeader, FilterBar, SelectFilter, ActionButton } from './components/shared';
 import { financeService } from '../../services/financeService';
+import { exportToCSV } from '../../utils/exportUtils';
 
 interface PLAccount {
   id: string;
@@ -54,6 +55,67 @@ export default function ProfitLoss() {
 
   const maxRows = Math.max(incomes.length, expenses.length);
 
+  const handleExport = () => {
+    const rows: any[] = [];
+    const totalRows = Math.max(maxRows, 1);
+
+    for (let i = 0; i < totalRows; i++) {
+      let expName = '';
+      let expAmount = '';
+      let incName = '';
+      let incAmount = '';
+
+      if (i < expenses.length) {
+        expName = expenses[i].name;
+        expAmount = expenses[i].amount.toString();
+      }
+
+      if (i < incomes.length) {
+        incName = incomes[i].name;
+        incAmount = incomes[i].amount.toString();
+      }
+
+      rows.push({
+        'Particulars (Expenses)': expName,
+        'Amount(Dr)': expAmount,
+        'Particulars (Income)': incName,
+        'Amount(Cr)': incAmount
+      });
+    }
+
+    if (netProfit > 0) {
+      rows.push({
+        'Particulars (Expenses)': 'Net Profit',
+        'Amount(Dr)': netProfit.toString(),
+        'Particulars (Income)': '',
+        'Amount(Cr)': ''
+      });
+    } else if (netProfit < 0) {
+       rows.push({
+        'Particulars (Expenses)': '',
+        'Amount(Dr)': '',
+        'Particulars (Income)': 'Net Loss',
+        'Amount(Cr)': Math.abs(netProfit).toString()
+      });
+    }
+
+    rows.push({
+      'Particulars (Expenses)': 'Total',
+      'Amount(Dr)': (totalExpenses + (netProfit > 0 ? netProfit : 0)).toString(),
+      'Particulars (Income)': 'Total',
+      'Amount(Cr)': (totalIncome + (netProfit < 0 ? Math.abs(netProfit) : 0)).toString()
+    });
+
+    const columns = [
+      { key: 'Particulars (Expenses)', label: 'Particulars (Expenses - Dr)' },
+      { key: 'Amount(Dr)', label: 'Amount' },
+      { key: 'Particulars (Income)', label: 'Particulars (Income - Cr)' },
+      { key: 'Amount(Cr)', label: 'Amount' }
+    ];
+
+    exportToCSV(rows, columns, `Profit_Loss_${fy}.csv`);
+  };
+
   return (
     <div className="animate-in fade-in duration-500">
       <PageHeader 
@@ -61,8 +123,8 @@ export default function ProfitLoss() {
         subtitle="Statement of financial performance"
         actions={
           <div className="flex gap-3">
-            <ActionButton variant="secondary" icon={<Printer className="w-4 h-4" />}>Print</ActionButton>
-            <ActionButton icon={<Download className="w-4 h-4" />}>Export Report</ActionButton>
+            <ActionButton variant="secondary" icon={<Printer className="w-4 h-4" />} onClick={() => window.print()}>Print</ActionButton>
+            <ActionButton icon={<Download className="w-4 h-4" />} onClick={handleExport}>Export Report</ActionButton>
           </div>
         }
       />

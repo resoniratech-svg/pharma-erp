@@ -1,7 +1,8 @@
-﻿import { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { Download, Printer } from 'lucide-react';
 import { PageHeader, FilterBar, SelectFilter, ActionButton } from './components/shared';
 import { financeService } from '../../services/financeService';
+import { exportToCSV } from '../../utils/exportUtils';
 
 interface BSAccount {
   id: string;
@@ -56,6 +57,55 @@ export default function BalanceSheet() {
 
   const maxRows = Math.max(liabilities.length + (netProfit > 0 ? 1 : 0), assets.length + (netProfit < 0 ? 1 : 0));
 
+  const handleExport = () => {
+    const rows: any[] = [];
+    for (let i = 0; i < maxRows; i++) {
+      let libName = '';
+      let libAmount = '';
+      let assetName = '';
+      let assetAmount = '';
+
+      if (i < liabilities.length) {
+        libName = liabilities[i].name;
+        libAmount = liabilities[i].amount.toString();
+      } else if (i === liabilities.length && netProfit > 0) {
+        libName = 'Add: Net Profit';
+        libAmount = netProfit.toString();
+      }
+
+      if (i < assets.length) {
+        assetName = assets[i].name;
+        assetAmount = assets[i].amount.toString();
+      } else if (i === assets.length && netProfit < 0) {
+        assetName = 'Add: Net Loss';
+        assetAmount = Math.abs(netProfit).toString();
+      }
+
+      rows.push({
+        'Liabilities & Equity': libName,
+        'Amount(L)': libAmount,
+        'Assets': assetName,
+        'Amount(A)': assetAmount
+      });
+    }
+
+    rows.push({
+      'Liabilities & Equity': 'Total',
+      'Amount(L)': totalLiabilities.toString(),
+      'Assets': 'Total',
+      'Amount(A)': totalAssets.toString()
+    });
+
+    const columns = [
+      { key: 'Liabilities & Equity', label: 'Liabilities & Equity' },
+      { key: 'Amount(L)', label: 'Amount' },
+      { key: 'Assets', label: 'Assets' },
+      { key: 'Amount(A)', label: 'Amount' }
+    ];
+
+    exportToCSV(rows, columns, `Balance_Sheet_${fy}.csv`);
+  };
+
   return (
     <div className="animate-in fade-in duration-500">
       <PageHeader 
@@ -63,8 +113,8 @@ export default function BalanceSheet() {
         subtitle="Statement of assets, liabilities, and equity"
         actions={
           <div className="flex gap-3">
-            <ActionButton variant="secondary" icon={<Printer className="w-4 h-4" />}>Print</ActionButton>
-            <ActionButton icon={<Download className="w-4 h-4" />}>Export Report</ActionButton>
+            <ActionButton variant="secondary" icon={<Printer className="w-4 h-4" />} onClick={() => window.print()}>Print</ActionButton>
+            <ActionButton icon={<Download className="w-4 h-4" />} onClick={handleExport}>Export Report</ActionButton>
           </div>
         }
       />
