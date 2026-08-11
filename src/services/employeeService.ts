@@ -63,9 +63,10 @@ class EmployeeService {
 
       const response = await apiRequest<{ success: boolean; data: Employee[] }>(`/sales-organization/employees?${qs.toString()}`);
       if (response.success && response.data) {
+        const mappedData = response.data.map((item: any) => this.mapBackendToEmployee(item));
         // Sync local cache with backend data to keep sync functions working
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(response.data));
-        return response.data;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(mappedData));
+        return mappedData;
       }
     } catch (error) {
       console.warn('Failed to fetch from backend, falling back to local cache', error);
@@ -106,7 +107,7 @@ class EmployeeService {
     try {
       const response = await apiRequest<{ success: boolean; data: Employee }>(`/sales-organization/employees/${id}`);
       if (response.success && response.data) {
-        return response.data;
+        return this.mapBackendToEmployee(response.data);
       }
     } catch (error) {
       console.warn('Failed to fetch from backend, falling back to local cache', error);
@@ -133,6 +134,9 @@ class EmployeeService {
     joiningDate?: string;
     status?: 'Active' | 'Inactive';
     employeeCode?: string;
+    gender?: string;
+    dob?: string;
+    remarks?: string;
   }): Promise<Employee> {
     try {
       const response = await apiRequest<{ success: boolean; data: Employee }>('/sales-organization/employees', {
@@ -141,8 +145,9 @@ class EmployeeService {
       });
       
       if (response.success && response.data) {
-        this.updateLocalCache(response.data);
-        return response.data;
+        const mapped = this.mapBackendToEmployee(response.data);
+        this.updateLocalCache(mapped);
+        return mapped;
       }
     } catch (error) {
       console.error('Failed to create employee on backend:', error);
@@ -229,8 +234,9 @@ class EmployeeService {
       });
 
       if (response.success && response.data) {
-        this.updateLocalCache(response.data);
-        return response.data;
+        const mapped = this.mapBackendToEmployee(response.data);
+        this.updateLocalCache(mapped);
+        return mapped;
       }
     } catch (error) {
       console.error('Failed to update employee on backend:', error);
@@ -278,6 +284,9 @@ class EmployeeService {
       status: (item.status === 'Active' || item.status === true) ? 'Active' : 'Inactive',
       email: item.email || item.user?.email || '',
       mobile: item.mobile || item.user?.mobile || '',
+      gender: item.gender || '',
+      dob: item.dob ? item.dob.split('T')[0] : '',
+      remarks: item.remarks || '',
       ...(item.states ? { states: item.states } : {}),
     } as any;
   }

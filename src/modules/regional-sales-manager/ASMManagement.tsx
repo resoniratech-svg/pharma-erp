@@ -152,53 +152,51 @@ export default function ASMManagement() {
       
       const { currentName: currentUser, currentEmpId } = employeeService.getLoggedInEmployee();
 
-        if (editingId) {
-          await employeeService.updateEmployee(editingId, {
-            employeeName: newAsm.name,
-            designation: 'Area Sales Manager',
-            email: newAsm.email,
-            mobile: newAsm.mobile,
-            gender: newAsm.gender,
-            dob: newAsm.dob,
-            remarks: newAsm.remarks,
-            password: newAsm.password || undefined,
-            states: [newAsm.state],
-            state: newAsm.state,
-            territory: newAsm.territory,
-            headquarters: newAsm.hq,
-            region: inheritedRegion,
-            zone: inheritedZone,
-            area: newAsm.area,
-            joiningDate: newAsm.joiningDate,
-            status: newAsm.status as 'Active' | 'Inactive',
-          } as any);
-        } else {
-          const addedAsm = await employeeService.addEmployee({
-            employeeCode: generatedEmpCode,
-            employeeName: newAsm.name,
-            designation: 'Area Sales Manager',
-            email: newAsm.email,
-            mobile: newAsm.mobile,
-            password: newAsm.password || 'Welcome@123',
-            reportsTo: currentUser !== 'Super Admin' ? currentUser : 'Owner / Super Admin',
-            reportsToId: currentEmpId || undefined,
-            states: [newAsm.state],
-            state: newAsm.state,
-            territory: newAsm.territory,
-            headquarters: newAsm.hq,
-            region: inheritedRegion,
-            zone: inheritedZone,
-            area: newAsm.area,
-            joiningDate: newAsm.joiningDate,
-            status: newAsm.status as 'Active' | 'Inactive',
-          });
 
-          await employeeService.updateEmployee(addedAsm.id, {
-            gender: newAsm.gender,
-            dob: newAsm.dob,
-            remarks: newAsm.remarks,
-          } as any);
-        }
+      if (editingId) {
+        await employeeService.updateEmployee(editingId, {
+          employeeName: newAsm.name,
+          designation: 'Area Sales Manager',
+          email: newAsm.email,
+          mobile: newAsm.mobile,
+          gender: newAsm.gender,
+          dob: newAsm.dob,
+          remarks: newAsm.remarks,
+          password: newAsm.password || undefined,
+          states: [newAsm.state],
+          state: newAsm.state,
+          territory: newAsm.territory,
+          headquarters: newAsm.hq,
+          region: inheritedRegion,
+          zone: inheritedZone,
+          area: newAsm.area,
+          joiningDate: newAsm.joiningDate,
+          status: newAsm.status as 'Active' | 'Inactive',
+        } as any);
+      } else {
+        await employeeService.addEmployee({
+          employeeCode: generatedEmpCode,
+          employeeName: newAsm.name,
+          designation: 'Area Sales Manager',
+          email: newAsm.email,
+          mobile: newAsm.mobile,
+          password: newAsm.password || 'Welcome@123',
+          reportsTo: currentUser !== 'Super Admin' ? currentUser : 'Owner / Super Admin',
+          reportsToId: currentEmpId || undefined,
+          states: [newAsm.state],
+          state: newAsm.state,
+          territory: newAsm.territory,
+          headquarters: newAsm.hq,
+          region: inheritedRegion,
+          zone: inheritedZone,
+          area: newAsm.area,
+          joiningDate: newAsm.joiningDate,
+          status: newAsm.status as 'Active' | 'Inactive',
+          gender: newAsm.gender,
+          dob: newAsm.dob,
+          remarks: newAsm.remarks,
+        });
+      }
 
       await loadData();
       setIsAddModalOpen(false);
