@@ -187,6 +187,7 @@ const updateEmployeeService = async (id, data) => {
   if (data.email !== undefined) payload.email = data.email;
   if (data.gender !== undefined) payload.gender = data.gender;
   if (data.status !== undefined) payload.status = data.status;
+  if (data.dob !== undefined) payload.dob = data.dob ? new Date(data.dob) : null;
   if (data.joiningDate !== undefined) payload.joiningDate = new Date(data.joiningDate);
 
   return repo.updateEmployeeRepo(id, payload);
