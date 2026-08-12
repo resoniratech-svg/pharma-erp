@@ -79,8 +79,11 @@ const assignLead = async (req, res) => {
 };
 
 const convertLead = async (req, res) => {
+  const { convertedTo, stockistId } = req.body;
   const data = await service.convertLeadService(
-    req.params.id
+    req.params.id,
+    convertedTo,
+    stockistId
   );
 
   res.json({

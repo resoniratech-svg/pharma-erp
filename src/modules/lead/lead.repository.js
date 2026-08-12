@@ -68,14 +68,41 @@ const assignLeadRepo = async (id, mrId) => {
   });
 };
 
-const convertLeadRepo = async (id) => {
-  return prisma.lead.update({
-    where: {
-      id: Number(id),
-    },
-    data: {
-      status: "CONVERTED",
-    },
+const convertLeadRepo = async (id, convertedTo, stockistId) => {
+  return prisma.$transaction(async (tx) => {
+    const lead = await tx.lead.findUnique({
+      where: { id: Number(id) }
+    });
+
+    if (!lead) throw new Error("Lead not found");
+
+    if (convertedTo === 'Distributor') {
+      await tx.distributor.create({
+        data: {
+          name: lead.name,
+          mobile: lead.mobile || "",
+          email: lead.email,
+          code: lead.leadCode,
+          state: lead.territory || "Unknown",
+        }
+      });
+    } else if (convertedTo === 'Retailer') {
+      await tx.retailer.create({
+        data: {
+          name: lead.name,
+          mobile: lead.mobile || "",
+          email: lead.email,
+          code: lead.leadCode,
+          address: lead.address,
+          stockistId: stockistId ? Number(stockistId) : 1
+        }
+      });
+    }
+
+    return tx.lead.update({
+      where: { id: Number(id) },
+      data: { status: "CONVERTED" }
+    });
   });
 };
 
