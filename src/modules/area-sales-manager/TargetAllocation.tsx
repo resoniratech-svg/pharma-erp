@@ -4,7 +4,8 @@ import { Target, TrendingUp, AlertCircle, Calendar, CheckCircle, Eye, Search, Sa
 import { Drawer } from '../../components/ui/Drawer';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import 'jspdf-autotable';
+import { validateCheckIn } from '../../utils/attendanceValidation';
 
 export default function TargetAllocation() {
   const [activeStep, setActiveStep] = useState<'overview' | 'mr'>('overview');
@@ -118,6 +119,7 @@ export default function TargetAllocation() {
   const uniqueStatuses = Array.from(new Set([...mrs.map(mr => mr.status).filter(Boolean), 'Draft']));
 
   const handleSaveDraft = () => {
+    if (!validateCheckIn()) return;
     setMrs(mrs.map(mr => {
       const amount = Number(allocationInputs[mr.id]);
       if (mr.status !== 'Allocated' && amount > 0) {
@@ -129,6 +131,7 @@ export default function TargetAllocation() {
   };
 
   const handleValidateAllocation = () => {
+    if (!validateCheckIn()) return false;
     if (activeTarget && currentTotalInputAllocation > activeTarget.targetAmount) {
       alert(`Total allocated amount (${formatCurrency(currentTotalInputAllocation)}) exceeds Assigned Target (${formatCurrency(activeTarget.targetAmount)})`);
       return false;
@@ -147,6 +150,7 @@ export default function TargetAllocation() {
   };
 
   const handleSubmitFinalPlan = async () => {
+    if (!validateCheckIn()) return;
     if (activeTarget && currentTotalInputAllocation > activeTarget.targetAmount) {
       alert(`Validation Failed: Allocated amount exceeds Assigned Target.`);
       return;
@@ -187,6 +191,7 @@ export default function TargetAllocation() {
   };
 
   const handleUpdateAllocation = async () => {
+    if (!validateCheckIn()) return;
     if (!editModal || !activeTarget) return;
     const numAmount = Number(editModal.amount);
     

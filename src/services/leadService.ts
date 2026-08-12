@@ -149,10 +149,11 @@ export const leadService = {
     return this.update(id, { assignedMrId: mrId, assignedMrName: `MR-${mrId}` }); // Fallback
   },
 
-  async convert(id: string): Promise<Lead | null> {
+  async convert(id: string, convertedTo: string, stockistId?: number): Promise<Lead | null> {
     try {
       const res = await apiRequest<{ success: boolean; data: Lead }>(`/leads/${id}/convert`, {
-        method: 'PATCH'
+        method: 'PATCH',
+        bodyData: { convertedTo, stockistId }
       });
       if (res.success && res.data) return res.data;
     } catch (e) {

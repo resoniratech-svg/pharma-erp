@@ -17,6 +17,7 @@ import { type Column } from './components/shared';
 import { leadService, type Lead } from '../../services/leadService';
 import { followUpService } from '../../services/followUpService';
 import { employeeService } from '../../services/employeeService';
+import { distributorMasterService, type DistributorMasterRecord } from '../../services/distributorMasterService';
 
 interface ConversionRow {
   id: string;
@@ -40,6 +41,8 @@ export default function LeadConversionTracking() {
   const [conversionDate, setConversionDate] = useState(new Date().toISOString().split('T')[0]);
   const [convertedBy, setConvertedBy] = useState('');
   const [convertedTo, setConvertedTo] = useState('Distributor');
+  const [stockistId, setStockistId] = useState<string>('');
+  const [distributors, setDistributors] = useState<DistributorMasterRecord[]>([]);
   const [convertError, setConvertError] = useState('');
 
   useEffect(() => {
@@ -93,6 +96,7 @@ export default function LeadConversionTracking() {
       const subIds = subordinates.map(s => s.id);
 
       const apiLeads = await leadService.getAll();
+      const allDistributors = await distributorMasterService.getAll();
 
       let visibleLeads = apiLeads;
       if (!isSuperAdmin) {
@@ -105,6 +109,7 @@ export default function LeadConversionTracking() {
       }
 
       setLeads(visibleLeads);
+      setDistributors(allDistributors);
     } catch (e) {
       console.error("Failed to load conversion data", e);
     }
@@ -187,13 +192,13 @@ export default function LeadConversionTracking() {
         return;
       }
 
+      if (convertedTo === 'Retailer' && !stockistId) {
+        setConvertError('Stockist is required when converting to a Retailer.');
+        return;
+      }
+
       // 3. Convert lead
-      await leadService.update(convertLead.id, {
-        status: 'CONVERTED',
-        conversionDate,
-        convertedBy,
-        convertedTo
-      });
+      await leadService.convert(convertLead.id, convertedTo, stockistId ? Number(stockistId) : undefined);
 
       setConvertLead(null);
       await loadData();
@@ -434,6 +439,22 @@ export default function LeadConversionTracking() {
                 <option value="Retailer">Retailer</option>
               </select>
             </div>
+
+            {convertedTo === 'Retailer' && (
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1">Select Stockist (Distributor) *</label>
+                <select
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-violet-500 text-sm"
+                  value={stockistId}
+                  onChange={(e) => setStockistId(e.target.value)}
+                >
+                  <option value="">-- Select a Stockist --</option>
+                  {distributors.map(d => (
+                    <option key={d.id} value={d.id}>{d.name} ({d.code})</option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
               <ActionButton variant="ghost" onClick={() => setConvertLead(null)}>Cancel</ActionButton>

@@ -3,6 +3,8 @@ import { PageHeader, SummaryCard, ActionButton, DataTable, Badge } from './compo
 import { Target, TrendingUp, AlertCircle, Calendar, Save, Search, Send, Edit2, X, Eye, Loader2, CheckCircle } from 'lucide-react';
 import { targetAllocationService } from '../../services/targetAllocationService';
 import { employeeService } from '../../services/employeeService';
+import { exportToCSV } from '../../utils/exportUtils';
+import { validateCheckIn } from '../../utils/attendanceValidation';
 import type { NationalTargetRecord, TargetAllocationRecord } from '../../services/targetAllocationService';
 
 export default function TargetPlanning() {
@@ -100,6 +102,7 @@ export default function TargetPlanning() {
   };
 
   const handleCreateNationalTarget = async (status: 'Draft' | 'Active') => {
+    if (!validateCheckIn()) return;
     try {
       if (!newNationalTarget.targetAmount) throw new Error("Target Amount is required");
       setSaving(true);
@@ -170,6 +173,7 @@ export default function TargetPlanning() {
   const remainingAfterInputs = activeNationalTarget ? activeNationalTarget.targetAmount - currentTotalInputAllocation : 0;
 
   const handleSaveDraft = async () => {
+    if (!validateCheckIn()) return;
     if (!activeNationalTarget) return;
     try {
       setSaving(true);
@@ -203,6 +207,7 @@ export default function TargetPlanning() {
   };
 
   const handleValidateAllocation = () => {
+    if (!validateCheckIn()) return false;
     if (activeNationalTarget && currentTotalInputAllocation > activeNationalTarget.targetAmount) {
       alert(`Total allocated amount (${formatCurrency(currentTotalInputAllocation)}) exceeds National Target (${formatCurrency(activeNationalTarget.targetAmount)})`);
       return false;
@@ -212,6 +217,7 @@ export default function TargetPlanning() {
   };
 
   const handleSubmitFinalPlan = async () => {
+    if (!validateCheckIn()) return;
     if (!activeNationalTarget) return;
     if (currentTotalInputAllocation > activeNationalTarget.targetAmount) {
       alert(`Validation Failed: Allocated amount exceeds National Target.`);
@@ -269,6 +275,7 @@ export default function TargetPlanning() {
   };
 
   const handleUpdateAllocation = async () => {
+    if (!validateCheckIn()) return;
     if (!editModal || !activeNationalTarget) return;
     const numAmount = Number(editModal.amount);
     if (numAmount <= 0) {

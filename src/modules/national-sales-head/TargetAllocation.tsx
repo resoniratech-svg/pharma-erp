@@ -6,6 +6,8 @@ import { nsmService } from '../../services/nsmService';
 import type { NSMTargetSummary } from '../../services/nsmService';
 import type { Employee } from '../super-admin/sales-organization/types';
 import type { TargetAllocationRecord } from '../../services/targetAllocationService';
+import { exportToCSV } from '../../utils/exportUtils';
+import { validateCheckIn } from '../../utils/attendanceValidation';
 
 export default function TargetAllocation() {
   const [summaries, setSummaries] = useState<NSMTargetSummary[]>([]);
@@ -114,6 +116,7 @@ export default function TargetAllocation() {
   };
 
   const handleCancelAllocation = async (allocId: string) => {
+    if (!validateCheckIn()) return;
     if (window.confirm("Are you sure you want to cancel this allocation? The balance will be returned to your pool.")) {
       try {
         setSaving(true);
@@ -138,6 +141,7 @@ export default function TargetAllocation() {
   const isOverAllocated = remainingAfterAllocation < 0;
 
   const handleSaveAllocation = async () => {
+    if (!validateCheckIn()) return;
     if (!selectedSummary || isOverAllocated) return;
     
     try {

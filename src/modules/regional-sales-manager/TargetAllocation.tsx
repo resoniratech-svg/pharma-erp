@@ -4,6 +4,8 @@ import { Target, TrendingUp, AlertCircle, Calendar, CheckCircle, Eye, Search, Sa
 import { rsmService } from '../../services/rsmService';
 import type { RSMTargetSummary } from '../../services/rsmService';
 import type { Employee } from '../super-admin/sales-organization/types';
+import { exportToCSV } from '../../utils/exportUtils';
+import { validateCheckIn } from '../../utils/attendanceValidation';
 
 export default function TargetAllocation() {
   const [activeStep, setActiveStep] = useState<'overview' | 'asm'>('overview');
@@ -84,6 +86,7 @@ export default function TargetAllocation() {
   const remainingAfterInputs = activeTarget ? activeTarget.targetAmount - currentTotalInputAllocation : 0;
 
   const handleValidateAllocation = () => {
+    if (!validateCheckIn()) return false;
     if (activeTarget && currentTotalInputAllocation > activeTarget.targetAmount) {
       alert(`Total allocated amount (${formatCurrency(currentTotalInputAllocation)}) exceeds Assigned Target (${formatCurrency(activeTarget.targetAmount)})`);
       return false;
@@ -93,6 +96,7 @@ export default function TargetAllocation() {
   };
 
   const handleSubmitFinalPlan = async () => {
+    if (!validateCheckIn()) return;
     if (!activeTarget) return;
     if (currentTotalInputAllocation > activeTarget.targetAmount) {
       alert(`Validation Failed: Allocated amount exceeds Assigned Target.`);

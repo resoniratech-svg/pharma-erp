@@ -6,6 +6,7 @@ import { DrawerField } from './components/shared';
 import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { validateCheckIn } from '../../utils/attendanceValidation';
 import { asmService } from '../../services/asmService';
 
 export default function TourPlanning() {
@@ -62,6 +63,7 @@ export default function TourPlanning() {
   };
 
   const handleApprove = async () => {
+    if (!validateCheckIn()) return;
     if (!selectedPlan) return;
     try {
       await asmService.updateTourPlanStatus(selectedPlan.id, 'APPROVED');
@@ -82,6 +84,7 @@ export default function TourPlanning() {
   };
 
   const handleReject = async () => {
+    if (!validateCheckIn()) return;
     if (!rejectRemarks.trim()) {
       alert("Please provide rejection remarks.");
       return;
