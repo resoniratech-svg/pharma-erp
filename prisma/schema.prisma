@@ -212,6 +212,11 @@ model Warehouse {
   state         String?
   status        String         @default("Active")
   type          String         @default("Main Warehouse")
+  bankName      String?
+  accountNumber String?
+  ifscCode      String?
+  branchName    String?
+  companyPan    String?
   dispatches    Dispatch[]
   inventories   Inventory[]
   inwardStocks  InwardStock[]
