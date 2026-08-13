@@ -197,6 +197,7 @@ import {
 import { type Column } from './components/shared';
 import { leadService } from '../../services/leadService';
 import { employeeService } from '../../services/employeeService';
+import { mrService } from '../../services/mrService';
 import type { OrganizationNode, Employee } from '../super-admin/sales-organization/types';
 
 
@@ -264,7 +265,7 @@ export default function LeadAssignment() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [leads, setLeads] = useState<Lead[]>([]);
-  const [mrList, setMrList] = useState<{name: string, label: string}[]>([]);
+  const [mrList, setMrList] = useState<{id: string, name: string, label: string}[]>([]);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
   const [selectedDesignation, setSelectedDesignation] = useState<string>('');
@@ -288,10 +289,12 @@ export default function LeadAssignment() {
       let currentRole = 'Super Admin';
       let currentName = 'Super Admin';
       let currentEmpId = '';
+      let currentUserId = '';
 
       if (authUser) {
         currentRole = authUser.roleId || authUser.role || 'SUPER_ADMIN';
         currentName = authUser.fullName || authUser.name || authUser.adminName || 'Super Admin';
+        currentUserId = String(authUser.id || '');
         currentEmpId = authUser.employeeId || '';
       } else if (activeRole) {
         currentRole = activeRole;
@@ -319,6 +322,8 @@ export default function LeadAssignment() {
          if (loggedInEmp) currentEmpId = loggedInEmp.id;
       }
 
+      const validCreatorIds = [currentUserId, currentEmpId].filter(Boolean);
+
       const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
 
       // Determine Allowed Designations
@@ -345,12 +350,12 @@ export default function LeadAssignment() {
         if (!isSuperAdmin) {
            const subNames = subordinates.map(s => s.employeeName);
            const subIds = subordinates.map(s => s.id);
-           visibleLeads = apiLeads.filter(l => {
-             const createdMatch = (l.createdByEmpId && (l.createdByEmpId === currentEmpId || subIds.includes(l.createdByEmpId))) || 
-                                  (!l.createdByEmpId && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName)));
-             const assignedMatch = l.assignedTo && (l.assignedTo === currentName || subNames.includes(l.assignedTo));
-             return createdMatch || assignedMatch;
-           });
+             visibleLeads = apiLeads.filter(l => {
+               const createdMatch = (l.createdByEmpId && (validCreatorIds.includes(String(l.createdByEmpId)) || subIds.includes(l.createdByEmpId))) || 
+                                    (!l.createdByEmpId && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName)));
+               const assignedMatch = l.assignedTo && (l.assignedTo === currentName || subNames.includes(l.assignedTo));
+               return createdMatch || assignedMatch;
+             });
         }
 
         const mapped = visibleLeads.map((l) => ({
@@ -370,6 +375,7 @@ export default function LeadAssignment() {
           priority: (l.priority || 'Medium') as 'High' | 'Medium' | 'Low',
           assignedBy: '',
           _dbId: l.id,
+          assignedMrId: l.assignedMrId
         }));
         setLeads(mapped as any);
       });
@@ -378,19 +384,26 @@ export default function LeadAssignment() {
     }
   };
 
-  useEffect(() => {
-    if (selectedDesignation && allSubordinates.length > 0) {
-      const filtered = allSubordinates
-        .filter(emp => emp.status === 'Active' && emp.designation === selectedDesignation)
-        .map(emp => ({
-          name: emp.employeeName,
-          label: `${emp.employeeName} (${emp.designation}) - ${emp.employeeCode}`
-        }));
-      setMrList(filtered);
-    } else {
-      setMrList([]);
-    }
-  }, [selectedDesignation, allSubordinates]);
+    useEffect(() => {
+      if (selectedDesignation) {
+        const allEmps = employeeService.getLocalEmployees();
+        let sourceList = allSubordinates;
+        if (sourceList.length === 0) {
+          sourceList = allEmps;
+        }
+        
+        const filtered = sourceList
+          .filter(emp => emp.status === 'Active' && emp.designation === selectedDesignation)
+          .map(emp => ({
+            id: String(emp.id),
+            name: emp.employeeName,
+            label: `${emp.employeeName} (${emp.designation}) - ${emp.employeeCode}`
+          }));
+        setMrList(filtered);
+      } else {
+        setMrList([]);
+      }
+    }, [selectedDesignation, allSubordinates]);
 
   const openAssignDrawer = (lead: Lead) => {
     setSelectedLead(lead);
@@ -408,11 +421,11 @@ export default function LeadAssignment() {
     setAssignForm({ assignedTo: '', priority: 'Medium' });
   };
 
-  const handleAssignLead = (e: React.FormEvent) => {
+  const handleAssignLead = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedLead) return;
 
-    if (selectedLead.assignedTo === assignForm.assignedTo && selectedLead.priority === assignForm.priority) {
+    if (selectedLead.assignedTo === assignForm.assignedTo && selectedLead.priority === assignForm.priority && selectedLead.assignedMrId) {
       alert(`${selectedLead.name} is already assigned to ${assignForm.assignedTo} with ${assignForm.priority} priority!`);
       return;
     }
@@ -426,11 +439,23 @@ export default function LeadAssignment() {
       hour: '2-digit', minute: '2-digit' 
     });
 
+    const selectedMr = mrList.find(mr => mr.name === assignForm.assignedTo);
+    let assignedMrId: string | number | null = null;
+    if (selectedMr) {
+      const trueMrId = await mrService.ensureMR(selectedMr.name, selectedMr.id);
+      if (trueMrId) {
+        assignedMrId = trueMrId;
+      } else {
+        alert(`WARNING: The backend failed to link ${selectedMr.name}'s MR Profile. Follow-ups will not work until this is resolved.`);
+      }
+    }
+
     const updatedLeads = leads.map(lead => {
       if (lead.id === selectedLead.id) {
         return {
           ...lead,
           assignedTo: assignForm.assignedTo,
+          assignedMrId: assignedMrId,
           priority: assignForm.priority,
           assignedDate: todayStr, 
           assignedBy: managerName,
@@ -443,15 +468,24 @@ export default function LeadAssignment() {
     setLeads(updatedLeads);
     
     if (selectedLead._dbId) {
-       leadService.update(selectedLead._dbId, {
-         assignedMrName: assignForm.assignedTo,
-         priority: assignForm.priority,
-         status: selectedLead.status === 'New' ? 'ASSIGNED' : undefined
-       }).catch(err => console.error("Failed to update in leadService", err));
-    }
+         if (assignedMrId) {
+           await leadService.assign(String(selectedLead._dbId), Number(assignedMrId))
+             .catch(err => {
+               console.error("Failed to assign in leadService", err);
+               alert("CRITICAL ERROR: Failed to assign the lead in the database. Ensure MR Sync is working properly. Changes will not be saved.");
+               throw new Error("Assignment Failed");
+             });
+         }
+         
+         await leadService.update(selectedLead._dbId, {
+           assignedTo: assignForm.assignedTo,
+           priority: assignForm.priority,
+           status: selectedLead.status === 'New' ? 'ASSIGNED' : undefined
+         }).catch(err => console.error("Failed to update in leadService", err));
+      }
 
     try {
-      // âœ… Activity Timeline Integration
+      // ✅ Activity Timeline Integration
       const timelineLogs = JSON.parse(localStorage.getItem('crm_activities') || '[]');
       const newLog = {
         id: `act-${Date.now()}`,

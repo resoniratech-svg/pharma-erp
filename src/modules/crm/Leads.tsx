@@ -119,6 +119,7 @@ import {
 import { type Column } from './components/shared';
 import { leadService } from '../../services/leadService';
 import { employeeService } from '../../services/employeeService';
+import { mrService } from '../../services/mrService';
 import { Modal } from '../../components/ui/Modal';
 
 const generateLeadId = (currentLeads: Lead[]) => {
@@ -193,7 +194,14 @@ export default function Leads() {
     setTerritoriesList(t ? JSON.parse(t) : ['Andheri East', 'Koramangala', 'Madhapur']);
     
     const e = localStorage.getItem('lead_employees');
-    setEmployeesList(e ? JSON.parse(e) : ['Deepak Tyagi (MR)', 'Rohit Saxena (MR)', 'Amit Kumar (MR)']);
+    const cachedMrs: string[] = e ? JSON.parse(e) : [];
+    const allEmployees = employeeService.getLocalEmployees();
+    const realMrs = allEmployees
+      .filter(emp => emp.designation === 'Medical Representative' && emp.status === 'Active')
+      .map(emp => emp.employeeName);
+      
+    const merged = Array.from(new Set([...realMrs, ...cachedMrs]));
+    setEmployeesList(merged.length > 0 ? merged : ['Deepak Tyagi (MR)', 'Rohit Saxena (MR)', 'Amit Kumar (MR)']);
   }, []);
   
   const [formData, setFormData] = useState<any>({
@@ -343,6 +351,15 @@ export default function Leads() {
          if (loggedInEmp) currentEmpId = loggedInEmp.id;
       }
 
+      let assignedMrId = null;
+      if (formData.assignedTo) {
+        const selectedEmp = allEmployees.find(e => e.employeeName.toLowerCase() === formData.assignedTo.toLowerCase());
+        if (selectedEmp) {
+          const trueMrId = await mrService.ensureMR(selectedEmp.employeeName, selectedEmp.id);
+          if (trueMrId) assignedMrId = trueMrId;
+        }
+      }
+
       const isPhone = /^[\d\s+\-()]+$/.test(formData.contact!.trim());
       const payload = {
         name: formData.name!.trim(),
@@ -359,6 +376,7 @@ export default function Leads() {
         priority: formData.priority,
         followUpDate: formData.followUpDate,
         assignedTo: formData.assignedTo,
+        assignedMrId: assignedMrId ? Number(assignedMrId) : undefined,
         creatorInfo: {
           empId: currentEmpId,
           role: currentRole,

@@ -24,9 +24,8 @@ export interface DispatchTrackingRecord {
 
 export const distributorDispatchService = {
   getApprovedOrders() {
-    // Return both 'Approved' and 'Pending'/'Submitted' orders for easy dispatch testing
     const allOrders = orderService.getAll();
-    return allOrders.filter((o: any) => o.status === 'Approved' || o.status === 'Pending' || o.status === 'Submitted');
+    return allOrders.filter((o: any) => o.status === 'Approved');
   },
 
   async processDispatch(dispatchData: any, currentUser: any) {
@@ -58,22 +57,19 @@ export const distributorDispatchService = {
       await apiRequest('/dispatches', {
         method: 'POST',
         bodyData: {
-          dispatchId,
-          orderId: orderData?.id ? Number(orderData.id) : undefined,
-          warehouseId: 1, // default or lookup if possible
-          distributorId: distributorId ? Number(distributorId) : undefined,
-          transporterName: transporter,
-          vehicleNo: vehicleNumber,
-          driverName,
-          driverMobile,
-          lrNumber,
-          expectedDeliveryDate: expectedDeliveryDate ? new Date(expectedDeliveryDate).toISOString() : new Date().toISOString(),
-          remarks,
-          dispatchItems: products.map((p: any) => ({
-            productId: p.productId ? Number(p.productId) : 1,
-            batchId: p.batchId ? Number(p.batchId) : undefined,
-            quantity: Number(p.dispatchQty)
-          }))
+          dispatchNo: dispatchId,
+          orderId: String(orderId),
+          customerName: client,
+          dispatchType: dispatchType,
+          sourceWarehouse: sourceWarehouse,
+          totalItems: totalItems,
+          quantity: totalQuantity,
+          status: "PENDING",
+          remarks: remarks || "",
+          driverName: driverName || "",
+          driverMobile: driverMobile || "",
+          lrNumber: lrNumber || "",
+          products: products
         }
       });
     } catch (e) {

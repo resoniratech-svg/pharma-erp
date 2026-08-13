@@ -1,6 +1,5 @@
-const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 const deployedApiUrl = 'https://pharma-erp-pharma-backend.rrh5yv.easypanel.host/api';
-let BASE_URL = isLocal ? 'http://localhost:5000/api' : deployedApiUrl;
+let BASE_URL = deployedApiUrl; // Force frontend to always talk to deployed backend
 
 
 

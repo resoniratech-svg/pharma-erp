@@ -72,13 +72,24 @@ const getDDMMYYYY = (date: Date) => {
   return `${d}-${m}-${y}`;
 };
 
+const parseOrderDate = (dStr: string) => {
+  if (!dStr) return 0;
+  if (dStr.match(/^\d{2}-\d{2}-\d{4}$/)) {
+    const [day, month, year] = dStr.split('-');
+    return new Date(`${year}-${month}-${day}`).getTime();
+  }
+  return new Date(dStr).getTime();
+};
+
 export default function DistributorOrders() {
   const [orders, setOrders] = useState<OrderData[]>([]);
   const [outstandingRecords, setOutstandingRecords] = useState<OutstandingRecord[]>([]);
 
   useEffect(() => {
     orderService.loadOrders().then(allOrders => {
-      setOrders(allOrders.filter((o: any) => o.status !== 'Draft'));
+      const nonDraft = allOrders.filter((o: any) => o.status !== 'Draft');
+      nonDraft.sort((a: any, b: any) => parseOrderDate(b.date) - parseOrderDate(a.date));
+      setOrders(nonDraft);
     });
     
     const savedOutstanding = localStorage.getItem("pharma_erp_outstanding_records");
@@ -279,7 +290,9 @@ export default function DistributorOrders() {
       } : o);
       
       localStorage.setItem("pharma_erp_orders", JSON.stringify(allOrders));
-      setOrders(allOrders.filter(o => o.status !== 'Draft'));
+      const nonDraft = allOrders.filter(o => o.status !== 'Draft');
+      nonDraft.sort((a: any, b: any) => parseOrderDate(b.date) - parseOrderDate(a.date));
+      setOrders(nonDraft);
       
       if (finalStatus === 'Approved' || finalStatus === 'Partially Paid') {
         distributorOrderApprovalService.updateOutstanding(viewOrder);

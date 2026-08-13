@@ -46,13 +46,42 @@ function saveLocalLeads(leads: Lead[]) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(leads));
 }
 
+function normalizeLead(lead: any): Lead {
+  let createdByEmpId = lead.createdByEmpId;
+  let createdByRole = lead.createdByRole;
+  let createdByName = lead.createdByName;
+
+  if (lead.creatorInfo && typeof lead.creatorInfo === 'string') {
+    try {
+      const parsed = JSON.parse(lead.creatorInfo);
+      createdByEmpId = parsed.empId || createdByEmpId;
+      createdByRole = parsed.role || createdByRole;
+      createdByName = parsed.name || createdByName;
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  const assignedMrName = lead.assignedMrName || lead.assignedTo || (lead.assignedMr ? lead.assignedMr.name : '');
+
+  return {
+    ...lead,
+    createdByEmpId,
+    createdByRole,
+    createdByName,
+    assignedMrName,
+    assignedTo: assignedMrName,
+  };
+}
+
 export const leadService = {
   async getAll(): Promise<Lead[]> {
     try {
-      const res = await apiRequest<{ success: boolean; data: Lead[] }>('/leads');
+      const res = await apiRequest<{ success: boolean; data: any[] }>('/leads');
       if (res.success && res.data) {
-        saveLocalLeads(res.data);
-        return res.data;
+        const normalized = res.data.map(normalizeLead);
+        saveLocalLeads(normalized);
+        return normalized;
       }
     } catch (e) {
       console.error(e);
@@ -62,8 +91,8 @@ export const leadService = {
 
   async getById(id: string): Promise<Lead | null> {
     try {
-      const res = await apiRequest<{ success: boolean; data: Lead }>(`/leads/${id}`);
-      if (res.success && res.data) return res.data;
+      const res = await apiRequest<{ success: boolean; data: any }>(`/leads/${id}`);
+      if (res.success && res.data) return normalizeLead(res.data);
     } catch (e) {
       console.error(e);
     }
@@ -94,15 +123,16 @@ export const leadService = {
     };
   }): Promise<Lead> {
     try {
-      const res = await apiRequest<{ success: boolean; data: Lead }>('/leads', {
+      const res = await apiRequest<{ success: boolean; data: any }>('/leads', {
         method: 'POST',
         bodyData: data
       });
       if (res.success && res.data) {
+        const normalized = normalizeLead(res.data);
         const leads = getLocalLeads();
-        leads.push(res.data);
+        leads.push(normalized);
         saveLocalLeads(leads);
-        return res.data;
+        return normalized;
       }
     } catch (e) {
       console.error(e);
@@ -156,10 +186,11 @@ export const leadService = {
         bodyData: { convertedTo, stockistId }
       });
       if (res.success && res.data) return res.data;
+      throw new Error("Backend rejected conversion");
     } catch (e) {
       console.error(e);
+      throw new Error("Failed to convert lead in database. Check backend constraints.");
     }
-    return this.update(id, { status: 'CONVERTED' });
   },
 
   async delete(id: string): Promise<boolean> {

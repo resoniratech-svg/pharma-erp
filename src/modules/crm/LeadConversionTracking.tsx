@@ -142,6 +142,10 @@ export default function LeadConversionTracking() {
   };
 
   const handleConvertClick = (lead: Lead) => {
+    if (!lead.assignedMrId) {
+      alert('Please assign this lead to an MR before converting it.');
+      return;
+    }
     setConvertLead(lead);
     setConvertError('');
     setConversionDate(new Date().toISOString().split('T')[0]);

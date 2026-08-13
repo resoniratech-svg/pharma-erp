@@ -263,6 +263,7 @@ interface DbDispatch {
   sourceWarehouse: string | null;
   totalItems: number | null;
   totalQuantity: number | null;
+  quantity?: number | null;
   status: string;
   transporter: string | null;
   lrNumber: string | null;
@@ -316,7 +317,7 @@ function mapDispatchToUi(db: DbDispatch): any {
     client: db.customerName || '',
     sourceWarehouse: db.sourceWarehouse || '',
     totalItems: db.totalItems || 0,
-    totalQuantity: db.totalQuantity || 0,
+    totalQuantity: db.quantity || db.totalQuantity || 0,
     status: db.status || 'Ready to Ship',
     products: db.products || [],
     transporter: db.transporter || '',
@@ -419,11 +420,9 @@ export const transportChallanService = {
           customerName: newDispatch.client,
           sourceWarehouse: newDispatch.sourceWarehouse,
           totalItems: newDispatch.totalItems,
-          totalQuantity: newDispatch.totalQuantity,
+          quantity: newDispatch.totalQuantity,
           status: newDispatch.status === 'Ready to Ship' ? 'PENDING' : newDispatch.status,
-          transporter: newDispatch.transporter,
           lrNumber: newDispatch.lrNumber,
-          vehicleNumber: newDispatch.vehicleNumber,
           driverName: newDispatch.driverName,
           driverMobile: newDispatch.driverMobile,
           remarks: newDispatch.remarks,

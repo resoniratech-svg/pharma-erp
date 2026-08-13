@@ -22,6 +22,7 @@ interface Lead {
   contact: string;
   territory?: string;
   leadCode?: string;
+  assignedMrId?: number | null;
 }
 
 interface FollowUp {
@@ -83,10 +84,12 @@ export default function FollowUps() {
       let currentRole = 'Super Admin';
       let currentName = 'Super Admin';
       let currentEmpId = '';
+      let currentUserId = '';
 
       if (authUser) {
         currentRole = authUser.roleId || authUser.role || 'SUPER_ADMIN';
         currentName = authUser.fullName || authUser.name || authUser.adminName || 'Super Admin';
+        currentUserId = String(authUser.id || '');
         currentEmpId = authUser.employeeId || '';
       } else if (activeRole) {
         currentRole = activeRole;
@@ -114,6 +117,8 @@ export default function FollowUps() {
          if (loggedInEmp) currentEmpId = loggedInEmp.id;
       }
 
+      const validCreatorIds = [currentUserId, currentEmpId].filter(Boolean);
+
       const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
       const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
       const subNames = subordinates.map(s => s.employeeName);
@@ -125,7 +130,7 @@ export default function FollowUps() {
       let visibleLeads = apiLeads;
       if (!isSuperAdmin) {
            visibleLeads = apiLeads.filter(l => {
-             const createdMatch = (l.createdByEmpId && (l.createdByEmpId === currentEmpId || subIds.includes(l.createdByEmpId))) || 
+             const createdMatch = (l.createdByEmpId && (validCreatorIds.includes(String(l.createdByEmpId)) || subIds.includes(l.createdByEmpId))) || 
                                   (!l.createdByEmpId && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName)));
              const assignedMatchReal = l.assignedMrName && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName));
              return createdMatch || assignedMatchReal;
@@ -138,6 +143,7 @@ export default function FollowUps() {
         contact: l.mobile || l.email || '',
         territory: l.territory || '',
         leadCode: l.leadCode || String(l.id),
+        assignedMrId: l.assignedMrId
       })));
 
       const validLeadIds = new Set(visibleLeads.map(l => String(l.id)));
@@ -197,9 +203,13 @@ export default function FollowUps() {
     }
     const selectedLead = leads.find((l) => l.id === formData.leadId);
     if (!selectedLead) return;
+    if (!selectedLead.assignedMrId) {
+      alert('Please assign this lead to an MR before scheduling a follow-up.');
+      return;
+    }
 
     try {
-      const mrId = Number(localStorage.getItem('mrId') || '1');
+      const mrId = Number(selectedLead.assignedMrId);
       await followUpService.create({
         mrId: mrId,
         leadId: Number(selectedLead.id),

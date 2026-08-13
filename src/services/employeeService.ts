@@ -20,7 +20,21 @@ export const DESIGNATION_HIERARCHY: Record<Designation | 'Owner / Super Admin', 
 
 class EmployeeService {
   // --- Local Cache Helpers ---
-  private getLocalEmployees(): Employee[] {
+  private healHierarchy(emps: Employee[]): boolean {
+    let madeFixes = false;
+    emps.forEach(e => {
+       if (!e.reportsToId && e.reportsTo && e.reportsTo !== 'Owner / Super Admin') {
+          const manager = emps.find(m => m.employeeName === e.reportsTo);
+          if (manager) {
+             e.reportsToId = String(manager.id);
+             madeFixes = true;
+          }
+       }
+    });
+    return madeFixes;
+  }
+
+  public getLocalEmployees(): Employee[] {
     const data = localStorage.getItem(STORAGE_KEY);
     return data ? JSON.parse(data) : SEED_EMPLOYEES;
   }
@@ -64,9 +78,19 @@ class EmployeeService {
       const response = await apiRequest<{ success: boolean; data: Employee[] }>(`/sales-organization/employees?${qs.toString()}`);
       if (response.success && response.data) {
         const mappedData = response.data.map((item: any) => this.mapBackendToEmployee(item));
+        
+        this.healHierarchy(mappedData);
+        
         // Sync local cache with backend data to keep sync functions working
         localStorage.setItem(STORAGE_KEY, JSON.stringify(mappedData));
-        return mappedData;
+        
+        // Final filter if params existed (since healing might have changed reportsToId)
+        let finalData = mappedData;
+        if (params?.designation) finalData = finalData.filter(e => e.designation === params.designation);
+        if (params?.status) finalData = finalData.filter(e => e.status === params.status);
+        if (params?.reportsToId) finalData = finalData.filter(e => e.reportsToId === String(params.reportsToId));
+        
+        return finalData;
       }
     } catch (error) {
       console.warn('Failed to fetch from backend, falling back to local cache', error);
@@ -74,18 +98,7 @@ class EmployeeService {
     
     // Fallback logic
     let emps = this.getLocalEmployees();
-    let madeFixes = false;
-
-    // Self-healing routine for existing data missing strict relational ID
-    emps.forEach(e => {
-       if (!e.reportsToId && e.reportsTo && e.reportsTo !== 'Owner / Super Admin') {
-          const manager = emps.find(m => m.employeeName === e.reportsTo);
-          if (manager) {
-             e.reportsToId = String(manager.id);
-             madeFixes = true;
-          }
-       }
-    });
+    let madeFixes = this.healHierarchy(emps);
 
     if (madeFixes) {
        localStorage.setItem(STORAGE_KEY, JSON.stringify(emps));
@@ -281,7 +294,7 @@ class EmployeeService {
       area: item.area || '',
       headquarters: item.headquarters || '',
       joiningDate: item.joiningDate ? item.joiningDate.split('T')[0] : '',
-      status: (item.status === 'Active' || item.status === true) ? 'Active' : 'Inactive',
+      status: (String(item.status).toUpperCase() === 'ACTIVE' || item.status === true) ? 'Active' : 'Inactive',
       email: item.email || item.user?.email || '',
       mobile: item.mobile || item.user?.mobile || '',
       gender: item.gender || '',
@@ -366,6 +379,7 @@ class EmployeeService {
       const res = await apiRequest<{ success: boolean; data: any[] }>('/sales-organization/employees');
       if (res.success && res.data) {
         allEmployees = res.data.map(item => this.mapBackendToEmployee(item));
+        this.healHierarchy(allEmployees);
         localStorage.setItem(STORAGE_KEY, JSON.stringify(allEmployees));
       }
     } catch (err) {
@@ -387,7 +401,7 @@ class EmployeeService {
 
       const directReports = allEmployees.filter(emp => 
         (emp.reportsToId && String(emp.reportsToId) === String(currentId)) || 
-        (!emp.reportsToId && emp.reportsTo && emp.reportsTo === currentName)
+        (emp.reportsTo && String(emp.reportsTo).trim().toLowerCase() === String(currentName).trim().toLowerCase())
       );
 
       for (const emp of directReports) {

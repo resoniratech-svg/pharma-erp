@@ -658,6 +658,10 @@ export default function CrmMeetings() {
 
     const selectedLead = leads.find(l => l.id === leadId);
     if (!selectedLead) return;
+    if (!selectedLead.assignedMrId) {
+      alert('Please assign this lead to an MR before scheduling a meeting.');
+      return;
+    }
 
     const todayStr = new Date().toISOString().split('T')[0];
     if (!editMeetingId && date < todayStr) {

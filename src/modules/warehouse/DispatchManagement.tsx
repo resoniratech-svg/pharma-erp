@@ -208,14 +208,28 @@ export default function DispatchManagement() {
 
   const handleDispatchTypeChange = (val: string) => {
     setDispatchType(val);
-    setReferenceSearch('');
     setSelectedReference(null);
+    setNewOrder('');
+    setReferenceSearch('');
     setNewProducts([]);
     setNewWarehouse('');
     setDestinationWarehouse('');
     setNewCustomer('');
     setDispatchAddress('');
-    setNewOrder('');
+  };
+
+  const isOrderOutOfStock = (record: any) => {
+    const orderProducts = record.items || [];
+    if (orderProducts.length === 0) return true;
+    const validWarehouses = warehouses.filter(wh => {
+      return orderProducts.every((p: any) => {
+        const productStock = inventoryService.getByProduct(p.productCode)
+          .filter(i => i.warehouseId === wh.id && i.availableQty > 0);
+        const totalAvailable = productStock.reduce((sum, item) => sum + item.availableQty, 0);
+        return totalAvailable > 0;
+      });
+    });
+    return validWarehouses.length === 0;
   };
 
   const handleReferenceSelect = (record: any) => {
@@ -387,9 +401,9 @@ export default function DispatchManagement() {
 
   const filteredData = useMemo(() => {
     return dispatches.filter((item) => {
-      const matchSearch = item.dispatchId.toLowerCase().includes(search.toLowerCase()) || 
-                          item.orderId.toLowerCase().includes(search.toLowerCase()) || 
-                          item.client.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = (item.dispatchId || '').toLowerCase().includes(search.toLowerCase()) || 
+                          (item.orderId || '').toLowerCase().includes(search.toLowerCase()) || 
+                          (item.client || '').toLowerCase().includes(search.toLowerCase());
       const matchStatus = statusFilter ? item.status === statusFilter : true;
       return matchSearch && matchStatus;
     });
@@ -487,7 +501,7 @@ export default function DispatchManagement() {
     setShowExportMenu(false);
   };
 
-  const handleSaveDispatch = () => {
+  const handleSaveDispatch = async () => {
     if (!dispatchType) return alert("Dispatch Type is required.");
     if (!selectedReference) return alert("Please select a valid reference.");
     
@@ -497,30 +511,21 @@ export default function DispatchManagement() {
     selDate.setHours(0,0,0,0);
     if (selDate > today) return alert("Dispatch Date cannot be a future date.");
 
-    const tTransporter = newTransporter.trim();
-    if (!tTransporter) return alert("Transporter is required.");
-    if (tTransporter.length > 100) return alert("Transporter cannot exceed 100 characters.");
+    const tTransporter = "";
+    const tVehicle = "";
 
     const tLR = newLRNumber.trim();
-    if (!tLR) return alert("LR Number is required.");
-    if (tLR.length > 30) return alert("LR Number cannot exceed 30 characters.");
-    if (dispatches.some(d => d.lrNumber.trim().toLowerCase() === tLR.toLowerCase())) {
+    if (tLR && tLR.length > 30) return alert("LR Number cannot exceed 30 characters.");
+    if (tLR && dispatches.some(d => d.lrNumber && d.lrNumber.trim().toLowerCase() === tLR.toLowerCase())) {
        return alert("LR Number must be unique.");
     }
 
-    const tVehicle = newVehicle.trim();
-    if (!tVehicle) return alert("Vehicle Number is required.");
-    if (tVehicle.length > 20) return alert("Vehicle Number cannot exceed 20 characters.");
-    if (!/^[A-Za-z0-9 -]+$/.test(tVehicle)) return alert("Vehicle Number allows only letters, numbers, spaces, and hyphens.");
-
     const tDriver = newDriverName.trim();
-    if (!tDriver) return alert("Driver Name is required.");
-    if (tDriver.length > 100) return alert("Driver Name cannot exceed 100 characters.");
-    if (!/^[A-Za-z\s]+$/.test(tDriver)) return alert("Driver Name can only contain alphabets and spaces.");
+    if (tDriver && tDriver.length > 100) return alert("Driver Name cannot exceed 100 characters.");
+    if (tDriver && !/^[A-Za-z\s]+$/.test(tDriver)) return alert("Driver Name can only contain alphabets and spaces.");
 
     const tMobile = newDriverMobile.trim();
-    if (!tMobile) return alert("Driver Mobile is required.");
-    if (!/^\d{10}$/.test(tMobile)) return alert("Driver Mobile must be exactly 10 digits (no alphabets or special characters).");
+    if (tMobile && !/^\d{10}$/.test(tMobile)) return alert("Driver Mobile must be exactly 10 digits (no alphabets or special characters).");
 
     const tRemarks = newRemarks.trim().substring(0, 250);
 
@@ -563,7 +568,7 @@ export default function DispatchManagement() {
         expectedDeliveryDate: newExpectedDeliveryDate
       };
       
-      const newDispatchObj: any = distributorDispatchService.processDispatch(dispatchData, currentUser);
+      const newDispatchObj: any = await distributorDispatchService.processDispatch(dispatchData, currentUser);
       
       const updatedDispatches = [newDispatchObj, ...dispatches];
       setDispatches(updatedDispatches);
@@ -994,16 +999,18 @@ export default function DispatchManagement() {
                       <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
                         {allApprovedOrders
                           .filter(t => (t.orderNo || '').toLowerCase().includes(referenceSearch.toLowerCase()))
-                          .map((record) => (
-                            <div
-                              key={record.id}
-                              className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
-                              onClick={() => handleReferenceSelect(record)}
-                            >
-                              <span className="font-medium text-slate-900">{record.orderNo}</span> - {record.distributorName} <br />
-                              <span className="text-xs text-slate-500">Date: {formatDate(record.date)}</span>
-                            </div>
-                          ))}
+                          .map((record) => {
+                              const outOfStock = isOrderOutOfStock(record);
+                              return (
+                              <div
+                                key={record.id}
+                                className={`px-3 py-2 text-sm rounded ${outOfStock ? 'opacity-60 cursor-not-allowed bg-slate-50' : 'hover:bg-slate-50 cursor-pointer text-slate-700'}`}
+                                onClick={() => { if (!outOfStock) handleReferenceSelect(record); }}
+                              >
+                                <span className={`font-medium ${outOfStock ? 'text-slate-500' : 'text-slate-900'}`}>{record.orderNo}</span> - {record.distributorName} {outOfStock && <span className="text-red-500 font-medium ml-2">(Out of Stock)</span>} <br />
+                                <span className="text-xs text-slate-500">Date: {formatDate(record.date)}</span>
+                              </div>
+                            )})}
                         {allApprovedOrders.filter(t => (t.orderNo || '').toLowerCase().includes(referenceSearch.toLowerCase())).length === 0 && (
                           <div className="px-3 py-2 text-sm text-slate-500 italic">No approved orders found</div>
                         )}
@@ -1189,72 +1196,12 @@ export default function DispatchManagement() {
                   </div>
                 )}
               </div><div className="md:col-span-2 mt-4"><h3 className="text-sm font-semibold text-slate-700 border-b pb-2 mb-2">Transport Information</h3></div>
-              <div className="relative">
-                <label className="block text-sm font-medium mb-1 text-slate-700">Transporter *</label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={newTransporter}
-                    onChange={(e) => {
-                      setNewTransporter(e.target.value);
-                      setShowTransporterDropdown(true);
-                    }}
-                    onFocus={() => setShowTransporterDropdown(true)}
-                    placeholder="Search or enter Transporter..."
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
-                  />
-                  <ChevronDown
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
-                    onClick={() => setShowTransporterDropdown(!showTransporterDropdown)}
-                  />
-                </div>
-                {showTransporterDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowTransporterDropdown(false)} />
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                      {transporters
-                        .filter((t) => t.toLowerCase().includes((newTransporter || "").toLowerCase()))
-                        .map((trans) => (
-                          <div
-                            key={trans}
-                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
-                            onClick={() => {
-                              setNewTransporter(trans);
-                              setShowTransporterDropdown(false);
-                            }}
-                          >
-                            {trans}
-                          </div>
-                        ))}
-                      {(newTransporter || "").trim() !== "" &&
-                        !transporters.some(
-                          (t) => t.trim().toLowerCase() === (newTransporter || "").trim().toLowerCase()
-                        ) && (
-                          <div
-                            className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer rounded flex items-center gap-2"
-                            onClick={() => {
-                              const newType = (newTransporter || "").trim();
-                              const updatedTypes = [...transporters, newType];
-                              setTransporters(updatedTypes);
-                              // Not saving to localStorage anymore
-                              // localStorage.setItem("pharma_erp_transporters", JSON.stringify(updatedTypes));
-                              setNewTransporter(newType);
-                              setShowTransporterDropdown(false);
-                            }}
-                          >
-                            <Plus className="w-4 h-4" /> Add "{newTransporter.trim()}"
-                          </div>
-                        )}
-                    </div>
-                  </>
-                )}
-              </div>
               <div>
-                <label className="block text-sm font-medium mb-1">LR Number *</label>
+                <label className="block text-sm font-medium mb-1">LR Number</label>
                 <input type="text" value={newLRNumber} onChange={e => setNewLRNumber(e.target.value)} placeholder="e.g. LR-2026-45896" className="w-full border border-slate-200 rounded-lg px-3 py-2 font-mono text-sm" />
               </div>
               <div className="relative">
-                <label className="block text-sm font-medium mb-1">Driver Name *</label>
+                <label className="block text-sm font-medium mb-1">Driver Name</label>
                 <div className="relative">
                   <input 
                     type="text" 
@@ -1307,60 +1254,9 @@ export default function DispatchManagement() {
                   </>
                 )}
               </div>
-              <div className="relative">
-                <label className="block text-sm font-medium mb-1">Vehicle Number *</label>
-                <div className="relative">
-                  <input 
-                    type="text" 
-                    value={newVehicle} 
-                    onChange={e => {
-                      setNewVehicle(e.target.value);
-                      setShowVehicleDropdown(true);
-                    }} 
-                    onFocus={() => setShowVehicleDropdown(true)}
-                    placeholder="Enter Vehicle Number" 
-                    className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white focus:outline-none focus:border-violet-400" 
-                  />
-                  <ChevronDown
-                    className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer"
-                    onClick={() => setShowVehicleDropdown(!showVehicleDropdown)}
-                  />
-                </div>
-                {showVehicleDropdown && (
-                  <>
-                    <div className="fixed inset-0 z-10" onClick={() => setShowVehicleDropdown(false)} />
-                    <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                      {knownVehicles
-                        .filter((v) => v.toLowerCase().includes((newVehicle || "").toLowerCase()))
-                        .map((veh) => (
-                          <div
-                            key={veh}
-                            className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700"
-                            onClick={() => {
-                              setNewVehicle(veh);
-                              setShowVehicleDropdown(false);
-                            }}
-                          >
-                            {veh}
-                          </div>
-                        ))}
-                      {(newVehicle || "").trim() !== "" &&
-                        !knownVehicles.some(
-                          (v) => v.trim().toLowerCase() === (newVehicle || "").trim().toLowerCase()
-                        ) && (
-                          <div
-                            className="px-3 py-2 text-sm text-violet-600 font-medium hover:bg-violet-50 cursor-pointer rounded flex items-center gap-2"
-                            onClick={() => setShowVehicleDropdown(false)}
-                          >
-                            <Plus className="w-4 h-4" /> Add "{newVehicle.trim()}"
-                          </div>
-                        )}
-                    </div>
-                  </>
-                )}
-              </div>
+
               <div>
-                <label className="block text-sm font-medium mb-1">Driver Mobile *</label>
+                <label className="block text-sm font-medium mb-1">Driver Mobile</label>
                 <div className="relative">
                   <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-medium">+91</span>
                   <input 
