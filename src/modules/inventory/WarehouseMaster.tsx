@@ -104,6 +104,11 @@ export default function WarehouseMaster() {
     gstNumber: "",
     licenseNumber: "",
     remarks: "",
+    bankName: "",
+    accountNumber: "",
+    ifscCode: "",
+    branchName: "",
+    companyPan: "",
   };
 
   const [newWarehouse, setNewWarehouse] = useState<Partial<Warehouse>>(defaultNewWarehouse);
@@ -135,6 +140,11 @@ export default function WarehouseMaster() {
     const state = (newWarehouse.state || "").trim();
     const country = (newWarehouse.country || "").trim();
     const branch = (newWarehouse.branch || "").trim();
+    const bankName = (newWarehouse.bankName || "").trim();
+    const accountNumber = (newWarehouse.accountNumber || "").trim();
+    const ifscCode = (newWarehouse.ifscCode || "").trim();
+    const branchName = (newWarehouse.branchName || "").trim();
+    const companyPan = (newWarehouse.companyPan || "").trim();
 
     if (!code || !name) {
       alert("Warehouse Code and Warehouse Name are required and cannot be empty.");
@@ -160,29 +170,34 @@ export default function WarehouseMaster() {
       alert("Warehouse Code already exists.");
       return;
     }
+    if (!address || !city || !state || !country || !pinCode) {
+      alert("All Location Information fields (Address, City, State, Country, Pincode) are mandatory.");
+      return;
+    }
+
+    if (!contactPerson || !phone || !email) {
+      alert("All Contact Information fields (Contact Person, Phone, Email) are mandatory.");
+      return;
+    }
 
     if (contactPerson.length > 100) {
       alert("Contact Person cannot exceed 100 characters.");
       return;
     }
 
-    if (phone) {
-      if (!/^\d+$/.test(phone)) {
-        alert("Phone Number must contain only digits.");
-        return;
-      }
-      if (phone.length > 10) {
-        alert("Phone Number cannot exceed 10 digits.");
-        return;
-      }
+    if (!/^\d+$/.test(phone)) {
+      alert("Phone Number must contain only digits.");
+      return;
+    }
+    if (phone.length > 10) {
+      alert("Phone Number cannot exceed 10 digits.");
+      return;
     }
 
-    if (email) {
-      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      if (!emailRegex.test(email)) {
-        alert("Please enter a valid email address.");
-        return;
-      }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      alert("Please enter a valid email address.");
+      return;
     }
 
     if (gstNumber.length > 15) {
@@ -190,25 +205,38 @@ export default function WarehouseMaster() {
       return;
     }
 
+    if (!companyPan) {
+      alert("Company PAN is required and cannot be empty.");
+      return;
+    }
+
+    if (companyPan.length !== 10) {
+      alert("Company PAN must be exactly 10 characters.");
+      return;
+    }
+
+    if (!bankName || !accountNumber || !ifscCode || !branchName) {
+      alert("All Bank Information fields (Bank Name, Account Number, IFSC Code, Branch Name) are mandatory.");
+      return;
+    }
+
     if (!licenseNumber) {
-      alert("License Number is required and cannot be empty.");
+      alert("Drug License is required and cannot be empty.");
       return;
     }
 
     if (licenseNumber.length > 50) {
-      alert("License Number cannot exceed 50 characters.");
+      alert("Drug License cannot exceed 50 characters.");
       return;
     }
 
-    if (pinCode) {
-      if (!/^\d+$/.test(pinCode)) {
-        alert("PIN Code must contain only digits.");
-        return;
-      }
-      if (pinCode.length > 6) {
-        alert("PIN Code cannot exceed 6 digits.");
-        return;
-      }
+    if (!/^\d+$/.test(pinCode)) {
+      alert("PIN Code must contain only digits.");
+      return;
+    }
+    if (pinCode.length > 6) {
+      alert("PIN Code cannot exceed 6 digits.");
+      return;
     }
 
     if (address.length > 250) {
@@ -236,7 +264,12 @@ export default function WarehouseMaster() {
       city,
       state,
       country,
-      branch
+      branch,
+      bankName,
+      accountNumber,
+      ifscCode,
+      branchName,
+      companyPan
     };
 
     if (isEditingModal) {
@@ -586,7 +619,7 @@ export default function WarehouseMaster() {
                 <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Address
+                      Address *
                     </label>
                     <input
                       maxLength={250}
@@ -602,7 +635,7 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      City
+                      City *
                     </label>
                     <input
                       value={newWarehouse.city}
@@ -617,7 +650,7 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      State
+                      State *
                     </label>
                     <select
                       value={newWarehouse.state}
@@ -639,7 +672,7 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Country
+                      Country *
                     </label>
                     <input
                       value={newWarehouse.country}
@@ -654,7 +687,7 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Pincode
+                      Pincode *
                     </label>
                     <input
                       maxLength={6}
@@ -680,7 +713,7 @@ export default function WarehouseMaster() {
                 <div className="grid grid-cols-1 gap-4">
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Contact Person
+                      Contact Person *
                     </label>
                     <input
                       maxLength={100}
@@ -696,7 +729,7 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Mobile Number
+                      Mobile Number *
                     </label>
                     <input
                       maxLength={10}
@@ -713,7 +746,7 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      Email
+                      Email *
                     </label>
                     <input
                       value={newWarehouse.email}
@@ -754,7 +787,7 @@ export default function WarehouseMaster() {
                   </div>
                   <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1">
-                      License Number *
+                      Drug License *
                     </label>
                     <input
                       maxLength={50}
@@ -763,6 +796,22 @@ export default function WarehouseMaster() {
                         setNewWarehouse({
                           ...newWarehouse,
                           licenseNumber: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Company PAN *
+                    </label>
+                    <input
+                      maxLength={10}
+                      value={newWarehouse.companyPan}
+                      onChange={(e) =>
+                        setNewWarehouse({
+                          ...newWarehouse,
+                          companyPan: e.target.value.toUpperCase(),
                         })
                       }
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
@@ -783,6 +832,79 @@ export default function WarehouseMaster() {
                       }
                       rows={3}
                       className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm resize-none"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              {/* Section 5: Bank Information */}
+              <section>
+                <h3 className="text-sm font-semibold text-slate-900 mb-3 border-b pb-1">
+                  Bank Information
+                </h3>
+                <div className="grid grid-cols-1 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Bank Name *
+                    </label>
+                    <input
+                      maxLength={100}
+                      value={newWarehouse.bankName}
+                      onChange={(e) =>
+                        setNewWarehouse({
+                          ...newWarehouse,
+                          bankName: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Account Number *
+                    </label>
+                    <input
+                      maxLength={50}
+                      value={newWarehouse.accountNumber}
+                      onChange={(e) =>
+                        setNewWarehouse({
+                          ...newWarehouse,
+                          accountNumber: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      IFSC Code *
+                    </label>
+                    <input
+                      maxLength={20}
+                      value={newWarehouse.ifscCode}
+                      onChange={(e) =>
+                        setNewWarehouse({
+                          ...newWarehouse,
+                          ifscCode: e.target.value.toUpperCase(),
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">
+                      Branch Name *
+                    </label>
+                    <input
+                      maxLength={100}
+                      value={newWarehouse.branchName}
+                      onChange={(e) =>
+                        setNewWarehouse({
+                          ...newWarehouse,
+                          branchName: e.target.value,
+                        })
+                      }
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
                     />
                   </div>
                 </div>
@@ -893,12 +1015,41 @@ export default function WarehouseMaster() {
                   value={selectedWarehouse.gstNumber}
                 />
                 <DrawerField
-                  label="License Number"
+                  label="Drug License"
                   value={selectedWarehouse.licenseNumber}
+                />
+                <DrawerField
+                  label="Company PAN"
+                  value={selectedWarehouse.companyPan}
                 />
                 <DrawerField
                   label="Remarks"
                   value={selectedWarehouse.remarks}
+                />
+              </div>
+            </section>
+
+            {/* Bank Information */}
+            <section>
+              <h3 className="text-sm font-semibold text-slate-900 mb-3 bg-slate-50 px-3 py-2 rounded">
+                Bank Information
+              </h3>
+              <div className="space-y-1">
+                <DrawerField
+                  label="Bank Name"
+                  value={selectedWarehouse.bankName}
+                />
+                <DrawerField
+                  label="Account Number"
+                  value={selectedWarehouse.accountNumber}
+                />
+                <DrawerField
+                  label="IFSC Code"
+                  value={selectedWarehouse.ifscCode}
+                />
+                <DrawerField
+                  label="Branch Name"
+                  value={selectedWarehouse.branchName}
                 />
               </div>
             </section>

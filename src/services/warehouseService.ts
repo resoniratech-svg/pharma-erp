@@ -8,6 +8,7 @@ export interface WarehouseRecord {
   type: string;
 
   branch: string;
+  branchName?: string;
 
   contactPerson: string;
   phone: string;
@@ -21,6 +22,11 @@ export interface WarehouseRecord {
 
   gstNumber: string;
   licenseNumber: string;
+
+  bankName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
+  companyPan?: string;
 
   remarks: string;
 
@@ -50,6 +56,11 @@ function mapToUi(w: any): WarehouseRecord {
     pinCode: w.pinCode || "",
     gstNumber: w.gstNumber || "",
     licenseNumber: w.licenseNumber || "",
+    bankName: w.bankName || "",
+    accountNumber: w.accountNumber || "",
+    ifscCode: w.ifscCode || "",
+    branchName: w.branchName || "",
+    companyPan: w.companyPan || "",
     remarks: w.remarks || "",
     status: w.status === "Inactive" ? "Inactive" : "Active",
     createdAt: w.createdAt || new Date().toISOString(),
@@ -60,28 +71,31 @@ function mapToUi(w: any): WarehouseRecord {
 
 function mapToDb(w: any): any {
   return {
-    name: w.name,
     code: w.code,
+    name: w.name,
     address: w.address,
     type: w.type,
     branch: w.branch,
-    contactPerson: w.contactPerson,
-    phone: w.phone,
-    email: w.email,
+    contactPerson: w.contactPerson === "N/A" ? "" : w.contactPerson,
+    phone: w.phone === "N/A" ? "" : w.phone,
+    email: w.email === "N/A" ? "" : w.email,
     city: w.city,
     state: w.state,
     country: w.country,
     pinCode: w.pinCode,
     gstNumber: w.gstNumber,
     licenseNumber: w.licenseNumber,
+    bankName: w.bankName,
+    accountNumber: w.accountNumber,
+    ifscCode: w.ifscCode,
+    branchName: w.branchName,
+    companyPan: w.companyPan,
     remarks: w.remarks,
     status: w.status,
     createdBy: w.createdBy,
     companyId: 1, // Default company
   };
 }
-
-
 
 export const warehouseService = {
   // Synchronous method for backward compatibility
