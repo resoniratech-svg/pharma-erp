@@ -559,7 +559,7 @@ export default function RSMManagement() {
                 <div>
                   <span className="block text-xs text-slate-500 font-semibold mb-1">State(s)</span>
                   <span className="text-sm font-medium">
-                    {viewingRsm.state || '-'}
+                    {(viewingRsm.states && viewingRsm.states.length > 0) ? viewingRsm.states.join(', ') : (viewingRsm.state || '-')}
                   </span>
                 </div>
                 <div><span className="block text-xs text-slate-500 font-semibold mb-1">Headquarters</span><span className="text-sm font-medium">{viewingRsm.hq || '-'}</span></div>
