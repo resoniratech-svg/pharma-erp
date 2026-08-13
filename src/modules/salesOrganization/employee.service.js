@@ -76,7 +76,7 @@ const createEmployeeService = async (data) => {
     region: data.region || null,
     area: data.area || null,
     headquarters: data.headquarters || data.hq || null,
-    states: Array.isArray(data.states) ? data.states : (data.state ? [data.state] : []),
+    states: (Array.isArray(data.states) && data.states.length > 0) ? data.states : (data.state ? [data.state] : (Array.isArray(data.states) ? data.states : [])),
     mobile: data.mobile || null,
     email: data.email || null,
     gender: data.gender || null,
@@ -184,7 +184,15 @@ const updateEmployeeService = async (id, data) => {
   if (data.region !== undefined) payload.region = data.region;
   if (data.area !== undefined) payload.area = data.area;
   if (data.headquarters !== undefined || data.hq !== undefined) payload.headquarters = data.headquarters || data.hq;
-  if (data.states !== undefined) payload.states = data.states;
+    
+  if (data.states !== undefined && Array.isArray(data.states) && data.states.length > 0) {
+    payload.states = data.states;
+  } else if (data.state) {
+    payload.states = [data.state];
+  } else if (data.states !== undefined) {
+    payload.states = data.states;
+  }
+
   if (data.territory !== undefined) payload.territory = data.territory;
   if (data.remarks !== undefined) payload.remarks = data.remarks;
   if (data.mobile !== undefined) payload.mobile = data.mobile;

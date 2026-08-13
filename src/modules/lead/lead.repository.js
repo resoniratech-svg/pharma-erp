@@ -87,6 +87,21 @@ const convertLeadRepo = async (id, convertedTo, stockistId) => {
         }
       });
     } else if (convertedTo === 'Retailer') {
+      let finalStockistId = stockistId ? Number(stockistId) : 1;
+      
+      // Ensure stockist exists to prevent foreign key errors
+      const existingStockist = await tx.stockist.findUnique({ where: { id: finalStockistId }});
+      if (!existingStockist) {
+        const newStockist = await tx.stockist.create({
+          data: {
+            name: 'Default Stockist for Conversions',
+            mobile: '0000000000',
+            isActive: true
+          }
+        });
+        finalStockistId = newStockist.id;
+      }
+
       await tx.retailer.create({
         data: {
           name: lead.name,
@@ -94,7 +109,7 @@ const convertLeadRepo = async (id, convertedTo, stockistId) => {
           email: lead.email,
           code: lead.leadCode,
           address: lead.address,
-          stockistId: stockistId ? Number(stockistId) : 1
+          stockistId: finalStockistId
         }
       });
     }
