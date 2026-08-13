@@ -290,6 +290,7 @@ class EmployeeService {
       zone: item.zone || '',
       region: item.region || '',
       state: item.state || (item.states && item.states.length > 0 ? item.states[0] : ''),
+      states: item.states || [],
       territory: item.territory || '',
       area: item.area || '',
       headquarters: item.headquarters || '',
