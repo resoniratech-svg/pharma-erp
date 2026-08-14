@@ -204,12 +204,6 @@ model Warehouse {
   country       String?
   createdBy     String         @default("System")
   email         String?
-    dlNumber      String?
-    companyPan    String?
-    bankName      String?
-    accountName   String?
-    accountNumber String?
-    ifscCode      String?
   gstNumber     String?
   licenseNumber String?
   phone         String?
