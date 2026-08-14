@@ -43,7 +43,13 @@ export default function RetailerMaster() {
     assignedDistributors: [] as {code: string, name: string}[],
     status: 'Active' as 'Active' | 'Inactive',
     password: '',
-    confirmPassword: ''
+    confirmPassword: '',
+    dlNumber: '',
+    companyPan: '',
+    bankName: '',
+    accountName: '',
+    accountNumber: '',
+    ifscCode: ''
   };
 
   const [distributorSearch, setDistributorSearch] = useState('');
@@ -129,6 +135,31 @@ export default function RetailerMaster() {
     
     if (formData.emailAddress && !/^\S+@\S+\.\S+$/.test(formData.emailAddress)) {
       alert('Enter a valid email address');
+      return;
+    }
+
+    if (!formData.dlNumber?.trim()) {
+      alert('Drug License Number is required');
+      return;
+    }
+    if (!formData.companyPan?.trim()) {
+      alert('Company PAN Number is required');
+      return;
+    }
+    if (!formData.bankName?.trim()) {
+      alert('Bank Name is required');
+      return;
+    }
+    if (!formData.accountName?.trim()) {
+      alert('Account Name is required');
+      return;
+    }
+    if (!formData.accountNumber?.trim()) {
+      alert('Account Number is required');
+      return;
+    }
+    if (!formData.ifscCode?.trim()) {
+      alert('IFSC Code is required');
       return;
     }
     
@@ -505,6 +536,76 @@ export default function RetailerMaster() {
                 </div>
               </section>
 
+              <section>
+                <h3 className="text-sm font-semibold text-slate-900 mb-4 bg-slate-50 px-3 py-2 rounded">
+                  Compliance Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Drug License Number (DL No) *</label>
+                    <input 
+                      type="text"
+                      value={formData.dlNumber || ''}
+                      onChange={(e) => setFormData({...formData, dlNumber: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Company PAN Number *</label>
+                    <input 
+                      type="text"
+                      value={formData.companyPan || ''}
+                      onChange={(e) => setFormData({...formData, companyPan: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
+                  </div>
+                </div>
+              </section>
+
+              <section>
+                <h3 className="text-sm font-semibold text-slate-900 mb-4 bg-slate-50 px-3 py-2 rounded">
+                  Bank Details
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Bank Name *</label>
+                    <input 
+                      type="text"
+                      value={formData.bankName || ''}
+                      onChange={(e) => setFormData({...formData, bankName: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Account Name *</label>
+                    <input 
+                      type="text"
+                      value={formData.accountName || ''}
+                      onChange={(e) => setFormData({...formData, accountName: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Account Number *</label>
+                    <input 
+                      type="text"
+                      value={formData.accountNumber || ''}
+                      onChange={(e) => setFormData({...formData, accountNumber: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1">IFSC Code *</label>
+                    <input 
+                      type="text"
+                      value={formData.ifscCode || ''}
+                      onChange={(e) => setFormData({...formData, ifscCode: e.target.value})}
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
+                  </div>
+                </div>
+              </section>
+
               {!isEditingModal && (
                 <section>
                   <h3 className="text-sm font-semibold text-slate-900 mb-4 bg-slate-50 px-3 py-2 rounded">
@@ -594,6 +695,28 @@ export default function RetailerMaster() {
                 ) : (
                   <p className="text-sm text-slate-500 italic">No distributors assigned</p>
                 )}
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-slate-900 mb-3 bg-slate-50 px-3 py-2 rounded">
+                Compliance Details
+              </h3>
+              <div className="space-y-1">
+                <DrawerField label="Drug License No" value={selectedRetailer.dlNumber || 'N/A'} />
+                <DrawerField label="Company PAN" value={selectedRetailer.companyPan || 'N/A'} />
+              </div>
+            </section>
+
+            <section>
+              <h3 className="text-sm font-semibold text-slate-900 mb-3 bg-slate-50 px-3 py-2 rounded">
+                Bank Details
+              </h3>
+              <div className="space-y-1">
+                <DrawerField label="Bank Name" value={selectedRetailer.bankName || 'N/A'} />
+                <DrawerField label="Account Name" value={selectedRetailer.accountName || 'N/A'} />
+                <DrawerField label="Account Number" value={selectedRetailer.accountNumber || 'N/A'} />
+                <DrawerField label="IFSC Code" value={selectedRetailer.ifscCode || 'N/A'} />
               </div>
             </section>
 

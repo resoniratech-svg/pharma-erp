@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { Plus, Download, Filter, ChevronDown, Trash2 } from 'lucide-react';
+import { Plus, Download, Filter, ChevronDown, Trash2, Upload } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import {
   PageHeader,
@@ -421,6 +421,64 @@ export default function InwardStock() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showCreateModal, formProducts, formData]);
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = XLSX.read(bstr, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+
+        const newProducts = data.map((row: any) => {
+          const getVal = (keys: string[]) => {
+             for (const k of Object.keys(row)) {
+                if (keys.some(key => k.toLowerCase().includes(key.toLowerCase()))) return row[k];
+             }
+             return '';
+          };
+          
+          let mfg = getVal(['mfg', 'manufacture']);
+          if (typeof mfg === 'number') mfg = new Date(Math.round((mfg - 25569)*86400*1000)).toISOString().split('T')[0];
+          let exp = getVal(['exp']);
+          if (typeof exp === 'number') exp = new Date(Math.round((exp - 25569)*86400*1000)).toISOString().split('T')[0];
+
+          return {
+            id: Date.now().toString() + Math.random().toString(),
+            product: getVal(['product', 'item']).toString(),
+            batchNo: getVal(['batch']).toString(),
+            mfgDate: mfg || '',
+            expiryDate: exp || '',
+            quantity: Number(getVal(['qty', 'quantity'])) || 0,
+            ptr: Number(getVal(['ptr', 'purchase', 'rate'])) || 0,
+            mrp: Number(getVal(['mrp', 'price'])) || 0,
+          };
+        }).filter((p: any) => p.product && p.batchNo && p.quantity > 0);
+
+        if (newProducts.length > 0) {
+           setFormProducts(prev => [...prev, ...newProducts]);
+           alert(`Successfully imported ${newProducts.length} items from Excel.`);
+        } else {
+           alert("No valid product entries found in the Excel file. Please check the format.");
+        }
+      } catch (error) {
+        console.error("Error parsing Excel:", error);
+        alert("Failed to parse Excel file.");
+      }
+      
+      if (fileInputRef.current) {
+         fileInputRef.current.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
+  };
 
   const handleAddProductRow = () => {
     setFormProducts([
@@ -911,12 +969,27 @@ export default function InwardStock() {
                   <h3 className="text-sm font-semibold text-slate-700">
                     Product Details
                   </h3>
-                  <button
-                    onClick={handleAddProductRow}
-                    className="text-sm text-[#163c78] font-medium hover:text-[#0c1f3d] flex items-center"
-                  >
-                    <Plus className="w-4 h-4 mr-1" /> Add Row
-                  </button>
+                  <div className="flex gap-3 items-center">
+                    <input 
+                      type="file" 
+                      accept=".xlsx, .xls, .csv" 
+                      className="hidden" 
+                      ref={fileInputRef}
+                      onChange={handleFileUpload}
+                    />
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-sm text-emerald-600 font-medium hover:text-emerald-700 flex items-center"
+                    >
+                      <Upload className="w-4 h-4 mr-1" /> Import Excel
+                    </button>
+                    <button
+                      onClick={handleAddProductRow}
+                      className="text-sm text-[#163c78] font-medium hover:text-[#0c1f3d] flex items-center"
+                    >
+                      <Plus className="w-4 h-4 mr-1" /> Add Row
+                    </button>
+                  </div>
                 </div>
 
                 <div className="overflow-x-auto pb-48">

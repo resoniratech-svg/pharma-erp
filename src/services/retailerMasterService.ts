@@ -15,6 +15,12 @@ export interface RetailerMasterRecord {
   emailAddress?: string;
   status: 'Active' | 'Inactive';
   createdDate: string;
+  dlNumber?: string;
+  companyPan?: string;
+  bankName?: string;
+  accountName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
 }
 
 const STORAGE_KEY = 'pharma_erp_retailer_master';
@@ -38,7 +44,13 @@ export const retailerMasterService = {
           emailAddress: r.email || r.emailAddress || '',
           assignedDistributors: r.stockist ? [{ code: r.stockist.code || 'N/A', name: r.stockist.name }] : (r.assignedDistributors || []),
           status: (r.status === 'Inactive' || r.isActive === false) ? 'Inactive' : 'Active',
-          createdDate: r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]
+          createdDate: r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
+          dlNumber: r.drugLicenseNumber || r.dlNumber || '',
+          companyPan: r.companyPan || '',
+          bankName: r.bankName || '',
+          accountName: r.accountName || '',
+          accountNumber: r.accountNumber || '',
+          ifscCode: r.ifscCode || ''
         }));
         
         localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
@@ -91,7 +103,13 @@ export const retailerMasterService = {
           email: newRecord.emailAddress,
           assignedDistributors: newRecord.assignedDistributors,
           status: newRecord.status,
-          password: password || '123456'
+          password: password || '123456',
+          drugLicenseNumber: newRecord.dlNumber,
+          companyPan: newRecord.companyPan,
+          bankName: newRecord.bankName,
+          accountName: newRecord.accountName,
+          accountNumber: newRecord.accountNumber,
+          ifscCode: newRecord.ifscCode
         }
       });
     } catch (e) {
@@ -130,7 +148,13 @@ export const retailerMasterService = {
           mobile: updates.mobileNumber,
           email: updates.emailAddress,
           assignedDistributors: updates.assignedDistributors,
-          status: updates.status
+          status: updates.status,
+          drugLicenseNumber: updates.dlNumber,
+          companyPan: updates.companyPan,
+          bankName: updates.bankName,
+          accountName: updates.accountName,
+          accountNumber: updates.accountNumber,
+          ifscCode: updates.ifscCode
         }
       });
     } catch (e) {

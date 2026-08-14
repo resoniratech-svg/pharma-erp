@@ -10,6 +10,12 @@ export interface DistributorMasterRecord {
   status: 'Active' | 'Inactive';
   createdDate: string;
   state?: string;
+  dlNumber?: string;
+  companyPan?: string;
+  bankName?: string;
+  accountName?: string;
+  accountNumber?: string;
+  ifscCode?: string;
 }
 
 function mapToUi(d: any): DistributorMasterRecord {
@@ -25,6 +31,12 @@ function mapToUi(d: any): DistributorMasterRecord {
     createdDate: d.createdAt
       ? new Date(d.createdAt).toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0],
+    dlNumber: d.dlNumber || '',
+    companyPan: d.companyPan || '',
+    bankName: d.bankName || '',
+    accountName: d.accountName || '',
+    accountNumber: d.accountNumber || '',
+    ifscCode: d.ifscCode || '',
   };
 }
 
@@ -71,6 +83,12 @@ export const distributorMasterService = {
         emailAddress: record.emailAddress,
         state: record.state,
         status: record.status,
+        dlNumber: record.dlNumber,
+        companyPan: record.companyPan,
+        bankName: record.bankName,
+        accountName: record.accountName,
+        accountNumber: record.accountNumber,
+        ifscCode: record.ifscCode,
       },
     });
     if (!response.success || !response.data) {
@@ -97,6 +115,12 @@ export const distributorMasterService = {
           emailAddress: updates.emailAddress,
           state: updates.state,
           status: updates.status,
+          dlNumber: updates.dlNumber,
+          companyPan: updates.companyPan,
+          bankName: updates.bankName,
+          accountName: updates.accountName,
+          accountNumber: updates.accountNumber,
+          ifscCode: updates.ifscCode,
         },
       });
       if (response.success && response.data) {

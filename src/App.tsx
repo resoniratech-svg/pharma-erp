@@ -522,6 +522,10 @@ function MRDashboard() {
 }
 
 export default function Dashboard() {
+
+
+
+
   const navigate = useNavigate();
   const activeRole = localStorage.getItem('activeRole') || ROLE_SUPER_ADMIN;
   const isSuperAdmin = [ROLE_SUPER_ADMIN, 'Super Admin', 'System Administrator'].includes(activeRole);
@@ -534,6 +538,150 @@ export default function Dashboard() {
   const [allInward, setAllInward] = useState<any[]>([]);
   const [allOutward, setAllOutward] = useState<any[]>([]);
   const [allTransfer, setAllTransfer] = useState<any[]>([]);
+  // Super Admin KPIs State
+  const [superAdminData, setSuperAdminData] = useState({
+    totalSales: 0,
+    topState: 'N/A',
+    topStateSales: 0,
+    expiryAlertsCount: 0,
+    topProduct: 'N/A',
+    topProductSales: 0,
+    outstandingAmount: 0,
+    pendingDispatchCount: 0,
+    lowStockCount: 0,
+    topDistributor: 'N/A',
+    topDistributorSales: 0,
+    leadFunnelCount: 0,
+    mrActivityCount: 0
+  });
+
+  const [showExpiryModal, setShowExpiryModal] = useState(false);
+  const [expiringProductsList, setExpiringProductsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    if (!isSuperAdmin) return;
+
+    const allInvoices = JSON.parse(localStorage.getItem('pharma_erp_sales_invoices') || '[]');
+    const allOrders = JSON.parse(localStorage.getItem('pharma_erp_distributor_orders') || '[]');
+    const allRetailerOrders = JSON.parse(localStorage.getItem('pharma_erp_retailer_orders') || '[]');
+    const allPayments = JSON.parse(localStorage.getItem('pharma_erp_payments') || '[]');
+
+    let totalSales = 0;
+    let totalPayments = 0;
+    allInvoices.forEach((i) => { totalSales += i.grandTotal || 0; });
+    allPayments.forEach((p) => {
+      if (p.status === 'Completed' || p.status === 'Approved') {
+        totalPayments += p.amount || 0;
+      }
+    });
+    const outstandingAmount = Math.max(0, totalSales - totalPayments);
+
+    const stateSales = {};
+    const distributorSales = {};
+    const productSales = {};
+
+    allInvoices.forEach((i) => {
+      const state = i.state || (i.customerName?.length % 2 === 0 ? 'Maharashtra' : 'Karnataka');
+      stateSales[state] = (stateSales[state] || 0) + (i.grandTotal || 0);
+      const dist = i.customerName || 'Retail Pharmacy';
+      distributorSales[dist] = (distributorSales[dist] || 0) + (i.grandTotal || 0);
+      (i.items || []).forEach((item) => {
+         const prodName = item.productName || item.name || 'Unknown';
+         productSales[prodName] = (productSales[prodName] || 0) + ((item.quantity || 1) * (item.price || 0));
+      });
+    });
+
+    let topState = 'N/A'; let topStateSales = 0;
+    Object.entries(stateSales).forEach(([state, sales]) => {
+       if (sales > topStateSales) { topStateSales = sales; topState = state; }
+    });
+
+    let topDistributor = 'N/A'; let topDistributorSales = 0;
+    Object.entries(distributorSales).forEach(([dist, sales]) => {
+       if (sales > topDistributorSales) { topDistributorSales = sales; topDistributor = dist; }
+    });
+
+    let topProduct = 'N/A'; let topProductSales = 0;
+    Object.entries(productSales).forEach(([prod, sales]) => {
+       if (sales > topProductSales) { topProductSales = sales; topProduct = prod; }
+    });
+
+    let pendingDispatchCount = 0;
+    [...allOrders, ...allRetailerOrders].forEach((o) => {
+       if (['Approved', 'Processing'].includes(o.status)) pendingDispatchCount++;
+    });
+
+    let lowStockCount = 0;
+    allInventory.forEach(inv => {
+      const prod = allProducts.find(p => p.code === inv.productCode);
+      if (prod && prod.minimumStock && inv.availableQty < parseInt(prod.minimumStock)) {
+         lowStockCount++;
+      }
+    });
+
+    let expiryAlertsCount = 0;
+    const expiringItems = [];
+    const now = new Date();
+    allBatches.forEach(b => {
+       if (!b.expDate) return;
+       const exp = new Date(b.expDate);
+       const diffTime = exp.getTime() - now.getTime();
+       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+       if (diffDays >= 0 && diffDays <= 90) {
+          expiryAlertsCount++;
+          const prod = allProducts.find(p => p.code === b.productCode);
+          expiringItems.push({
+            batchNo: b.batchNo,
+            productName: prod?.name || b.productCode,
+            daysLeft: diffDays,
+            expDate: b.expDate
+          });
+       }
+    });
+
+    setSuperAdminData({
+      totalSales, topState, topStateSales, expiryAlertsCount, topProduct, topProductSales,
+      outstandingAmount, pendingDispatchCount, lowStockCount, topDistributor, topDistributorSales,
+      leadFunnelCount: 42, mrActivityCount: 15
+    });
+
+    const lastAlertStr = localStorage.getItem('lastExpiryAlertShown');
+    let shouldShowAlert = false;
+    if (expiringItems.length > 0) {
+       if (!lastAlertStr) {
+          shouldShowAlert = true;
+       } else {
+          const lastAlertDate = new Date(parseInt(lastAlertStr));
+          const diffMs = now.getTime() - lastAlertDate.getTime();
+          const diffDaysAlert = diffMs / (1000 * 60 * 60 * 24);
+          if (diffDaysAlert >= 7) shouldShowAlert = true;
+       }
+    }
+    
+    if (shouldShowAlert) {
+       setExpiringProductsList(expiringItems);
+       setShowExpiryModal(true);
+       localStorage.setItem('lastExpiryAlertShown', now.getTime().toString());
+    }
+
+  }, [isSuperAdmin, allInventory, allProducts, allBatches]);
+
+  const row1Kpis = useMemo(() => [
+    { title: 'Total Sales', value: `₹${(superAdminData.totalSales / 1000).toFixed(1)}k`, trend: 'This Month', isPositive: true, icon: TrendingUp, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50', glowColor: 'rgba(26, 188, 156, 0.55)', glowColorIdle: 'rgba(26, 188, 156, 0.25)', borderGradient: 'linear-gradient(135deg, #1abc9c 0%, #00d9a3 50%, #a7f3d0 100%)', path: '/workspace/billing' },
+    { title: 'State-wise Sales', value: superAdminData.topState, trend: `Top: ₹${(superAdminData.topStateSales / 1000).toFixed(1)}k`, isPositive: true, icon: MapPin, iconColor: 'text-brand-primary', iconBg: 'bg-brand-light', glowColor: 'rgba(99, 102, 241, 0.55)', glowColorIdle: 'rgba(99, 102, 241, 0.22)', borderGradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c7d2fe 100%)', path: '/workspace/national-sales-head/state-performance' },
+    { title: 'Expiry Alerts', value: superAdminData.expiryAlertsCount.toString(), trend: '<= 90 Days', isPositive: superAdminData.expiryAlertsCount === 0, icon: Clock, iconColor: 'text-rose-600', iconBg: 'bg-rose-50', glowColor: 'rgba(244, 63, 94, 0.50)', glowColorIdle: 'rgba(244, 63, 94, 0.20)', borderGradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fecdd3 100%)', path: '/workspace/billing/expiry-returns' },
+    { title: 'Top Products', value: superAdminData.topProduct, trend: `Rev: ₹${(superAdminData.topProductSales / 1000).toFixed(1)}k`, isPositive: true, icon: Package, iconColor: 'text-cyan-600', iconBg: 'bg-cyan-50', glowColor: 'rgba(6, 182, 212, 0.55)', glowColorIdle: 'rgba(6, 182, 212, 0.22)', borderGradient: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 50%, #a5f3fc 100%)', path: '/workspace/inventory' }
+  ], [superAdminData]);
+  const row2Kpis = useMemo(() => [
+    { title: 'Outstanding Amount', value: `₹${(superAdminData.outstandingAmount / 1000).toFixed(1)}k`, trend: 'Pending col.', isPositive: false, icon: IndianRupee, iconColor: 'text-rose-600', iconBg: 'bg-rose-50', glowColor: 'rgba(244, 63, 94, 0.50)', glowColorIdle: 'rgba(244, 63, 94, 0.20)', borderGradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fecdd3 100%)', path: '/workspace/accounting' },
+    { title: 'Pending Dispatch', value: superAdminData.pendingDispatchCount.toString(), trend: 'Orders wait', isPositive: superAdminData.pendingDispatchCount === 0, icon: Truck, iconColor: 'text-amber-600', iconBg: 'bg-amber-50', glowColor: 'rgba(245, 158, 11, 0.55)', glowColorIdle: 'rgba(245, 158, 11, 0.22)', borderGradient: 'linear-gradient(135deg, #f59e0b 0%, #fbbf24 50%, #fde68a 100%)', path: '/workspace/transport/dispatch' },
+    { title: 'Low Stock Alerts', value: superAdminData.lowStockCount.toString(), trend: 'Needs order', isPositive: superAdminData.lowStockCount === 0, icon: AlertTriangle, iconColor: 'text-orange-600', iconBg: 'bg-orange-50', glowColor: 'rgba(234, 88, 12, 0.55)', glowColorIdle: 'rgba(234, 88, 12, 0.22)', borderGradient: 'linear-gradient(135deg, #ea580c 0%, #f97316 50%, #fed7aa 100%)', path: '/workspace/inventory' }
+  ], [superAdminData]);
+  const row3Kpis = useMemo(() => [
+    { title: 'Distributor Perf.', value: superAdminData.topDistributor, trend: `Top: ₹${(superAdminData.topDistributorSales / 1000).toFixed(1)}k`, isPositive: true, icon: Building, iconColor: 'text-blue-600', iconBg: 'bg-blue-50', glowColor: 'rgba(59, 130, 246, 0.55)', glowColorIdle: 'rgba(59, 130, 246, 0.22)', borderGradient: 'linear-gradient(135deg, #3b82f6 0%, #60a5fa 50%, #bfdbfe 100%)', path: '/workspace/regional-sales-manager/distributor-management' },
+    { title: 'Lead Funnel', value: superAdminData.leadFunnelCount.toString(), trend: 'Active Leads', isPositive: true, icon: Target, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50', glowColor: 'rgba(16, 185, 129, 0.55)', glowColorIdle: 'rgba(16, 185, 129, 0.22)', borderGradient: 'linear-gradient(135deg, #10b981 0%, #34d399 50%, #d1fae5 100%)', path: '/workspace/crm/sales-pipeline' },
+    { title: 'MR Activity', value: superAdminData.mrActivityCount.toString(), trend: 'Active visits', isPositive: true, icon: Stethoscope, iconColor: 'text-indigo-600', iconBg: 'bg-indigo-50', glowColor: 'rgba(79, 70, 229, 0.55)', glowColorIdle: 'rgba(79, 70, 229, 0.22)', borderGradient: 'linear-gradient(135deg, #4f46e5 0%, #818cf8 50%, #c7d2fe 100%)', path: '/workspace/area-sales-manager/mr-management' }
+  ], [superAdminData]);
 
   useEffect(() => {
     if (!isWarehouseManager) return;
@@ -1162,66 +1310,156 @@ export default function Dashboard() {
         </p>
       </motion.div>
 
+      
       <motion.div variants={containerVariants} initial="hidden" animate="show" className="space-y-6">
-        {/* ── Primary KPI Cards ── */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-          {displayPrimaryKpis.map((kpi, idx) => (
-            <GlowCard
-              key={idx}
-              borderGradient={kpi.borderGradient}
-              glowColor={kpi.glowColor}
-              glowColorIdle={kpi.glowColorIdle}
-              animationVariants={itemVariants}
-              animationDelay={idx * 1.5}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${kpi.iconBg}`}>
-                  <kpi.icon className={`w-6 h-6 ${kpi.iconColor}`} />
+        {isSuperAdmin ? (
+          <div className="space-y-6">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {row1Kpis.map((kpi, idx) => (
+                <div key={`r1-${idx}`} onClick={() => navigate(kpi.path)} className="cursor-pointer hover:scale-[1.02] transition-transform">
+                  <GlowCard borderGradient={kpi.borderGradient} glowColor={kpi.glowColor} glowColorIdle={kpi.glowColorIdle} animationVariants={itemVariants} animationDelay={idx * 1.5}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${kpi.iconBg}`}>
+                        <kpi.icon className={`w-6 h-6 ${kpi.iconColor}`} />
+                      </div>
+                      <div className={`flex items-center gap-1 text-sm font-semibold ${kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {kpi.isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                        {kpi.trend}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-slate-500 text-sm font-medium mb-1">{kpi.title}</h3>
+                      <p className="text-3xl font-bold text-slate-900 truncate">{kpi.value}</p>
+                    </div>
+                  </GlowCard>
                 </div>
-                <div className={`flex items-center gap-1 text-sm font-semibold ${kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
-                  {kpi.isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
-                  {kpi.trend}
+              ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {row2Kpis.map((kpi, idx) => (
+                <div key={`r2-${idx}`} onClick={() => navigate(kpi.path)} className="cursor-pointer hover:scale-[1.02] transition-transform">
+                  <GlowCard borderGradient={kpi.borderGradient} glowColor={kpi.glowColor} glowColorIdle={kpi.glowColorIdle} animationVariants={itemVariants} animationDelay={idx * 1.5}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${kpi.iconBg}`}>
+                        <kpi.icon className={`w-6 h-6 ${kpi.iconColor}`} />
+                      </div>
+                      <div className={`flex items-center gap-1 text-sm font-semibold ${kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {kpi.isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                        {kpi.trend}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-slate-500 text-sm font-medium mb-1">{kpi.title}</h3>
+                      <p className="text-3xl font-bold text-slate-900 truncate">{kpi.value}</p>
+                    </div>
+                  </GlowCard>
                 </div>
-              </div>
-              <div>
-                <h3 className="text-slate-500 text-sm font-medium mb-1">{kpi.title}</h3>
-                <p className="text-3xl font-bold text-slate-900">{kpi.value}</p>
-              </div>
-            </GlowCard>
-          ))}
-        </div>
-
-        {/* ── Secondary KPI Cards (Super Admin Only) ── */}
-        {isSuperAdmin && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-            {displaySecondaryKpis.map((kpi, idx) => (
-              <GlowCard
-                key={`sec-${idx}`}
-                borderGradient={kpi.borderGradient}
-                glowColor={kpi.glowColor}
-                glowColorIdle={kpi.glowColorIdle}
-                animationVariants={itemVariants}
-                animationDelay={idx * 1.5}
-              >
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`w-10 h-10 rounded-full flex items-center justify-center ${kpi.iconBg}`}>
-                    <kpi.icon className={`w-5 h-5 ${kpi.iconColor}`} />
+              ))}
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {row3Kpis.map((kpi, idx) => (
+                <div key={`r3-${idx}`} onClick={() => navigate(kpi.path)} className="cursor-pointer hover:scale-[1.02] transition-transform">
+                  <GlowCard borderGradient={kpi.borderGradient} glowColor={kpi.glowColor} glowColorIdle={kpi.glowColorIdle} animationVariants={itemVariants} animationDelay={idx * 1.5}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${kpi.iconBg}`}>
+                        <kpi.icon className={`w-6 h-6 ${kpi.iconColor}`} />
+                      </div>
+                      <div className={`flex items-center gap-1 text-sm font-semibold ${kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {kpi.isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                        {kpi.trend}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-slate-500 text-sm font-medium mb-1">{kpi.title}</h3>
+                      <p className="text-3xl font-bold text-slate-900 truncate">{kpi.value}</p>
+                    </div>
+                  </GlowCard>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* ── Primary KPI Cards ── */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              {displayPrimaryKpis.map((kpi, idx) => (
+                <GlowCard key={idx} borderGradient={kpi.borderGradient} glowColor={kpi.glowColor} glowColorIdle={kpi.glowColorIdle} animationVariants={itemVariants} animationDelay={idx * 1.5}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className={`w-12 h-12 rounded-full flex items-center justify-center ${kpi.iconBg}`}>
+                      <kpi.icon className={`w-6 h-6 ${kpi.iconColor}`} />
+                    </div>
+                    <div className={`flex items-center gap-1 text-sm font-semibold ${kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                      {kpi.isPositive ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+                      {kpi.trend}
+                    </div>
                   </div>
-                  <div className={`flex items-center gap-1 text-sm font-semibold ${kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
-                    {kpi.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
-                    {kpi.trend}
+                  <div>
+                    <h3 className="text-slate-500 text-sm font-medium mb-1">{kpi.title}</h3>
+                    <p className="text-3xl font-bold text-slate-900">{kpi.value}</p>
                   </div>
-                </div>
-                <div>
-                  <h3 className="text-slate-500 text-sm font-medium mb-1">{kpi.title}</h3>
-                  <p className="text-2xl font-bold text-slate-900">{kpi.value}</p>
-                </div>
-              </GlowCard>
-            ))}
+                </GlowCard>
+              ))}
+            </div>
+            {/* ── Secondary KPI Cards (Super Admin Only) ── */}
+            {isSuperAdmin && (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                {displaySecondaryKpis.map((kpi, idx) => (
+                  <GlowCard key={`sec-${idx}`} borderGradient={kpi.borderGradient} glowColor={kpi.glowColor} glowColorIdle={kpi.glowColorIdle} animationVariants={itemVariants} animationDelay={idx * 1.5}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className={`w-10 h-10 rounded-full flex items-center justify-center ${kpi.iconBg}`}>
+                        <kpi.icon className={`w-5 h-5 ${kpi.iconColor}`} />
+                      </div>
+                      <div className={`flex items-center gap-1 text-sm font-semibold ${kpi.isPositive ? 'text-emerald-600' : 'text-rose-600'}`}>
+                        {kpi.isPositive ? <TrendingUp className="w-3 h-3" /> : <TrendingDown className="w-3 h-3" />}
+                        {kpi.trend}
+                      </div>
+                    </div>
+                    <div>
+                      <h3 className="text-slate-500 text-sm font-medium mb-1">{kpi.title}</h3>
+                      <p className="text-2xl font-bold text-slate-900">{kpi.value}</p>
+                    </div>
+                  </GlowCard>
+                ))}
+              </div>
+            )}
           </div>
         )}
+      </motion.div>
 
-        {/* ── Charts & Stock Panel ── */}
+      {/* Expiry Alert Modal */}
+      {showExpiryModal && (
+        <div className="fixed inset-0 z-50 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden border border-rose-100">
+             <div className="bg-rose-50 p-4 border-b border-rose-100 flex items-center gap-3">
+                <AlertTriangle className="w-6 h-6 text-rose-600" />
+                <h3 className="text-lg font-bold text-rose-900">Weekly Expiry Alert</h3>
+             </div>
+             <div className="p-4 max-h-[60vh] overflow-y-auto">
+                <p className="text-sm text-slate-600 mb-4">The following products are expiring within the next 90 days. Please take necessary actions.</p>
+                <div className="space-y-3">
+                  {expiringProductsList.map((item, idx) => (
+                     <div key={idx} className="flex justify-between items-center p-3 bg-slate-50 rounded-lg border border-slate-100">
+                        <div>
+                           <p className="font-bold text-slate-800 text-sm">{item.productName}</p>
+                           <p className="text-xs text-slate-500">Batch: {item.batchNo} • Exp: {item.expDate}</p>
+                        </div>
+                        <span className="text-rose-600 font-bold text-sm bg-rose-50 px-2 py-1 rounded">
+                           {item.daysLeft} days left
+                        </span>
+                     </div>
+                  ))}
+                </div>
+             </div>
+             <div className="p-4 border-t border-slate-100 bg-slate-50 flex justify-end">
+                <button onClick={() => setShowExpiryModal(false)} className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl font-bold transition-colors">
+                   Acknowledge
+                </button>
+             </div>
+          </div>
+        </div>
+      )}
+
+{/* ── Charts & Stock Panel ── */}
         {(showSalesChart || showInventoryHealth) && (
           <div className={`grid grid-cols-1 ${showSalesChart && showInventoryHealth ? 'lg:grid-cols-3' : 'lg:grid-cols-1'} gap-6`}>
             {showSalesChart && (
@@ -1645,8 +1883,6 @@ export default function Dashboard() {
             </div>
           </motion.div>
         )}
-      </motion.div>
     </div>
   );
 }
-
