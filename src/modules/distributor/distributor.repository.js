@@ -18,6 +18,12 @@ const createDistributorRepo = async (data) => {
       email: data.emailAddress || data.email || null,
       state: data.state || null,
       status: data.status || "Active",
+      drugLicenseNumber: data.drugLicenseNumber || data.dlNumber || null,
+      companyPan: data.companyPan || null,
+      bankName: data.bankName || null,
+      accountName: data.accountName || null,
+      accountNumber: data.accountNumber || null,
+      ifscCode: data.ifscCode || null,
     },
   });
 };
@@ -30,6 +36,12 @@ const updateDistributorRepo = async (id, data) => {
   if (data.emailAddress !== undefined || data.email !== undefined) updateData.email = data.emailAddress || data.email;
   if (data.state !== undefined) updateData.state = data.state;
   if (data.status !== undefined) updateData.status = data.status;
+  if (data.drugLicenseNumber !== undefined || data.dlNumber !== undefined) updateData.drugLicenseNumber = data.drugLicenseNumber || data.dlNumber;
+  if (data.companyPan !== undefined) updateData.companyPan = data.companyPan;
+  if (data.bankName !== undefined) updateData.bankName = data.bankName;
+  if (data.accountName !== undefined) updateData.accountName = data.accountName;
+  if (data.accountNumber !== undefined) updateData.accountNumber = data.accountNumber;
+  if (data.ifscCode !== undefined) updateData.ifscCode = data.ifscCode;
 
   return prisma.distributor.update({
     where: { id: Number(id) },

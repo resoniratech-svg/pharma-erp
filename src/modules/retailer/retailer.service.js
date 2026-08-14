@@ -4,7 +4,7 @@ const repository =
 const prisma = require("../../config/db");
 
 const createRetailerService = async (data) => {
-  const { assignedDistributors, password, status, mobile, contactPerson, name, code, email } = data;
+  const { assignedDistributors, password, status, mobile, contactPerson, name, code, email, drugLicenseNumber, companyPan, bankName, accountName, accountNumber, ifscCode } = data;
 
   let stockistId; // No hardcoded fallback
   if (assignedDistributors && assignedDistributors.length > 0) {
@@ -53,7 +53,13 @@ const createRetailerService = async (data) => {
     mobile: mobile,
     email: email || "",
     isActive: status !== 'Inactive',
-    stockistId: stockistId
+    stockistId: stockistId,
+    drugLicenseNumber: drugLicenseNumber || "",
+    companyPan: companyPan || "",
+    bankName: bankName || "",
+    accountName: accountName || "",
+    accountNumber: accountNumber || "",
+    ifscCode: ifscCode || ""
   };
 
   return repository.createRetailerRepo(mappedData);
@@ -72,7 +78,7 @@ const getRetailerByIdService =
   };
 
 const updateRetailerService = async (id, data) => {
-  const { assignedDistributors, password, status, mobile, contactPerson, name, email } = data;
+  const { assignedDistributors, password, status, mobile, contactPerson, name, email, drugLicenseNumber, companyPan, bankName, accountName, accountNumber, ifscCode } = data;
   
   let stockistId;
   if (assignedDistributors && assignedDistributors.length > 0) {
@@ -100,6 +106,12 @@ const updateRetailerService = async (id, data) => {
   if (email !== undefined) mappedData.email = email;
   if (status !== undefined) mappedData.isActive = status !== 'Inactive';
   if (stockistId !== undefined) mappedData.stockistId = stockistId;
+  if (drugLicenseNumber !== undefined) mappedData.drugLicenseNumber = drugLicenseNumber;
+  if (companyPan !== undefined) mappedData.companyPan = companyPan;
+  if (bankName !== undefined) mappedData.bankName = bankName;
+  if (accountName !== undefined) mappedData.accountName = accountName;
+  if (accountNumber !== undefined) mappedData.accountNumber = accountNumber;
+  if (ifscCode !== undefined) mappedData.ifscCode = ifscCode;
 
   return repository.updateRetailerRepo(id, mappedData);
 };

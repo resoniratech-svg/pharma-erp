@@ -204,6 +204,12 @@ model Warehouse {
   country       String?
   createdBy     String         @default("System")
   email         String?
+    dlNumber      String?
+    companyPan    String?
+    bankName      String?
+    accountName   String?
+    accountNumber String?
+    ifscCode      String?
   gstNumber     String?
   licenseNumber String?
   phone         String?
@@ -388,6 +394,11 @@ model Retailer {
   isActive          Boolean         @default(true)
   createdAt         DateTime        @default(now())
   contactPerson     String?
+    companyPan        String?
+    bankName          String?
+    accountName       String?
+    accountNumber     String?
+    ifscCode          String?
   creditNotes       CreditNote[]
   invoices          Invoice[]
   stockist          Stockist        @relation(fields: [stockistId], references: [id])
