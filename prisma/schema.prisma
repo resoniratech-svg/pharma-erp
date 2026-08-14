@@ -852,6 +852,12 @@ model Distributor {
   email         String?
   status        String       @default("Active")
   state         String?
+  drugLicenseNumber String?
+  companyPan    String?
+  bankName      String?
+  accountName   String?
+  accountNumber String?
+  ifscCode      String?
   creditNotes   CreditNote[]
 }
 
