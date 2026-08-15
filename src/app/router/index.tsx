@@ -475,6 +475,7 @@ export const router = createBrowserRouter([
       {
         element: <ProtectedRoute moduleLabel="Wholesale Billing System" />,
         children: [
+          { index: true, element: <Navigate to="gst" replace /> },
           { path: 'gst', element: <GSTBilling /> },
           { path: 'einvoice', element: <EInvoice /> },
           { path: 'ewaybill', element: <Navigate to="/workspace/billing/einvoice" replace /> },
