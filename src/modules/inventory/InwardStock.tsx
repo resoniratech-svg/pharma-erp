@@ -654,7 +654,7 @@ export default function InwardStock() {
   const autoCalculatedMetrics = useMemo(() => {
     const totalItems = formProducts.length;
     const totalQuantity = formProducts.reduce((acc, curr) => acc + (Number(curr.quantity) || 0), 0);
-    const totalValue = formProducts.reduce((acc, curr) => acc + ((Number(curr.quantity) || 0) * (Number(curr.ptr) || 0)), 0);
+    const totalValue = formProducts.reduce((acc, curr) => acc + ((Number(curr.quantity) || 0) * (Number(curr.mrp) || 0)), 0);
     return { totalItems, totalQuantity, totalValue };
   }, [formProducts]);
 
@@ -693,11 +693,6 @@ export default function InwardStock() {
       const qty = Number(p.quantity);
       if (!Number.isInteger(qty) || qty <= 0) {
         alert("Quantity must be a positive integer greater than zero.");
-        return;
-      }
-
-      if (Number(p.ptr) <= 0) {
-        alert("Invalid PTR.");
         return;
       }
 
@@ -1131,9 +1126,6 @@ export default function InwardStock() {
                           Quantity *
                         </th>
                         <th className="px-3 py-2 whitespace-nowrap w-24">
-                          PTR (₹)
-                        </th>
-                        <th className="px-3 py-2 whitespace-nowrap w-24">
                           MRP (₹)
                         </th>
                         <th className="px-3 py-2"></th>
@@ -1204,14 +1196,6 @@ export default function InwardStock() {
                               className="w-full border border-slate-200 rounded px-2 py-1.5 text-sm"
                               min="1"
                               placeholder="0"
-                            />
-                          </td>
-                          <td className="px-2 py-2">
-                            <input
-                              type="number"
-                              value={prod.ptr || ""}
-                              readOnly
-                              className="w-full bg-slate-50 border border-slate-200 rounded px-2 py-1.5 text-sm cursor-not-allowed"
                             />
                           </td>
                           <td className="px-2 py-2">
@@ -1474,7 +1458,6 @@ export default function InwardStock() {
                       <th className="px-3 py-2">MFG Date</th>
                       <th className="px-3 py-2">Expiry Date</th>
                       <th className="px-3 py-2 text-right">Qty</th>
-                      <th className="px-3 py-2 text-right">PTR</th>
                       <th className="px-3 py-2 text-right">MRP</th>
                     </tr>
                   </thead>
@@ -1496,7 +1479,6 @@ export default function InwardStock() {
                         <td className="px-3 py-2 text-right font-medium">
                           {prod.quantity}
                         </td>
-                        <td className="px-3 py-2 text-right">₹{prod.ptr}</td>
                         <td className="px-3 py-2 text-right">₹{prod.mrp}</td>
                       </tr>
                     ))}
