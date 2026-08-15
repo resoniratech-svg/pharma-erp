@@ -417,29 +417,36 @@ export default function InwardStock() {
             newGrnsMap.set(grnNo, {
               grnNo: grnNo,
               date: inwardDate,
-              supplier: matchedSupplier ? matchedSupplier.name : rawSupplier || 'Unknown Supplier',
-              warehouseCode: matchedWarehouse ? matchedWarehouse.code : 'WH-000',
-              warehouseName: matchedWarehouse ? matchedWarehouse.name : rawLocation || 'Unknown Location',
+              supplierId: matchedSupplier ? matchedSupplier.id : 1, // Fallback if not found
+              warehouseId: matchedWarehouse ? matchedWarehouse.id : 1, // Fallback if not found
               status: getVal(['status']) || 'Completed',
               remarks: 'Imported via Bulk Excel',
               itemsCount: 0,
               totalQuantity: 0,
               totalValue: 0,
-              items: []
+              items: [],
+              createdBy: currentUser?.fullName,
+              updatedBy: currentUser?.fullName,
             });
           }
 
-          const product = getVal(['product', 'item']).toString();
+          const productName = getVal(['product', 'item']).toString();
           const batchNo = getVal(['batch']).toString();
           const quantity = Number(getVal(['qty', 'quantity'])) || 0;
           
-          if (product && batchNo && quantity > 0) {
+          let matchedProduct = products.find(p => p.name.toLowerCase() === productName.toLowerCase());
+          
+          if (!matchedProduct) {
+             console.warn(`Product not found: ${productName}. Skipping.`);
+             continue; // Option A: Skip this product entry entirely
+          }
+          
+          if (productName && batchNo && quantity > 0) {
             const grnEntry = newGrnsMap.get(grnNo);
-            const ptr = Number(getVal(['ptr', 'purchase', 'rate'])) || 0;
             const mrp = Number(getVal(['mrp', 'price'])) || 0;
             
             grnEntry.items.push({
-              product,
+              productId: matchedProduct.id,
               batchNo,
               mfgDate: mfg || '',
               expiryDate: exp || '',
@@ -454,12 +461,23 @@ export default function InwardStock() {
           }
         }
 
-        const newRecords = Array.from(newGrnsMap.values());
+        const newRecords = Array.from(newGrnsMap.values()).filter((record: any) => record.items.length > 0);
         if (newRecords.length > 0) {
-          setInwardRecords(prev => [...newRecords, ...prev]);
-          alert(`Successfully imported ${newRecords.length} GRNs from Excel.`);
+          let successCount = 0;
+          for (const record of newRecords) {
+             const success = await inwardStockService.add(record);
+             if (success) successCount++;
+          }
+          
+          if (successCount > 0) {
+             const updatedRecords = await inwardStockService.getAll();
+             setInwardRecords(updatedRecords as unknown as Inward[]);
+             alert(`Successfully imported and saved ${successCount} GRNs.`);
+          } else {
+             alert("Failed to save imported GRNs to the database.");
+          }
         } else {
-          alert("No valid GRN entries found in the Excel file. Please check the format.");
+          alert("No valid GRN entries found in the Excel file. Please check the format and ensure products exist.");
         }
       } catch (error) {
         console.error("Error parsing Excel:", error);
