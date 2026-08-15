@@ -627,7 +627,7 @@ export default function Dashboard() {
        const exp = new Date(b.expDate);
        const diffTime = exp.getTime() - now.getTime();
        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-       if (diffDays >= 0 && diffDays <= 90) {
+       if (diffDays > 0 && diffDays <= 90) {
           expiryAlertsCount++;
           const prod = allProducts.find(p => p.code === b.productCode);
           expiringItems.push({
@@ -669,7 +669,7 @@ export default function Dashboard() {
   const row1Kpis = useMemo(() => [
     { title: 'Total Sales', value: `₹${(superAdminData.totalSales / 1000).toFixed(1)}k`, trend: 'This Month', isPositive: true, icon: TrendingUp, iconColor: 'text-emerald-600', iconBg: 'bg-emerald-50', glowColor: 'rgba(26, 188, 156, 0.55)', glowColorIdle: 'rgba(26, 188, 156, 0.25)', borderGradient: 'linear-gradient(135deg, #1abc9c 0%, #00d9a3 50%, #a7f3d0 100%)', path: '/workspace/billing' },
     { title: 'State-wise Sales', value: superAdminData.topState, trend: `Top: ₹${(superAdminData.topStateSales / 1000).toFixed(1)}k`, isPositive: true, icon: MapPin, iconColor: 'text-brand-primary', iconBg: 'bg-brand-light', glowColor: 'rgba(99, 102, 241, 0.55)', glowColorIdle: 'rgba(99, 102, 241, 0.22)', borderGradient: 'linear-gradient(135deg, #6366f1 0%, #818cf8 50%, #c7d2fe 100%)', path: '/workspace/national-sales-head/state-performance' },
-    { title: 'Expiry Alerts', value: superAdminData.expiryAlertsCount.toString(), trend: '<= 90 Days', isPositive: superAdminData.expiryAlertsCount === 0, icon: Clock, iconColor: 'text-rose-600', iconBg: 'bg-rose-50', glowColor: 'rgba(244, 63, 94, 0.50)', glowColorIdle: 'rgba(244, 63, 94, 0.20)', borderGradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fecdd3 100%)', path: '/workspace/products/expiry-tracking' },
+    { title: 'Expiry Alerts', value: superAdminData.expiryAlertsCount.toString(), trend: '<= 90 Days', isPositive: superAdminData.expiryAlertsCount === 0, icon: Clock, iconColor: 'text-rose-600', iconBg: 'bg-rose-50', glowColor: 'rgba(244, 63, 94, 0.50)', glowColorIdle: 'rgba(244, 63, 94, 0.20)', borderGradient: 'linear-gradient(135deg, #f43f5e 0%, #fb7185 50%, #fecdd3 100%)', path: '/workspace/products/expiry-tracking?filter=Near Expiry' },
     { title: 'Top Products', value: superAdminData.topProduct, trend: `Rev: ₹${(superAdminData.topProductSales / 1000).toFixed(1)}k`, isPositive: true, icon: Package, iconColor: 'text-cyan-600', iconBg: 'bg-cyan-50', glowColor: 'rgba(6, 182, 212, 0.55)', glowColorIdle: 'rgba(6, 182, 212, 0.22)', borderGradient: 'linear-gradient(135deg, #06b6d4 0%, #22d3ee 50%, #a5f3fc 100%)', path: '/workspace/inventory' }
   ], [superAdminData]);
   const row2Kpis = useMemo(() => [

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router';
 import { Filter, Download, RefreshCw } from 'lucide-react';
 
 import {
@@ -79,8 +80,9 @@ const getStatusVariant = (status: string) => {
 };
 
 export default function ExpiryTracking() {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState('');
-  const [statusFilter, setStatusFilter] = useState('');
+  const [statusFilter, setStatusFilter] = useState(searchParams.get('filter') || '');
   const [selectedItem, setSelectedItem] = useState<ExpiryItem | null>(null);
   const [data, setData] = useState<ExpiryItem[]>([]);
 
