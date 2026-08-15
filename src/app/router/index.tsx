@@ -389,6 +389,7 @@ export const router = createBrowserRouter([
     path: '/workspace/inventory',
     element: <MainLayout />,
     children: [
+      { index: true, element: <Navigate to="overview" replace /> },
       {
         element: <ProtectedRoute moduleLabel="Inventory & Warehouse Management" />,
         children: [
