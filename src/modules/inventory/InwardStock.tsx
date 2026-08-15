@@ -180,6 +180,7 @@ export default function InwardStock() {
 
   const [showExportMenu, setShowExportMenu] = useState(false);
   const exportMenuRef = useRef<HTMLDivElement>(null);
+  const bulkFileInputRef = useRef<HTMLInputElement>(null);
 
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [selectedRecord, setSelectedRecord] = useState<Inward | null>(null);
@@ -365,6 +366,111 @@ export default function InwardStock() {
     link.click();
     document.body.removeChild(link);
     setShowExportMenu(false);
+  };
+
+  const handleBulkImportExcel = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const workbook = XLSX.read(bstr, { type: 'binary' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const data = XLSX.utils.sheet_to_json(worksheet);
+
+        const newGrnsMap = new Map<string, any>();
+
+        for (const row of data as any[]) {
+          const getVal = (keys: string[]) => {
+            for (const k of Object.keys(row)) {
+              if (keys.some((key) => k.toLowerCase().includes(key.toLowerCase()))) return row[k];
+            }
+            return '';
+          };
+
+          const grnNo = getVal(['grn number', 'grn no', 'grn']);
+          if (!grnNo) continue;
+
+          let inwardDate = getVal(['inward date', 'date']);
+          if (typeof inwardDate === 'number') {
+            inwardDate = new Date(Math.round((inwardDate - 25569) * 86400 * 1000)).toISOString().split('T')[0];
+          } else {
+             inwardDate = new Date().toISOString().split('T')[0];
+          }
+
+          let mfg = getVal(['mfg', 'manufacture']);
+          if (typeof mfg === 'number') mfg = new Date(Math.round((mfg - 25569) * 86400 * 1000)).toISOString().split('T')[0];
+          
+          let exp = getVal(['exp']);
+          if (typeof exp === 'number') exp = new Date(Math.round((exp - 25569) * 86400 * 1000)).toISOString().split('T')[0];
+
+          if (!newGrnsMap.has(grnNo)) {
+            const rawSupplier = getVal(['supplier', 'vendor']);
+            let matchedSupplier = suppliers.find(s => s.name.toLowerCase() === rawSupplier.toString().toLowerCase());
+            
+            const rawLocation = getVal(['location']);
+            let matchedWarehouse = warehouses.find(w => rawLocation.toString().includes(w.code));
+
+            newGrnsMap.set(grnNo, {
+              grnNo: grnNo,
+              date: inwardDate,
+              supplier: matchedSupplier ? matchedSupplier.name : rawSupplier || 'Unknown Supplier',
+              warehouseCode: matchedWarehouse ? matchedWarehouse.code : 'WH-000',
+              warehouseName: matchedWarehouse ? matchedWarehouse.name : rawLocation || 'Unknown Location',
+              status: getVal(['status']) || 'Completed',
+              remarks: 'Imported via Bulk Excel',
+              itemsCount: 0,
+              totalQuantity: 0,
+              totalValue: 0,
+              items: []
+            });
+          }
+
+          const product = getVal(['product', 'item']).toString();
+          const batchNo = getVal(['batch']).toString();
+          const quantity = Number(getVal(['qty', 'quantity'])) || 0;
+          
+          if (product && batchNo && quantity > 0) {
+            const grnEntry = newGrnsMap.get(grnNo);
+            const ptr = Number(getVal(['ptr', 'purchase', 'rate'])) || 0;
+            const mrp = Number(getVal(['mrp', 'price'])) || 0;
+            
+            grnEntry.items.push({
+              product,
+              batchNo,
+              mfgDate: mfg || '',
+              expiryDate: exp || '',
+              quantity,
+              ptr: 0, // Specifically requested to not need PTR, setting to 0 to bypass validation
+              mrp
+            });
+            
+            grnEntry.itemsCount += 1;
+            grnEntry.totalQuantity += quantity;
+            grnEntry.totalValue += (quantity * mrp); // Using MRP since PTR is skipped
+          }
+        }
+
+        const newRecords = Array.from(newGrnsMap.values());
+        if (newRecords.length > 0) {
+          setInwardRecords(prev => [...newRecords, ...prev]);
+          alert(`Successfully imported ${newRecords.length} GRNs from Excel.`);
+        } else {
+          alert("No valid GRN entries found in the Excel file. Please check the format.");
+        }
+      } catch (error) {
+        console.error("Error parsing Excel:", error);
+        alert("Failed to parse Excel file.");
+      }
+      
+      if (bulkFileInputRef.current) {
+        bulkFileInputRef.current.value = '';
+      }
+    };
+    reader.readAsBinaryString(file);
   };
 
   // Create GRN Form Logic
@@ -771,6 +877,21 @@ export default function InwardStock() {
               className="relative inline-block text-left"
               ref={exportMenuRef}
             >
+              <input 
+                type="file" 
+                ref={bulkFileInputRef} 
+                onChange={handleBulkImportExcel} 
+                accept=".xlsx, .xls, .csv" 
+                className="hidden" 
+              />
+              <ActionButton
+                variant="secondary"
+                icon={<Upload className="w-4 h-4" />}
+                onClick={() => bulkFileInputRef.current?.click()}
+                className="mr-2"
+              >
+                Import GRNs
+              </ActionButton>
               <ActionButton
                 variant="secondary"
                 icon={<Download className="w-4 h-4" />}
