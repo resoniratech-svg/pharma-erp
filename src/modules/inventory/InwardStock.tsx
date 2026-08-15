@@ -382,6 +382,8 @@ export default function InwardStock() {
         const data = XLSX.utils.sheet_to_json(worksheet);
 
         const newGrnsMap = new Map<string, any>();
+        const { supplierService } = await import('../../services/supplierService');
+        const localSuppliersCache = [...suppliers];
 
         for (const row of data as any[]) {
           const getVal = (keys: string[]) => {
@@ -396,28 +398,54 @@ export default function InwardStock() {
 
           let inwardDate = getVal(['inward date', 'date']);
           if (typeof inwardDate === 'number') {
-            inwardDate = new Date(Math.round((inwardDate - 25569) * 86400 * 1000)).toISOString().split('T')[0];
+            inwardDate = new Date(Math.round((inwardDate - 25569) * 86400 * 1000)).toISOString();
           } else {
-             inwardDate = new Date().toISOString().split('T')[0];
+             inwardDate = inwardDate ? new Date(inwardDate).toISOString() : new Date().toISOString();
           }
 
           let mfg = getVal(['mfg', 'manufacture']);
-          if (typeof mfg === 'number') mfg = new Date(Math.round((mfg - 25569) * 86400 * 1000)).toISOString().split('T')[0];
+          if (typeof mfg === 'number') {
+             mfg = new Date(Math.round((mfg - 25569) * 86400 * 1000)).toISOString();
+          } else if (mfg) {
+             mfg = new Date(mfg).toISOString();
+          } else {
+             mfg = undefined;
+          }
           
           let exp = getVal(['exp']);
-          if (typeof exp === 'number') exp = new Date(Math.round((exp - 25569) * 86400 * 1000)).toISOString().split('T')[0];
+          if (typeof exp === 'number') {
+             exp = new Date(Math.round((exp - 25569) * 86400 * 1000)).toISOString();
+          } else if (exp) {
+             exp = new Date(exp).toISOString();
+          } else {
+             exp = undefined;
+          }
 
           if (!newGrnsMap.has(grnNo)) {
-            const rawSupplier = getVal(['supplier', 'vendor']);
-            let matchedSupplier = suppliers.find(s => s.name.toLowerCase() === rawSupplier.toString().toLowerCase());
+            const rawSupplierStr = getVal(['supplier', 'vendor']).toString().trim();
+            let matchedSupplier = localSuppliersCache.find(s => s.name.toLowerCase() === rawSupplierStr.toLowerCase());
             
-            const rawLocation = getVal(['location']);
-            let matchedWarehouse = warehouses.find(w => rawLocation.toString().includes(w.code));
+            if (!matchedSupplier && rawSupplierStr) {
+               // Auto-create missing supplier
+               const newSupplier = await supplierService.add(rawSupplierStr);
+               if (newSupplier) {
+                  matchedSupplier = newSupplier;
+                  localSuppliersCache.push(newSupplier);
+                  setSuppliers([...localSuppliersCache]); // Cache it for UI
+               }
+            }
+            
+            const rawLocation = getVal(['location']).toString().trim();
+            let matchedWarehouse = warehouses.find(w => 
+               rawLocation.toLowerCase().includes(w.code.toLowerCase()) || 
+               w.name.toLowerCase().includes(rawLocation.toLowerCase()) ||
+               rawLocation.toLowerCase().includes(w.name.toLowerCase())
+            );
 
             newGrnsMap.set(grnNo, {
               grnNo: grnNo,
               date: inwardDate,
-              supplierId: matchedSupplier ? matchedSupplier.id : 1, // Fallback if not found
+              supplierId: matchedSupplier ? matchedSupplier.id : 1, // Fallback if still not found
               warehouseId: matchedWarehouse ? matchedWarehouse.id : 1, // Fallback if not found
               status: getVal(['status']) || 'Completed',
               remarks: 'Imported via Bulk Excel',
@@ -430,8 +458,8 @@ export default function InwardStock() {
             });
           }
 
-          const productName = getVal(['product', 'item']).toString();
-          const batchNo = getVal(['batch']).toString();
+          const productName = getVal(['product', 'item']).toString().trim();
+          const batchNo = getVal(['batch']).toString().trim();
           const quantity = Number(getVal(['qty', 'quantity'])) || 0;
           
           let matchedProduct = products.find(p => p.name.toLowerCase() === productName.toLowerCase());
@@ -448,8 +476,8 @@ export default function InwardStock() {
             grnEntry.items.push({
               productId: matchedProduct.id,
               batchNo,
-              mfgDate: mfg || '',
-              expiryDate: exp || '',
+              mfgDate: mfg,
+              expiryDate: exp,
               quantity,
               ptr: 0, // Specifically requested to not need PTR, setting to 0 to bypass validation
               mrp
