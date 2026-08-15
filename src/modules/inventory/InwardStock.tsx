@@ -506,7 +506,7 @@ export default function InwardStock() {
             const mrp = Number(getVal(['mrp', 'price'])) || 0;
             
             grnEntry.items.push({
-              productId: matchedProduct.id,
+              productId: Number(matchedProduct.id),
               batchNo,
               mfgDate: mfg,
               expiryDate: exp,
