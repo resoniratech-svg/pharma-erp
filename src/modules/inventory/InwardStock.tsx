@@ -383,7 +383,10 @@ export default function InwardStock() {
 
         const newGrnsMap = new Map<string, any>();
         const { supplierService } = await import('../../services/supplierService');
+        const { productService } = await import('../../services/productService');
         const localSuppliersCache = [...suppliers];
+        const latestProducts = await productService.loadProducts();
+        const localProductsCache = [...latestProducts];
 
         for (const row of data as any[]) {
           const getVal = (keys: string[]) => {
@@ -462,11 +465,40 @@ export default function InwardStock() {
           const batchNo = getVal(['batch']).toString().trim();
           const quantity = Number(getVal(['qty', 'quantity'])) || 0;
           
-          let matchedProduct = products.find(p => p.name.toLowerCase() === productName.toLowerCase());
+          let matchedProduct = localProductsCache.find(p => p.name.toLowerCase() === productName.toLowerCase());
           
-          if (!matchedProduct) {
-             console.warn(`Product not found: ${productName}. Skipping.`);
-             continue; // Option A: Skip this product entry entirely
+          if (!matchedProduct && productName) {
+             try {
+                const mrpVal = String(Number(getVal(['mrp', 'price'])) || 0);
+                const newProduct = await productService.addProduct({
+                   code: `PRD-${Date.now()}-${Math.floor(Math.random() * 1000)}`,
+                   name: productName,
+                   genericName: productName,
+                   brandName: productName,
+                   category: "General",
+                   type: "Tablet",
+                   manufacturer: "Unknown",
+                   packingType: "Box",
+                   unitsPerPack: "10",
+                   mrp: mrpVal,
+                   ptr: "0",
+                   pts: "0",
+                   gst: "0",
+                   hsnCode: "0000",
+                   status: "Active"
+                } as any);
+
+                if (newProduct && newProduct.id) {
+                   matchedProduct = newProduct;
+                   localProductsCache.push(newProduct);
+                } else {
+                   console.warn(`Product not found and failed to auto-create: ${productName}. Skipping.`);
+                   continue;
+                }
+             } catch (e) {
+                console.error("Error auto-creating product:", e);
+                continue;
+             }
           }
           
           if (productName && batchNo && quantity > 0) {
