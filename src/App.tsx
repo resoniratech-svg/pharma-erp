@@ -552,7 +552,8 @@ export default function Dashboard() {
     topDistributor: 'N/A',
     topDistributorSales: 0,
     leadFunnelCount: 0,
-    mrActivityCount: 0
+    mrActivityCount: 0,
+    chartSalesData: [] as {name: string, sales: number}[]
   });
 
   const [showExpiryModal, setShowExpiryModal] = useState(false);
@@ -641,10 +642,32 @@ export default function Dashboard() {
        }
     });
 
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlySales: Record<string, number> = {};
+    allInvoices.forEach((i: any) => {
+      let monthKey = 'Unknown';
+      if (i.date) {
+        const parts = i.date.split('-');
+        if (parts.length === 3) {
+          const monthIndex = parts[0].length === 4 ? parseInt(parts[1]) - 1 : parseInt(parts[1]) - 1;
+          if (!isNaN(monthIndex) && monthIndex >= 0 && monthIndex <= 11) {
+            monthKey = monthNames[monthIndex];
+          }
+        }
+      }
+      monthlySales[monthKey] = (monthlySales[monthKey] || 0) + (i.grandTotal || 0);
+    });
+    const currentMonth = new Date().getMonth();
+    const chartSalesData = Array.from({length: 6}, (_, i) => {
+      const mIdx = (currentMonth - 5 + i + 12) % 12;
+      const mName = monthNames[mIdx];
+      return { name: mName, sales: monthlySales[mName] || 0 };
+    });
+
     setSuperAdminData({
       totalSales, topState, topStateSales, expiryAlertsCount, topProduct, topProductSales,
       outstandingAmount, pendingDispatchCount, lowStockCount, topDistributor, topDistributorSales,
-      leadFunnelCount: 42, mrActivityCount: 15
+      leadFunnelCount: 42, mrActivityCount: 15, chartSalesData
     });
 
     const lastAlertStr = localStorage.getItem('lastExpiryAlertShown');
@@ -1471,13 +1494,10 @@ export default function Dashboard() {
               >
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg font-bold text-slate-800">Sales Performance Trend</h2>
-                  <button className="text-sm font-medium text-brand-primary hover:text-brand-primary transition-colors">
-                    View Full Report
-                  </button>
                 </div>
                 <div className="h-[280px] w-full">
                   <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={salesData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <AreaChart data={superAdminData.chartSalesData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                       <defs>
                         <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#7c3aed" stopOpacity={0.3} />
