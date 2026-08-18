@@ -231,12 +231,13 @@ export default function UserManagement() {
 
   useEffect(() => {
     fetchUsers();
+    salesOrganizationService.getEmployees().then(setEmployeesData).catch(console.error);
   }, []);
 
   // --- Master Data Loaders & Filtering ---
   const getAvailableEmployees = () => {
-    const employees = salesOrganizationService.getEmployees();
-    return employees.filter(emp => {
+    // get employees from state
+    return employeesData.filter(emp => {
       if (emp.status !== 'Active') return false;
       const linkedUser = users.find(
         u => (u.id === emp.employeeCode || (u as any).empId === emp.employeeCode) && u.status === 'Active'
@@ -313,7 +314,7 @@ export default function UserManagement() {
     setFormErrors({});
 
     if (userType === 'Employee') {
-      const emp = salesOrganizationService.getEmployees().find(e => e.id === masterId);
+      const emp = employeesData.find(e => e.id === masterId);
       if (emp) {
         setMasterMetaData({
           code: emp.employeeCode,
