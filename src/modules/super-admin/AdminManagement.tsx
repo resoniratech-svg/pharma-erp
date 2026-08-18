@@ -130,7 +130,7 @@ export default function AdminManagement() {
               adminName: primaryUser?.name || c.contactPerson || c.name || 'Company Admin',
               companyName: c.name,
               email: primaryUser?.email || c.email || `admin@${c.code ? c.code.toLowerCase() : 'company'}.com`,
-              passwordHash: '********',
+              passwordHash: existingLocal?.passwordHash && existingLocal.passwordHash !== '********' ? existingLocal.passwordHash : '********',
               companyCode: c.code,
               gstNumber: c.gstNumber,
               subscription: {
