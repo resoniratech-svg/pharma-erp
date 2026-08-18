@@ -203,10 +203,9 @@ export default function UserManagement() {
       const customRoles = customRolesRaw ? JSON.parse(customRolesRaw) : [];
       
       const systemRoleNames = [
-        'SUPER_ADMIN', 'ADMIN', 'COMPANY_ADMIN', 'NATIONAL_SALES_HEAD',
+        'SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD',
         'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'WAREHOUSE_MANAGER',
-        'ACCOUNTANT', 'DISTRIBUTOR', 'RETAILER', 'MEDICAL_REPRESENTATIVE',
-        'TRANSPORT_STAFF'
+        'ACCOUNTANT', 'DISTRIBUTOR', 'RETAILER', 'MEDICAL_REPRESENTATIVE'
       ];
       
       const allRolesData = [
