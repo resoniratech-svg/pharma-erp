@@ -566,15 +566,12 @@ export default function Dashboard() {
     const allRetailerOrders = JSON.parse(localStorage.getItem('pharma_erp_retailer_orders') || '[]');
     const allPayments = JSON.parse(localStorage.getItem('pharma_erp_payments') || '[]');
 
-    let totalSales = 0;
-    let totalPayments = 0;
-    allInvoices.forEach((i) => { totalSales += i.grandTotal || 0; });
-    allPayments.forEach((p) => {
-      if (p.status === 'Completed' || p.status === 'Approved') {
-        totalPayments += p.amount || 0;
+    let outstandingAmount = 0;
+    allInvoices.forEach(inv => {
+      if (inv.status !== 'Cancelled' && inv.status !== 'Paid') {
+        outstandingAmount += (inv.grandTotal || 0);
       }
     });
-    const outstandingAmount = Math.max(0, totalSales - totalPayments);
 
     const stateSales = {};
     const distributorSales = {};
@@ -606,15 +603,17 @@ export default function Dashboard() {
        if (sales > topProductSales) { topProductSales = sales; topProduct = prod; }
     });
 
+    const allDispatches = JSON.parse(localStorage.getItem('pharma_erp_dispatches') || '[]');
     let pendingDispatchCount = 0;
-    [...allOrders, ...allRetailerOrders].forEach((o) => {
-       if (['Approved', 'Processing'].includes(o.status)) pendingDispatchCount++;
+    allDispatches.forEach((d: any) => {
+      const st = (d.status || '').toUpperCase();
+      if (st === 'PENDING' || st === 'READY TO SHIP') pendingDispatchCount++;
     });
 
     let lowStockCount = 0;
     allInventory.forEach(inv => {
       const prod = allProducts.find(p => p.code === inv.productCode);
-      if (prod && prod.minimumStock && inv.availableQty < parseInt(prod.minimumStock)) {
+      if (prod && prod.reorderLevel && inv.availableQty < parseInt(prod.reorderLevel)) {
          lowStockCount++;
       }
     });
