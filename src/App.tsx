@@ -566,6 +566,9 @@ export default function Dashboard() {
     const allRetailerOrders = JSON.parse(localStorage.getItem('pharma_erp_retailer_orders') || '[]');
     const allPayments = JSON.parse(localStorage.getItem('pharma_erp_payments') || '[]');
 
+    let totalSales = 0;
+    allInvoices.forEach((i) => { totalSales += i.grandTotal || 0; });
+
     let outstandingAmount = 0;
     allInvoices.forEach(inv => {
       if (inv.status !== 'Cancelled' && inv.status !== 'Paid') {
