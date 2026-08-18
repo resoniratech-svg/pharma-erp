@@ -1,3 +1,4 @@
+import ErrorBoundary from '../components/ErrorBoundary';
 import { createBrowserRouter, Navigate } from 'react-router';
 import { MainLayout } from '../layouts/MainLayout';
 import App from '../../App';
@@ -216,6 +217,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/dashboard',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         index: true,
@@ -226,6 +228,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/national-sales-head',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         index: true,
@@ -261,6 +264,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/regional-sales-manager',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         index: true,
@@ -299,6 +303,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/area-sales-manager',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         index: true,
@@ -333,6 +338,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/medical-representative',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         index: true,
@@ -343,6 +349,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/super-admin',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="Super Admin" />,
@@ -366,6 +373,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/products',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="Product Management" />,
@@ -388,6 +396,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/inventory',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       { index: true, element: <Navigate to="overview" replace /> },
       {
@@ -411,6 +420,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/warehouse',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="C&F Management" />,
@@ -428,6 +438,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/distributors',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="Distributor/Stockist Portal" />,
@@ -452,6 +463,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/retailers',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="Retailer Ordering System" />,
@@ -472,6 +484,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/billing',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="Wholesale Billing System" />,
@@ -492,6 +505,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/mr',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="MR (Medical Representative)" />,
@@ -512,6 +526,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/gps',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="GPS & Location Tracking" />,
@@ -532,6 +547,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/crm',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="Pre-Sales CRM" />,
@@ -554,7 +570,8 @@ export const router = createBrowserRouter([
     {
       path: '/workspace/export-operations',
       element: <MainLayout />,
-      children: [
+    errorElement: <ErrorBoundary />,
+    children: [
         {
           element: <ProtectedRoute moduleLabel="Export & Global Operations" />,
           children: [
@@ -570,6 +587,7 @@ export const router = createBrowserRouter([
     {
       path: '/workspace/finance',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="Accounting & Finance" />,
@@ -589,6 +607,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/notifications',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="Alerts & Notifications" />,
@@ -607,6 +626,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       { path: 'profile', element: <MyProfile /> },
       { path: 'change-password', element: <ChangePassword /> },
@@ -616,6 +636,7 @@ export const router = createBrowserRouter([
   {
     path: '/workspace/settings',
     element: <MainLayout />,
+    errorElement: <ErrorBoundary />,
     children: [
       {
         element: <ProtectedRoute moduleLabel="Settings" />,

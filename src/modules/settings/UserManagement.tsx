@@ -145,6 +145,7 @@ export default function UserManagement() {
   const [showLockDialog, setShowLockDialog] = useState(false);
   const [showStatusDialog, setShowStatusDialog] = useState(false);
   const [targetUser, setTargetUser] = useState<UserRole | null>(null);
+  const [employeesData, setEmployeesData] = useState<any[]>([]);
   const [showPassword, setShowPassword] = useState(false);
 
   // Integration State
