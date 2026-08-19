@@ -26,4 +26,10 @@ module.exports = {
   getAllCompanies,
   deleteCompany,
   getCompanyFeatures,
+  updateCompanySubscription,
 };
+const updateCompanySubscription = async (companyId, data) => {
+  const repo = require('./company.repository');
+  return repo.updateCompanySubscription(companyId, data);
+};
+

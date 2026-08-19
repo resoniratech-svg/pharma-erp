@@ -59,6 +59,7 @@ const getAllCompanies = async () => {
   return prisma.company.findMany({
     where: { isActive: true },
     include: {
+      subscription: true,
       users: {
         where: {
           role: { in: ["ADMIN", "SUPER_ADMIN"] },
@@ -111,4 +112,50 @@ module.exports = {
   getAllCompanies,
   deleteCompany,
   getCompanyFeatures,
+  updateCompanySubscription,
 };
+const updateCompanySubscription = async (companyId, data) => {
+  const endDate = data.endDate ? new Date(data.endDate) : null;
+  const renewalDate = data.renewalDate ? new Date(data.renewalDate) : null;
+  const startDate = data.startDate ? new Date(data.startDate) : new Date();
+
+  return prisma.companySubscription.upsert({
+    where: { companyId },
+    update: {
+      plan: data.plan,
+      status: data.status,
+      billingCycle: data.billingCycle,
+      subscriptionAmount: Number(data.subscriptionAmount) || 0,
+      currency: data.currency,
+      gstPercentage: Number(data.gstPercentage) || 0,
+      discount: Number(data.discount) || 0,
+      finalAmount: Number(data.finalAmount) || 0,
+      paymentStatus: data.paymentStatus,
+      startDate,
+      endDate,
+      renewalDate,
+      autoRenewal: data.autoRenewal,
+      maxUsers: Number(data.maxUsers) || 10,
+      storageLimit: data.storageLimit,
+    },
+    create: {
+      companyId,
+      plan: data.plan || 'Starter',
+      status: data.status || 'Trial',
+      billingCycle: data.billingCycle || 'Monthly',
+      subscriptionAmount: Number(data.subscriptionAmount) || 0,
+      currency: data.currency || 'INR',
+      gstPercentage: Number(data.gstPercentage) || 18,
+      discount: Number(data.discount) || 0,
+      finalAmount: Number(data.finalAmount) || 0,
+      paymentStatus: data.paymentStatus || 'Pending',
+      startDate,
+      endDate,
+      renewalDate,
+      autoRenewal: data.autoRenewal ?? true,
+      maxUsers: Number(data.maxUsers) || 10,
+      storageLimit: data.storageLimit || '10GB',
+    }
+  });
+};
+

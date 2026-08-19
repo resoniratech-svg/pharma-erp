@@ -76,4 +76,23 @@ module.exports = {
   create,
   remove,
   getFeatures,
+  updateSubscription,
 };
+const updateSubscription = async (req, res) => {
+  try {
+    const companyId = Number(req.params.id);
+    const { updateCompanySubscription } = require('./company.service');
+    const result = await updateCompanySubscription(companyId, req.body);
+    res.status(200).json({
+      success: true,
+      data: result,
+      message: 'Subscription updated successfully',
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+

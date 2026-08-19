@@ -45,6 +45,7 @@ model Company {
   rolePermissions RolePermission[]
   users           User[]
   warehouses      Warehouse[]
+  subscription    CompanySubscription?
 }
 
 model Branch {
@@ -1288,3 +1289,27 @@ model ExportDocument {
 
   order ExportOrder @relation(fields: [orderId], references: [id], onDelete: Cascade)
 }
+
+
+model CompanySubscription {
+  id                 Int       @id @default(autoincrement())
+  companyId          Int       @unique
+  plan               String    @default("Starter")
+  status             String    @default("Trial")
+  billingCycle       String    @default("Monthly")
+  subscriptionAmount Float     @default(0)
+  currency           String    @default("INR")
+  gstPercentage      Float     @default(18)
+  discount           Float     @default(0)
+  finalAmount        Float     @default(0)
+  paymentStatus      String    @default("Pending")
+  startDate          DateTime  @default(now())
+  endDate            DateTime?
+  renewalDate        DateTime?
+  autoRenewal        Boolean   @default(true)
+  maxUsers           Int       @default(10)
+  storageLimit       String    @default("10GB")
+  
+  company            Company   @relation(fields: [companyId], references: [id])
+}
+
