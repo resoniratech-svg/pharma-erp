@@ -436,7 +436,7 @@ export default function AdminManagement() {
             ...(admin.subscription || { 
                plan: 'Starter', status: 'Trial', billingCycle: 'Monthly', subscriptionAmount: 0, currency: 'INR', gstPercentage: 18, discount: 0, finalAmount: 0, paymentStatus: 'Pending', paymentDate: '', startDate: '', endDate: '', renewalDate: '', autoRenewal: false, maxUsers: 10, activeUsers: 0, storageLimit: '10GB', deviceLimit: '', apiAccessLimit: '', remarks: '', lastUpdated: new Date().toISOString().split('T')[0], updatedBy: 'System'
             }), 
-            purchasedModules: tempPermissions,
+            purchasedModules: Array.from(new Set([...tempPermissions, 'Settings'])),
             lastUpdated: new Date().toISOString().split('T')[0]
           } 
         };
@@ -570,15 +570,17 @@ export default function AdminManagement() {
 
               <div className="space-y-3">
                 {erpModules.map(mod => {
-                  const isChecked = tempPermissions.includes(mod);
+                  const isSettings = mod === 'Settings';
+                  const isChecked = isSettings || tempPermissions.includes(mod);
                   return (
                     <label 
                       key={mod} 
                       onClick={(e) => {
                         e.preventDefault();
+                        if (isSettings) return;
                         toggleModulePermission(mod);
                       }}
-                      className={`flex items-center p-3 rounded-xl border transition-all cursor-pointer ${isChecked ? 'border-violet-200 bg-[#163c78]/10/50' : 'border-slate-200 bg-white hover:border-slate-300'}`}
+                      className={`flex items-center p-3 rounded-xl border transition-all ${isSettings ? 'opacity-60 cursor-not-allowed border-violet-200 bg-[#163c78]/10/50' : `cursor-pointer ${isChecked ? 'border-violet-200 bg-[#163c78]/10/50' : 'border-slate-200 bg-white hover:border-slate-300'}`}`}
                     >
                       <div className={`w-5 h-5 rounded flex items-center justify-center mr-3 border ${isChecked ? 'bg-[#163c78] border-[#163c78] text-white' : 'border-slate-300 bg-white'}`}>
                         {isChecked && <Check className="w-3.5 h-3.5" />}
@@ -792,7 +794,7 @@ function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdm
     if (!selectedAdminId || !subForm) return;
     const updated = admins.map(a => {
       if (a.id === selectedAdminId) {
-        return { ...a, subscription: { ...subForm, lastUpdated: new Date().toISOString().split('T')[0] } };
+        return { ...a, subscription: { ...subForm, purchasedModules: Array.from(new Set([...(subForm.purchasedModules || []), 'Settings'])), lastUpdated: new Date().toISOString().split('T')[0] } };
       }
       return a;
     });
@@ -990,12 +992,14 @@ function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdm
               
               <div className="space-y-2 max-h-64 overflow-y-auto pr-2 mb-4">
                 {erpModules.map(mod => {
-                  const isChecked = (subForm.purchasedModules || []).includes(mod);
+                  const isSettings = mod === 'Settings';
+                  const isChecked = isSettings || (subForm.purchasedModules || []).includes(mod);
                   return (
-                    <label key={mod} className="flex items-center space-x-2">
+                    <label key={mod} className={`flex items-center space-x-2 ${isSettings ? 'opacity-60 cursor-not-allowed' : 'cursor-pointer'}`}>
                       <input 
                         type="checkbox" 
                         checked={isChecked}
+                        disabled={isSettings}
                         onChange={(e) => {
                           const updatedPerms = e.target.checked 
                             ? [...(subForm.purchasedModules || []), mod] 
