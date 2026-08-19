@@ -135,25 +135,25 @@ export default function AdminManagement() {
               gstNumber: c.gstNumber,
               subscription: {
                 plan: existingLocal?.subscription?.plan || 'Enterprise',
-                status: c.status === 'Active' ? 'Active' : 'Trial',
+                status: existingLocal?.subscription?.status || (c.status === 'Active' ? 'Active' : 'Trial'),
                 billingCycle: existingLocal?.subscription?.billingCycle || 'Yearly',
-                subscriptionAmount: existingLocal?.subscription?.subscriptionAmount || 120000,
-                currency: 'INR',
-                gstPercentage: 18,
-                discount: 0,
-                finalAmount: existingLocal?.subscription?.finalAmount || 141600,
-                paymentStatus: 'Paid',
-                paymentDate: c.createdAt ? c.createdAt.split('T')[0] : '2026-01-01',
-                startDate: c.createdAt ? c.createdAt.split('T')[0] : '2026-01-01',
-                endDate: '2027-01-01',
-                renewalDate: '2027-01-01',
-                autoRenewal: true,
-                maxUsers: existingLocal?.subscription?.maxUsers || 50,
-                activeUsers: 12,
-                storageLimit: '100GB',
-                deviceLimit: 'Unlimited',
-                apiAccessLimit: '10000/day',
-                purchasedModules: savedModules,
+                subscriptionAmount: existingLocal?.subscription?.subscriptionAmount ?? 120000,
+                currency: existingLocal?.subscription?.currency || 'INR',
+                gstPercentage: existingLocal?.subscription?.gstPercentage ?? 18,
+                discount: existingLocal?.subscription?.discount ?? 0,
+                finalAmount: existingLocal?.subscription?.finalAmount ?? 141600,
+                paymentStatus: existingLocal?.subscription?.paymentStatus || 'Paid',
+                paymentDate: existingLocal?.subscription?.paymentDate || (c.createdAt ? c.createdAt.split('T')[0] : '2026-01-01'),
+                startDate: existingLocal?.subscription?.startDate || (c.createdAt ? c.createdAt.split('T')[0] : '2026-01-01'),
+                endDate: existingLocal?.subscription?.endDate || '2027-01-01',
+                renewalDate: existingLocal?.subscription?.renewalDate || '2027-01-01',
+                autoRenewal: existingLocal?.subscription?.autoRenewal ?? true,
+                maxUsers: existingLocal?.subscription?.maxUsers ?? 50,
+                activeUsers: existingLocal?.subscription?.activeUsers ?? 12,
+                storageLimit: existingLocal?.subscription?.storageLimit || '100GB',
+                deviceLimit: existingLocal?.subscription?.deviceLimit || 'Unlimited',
+                apiAccessLimit: existingLocal?.subscription?.apiAccessLimit || '10000/day',
+                purchasedModules: existingLocal?.subscription?.purchasedModules || savedModules,
                 remarks: existingLocal?.subscription?.remarks || 'Backend Database Active Client',
                 lastUpdated: c.updatedAt ? c.updatedAt.split('T')[0] : '2026-01-01',
                 updatedBy: 'System'
@@ -775,8 +775,13 @@ function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdm
     if (subForm) {
        const amt = Number(subForm.subscriptionAmount) || 0;
        const gst = Number(subForm.gstPercentage) || 0;
-       const disc = Number(subForm.discount) || 0;
-       const finalAmt = amt + (amt * gst / 100) - disc;
+       const discPercent = Number(subForm.discount) || 0;
+       
+       const discountAmount = (amt * discPercent) / 100;
+       const discountedBase = amt - discountAmount;
+       const gstAmount = (discountedBase * gst) / 100;
+       const finalAmt = discountedBase + gstAmount;
+
        if (subForm.finalAmount !== finalAmt) {
           setSubForm(prev => prev ? { ...prev, finalAmount: finalAmt } : prev);
        }
@@ -891,7 +896,7 @@ function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdm
                   <input type="number" value={subForm.gstPercentage} onChange={e => setSubForm({...subForm, gstPercentage: Number(e.target.value)})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Discount</label>
+                  <label className="block text-sm font-medium text-slate-700 mb-1">Discount (%)</label>
                   <input type="number" value={subForm.discount} onChange={e => setSubForm({...subForm, discount: Number(e.target.value)})} className="w-full border border-slate-200 rounded-lg px-3 py-2" />
                 </div>
                 <div className="md:col-span-4 flex items-center justify-end mt-2 border-t border-slate-200 pt-3">
