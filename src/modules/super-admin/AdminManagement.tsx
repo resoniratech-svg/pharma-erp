@@ -797,6 +797,7 @@ function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdm
       return a;
     });
     setAdmins(updated);
+    localStorage.setItem('companyAdmins', JSON.stringify(updated));
     alert("Subscription updated successfully.");
   };
 
