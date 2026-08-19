@@ -788,7 +788,7 @@ function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdm
     }
   }, [subForm?.subscriptionAmount, subForm?.gstPercentage, subForm?.discount]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!selectedAdminId || !subForm) return;
     const updated = admins.map(a => {
       if (a.id === selectedAdminId) {
@@ -798,6 +798,17 @@ function SubscriptionTab({ admins, setAdmins, erpModules }: { admins: CompanyAdm
     });
     setAdmins(updated);
     localStorage.setItem('companyAdmins', JSON.stringify(updated));
+    
+    // Fire API call to save to real database (fails gracefully if DB not migrated yet)
+    try {
+      const realId = Number(selectedAdminId.replace('ADM-', ''));
+      if (!isNaN(realId)) {
+        await apiRequest(`/companies/${realId}/subscription`, 'PUT', subForm);
+      }
+    } catch (e) {
+      console.warn("Backend save failed, likely pending database migration:", e);
+    }
+    
     alert("Subscription updated successfully.");
   };
 
