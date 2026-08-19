@@ -107,13 +107,6 @@ const getCompanyFeatures = async (companyId) => {
   });
 };
 
-module.exports = {
-  createCompanyWithAdmin,
-  getAllCompanies,
-  deleteCompany,
-  getCompanyFeatures,
-  updateCompanySubscription,
-};
 const updateCompanySubscription = async (companyId, data) => {
   const endDate = data.endDate ? new Date(data.endDate) : null;
   const renewalDate = data.renewalDate ? new Date(data.renewalDate) : null;
@@ -159,3 +152,11 @@ const updateCompanySubscription = async (companyId, data) => {
   });
 };
 
+
+module.exports = {
+  createCompanyWithAdmin,
+  getAllCompanies,
+  deleteCompany,
+  getCompanyFeatures,
+  updateCompanySubscription,
+};

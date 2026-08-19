@@ -71,13 +71,6 @@ const getFeatures = async (req, res) => {
   }
 };
 
-module.exports = {
-  getAll,
-  create,
-  remove,
-  getFeatures,
-  updateSubscription,
-};
 const updateSubscription = async (req, res) => {
   try {
     const companyId = Number(req.params.id);
@@ -96,3 +89,11 @@ const updateSubscription = async (req, res) => {
   }
 };
 
+
+module.exports = {
+  getAll,
+  create,
+  remove,
+  getFeatures,
+  updateSubscription,
+};

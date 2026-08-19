@@ -21,6 +21,12 @@ const getCompanyFeatures = async (companyId) => {
   return repoGetCompanyFeatures(companyId);
 };
 
+const updateCompanySubscription = async (companyId, data) => {
+  const repo = require('./company.repository');
+  return repo.updateCompanySubscription(companyId, data);
+};
+
+
 module.exports = {
   createCompany,
   getAllCompanies,
@@ -28,8 +34,3 @@ module.exports = {
   getCompanyFeatures,
   updateCompanySubscription,
 };
-const updateCompanySubscription = async (companyId, data) => {
-  const repo = require('./company.repository');
-  return repo.updateCompanySubscription(companyId, data);
-};
-
