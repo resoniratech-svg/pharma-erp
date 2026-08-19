@@ -417,15 +417,6 @@ export default function EmployeesTab() {
           >
             <Edit2 className="w-4 h-4" />
           </button>
-          {emp.status === 'Active' && (
-            <button
-              onClick={() => handleDeactivate(emp)}
-              title="Deactivate Employee"
-              className="p-1.5 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-            >
-              <UserX className="w-4 h-4" />
-            </button>
-          )}
         </div>
       ),
     },
