@@ -1,4 +1,14 @@
-let BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+let BASE_URL = import.meta.env.VITE_API_URL;
+
+if (!BASE_URL || BASE_URL.includes('localhost')) {
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+    // If running in production (e.g. Easypanel) but env var wasn't provided or was left as localhost,
+    // dynamically infer the backend URL by replacing 'frontend' with 'backend' in the hostname
+    BASE_URL = `https://${window.location.hostname.replace('frontend', 'backend')}/api`;
+  } else {
+    BASE_URL = 'http://localhost:5000/api';
+  }
+}
 
 
 
