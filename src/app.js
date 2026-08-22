@@ -3,6 +3,7 @@ const userRoutes = require("./modules/users/user.routes");
 const salesOrganizationRoutes = require("./modules/salesOrganization/employee.routes");
 const targetAllocationRoutes = require("./modules/targetAllocation/targetAllocation.routes");
 const hierarchyDashboardRoutes = require("./modules/hierarchyDashboard/dashboard.routes");
+const superAdminDashboardRoutes = require("./modules/dashboard/dashboard.routes");
 
 const express = require("express");
 const cors = require("cors");
@@ -40,6 +41,8 @@ const pricingRoutes = require("./modules/pricing/pricing.routes");
 const schemeRoutes = require("./modules/scheme/scheme.routes");
 const compositionRoutes = require("./modules/composition/composition.routes");
 
+const manufacturerRoutes = require("./modules/manufacturer/manufacturer.routes");
+const brandRoutes = require("./modules/brand/brand.routes");
 const productRoutes =
   require("./modules/products/product.routes");
 
@@ -260,6 +263,8 @@ app.use(
   roleTestRoutes
 );
 
+app.use("/api/manufacturers", manufacturerRoutes);
+app.use("/api/brands", brandRoutes);
 app.use(
   "/api/products",
   productRoutes
@@ -519,6 +524,7 @@ app.use(
 app.use("/api/sales-organization", salesOrganizationRoutes);
 app.use("/api/target-allocations", targetAllocationRoutes);
 app.use("/api/dashboard", hierarchyDashboardRoutes);
+app.use("/api/dashboard/admin", superAdminDashboardRoutes);
 
 app.use(
   "/api/permissions",

@@ -46,6 +46,7 @@ model Company {
   users           User[]
   warehouses      Warehouse[]
   subscription    CompanySubscription?
+  brands          Brand[]
 }
 
 model Branch {
@@ -1311,5 +1312,30 @@ model CompanySubscription {
   storageLimit       String    @default("10GB")
   
   company            Company   @relation(fields: [companyId], references: [id])
+}
+
+
+model Brand {
+  id          Int      @id @default(autoincrement())
+  companyId   Int
+  brandName   String   @unique
+  shortName   String?
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+
+  company     Company  @relation(fields: [companyId], references: [id])
+}
+
+model Manufacturer {
+  id            Int       @id @default(autoincrement())
+  companyId     Int
+  name          String    @unique
+  contactPerson String?
+  contactPhone  String?
+  contactEmail  String?
+  address       String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
 }
 
