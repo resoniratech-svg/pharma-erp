@@ -1,5 +1,4 @@
-const deployedApiUrl = 'https://pharma-erp-pharma-backend.rrh5yv.easypanel.host/api';
-let BASE_URL = deployedApiUrl; // Force frontend to always talk to deployed backend
+let BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 
 
