@@ -36,6 +36,7 @@ import ASMTourPlanning from '../../modules/area-sales-manager/TourPlanning';
 import ASMAttendance from '../../modules/area-sales-manager/Attendance';
 // Products Module
 import ProductMaster from '../../modules/products/ProductMaster';
+import ManufacturerManagement from '../../modules/products/ManufacturerManagement';
 import HSNMaster from '../../modules/products/HSNMaster';
 import BatchManagement from '../../modules/products/BatchManagement';
 import ExpiryTracking from '../../modules/products/ExpiryTracking';
@@ -192,6 +193,8 @@ import SuperAdminNotificationCenter from '../../modules/super-admin/Notification
 import UserActivityLogs from '../../modules/super-admin/UserActivityLogs';
 import { ProtectedRoute } from '../../components/auth/ProtectedRoute';
 import ResetPassword from '../../pages/ResetPassword';
+
+import BrandManagement from '../../modules/products/BrandManagement';
 
 export const router = createBrowserRouter([
   {
@@ -379,6 +382,8 @@ export const router = createBrowserRouter([
         element: <ProtectedRoute moduleLabel="Product Management" />,
         children: [
           { path: 'master', element: <ProductMaster /> },
+          { path: 'manufacturers', element: <ManufacturerManagement /> },
+          { path: 'brands', element: <BrandManagement /> },
           { path: 'hsn-master', element: <HSNMaster /> },
           { path: 'batches', element: <BatchManagement /> },
           { path: 'expiry-tracking', element: <ExpiryTracking /> },

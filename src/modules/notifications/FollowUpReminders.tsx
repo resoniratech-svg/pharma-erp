@@ -832,8 +832,8 @@ export default function FollowUpReminders() {
 
     // Map CRM follow-ups dynamically to resolve key mismatches
     const mappedCrm: FollowUpReminder[] = rawCrm.map((item: any) => {
-      const id = item.id || Date.now().toString();
-      const followUpId = item.followUpId || (id.startsWith('FU-') ? id : `FU-${id.slice(-3)}`);
+      const safeId = String(item.id || Date.now());
+      const followUpId = item.followUpId || (safeId.startsWith('FU-') ? safeId : `FU-${safeId.slice(-3)}`);
       const customerName = item.customerName || item.contactName || 'Unknown Customer';
       const followUpType = item.followUpType || item.type || 'Lead Check-in';
       const assignedTo = item.assignedTo || activeMRName; // ✅ Uses parent variable dynamically
@@ -851,7 +851,7 @@ export default function FollowUpReminders() {
       }
 
       return {
-        id,
+        id: safeId,
         followUpId,
         customerName,
         followUpType,
@@ -874,9 +874,10 @@ export default function FollowUpReminders() {
           computedStatus = d < today ? 'Overdue' : 'Pending';
         }
 
+        const safeId = String(v.id || Date.now());
         return {
-          id: `${v.id}_doc_fu`,
-          followUpId: `FU-DOC-${v.id.slice(-3)}`,
+          id: `${safeId}_doc_fu`,
+          followUpId: `FU-DOC-${safeId.slice(-3)}`,
           customerName: v.doctorName,
           followUpType: 'Doctor Follow-Up',
           assignedTo: activeMRName, // ✅ Uses parent variable dynamically
@@ -898,9 +899,10 @@ export default function FollowUpReminders() {
           computedStatus = d < today ? 'Overdue' : 'Pending';
         }
 
+        const safeId = String(v.id || Date.now());
         return {
-          id: `${v.id}_chem_fu`,
-          followUpId: `FU-CHM-${v.id.slice(-3)}`,
+          id: `${safeId}_chem_fu`,
+          followUpId: `FU-CHM-${safeId.slice(-3)}`,
           customerName: v.shopName || v.chemistName,
           followUpType: 'Chemist Follow-Up',
           assignedTo: activeMRName, // ✅ Uses parent variable dynamically
@@ -920,14 +922,23 @@ export default function FollowUpReminders() {
   };
 
   // 2. Complete Action Handler
-  const handleComplete = (id: string) => {
+  const handleComplete = async (id: string) => {
+    // If it's a real API follow-up
+    if (id.startsWith('api-fu-')) {
+      try {
+        const rawId = id.replace('api-fu-', '');
+        await followUpService.update(rawId, { status: 'COMPLETED' });
+      } catch (e) {
+        console.error('Failed to complete API follow-up', e);
+      }
+    } 
     // If it's a Doctor Follow-Up, clear nextFollowUp in doctor_visits
-    if (id.endsWith('_doc_fu')) {
+    else if (id.endsWith('_doc_fu')) {
       const docId = id.replace('_doc_fu', '');
       const storedDocVisits = localStorage.getItem('doctor_visits');
       if (storedDocVisits) {
         const list = JSON.parse(storedDocVisits);
-        const updated = list.map((v: any) => v.id === docId ? { ...v, nextFollowUp: '' } : v);
+        const updated = list.map((v: any) => String(v.id) === docId ? { ...v, nextFollowUp: '' } : v);
         localStorage.setItem('doctor_visits', JSON.stringify(updated));
       }
     } 
@@ -937,7 +948,7 @@ export default function FollowUpReminders() {
       const storedChemistVisits = localStorage.getItem('chemist_visits');
       if (storedChemistVisits) {
         const list = JSON.parse(storedChemistVisits);
-        const updated = list.map((v: any) => v.id === chemId ? { ...v, nextFollowUp: '' } : v);
+        const updated = list.map((v: any) => String(v.id) === chemId ? { ...v, nextFollowUp: '' } : v);
         localStorage.setItem('chemist_visits', JSON.stringify(updated));
       }
     } 
@@ -946,13 +957,45 @@ export default function FollowUpReminders() {
       const storedFollowUps = localStorage.getItem('crm_followups');
       if (storedFollowUps) {
         const list = JSON.parse(storedFollowUps);
-        const updated = list.map((v: any) => v.id === id ? { ...v, status: 'Completed' } : v);
+        const updated = list.map((v: any) => String(v.id) === id ? { ...v, status: 'Completed' } : v);
         localStorage.setItem('crm_followups', JSON.stringify(updated));
       }
     }
     
     alert('✅ Follow-up marked as Completed!');
     loadFollowUps();
+    
+    // Refresh backend follow ups as well
+    followUpService.getAll().then((apiFollowUps) => {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      const apiMapped: FollowUpReminder[] = apiFollowUps.map((f) => {
+        const d = new Date(f.followUpDate);
+        let computedStatus: FollowUpReminder['status'] = 'Pending';
+        if (!isNaN(d.getTime())) {
+          d.setHours(0, 0, 0, 0);
+          computedStatus = d < today ? 'Overdue' : f.status === 'COMPLETED' ? 'Completed' : 'Pending';
+        }
+        return {
+          id: `api-fu-${f.id}`,
+          followUpId: `FU-${String(f.id).padStart(4, '0')}`,
+          customerName: f.doctorId ? `Doctor #${f.doctorId}` : f.chemistId ? `Chemist #${f.chemistId}` : f.title || 'General',
+          followUpType: f.doctorId ? 'Doctor Follow-Up' : f.chemistId ? 'Chemist Follow-Up' : f.type || 'General Follow-Up',
+          assignedTo: `MR #${f.mrId}`,
+          dueDate: f.followUpDate,
+          priority: 'Medium' as const,
+          reminderStatus: 'Sent' as const,
+          status: computedStatus,
+        };
+      });
+
+      setFollowUps((prev) => {
+        const existingIds = new Set(prev.filter(p => !p.id.startsWith('api-fu-')).map(p => p.id));
+        const prevNonApi = prev.filter(p => !p.id.startsWith('api-fu-'));
+        return [...apiMapped, ...prevNonApi];
+      });
+    }).catch(console.error);
   };
 
   // 3. Export to CSV Logic

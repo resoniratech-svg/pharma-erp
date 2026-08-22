@@ -561,69 +561,28 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (!isSuperAdmin) return;
-
-    const allInvoices = JSON.parse(localStorage.getItem('pharma_erp_sales_invoices') || '[]');
-    const allOrders = JSON.parse(localStorage.getItem('pharma_erp_distributor_orders') || '[]');
-    const allRetailerOrders = JSON.parse(localStorage.getItem('pharma_erp_retailer_orders') || '[]');
-    const allPayments = JSON.parse(localStorage.getItem('pharma_erp_payments') || '[]');
-
-    let totalSales = 0;
-    allInvoices.forEach((i) => { totalSales += i.grandTotal || 0; });
-
-    let outstandingAmount = 0;
-    allInvoices.forEach(inv => {
-      if (inv.status !== 'Cancelled' && inv.status !== 'Paid') {
-        outstandingAmount += (inv.grandTotal || 0);
+    dashboardService.getSuperAdminMetrics().then((metrics) => {
+      if (metrics) {
+        setSuperAdminData({
+          totalSales: metrics.totalSales || 0,
+          topState: metrics.topState || 'N/A',
+          topStateSales: metrics.topStateSales || 0,
+          expiryAlertsCount: metrics.expiryAlertsCount || 0,
+          topProduct: metrics.topProduct || 'N/A',
+          topProductSales: metrics.topProductSales || 0,
+          outstandingAmount: metrics.outstandingAmount || 0,
+          pendingDispatchCount: metrics.pendingDispatchCount || 0,
+          lowStockCount: metrics.lowStockCount || 0,
+          topDistributor: metrics.topRetailer || 'N/A',
+          topDistributorSales: metrics.topRetailerSales || 0,
+          leadFunnelCount: metrics.leadFunnelCount || 0,
+          mrActivityCount: metrics.mrActivityCount || 0,
+          chartSalesData: metrics.chartSalesData || []
+        });
       }
     });
 
-    const stateSales = {};
-    const distributorSales = {};
-    const productSales = {};
-
-    allInvoices.forEach((i) => {
-      const state = i.state || (i.customerName?.length % 2 === 0 ? 'Maharashtra' : 'Karnataka');
-      stateSales[state] = (stateSales[state] || 0) + (i.grandTotal || 0);
-      const dist = i.customerName || 'Retail Pharmacy';
-      distributorSales[dist] = (distributorSales[dist] || 0) + (i.grandTotal || 0);
-      (i.items || []).forEach((item) => {
-         const prodName = item.productName || item.name || 'Unknown';
-         productSales[prodName] = (productSales[prodName] || 0) + (item.total || ((item.qty || 1) * (item.ptr || 0)));
-      });
-    });
-
-    let topState = 'N/A'; let topStateSales = 0;
-    Object.entries(stateSales).forEach(([state, sales]) => {
-       if (sales > topStateSales) { topStateSales = sales; topState = state; }
-    });
-
-    let topDistributor = 'N/A'; let topDistributorSales = 0;
-    Object.entries(distributorSales).forEach(([dist, sales]) => {
-       if (sales > topDistributorSales) { topDistributorSales = sales; topDistributor = dist; }
-    });
-
-    let topProduct = 'N/A'; let topProductSales = 0;
-    Object.entries(productSales).forEach(([prod, sales]) => {
-       if (sales > topProductSales) { topProductSales = sales; topProduct = prod; }
-    });
-
-    const allDispatches = JSON.parse(localStorage.getItem('pharma_erp_dispatches') || '[]');
-    let pendingDispatchCount = 0;
-    allDispatches.forEach((d: any) => {
-      const st = (d.status || '').toUpperCase();
-      if (st === 'PENDING' || st === 'READY TO SHIP') pendingDispatchCount++;
-    });
-
-    let lowStockCount = 0;
-    allInventory.forEach(inv => {
-      const prod = allProducts.find(p => p.code === inv.productCode);
-      if (prod && prod.reorderLevel && inv.availableQty < parseInt(prod.reorderLevel)) {
-         lowStockCount++;
-      }
-    });
-
-    let expiryAlertsCount = 0;
-    const expiringItems = [];
+    const expiringItems: any[] = [];
     const now = new Date();
     allBatches.forEach(b => {
        if (!b.expDate) return;
@@ -631,7 +590,6 @@ export default function Dashboard() {
        const diffTime = exp.getTime() - now.getTime();
        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
        if (diffDays > 0 && diffDays <= 90) {
-          expiryAlertsCount++;
           const prod = allProducts.find(p => p.code === b.productCode);
           expiringItems.push({
             batchNo: b.batchNo,
@@ -642,33 +600,6 @@ export default function Dashboard() {
        }
     });
 
-    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const monthlySales: Record<string, number> = {};
-    allInvoices.forEach((i: any) => {
-      let monthKey = 'Unknown';
-      if (i.date) {
-        const parts = i.date.split('-');
-        if (parts.length === 3) {
-          const monthIndex = parts[0].length === 4 ? parseInt(parts[1]) - 1 : parseInt(parts[1]) - 1;
-          if (!isNaN(monthIndex) && monthIndex >= 0 && monthIndex <= 11) {
-            monthKey = monthNames[monthIndex];
-          }
-        }
-      }
-      monthlySales[monthKey] = (monthlySales[monthKey] || 0) + (i.grandTotal || 0);
-    });
-    const currentMonth = new Date().getMonth();
-    const chartSalesData = Array.from({length: 6}, (_, i) => {
-      const mIdx = (currentMonth - 5 + i + 12) % 12;
-      const mName = monthNames[mIdx];
-      return { name: mName, sales: monthlySales[mName] || 0 };
-    });
-
-    setSuperAdminData({
-      totalSales, topState, topStateSales, expiryAlertsCount, topProduct, topProductSales,
-      outstandingAmount, pendingDispatchCount, lowStockCount, topDistributor, topDistributorSales,
-      leadFunnelCount: 42, mrActivityCount: 15, chartSalesData
-    });
 
     const lastAlertStr = localStorage.getItem('lastExpiryAlertShown');
     let shouldShowAlert = false;

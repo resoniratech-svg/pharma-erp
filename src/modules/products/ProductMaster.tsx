@@ -13,6 +13,8 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './types';
+import { manufacturerService, type Manufacturer } from "../../services/manufacturerService";
+import { brandService, type Brand } from "../../services/brandService";
 import { productService } from "../../services/productService";
 import { packingTypeService } from "../../services/packingTypeService";
 import { compositionService } from "../../services/compositionService";
@@ -132,8 +134,8 @@ export default function ProductMaster() {
   const [productTypes, setProductTypes] = useState<string[]>([]);
   const [showTypeDropdown, setShowTypeDropdown] = useState(false);
   
-  const [manufacturers, setManufacturers] = useState<string[]>([]);
-  const [showManufacturerDropdown, setShowManufacturerDropdown] = useState(false);
+  const [manufacturers, setManufacturers] = useState<Manufacturer[]>([]);
+  const [brands, setBrands] = useState<Brand[]>([]);
 
   const [products, setProducts] = useState<Product[]>([]);
   
@@ -287,21 +289,22 @@ export default function ProductMaster() {
     const defaultTypes = ["Tablet", "Capsule", "Syrup", "Injection", "Ointment", "Cream", "Drops", "Inhaler", "Suppository", "Powder"];
     setProductTypes(defaultTypes);
 
-    const defaultManufacturers = ["PharmaCorp", "HealthPlus", "MediCare", "VitaLife"];
-    setManufacturers(defaultManufacturers);
-
     const fetchDropdownData = async () => {
       try {
-        const [savedPackingTypes, savedCompositions, savedSchemes, activeHSNs] = await Promise.all([
+        const [savedPackingTypes, savedCompositions, savedSchemes, activeHSNs, fetchedManufacturers, fetchedBrands] = await Promise.all([
           packingTypeService.getAll(),
           compositionService.getAll(),
           schemeService.getAll(),
-          hsnService.getActive()
+          hsnService.getActive(),
+          manufacturerService.getManufacturers(),
+          brandService.getBrands()
         ]);
         setPackingTypes((savedPackingTypes || []).filter((item: any) => item.status === "Active"));
         setCompositions((savedCompositions || []).filter((item: any) => item.status === "Active"));
         setSchemes((savedSchemes || []).filter((item: any) => item.status === "Active"));
         setActiveHSNs(activeHSNs || []);
+        setManufacturers(fetchedManufacturers || []);
+        setBrands(fetchedBrands || []);
       } catch (err) {
         console.error("Failed to load dropdown data:", err);
       }
@@ -650,7 +653,16 @@ export default function ProductMaster() {
 
                   <div>
                     <label className="block text-sm font-medium mb-1 text-slate-700">Brand Name</label>
-                    <input value={newProduct.brandName} onChange={(e) => handleAlphanumericChange("brandName", e.target.value)} className="w-full border border-slate-200 rounded-lg px-3 py-2 text-slate-900 focus:outline-none focus:border-violet-400" />
+                    <select
+                      value={newProduct.brandName}
+                      onChange={(e) => setNewProduct({ ...newProduct, brandName: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
+                    >
+                      <option value="">Select Brand...</option>
+                      {brands.filter(b => b.isActive).map(b => (
+                        <option key={b.id} value={b.brandName}>{b.brandName}</option>
+                      ))}
+                    </select>
                   </div>
                   <div className="relative">
                     <label className="block text-sm font-medium mb-1 text-slate-700">Category *</label>
@@ -763,27 +775,18 @@ export default function ProductMaster() {
                     )}
                   </div>
 
-                  <div className="relative">
+                  <div>
                     <label className="block text-sm font-medium mb-1 text-slate-700">Manufacturer *</label>
-                    <div className="relative">
-                      <input type="text" value={newProduct.manufacturer} onChange={(e) => { handleAlphanumericChange("manufacturer", e.target.value); setShowManufacturerDropdown(true); }} onFocus={() => setShowManufacturerDropdown(true)} placeholder="Search or create Manufacturer..." className="w-full border border-slate-200 rounded-lg px-3 py-2 pr-8 bg-white text-slate-900 focus:outline-none focus:border-violet-400" />
-                      <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 cursor-pointer" onClick={() => setShowManufacturerDropdown(!showManufacturerDropdown)} />
-                    </div>
-                    {showManufacturerDropdown && (
-                      <>
-                        <div className="fixed inset-0 z-10" onClick={() => setShowManufacturerDropdown(false)} />
-                        <div className="absolute z-20 w-full mt-1 bg-white border border-slate-200 rounded-lg shadow-lg max-h-60 flex flex-col overflow-y-auto p-1">
-                          {manufacturers.filter((c) => c.toLowerCase().includes((newProduct.manufacturer || "").toLowerCase())).map((cat) => (
-                            <div key={cat} className="px-3 py-2 text-sm hover:bg-slate-50 cursor-pointer rounded text-slate-700" onClick={() => { setNewProduct({ ...newProduct, manufacturer: cat }); setShowManufacturerDropdown(false); }}>{cat}</div>
-                          ))}
-                          {(newProduct.manufacturer || "").trim() !== "" && !manufacturers.some((c) => c.trim().toLowerCase() === (newProduct.manufacturer || "").trim().toLowerCase()) && (
-                            <div className="px-3 py-2 text-sm text-[#163c78] font-medium hover:bg-[#163c78]/10 cursor-pointer rounded flex items-center gap-2" onClick={() => { const newManuf = (newProduct.manufacturer || "").trim(); const updatedManufs = [...manufacturers, newManuf]; setManufacturers(updatedManufs); localStorage.setItem("product_manufacturers", JSON.stringify(updatedManufs)); setNewProduct({ ...newProduct, manufacturer: newManuf }); setShowManufacturerDropdown(false); }}>
-                              <Plus className="w-4 h-4" /> Add "{newProduct.manufacturer.trim()}"
-                            </div>
-                          )}
-                        </div>
-                      </>
-                    )}
+                    <select
+                      value={newProduct.manufacturer}
+                      onChange={(e) => setNewProduct({ ...newProduct, manufacturer: e.target.value })}
+                      className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-white text-slate-900 focus:outline-none focus:border-violet-400"
+                    >
+                      <option value="">Select Manufacturer...</option>
+                      {manufacturers.filter(m => m.isActive).map(m => (
+                        <option key={m.id} value={m.name}>{m.name}</option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>

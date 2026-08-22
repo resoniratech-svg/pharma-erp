@@ -27,6 +27,18 @@ const isCurrentMonth = (dateStr: string) => {
 };
 
 export const dashboardService = {
+  getSuperAdminMetrics: async () => {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any }>('/dashboard/admin/super-admin');
+      if (response && response.success) {
+        return response.data;
+      }
+    } catch (e) {
+      console.error('Failed to load Super Admin Metrics from backend', e);
+    }
+    return null;
+  },
+
   getAttendanceStatus: (attendanceData: any[] = []) => {
     try {
       const authUserString = localStorage.getItem('authUser');

@@ -91,6 +91,8 @@ const NavModules = {
       { label: 'Composition Management', path: '/workspace/products/compositions' },
       { label: 'Packing Type Management', path: '/workspace/products/packing-types' },
       { label: 'Scheme Management', path: '/workspace/products/schemes' },
+      { label: 'Manufacturer Management', path: '/workspace/products/manufacturers' },
+      { label: 'Brand Management', path: '/workspace/products/brands' },
       { label: 'Product Master Management', path: '/workspace/products/master' },
       { label: 'MRP Management', path: '/workspace/products/mrp-management' },
       { label: 'PTR / PTS / PTD Pricing', path: '/workspace/products/pricing' },
