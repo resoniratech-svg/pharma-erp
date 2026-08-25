@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Alert, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -6,37 +6,51 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-
-const MOCK_TARGETS = [
-  {
-    id: '1',
-    financialYear: 'FY 2026-27',
-    planningPeriod: 'Q2 (Jul - Sep)',
-    startDate: '1/7/2026',
-    status: 'Partially Allocated',
-    receivedAmount: '1,50,00,000',
-    allocatedDown: '1,20,00,000',
-    remainingBalance: '30,00,000'
-  }
-];
-
-const MOCK_MR_ALLOCATIONS = [
-  { id: '1', code: 'EMP-001', name: 'Deepak Tyagi', hq: 'Mumbai', territory: 'South Mumbai', allocated: '2500000', status: 'Allocated' },
-  { id: '2', code: 'EMP-002', name: 'Rohit Saxena', hq: 'Mumbai', territory: 'Navi Mumbai', allocated: '2000000', status: 'Allocated' },
-  { id: '3', code: 'EMP-003', name: 'Vikram Singh', hq: 'Thane', territory: 'Thane', allocated: '2800000', status: 'Allocated' },
-  { id: '4', code: 'EMP-004', name: 'Sneha Patel', hq: 'Mumbai', territory: 'Andheri', allocated: '2200000', status: 'Allocated' },
-  { id: '5', code: 'EMP-005', name: 'Amit Kumar', hq: 'Pune', territory: 'Pune East', allocated: '', status: 'Pending' },
-  { id: '6', code: 'EMP-006', name: 'Rahul Verma', hq: 'Pune', territory: 'Pune West', allocated: '2500000', status: 'Allocated' },
-  { id: '7', code: 'EMP-007', name: 'Neha Sharma', hq: 'Nashik', territory: 'Nashik Central', allocated: '', status: 'Pending' },
-  { id: '8', code: 'EMP-008', name: 'Priya Desai', hq: 'Nagpur', territory: 'Nagpur North', allocated: '', status: 'Pending' },
-];
+import { getASMTargetSummary } from '../services/targetService';
 
 const ASMTargetAllocationScreen = () => {
   const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<'Overview' | 'MR Allocation'>('Overview');
   const [searchQuery, setSearchQuery] = useState('');
 
-  const [mrAllocations, setMrAllocations] = useState(MOCK_MR_ALLOCATIONS);
+  const [targetOverview, setTargetOverview] = useState<any[]>([]);
+  const [mrAllocations, setMrAllocations] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchTargets();
+  }, []);
+
+  const fetchTargets = async () => {
+    try {
+      const data = await getASMTargetSummary();
+      if (data && data.length > 0) {
+        setTargetOverview(data.map((d: any) => ({
+           id: d.id || Math.random().toString(),
+           financialYear: d.financialYear || 'FY 2026-27',
+           planningPeriod: 'Full Year',
+           startDate: new Date().toLocaleDateString(),
+           status: 'Partially Allocated',
+           receivedAmount: (d.targetAmount || 0).toLocaleString(),
+           allocatedDown: (d.allocatedAmount || 0).toLocaleString(),
+           remainingBalance: (d.remainingAmount || 0).toLocaleString()
+        })));
+        
+        const team = data[0].teamAllocations || [];
+        setMrAllocations(team.map((a: any) => ({
+           id: a.employeeId?.toString() || Math.random().toString(),
+           code: a.employeeCode || '-',
+           name: a.employeeName || 'Unknown',
+           hq: a.headquarters || '-',
+           territory: a.territory || '-',
+           allocated: a.amount || '0',
+           status: (a.amount && a.amount > 0) ? 'Allocated' : 'Pending'
+        })));
+      }
+    } catch (error) {
+      console.error('Failed to fetch targets', error);
+    }
+  };
+
   const [viewingMR, setViewingMR] = useState<any>(null);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -45,7 +59,7 @@ const ASMTargetAllocationScreen = () => {
   const [selectedTerritory, setSelectedTerritory] = useState('All Territories');
   const [selectedStatus, setSelectedStatus] = useState('All Status');
 
-  const filteredTargets = MOCK_TARGETS;
+  const filteredTargets = targetOverview;
 
   const filteredMRs = mrAllocations.filter(mr => {
     const matchesSearch = mr.name.toLowerCase().includes(searchQuery.toLowerCase()) || mr.code.toLowerCase().includes(searchQuery.toLowerCase());

@@ -28,13 +28,51 @@ const ASMAttendanceScreen = () => {
     { id: '4', date: '29 Jul 2026', checkIn: '09:10 AM', checkOut: '06:20 PM', hours: '9h 10m', status: 'Present' },
   ]);
 
-  // Team Attendance Data with GPS Exception & Punch Indicators (MRs)
-  const teamAttendanceData = [
-    { id: '1', mrName: 'Sanjay Sharma', region: 'South Mumbai', workingDays: 26, present: 24, absent: 0, leave: 2, late: 1, latePct: '3.8%', earlyOut: 0, missingPunch: 0, gpsException: 0, attdPct: '92.3%', status: 'Excellent', statusBg: '#DCFCE7', statusColor: '#15803D' },
-    { id: '2', mrName: 'Vikas Singh', region: 'Andheri', workingDays: 26, present: 25, absent: 0, leave: 1, late: 0, latePct: '0.0%', earlyOut: 0, missingPunch: 0, gpsException: 0, attdPct: '96.1%', status: 'Excellent', statusBg: '#DCFCE7', statusColor: '#15803D' },
-    { id: '3', mrName: 'Amit Kumar', region: 'Thane', workingDays: 26, present: 22, absent: 2, leave: 2, late: 3, latePct: '11.5%', earlyOut: 1, missingPunch: 1, gpsException: 2, attdPct: '84.6%', status: 'Good', statusBg: '#DBEAFE', statusColor: '#1D4ED8' },
-    { id: '4', mrName: 'Rahul Verma', region: 'Navi Mumbai', workingDays: 26, present: 20, absent: 3, leave: 3, late: 4, latePct: '15.4%', earlyOut: 2, missingPunch: 2, gpsException: 4, attdPct: '76.9%', status: 'Needs Focus', statusBg: '#FEE2E2', statusColor: '#DC2626' },
-  ];
+  const [teamAttendanceData, setTeamAttendanceData] = useState<any[]>([]);
+  const [loadingTeam, setLoadingTeam] = useState(false);
+
+  React.useEffect(() => {
+    if (activeTab === 'TeamAttendance') {
+      fetchTeamAttendance();
+    }
+  }, [activeTab]);
+
+  const fetchTeamAttendance = async () => {
+    try {
+      setLoadingTeam(true);
+      const { getASMTeamAttendance } = require('../services/attendanceService');
+      const data = await getASMTeamAttendance();
+      if (data && data.length > 0) {
+        setTeamAttendanceData(data.map((item: any) => {
+           const presence = item.status === 'PRESENT' ? 1 : 0;
+           return {
+              id: item.id?.toString() || Math.random().toString(),
+              mrName: item.employee?.name || 'Unknown',
+              region: item.territory || 'Unassigned',
+              workingDays: 26, // Derived dynamically in a real scenario
+              present: presence,
+              absent: presence ? 0 : 1,
+              leave: 0,
+              late: 0,
+              latePct: '0%',
+              earlyOut: 0,
+              missingPunch: item.checkOutTime ? 0 : 1,
+              gpsException: 0,
+              attdPct: presence ? '100%' : '0%',
+              status: presence ? 'Good' : 'Needs Focus',
+              statusBg: presence ? '#DCFCE7' : '#FEE2E2',
+              statusColor: presence ? '#15803D' : '#DC2626'
+           };
+        }));
+      } else {
+        setTeamAttendanceData([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch team attendance', error);
+    } finally {
+      setLoadingTeam(false);
+    }
+  };
 
   const handleCheckIn = () => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });

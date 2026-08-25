@@ -40,6 +40,7 @@ const NSMDashboardScreen = () => {
 
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [isSalesOpsOpen, setIsSalesOpsOpen] = useState(false);
+  const [isCRMOpen, setIsCRMOpen] = useState(false);
   const [selectedYear] = useState('2026-2027');
   const [selectedMonth] = useState('August');
   const [selectedRegion] = useState('All Regions');
@@ -470,6 +471,44 @@ const NSMDashboardScreen = () => {
 
               <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); handleNavigate(NSM_ROUTES.TEAM_VISITS); }}>
                 <Text style={styles.subMenuItemText}>Team Visits</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.menuItemHeader} onPress={() => setIsCRMOpen(!isCRMOpen)}>
+            <Ionicons name="people-outline" size={20} color="#475569" />
+            <Text style={styles.menuItemHeaderText}>CRM</Text>
+            <Ionicons name={isCRMOpen ? "chevron-up" : "chevron-down"} size={16} color="#94A3B8" style={{ marginLeft: 'auto' }} />
+          </TouchableOpacity>
+
+          {isCRMOpen && (
+            <View style={{ paddingLeft: 18, marginVertical: 2 }}>
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadCreation'); }}>
+                <Text style={styles.subMenuItemText}>Lead Creation</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadAssignment'); }}>
+                <Text style={styles.subMenuItemText}>Lead Assignment</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadPipelineTracking'); }}>
+                <Text style={styles.subMenuItemText}>Lead Pipeline</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('FollowUps'); }}>
+                <Text style={styles.subMenuItemText}>Follow-Up Management</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('MeetingScheduler'); }}>
+                <Text style={styles.subMenuItemText}>Meeting Scheduling</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('ActivityTracking'); }}>
+                <Text style={styles.subMenuItemText}>Activity Timeline</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadConversionTracking'); }}>
+                <Text style={styles.subMenuItemText}>Lead Conversion</Text>
               </TouchableOpacity>
             </View>
           )}

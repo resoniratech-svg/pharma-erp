@@ -4,8 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+// REMOVED JSPDF
+// REMOVED JSPDF
 
 const INITIAL_DATA = [
   { id: '1', visitDate: '2026-08-01', asmName: 'Vikas Sharma', mrName: 'Rahul Verma', visitType: 'Doctor Visit', visitStatus: 'Completed', details: 'Discussed new cardiology range. Positive response.', state: 'Maharashtra', territory: 'Mumbai Central', hq: 'Mumbai', doctorName: 'Dr. Suresh Patel', specialty: 'Cardiology', checkIn: '10:00 AM', checkOut: '10:45 AM', duration: '45 mins', gps: '123 Health Clinic, Andheri West, Mumbai\n19.1136° N, 72.8697° E', jointVisit: 'No' },

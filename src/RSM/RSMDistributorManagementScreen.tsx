@@ -4,8 +4,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-import { jsPDF } from 'jspdf';
-import autoTable from 'jspdf-autotable';
+// REMOVED JSPDF
+// REMOVED JSPDF
 
 const INITIAL_DATA = [
   { id: '1', code: 'DIST001', name: 'Apollo Pharma', state: 'Maharashtra', asmName: 'Vikas Sharma', outstanding: '₹4,50,000', rawOutstanding: 450000, lastOrder: '2025-06-12', status: 'Active', contactPerson: 'Rahul Desai', phone: '9876543210', email: 'rahul@apollopharma.com', address: 'Andheri West, Mumbai, Maharashtra 400053', ytdSales: '₹24,00,000', creditLimit: '₹5,00,000', recentOrders: [{ id: 'ORD-1234', date: '2025-06-12', amount: '₹1,25,000', status: 'Delivered' }, { id: 'ORD-1230', date: '2025-06-01', amount: '₹95,000', status: 'Delivered' }], recentPayments: [{ date: '2025-06-10', mode: 'NEFT', ref: 'N123456789', amount: '₹1,00,000' }], recentVisits: [{ date: '2025-06-05', emp: 'Vikas Sharma (ASM)', type: 'Business Review', remarks: 'Positive - New line added' }] },

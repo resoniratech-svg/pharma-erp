@@ -13,3 +13,11 @@ export const getMrDashboardAnalytics = async () => {
   
   return response.data.data || response.data;
 };
+
+export const getASMDashboard = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.get('/dashboard/asm', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data.data || response.data;
+};

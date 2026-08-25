@@ -120,4 +120,4 @@ export const getTourPlansByMr = async () => {
     },
   });
   return response.data.data || response.data;
-};
+};export const getASMTourPlans = async () => { const token = await AsyncStorage.getItem('@token'); const response = await api.get('/tour-plans/asm/team', { headers: { Authorization: Bearer  } }); return response.data.data || response.data; };

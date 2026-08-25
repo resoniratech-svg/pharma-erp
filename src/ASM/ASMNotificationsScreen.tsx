@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,23 +7,56 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { ASM_ROUTES } from './ASMDashboardScreen';
+import { getAllNotifications, markAsRead as apiMarkAsRead } from '../services/notificationService';
 
 const ASMNotificationsScreen = () => {
   const navigation = useNavigation<any>();
-  const [notifications, setNotifications] = useState([
-    { id: '1', title: 'Target Allocated', message: 'Annual Target for your Area has been allocated by RSM.', time: '10:30 AM', dateGroup: 'Today', type: 'target', read: false, bg: '#EEF2FF', iconColor: '#4F46E5' },
-    { id: '2', title: 'MR Attendance', message: '2 Late check-ins detected in your territory today.', time: '09:15 AM', dateGroup: 'Today', type: 'attendance', read: false, bg: '#FEE2E2', iconColor: '#DC2626' },
-    { id: '3', title: 'Doctor Visit Alert', message: 'Dr. Sharma visit report is missing for this week.', time: 'Yesterday', dateGroup: 'Yesterday', type: 'performance', read: true, bg: '#FEF3C7', iconColor: '#D97706' },
-    { id: '4', title: 'System Notification', message: 'Pharma ERP system scheduled maintenance on Aug 05.', time: '28 Jul', dateGroup: 'Earlier', type: 'system', read: true, bg: '#F1F5F9', iconColor: '#64748B' },
-  ]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
-    Alert.alert('✅ Marked Read', 'All notifications marked as read.');
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const data = await getAllNotifications();
+      if (data && data.length > 0) {
+        setNotifications(data.map((n: any) => ({
+          id: n.id?.toString(),
+          title: n.title || 'Notification',
+          message: n.message || '',
+          time: new Date(n.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          dateGroup: new Date(n.createdAt).toLocaleDateString() === new Date().toLocaleDateString() ? 'Today' : 'Earlier',
+          type: n.type || 'system',
+          read: n.isRead || false,
+          bg: '#EEF2FF',
+          iconColor: '#4F46E5'
+        })));
+      } else {
+        setNotifications([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch notifications:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
+      // Note: Ideally call backend to mark all read, but for now just updating UI
+      Alert.alert('Marked Read', 'All notifications marked as read.');
+    } catch (e) {
+       console.error(e);
+    }
   };
 
   const handleClearAll = () => {

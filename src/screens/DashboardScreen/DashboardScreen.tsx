@@ -69,6 +69,7 @@ const DashboardScreen = () => {
   const [showGPS, setShowGPS] = useState(false);
   const [showAlerts, setShowAlerts] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showCRM, setShowCRM] = useState(false);
 
   const [docCount, setDocCount] = useState(0);
   const [chemistCount, setChemistCount] = useState(0);
@@ -1003,6 +1004,28 @@ const DashboardScreen = () => {
                   ))}
                 </View>
               )}
+              
+              <TouchableOpacity style={styles.drawerGroupHeader} onPress={() => setShowCRM(!showCRM)}>
+                <Text style={styles.drawerGroupLabel}>🤝 Pre-Sales CRM</Text>
+                <Text style={styles.arrowIcon}>{showCRM ? '▲' : '▼'}</Text>
+              </TouchableOpacity>
+              {showCRM && (
+                <View style={styles.groupChildren}>
+                  {[
+                    { label: 'My Leads', route: 'MyLeads' },
+                    { label: 'Lead Creation', route: 'LeadCreation' },
+                    { label: 'Lead Pipeline Tracking', route: 'LeadPipelineTracking' },
+                    { label: 'Follow-Up Management', route: 'FollowUps' },
+                    { label: 'Meeting Scheduling', route: 'MeetingScheduler' },
+                    { label: 'Activity Tracking', route: 'ActivityTracking' },
+                  ].map((item, index) => (
+                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => { setIsMenuOpen(false); navigation.navigate(item.route); }}>
+                      <Text style={styles.drawerSubItemText}>{item.label}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+
               <TouchableOpacity style={styles.drawerGroupHeader} onPress={() => setShowMROps(!showMROps)}>
                 <Text style={styles.drawerGroupLabel}>👤 MR Operations</Text>
                 <Text style={styles.arrowIcon}>{showMROps ? '▲' : '▼'}</Text>
@@ -1015,11 +1038,8 @@ const DashboardScreen = () => {
                     { label: '📦 Order Booking', route: 'BookOrder' },
                     { label: '📄 Daily Reporting', route: 'DailyReport' },
                     { label: '📈 Target Tracking', route: 'TargetTracking' },
-                    { label: '🗺️ Tour Planning', route: 'TourPlanning' },
-                    { label: '🤝 Meeting Scheduling', route: 'MeetingScheduler' },
-                    { label: '📜 Activity Tracking', route: 'ActivityTracking' },
-                    { label: '🎯 Follow-Ups Tracker', route: 'FollowUps' },
-                    { label: '👥 Customer Directory', route: 'CustomerDirectory' },
+                    { label: '👤 Tour Planning', route: 'TourPlanning' },
+                    { label: '📞 Customer Directory', route: 'CustomerDirectory' },
                   ].map((item, index) => (
                     <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => { setIsMenuOpen(false); navigation.navigate(item.route); }}>
                       <Text style={styles.drawerSubItemText}>{item.label}</Text>

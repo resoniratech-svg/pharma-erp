@@ -61,6 +61,13 @@ export const getAttendanceLogs = async () => {
   return response.data.data || response.data;
 };   
 
+export const getASMTeamAttendance = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.get('/attendance/asm/team', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data.data || response.data;
+};
 
 ///////////////////////////////////////////////////////////////
 

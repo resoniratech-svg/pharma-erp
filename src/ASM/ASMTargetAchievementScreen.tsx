@@ -1,62 +1,54 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Alert, Share } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Alert, Share, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-
-// Dummy Data
-const MOCK_ACHIEVEMENTS = [
-  {
-    id: '1',
-    code: 'EMP-undefined',
-    name: 'Deepak Tyagi',
-    territory: 'Unassigned',
-    hq: 'Unassigned',
-    reportingAsm: 'Current ASM User',
-    financialYear: 'FY 2024-25',
-    assignedTarget: 0,
-    achieved: 0,
-    achievementPercent: 0,
-    totalOrders: 39,
-    status: 'Needs Attention',
-    lastOrderDate: '12 Aug 2026',
-    lastActivityDate: '14 Aug 2026',
-    monthlyProgress: [
-      { month: 'April', assigned: 200000, achieved: 210000, percent: 105 },
-      { month: 'May', assigned: 200000, achieved: 180000, percent: 90 },
-      { month: 'June', assigned: 220000, achieved: 150000, percent: 68 }
-    ]
-  },
-  {
-    id: '2',
-    code: 'EMP-undefined',
-    name: 'Rohit Saxena',
-    territory: 'Unassigned',
-    hq: 'Unassigned',
-    reportingAsm: 'Current ASM User',
-    financialYear: 'FY 2024-25',
-    assignedTarget: 0,
-    achieved: 0,
-    achievementPercent: 0,
-    totalOrders: 28,
-    status: 'Needs Attention',
-    lastOrderDate: '10 Aug 2026',
-    lastActivityDate: '13 Aug 2026',
-    monthlyProgress: [
-      { month: 'April', assigned: 200000, achieved: 190000, percent: 95 },
-      { month: 'May', assigned: 200000, achieved: 160000, percent: 80 },
-      { month: 'June', assigned: 220000, achieved: 120000, percent: 54 }
-    ]
-  }
-];
+import { getASMDashboard } from '../services/dashboardService';
 
 const ASMTargetAchievementScreen = () => {
   const navigation = useNavigation<any>();
 
-  const [achievements, setAchievements] = useState(MOCK_ACHIEVEMENTS);
+  const [achievements, setAchievements] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  
+  useEffect(() => {
+    fetchAchievements();
+  }, []);
+
+  const fetchAchievements = async () => {
+    try {
+      setLoading(true);
+      const data = await getASMDashboard();
+      if (data && data.teamPerformance) {
+        setAchievements(data.teamPerformance.map((mr: any) => ({
+          id: mr.employeeId?.toString() || Math.random().toString(),
+          code: mr.employeeCode || 'EMP-?',
+          name: mr.employeeName || 'Unknown',
+          territory: mr.territory || 'Unassigned',
+          hq: mr.headquarters || 'Unassigned',
+          reportingAsm: data.asmName || 'Current ASM User',
+          financialYear: 'FY 2026-27',
+          assignedTarget: mr.assignedTarget || 0,
+          achieved: mr.achieved || 0,
+          achievementPercent: mr.achievementPercent || 0,
+          totalOrders: mr.totalOrders || 0,
+          status: mr.achievementPercent >= 80 ? 'On Track' : 'Needs Attention',
+          lastOrderDate: mr.lastOrderDate || 'No orders yet',
+          lastActivityDate: mr.lastActivityDate || 'No activity',
+          monthlyProgress: mr.monthlyProgress || []
+        })));
+      } else {
+         setAchievements([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch achievements:', error);
+      Alert.alert('Error', 'Failed to fetch team achievements');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [showExportMenu, setShowExportMenu] = useState(false);

@@ -37,6 +37,7 @@ export const RSM_ROUTES = {
 const RSMDashboardScreen = () => {
   const navigation = useNavigation<any>();
   const [isSalesOpsOpen, setIsSalesOpsOpen] = useState(false);
+  const [isCRMOpen, setIsCRMOpen] = useState(false);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -309,13 +310,50 @@ const RSMDashboardScreen = () => {
               <TouchableOpacity style={styles.subMenuItem} onPress={() => handleNavigate(RSM_ROUTES.TEAM_PERFORMANCE, true)}>
                 <Text style={styles.subMenuItemText}>Team Performance</Text>
               </TouchableOpacity>
-
               <TouchableOpacity style={styles.subMenuItem} onPress={() => handleNavigate(RSM_ROUTES.TEAM_VISITS, true)}>
                 <Text style={styles.subMenuItemText}>Team Visits</Text>
               </TouchableOpacity>
               
               <TouchableOpacity style={styles.subMenuItem} onPress={() => handleNavigate(RSM_ROUTES.DISTRIBUTOR_MANAGEMENT, true)}>
                 <Text style={styles.subMenuItemText}>Distributor Management</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          <TouchableOpacity style={styles.menuItemHeader} onPress={() => setIsCRMOpen(!isCRMOpen)}>
+            <Ionicons name="people-outline" size={20} color="#475569" />
+            <Text style={styles.menuItemHeaderText}>CRM</Text>
+            <Ionicons name={isCRMOpen ? "chevron-up" : "chevron-down"} size={16} color="#94A3B8" style={{ marginLeft: 'auto' }} />
+          </TouchableOpacity>
+
+          {isCRMOpen && (
+            <View style={{ paddingLeft: 18, marginVertical: 2 }}>
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadCreation'); }}>
+                <Text style={styles.subMenuItemText}>Lead Creation</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadAssignment'); }}>
+                <Text style={styles.subMenuItemText}>Lead Assignment</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadPipelineTracking'); }}>
+                <Text style={styles.subMenuItemText}>Lead Pipeline</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('FollowUps'); }}>
+                <Text style={styles.subMenuItemText}>Follow-Up Management</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('MeetingScheduler'); }}>
+                <Text style={styles.subMenuItemText}>Meeting Scheduling</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('ActivityTracking'); }}>
+                <Text style={styles.subMenuItemText}>Activity Timeline</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadConversionTracking'); }}>
+                <Text style={styles.subMenuItemText}>Lead Conversion</Text>
               </TouchableOpacity>
             </View>
           )}

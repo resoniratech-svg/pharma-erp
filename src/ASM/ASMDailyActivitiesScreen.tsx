@@ -1,108 +1,58 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Alert, Share } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Alert, Share, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-
-// Dummy Data matching screenshot
-const MOCK_ACTIVITIES = [
-  {
-    id: '1',
-    date: '2024-05-15',
-    mrName: 'Rahul Verma',
-    activityType: 'Doctor Visit',
-    customer: 'Dr. A. Sharma',
-    territory: 'South Mumbai',
-    status: 'Completed',
-    // Extended Details
-    activityTime: '10:30 AM',
-    mrCode: 'EMP-001',
-    headquarters: 'Mumbai',
-    customerType: 'Doctor',
-    specialty: 'General Physician',
-    clinicName: 'Dr. A. Sharma',
-    productsDiscussed: 'Cardio Range, Multi-vitamins',
-    samplesGiven: '5 Units',
-    remarks: 'Promoted Cardio range, gave 5 samples.',
-    gpsLocation: 'Verified',
-    checkInTime: '10:30 AM',
-    checkOutTime: '10:45 AM'
-  },
-  {
-    id: '2',
-    date: '2024-05-15',
-    mrName: 'Sneha Patel',
-    activityType: 'Chemist Visit',
-    customer: 'Apollo Pharmacy',
-    territory: 'Navi Mumbai',
-    status: 'Completed',
-    // Extended Details
-    activityTime: '11:15 AM',
-    mrCode: 'EMP-002',
-    headquarters: 'Mumbai',
-    customerType: 'Chemist',
-    specialty: 'Pharmacy',
-    clinicName: 'Apollo Pharmacy',
-    productsDiscussed: 'Cough Syrups, Antibiotics',
-    samplesGiven: '0 Units',
-    remarks: 'Checked inventory and placed refill order.',
-    gpsLocation: 'Verified',
-    checkInTime: '11:15 AM',
-    checkOutTime: '11:40 AM'
-  },
-  {
-    id: '3',
-    date: '2024-05-15',
-    mrName: 'Amit Kumar',
-    activityType: 'Doctor Visit',
-    customer: 'Dr. B. Singh',
-    territory: 'Thane',
-    status: 'Pending',
-    // Extended Details
-    activityTime: '02:00 PM',
-    mrCode: 'EMP-003',
-    headquarters: 'Mumbai',
-    customerType: 'Doctor',
-    specialty: 'Pediatrician',
-    clinicName: 'Sunshine Kids Clinic',
-    productsDiscussed: 'N/A',
-    samplesGiven: 'N/A',
-    remarks: 'Appointment scheduled but visit pending.',
-    gpsLocation: 'Pending',
-    checkInTime: 'N/A',
-    checkOutTime: 'N/A'
-  },
-  {
-    id: '4',
-    date: '2024-05-15',
-    mrName: 'Vikas Singh',
-    activityType: 'Order Booking',
-    customer: 'Wellness Medico',
-    territory: 'Andheri',
-    status: 'Completed',
-    // Extended Details
-    activityTime: '04:30 PM',
-    mrCode: 'EMP-004',
-    headquarters: 'Mumbai',
-    customerType: 'Distributor',
-    specialty: 'Wholesale',
-    clinicName: 'Wellness Medico HQ',
-    productsDiscussed: 'Bulk Order - Painkillers',
-    samplesGiven: '0 Units',
-    remarks: 'Secured large bulk order for next quarter.',
-    gpsLocation: 'Verified',
-    checkInTime: '04:30 PM',
-    checkOutTime: '05:15 PM'
-  }
-];
+import { getASMDailyReports } from '../services/dailyReportService';
 
 const ASMDailyActivitiesScreen = () => {
   const navigation = useNavigation<any>();
 
-  const [activities, setActivities] = useState(MOCK_ACTIVITIES);
+  const [activities, setActivities] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchActivities();
+  }, []);
+
+  const fetchActivities = async () => {
+    try {
+      setLoading(true);
+      const data = await getASMDailyReports();
+      if (data && data.length > 0) {
+        setActivities(data.map((report: any) => ({
+          id: report.id?.toString() || Math.random().toString(),
+          date: report.reportDate ? new Date(report.reportDate).toLocaleDateString() : new Date().toLocaleDateString(),
+          mrName: report.employee?.name || 'Unknown',
+          activityType: 'Daily Report',
+          customer: '-',
+          territory: report.territory || '-',
+          status: 'Completed',
+          activityTime: report.checkInTime || '-',
+          mrCode: report.employee?.employeeCode || '-',
+          headquarters: report.employee?.headquarters || '-',
+          customerType: 'N/A',
+          specialty: 'N/A',
+          clinicName: 'N/A',
+          productsDiscussed: 'N/A',
+          samplesGiven: report.samplesDistributed?.toString() || '0',
+          remarks: report.remarks || '-',
+          gpsLocation: 'Verified',
+          checkInTime: report.checkInTime || '-',
+          checkOutTime: report.checkOutTime || '-'
+        })));
+      } else {
+        setActivities([]);
+      }
+    } catch (error) {
+      console.error('Failed to fetch daily activities:', error);
+      Alert.alert('Error', 'Could not fetch daily activities');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const [searchQuery, setSearchQuery] = useState('');
   
   const [selectedDateFilter, setSelectedDateFilter] = useState('Today');
@@ -112,7 +62,7 @@ const ASMDailyActivitiesScreen = () => {
   
   const [viewingActivity, setViewingActivity] = useState<any>(null);
 
-  // Dynamic Calculations based on filtered data (assuming 'Today' is selected, so all mock data represents today)
+  // Dynamic Calculations based on filtered data
   const todaysActivitiesCount = activities.length;
   const doctorVisitsCount = activities.filter(a => a.activityType === 'Doctor Visit').length;
   const chemistVisitsCount = activities.filter(a => a.activityType === 'Chemist Visit').length;

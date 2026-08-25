@@ -11,7 +11,8 @@ import {
   Modal,
   Alert,
   KeyboardAvoidingView,
-  Share
+  Share,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
@@ -20,44 +21,41 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { getMyTeam } from '../services/employeeService';
 
 const STORAGE_KEY = '@asm_mr_list';
 
-// Mock Data
-const MOCK_MRS = [
-  { id: '1', code: 'EMP-MR-001', name: 'Deepak Tyagi', hq: '-', territory: '-', mobile: '+91 9876543210', status: 'Active' },
-  { id: '2', code: 'EMP-MR-002', name: 'Rohit Saxena', hq: '-', territory: '-', mobile: '+91 9876543210', status: 'Active' },
-];
-
-const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
-
-const generateCalendarDays = (month: number, year: number) => {
-  const firstDay = new Date(year, month, 1).getDay();
-  const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const days = [];
-  for (let i = 0; i < firstDay; i++) days.push(null);
-  for (let i = 1; i <= daysInMonth; i++) days.push(i);
-  return days;
-};
-
 const ASMMRManagementScreen = () => {
   const navigation = useNavigation<any>();
-  const [mrList, setMrList] = useState(MOCK_MRS);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [mrList, setMrList] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const loadMRs = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          setMrList(JSON.parse(stored));
-        }
-      } catch (e) {
-        console.log('Error loading MRs from AsyncStorage', e);
-      }
-    };
-    loadMRs();
+    fetchTeam();
   }, []);
+
+  const fetchTeam = async () => {
+    try {
+      setLoading(true);
+      const team = await getMyTeam();
+      const formatted = team.map((item: any) => ({
+        id: item.id.toString(),
+        code: item.employeeCode || '-',
+        name: item.name || 'Unknown',
+        hq: item.headquarters || '-',
+        territory: item.area || '-',
+        mobile: item.mobile || '-',
+        status: item.status || 'Active',
+      }));
+      setMrList(formatted);
+    } catch (error) {
+      console.error('Failed to fetch team:', error);
+      Alert.alert('Error', 'Failed to fetch MR list');
+    } finally {
+      setLoading(false);
+    }
+  };
+  const [searchQuery, setSearchQuery] = useState('');
   
   // Dropdown state
   const [dropdownTarget, setDropdownTarget] = useState<'status' | 'formGender' | 'formAccountStatus' | 'formEmpStatus' | null>(null);
@@ -401,37 +399,46 @@ const ASMMRManagementScreen = () => {
 
           {/* Table Body */}
           <ScrollView showsVerticalScrollIndicator={false}>
-            {filteredMRs.map((item, index) => (
-              <View key={item.id} style={[styles.tableRow, index === filteredMRs.length - 1 && { borderBottomWidth: 0 }]}>
-                <Text style={[styles.cellText, styles.cellCode, { width: 140 }]}>{item.code}</Text>
-                <Text style={[styles.cellText, styles.cellName, { width: 180 }]}>{item.name}</Text>
-                <Text style={[styles.cellText, { width: 100 }]}>{item.hq}</Text>
-                <Text style={[styles.cellText, { width: 140 }]}>{item.territory}</Text>
-                <Text style={[styles.cellText, { width: 160 }]}>{item.mobile}</Text>
-                
-                <View style={{ width: 120 }}>
-                  <View style={[styles.statusBadge, item.status === 'Active' ? styles.statusActive : styles.statusInactive]}>
-                    <Text style={[styles.statusText, item.status === 'Active' ? styles.statusActiveText : styles.statusInactiveText]}>
-                      {item.status}
-                    </Text>
-                  </View>
-                </View>
+            {loading ? (
+              <View style={{ padding: 40, alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#4F46E5" />
+                <Text style={{ marginTop: 10, color: '#64748B' }}>Loading Team...</Text>
+              </View>
+            ) : (
+              <>
+                {filteredMRs.map((item, index) => (
+                  <View key={item.id} style={[styles.tableRow, index === filteredMRs.length - 1 && { borderBottomWidth: 0 }]}>
+                    <Text style={[styles.cellText, styles.cellCode, { width: 140 }]}>{item.code}</Text>
+                    <Text style={[styles.cellText, styles.cellName, { width: 180 }]}>{item.name}</Text>
+                    <Text style={[styles.cellText, { width: 100 }]}>{item.hq}</Text>
+                    <Text style={[styles.cellText, { width: 140 }]}>{item.territory}</Text>
+                    <Text style={[styles.cellText, { width: 160 }]}>{item.mobile}</Text>
+                    
+                    <View style={{ width: 120 }}>
+                      <View style={[styles.statusBadge, item.status === 'Active' ? styles.statusActive : styles.statusInactive]}>
+                        <Text style={[styles.statusText, item.status === 'Active' ? styles.statusActiveText : styles.statusInactiveText]}>
+                          {item.status}
+                        </Text>
+                      </View>
+                    </View>
 
-                <View style={[styles.actionCell, { width: 100 }]}>
-                  <TouchableOpacity style={styles.actionIcon} onPress={() => setViewingMR(item)}>
-                    <Ionicons name="eye-outline" size={18} color="#94A3B8" />
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.actionIcon} onPress={() => handleEditClick(item)}>
-                    <Ionicons name="pencil-outline" size={17} color="#94A3B8" />
-                  </TouchableOpacity>
-                </View>
-              </View>
-            ))}
-            
-            {filteredMRs.length === 0 && (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateText}>No MRs found matching your search.</Text>
-              </View>
+                    <View style={[styles.actionCell, { width: 100 }]}>
+                      <TouchableOpacity style={styles.actionIcon} onPress={() => setViewingMR(item)}>
+                        <Ionicons name="eye-outline" size={18} color="#94A3B8" />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.actionIcon} onPress={() => handleEditClick(item)}>
+                        <Ionicons name="pencil-outline" size={17} color="#94A3B8" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+                
+                {filteredMRs.length === 0 && (
+                  <View style={styles.emptyState}>
+                    <Text style={styles.emptyStateText}>No MRs found matching your search.</Text>
+                  </View>
+                )}
+              </>
             )}
           </ScrollView>
         </View>

@@ -36,6 +36,16 @@ import ASMSettingsScreen from '../ASM/ASMSettingsScreen';
 
 import ASMNotificationsScreen from '../ASM/ASMNotificationsScreen';
 
+// ── CRM Leads Module Screens ──
+import LeadsScreen from '../screens/CRM/LeadsScreen';
+import MyLeadsScreen from '../screens/CRM/MyLeadsScreen';
+import LeadCreationScreen from '../screens/CRM/LeadCreationScreen';
+import LeadDetailsScreen from '../screens/CRM/LeadDetailsScreen';
+import LeadAssignmentScreen from '../screens/CRM/LeadAssignmentScreen';
+import LeadPipelineTrackingScreen from '../screens/CRM/LeadPipelineTrackingScreen';
+import LeadConversionTrackingScreen from '../screens/CRM/LeadConversionTrackingScreen';
+import LeadListScreen from '../screens/CRM/LeadListScreen';
+
 import ActivityTrackingScreen from '../screens/ActivityTrackingScreen/ActivityTrackingScreen';
 import AttendanceScreen from '../screens/AttendanceScreen/AttendanceScreen';
 import BookOrderScreen from '../screens/BookOrderScreen/BookOrderScreen';
@@ -301,6 +311,16 @@ const AppNavigator = () => {
       <Stack.Screen name="NSMAttendanceMonitoring" component={NSMAttendanceMonitoringScreen} options={{ title: 'Attendance' }} />
       <Stack.Screen name="NSMSettings" component={NSMSettingsScreen} options={{ title: 'Settings & Profile' }} />
       <Stack.Screen name="NSMNotifications" component={NSMNotificationsScreen} options={{ title: 'Notifications Inbox' }} />
+
+      {/* ── CRM Leads Module Routes ── */}
+      <Stack.Screen name="Leads" component={LeadsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="MyLeads" component={MyLeadsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LeadCreation" component={LeadCreationScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LeadDetails" component={LeadDetailsScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LeadAssignment" component={LeadAssignmentScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LeadPipelineTracking" component={LeadPipelineTrackingScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LeadConversionTracking" component={LeadConversionTrackingScreen} options={{ headerShown: false }} />
+      <Stack.Screen name="LeadList" component={LeadListScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
 
     

@@ -62,3 +62,11 @@ export const getDailyReportsByMr = async () => {
 
   return response.data.data || response.data;
 };
+
+export const getASMDailyReports = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.get('/daily-reports/asm/team', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data.data || response.data;
+};

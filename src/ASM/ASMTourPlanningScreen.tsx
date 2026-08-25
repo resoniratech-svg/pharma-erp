@@ -1,34 +1,10 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Alert, Share, Modal } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Alert, Share, Modal, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-
-// Mock Data from screenshot
-const MOCK_MTP_DATA = [
-  { 
-    id: '1', date: 'August 2026', mrName: 'Deepak Tyagi', territory: 'South Mumbai', visits: 45, status: 'Approved',
-    mrCode: 'EMP-001', headquarters: 'Mumbai', tourMonth: 'August 2026', tourType: 'Field Work', 
-    plannedArea: 'South Mumbai Zone', plannedRoute: 'Route A, Route B',
-    plannedVisits: [
-      { type: 'Doctor', name: 'Dr. A. Sharma', location: 'Clinic 1', time: '10:00 AM' },
-      { type: 'Doctor', name: 'Dr. V. Patel', location: 'Hospital', time: '11:30 AM' },
-      { type: 'Chemist', name: 'Apollo Pharmacy', location: 'Main Road', time: '12:15 PM' },
-    ],
-    submittedDate: '28 Jul 2026', approvedBy: 'Current ASM User', approvalDate: '30 Jul 2026',
-    mrRemarks: 'Focus on Cardio new products this month.', asmRemarks: 'Approved, ensure maximum coverage.'
-  },
-  { id: '2', date: 'August 2026', mrName: 'Rohit Saxena', territory: 'Navi Mumbai', visits: 38, status: 'Pending' },
-  { id: '3', date: 'August 2026', mrName: 'Vikram Singh', territory: 'Thane', visits: 52, status: 'Approved' },
-  { id: '4', date: 'August 2026', mrName: 'Sneha Patel', territory: 'Andheri', visits: 40, status: 'Pending' },
-  { id: '5', date: 'August 2026', mrName: 'Amit Kumar', territory: 'Pune East', visits: 30, status: 'Rejected' },
-  { id: '6', date: 'August 2026', mrName: 'Rahul Verma', territory: 'Pune West', visits: 48, status: 'Approved' },
-  { id: '7', date: 'August 2026', mrName: 'Neha Sharma', territory: 'Nashik Central', visits: 35, status: 'Pending' },
-  { id: '8', date: 'August 2026', mrName: 'Priya Desai', territory: 'Nagpur North', visits: 42, status: 'Approved' },
-];
+import { getASMTourPlans } from '../services/tourPlanService';
 
 const ASMTourPlanningScreen = () => {
   const navigation = useNavigation<any>();
@@ -45,6 +21,49 @@ const ASMTourPlanningScreen = () => {
   // Detail View State
   const [selectedPlan, setSelectedPlan] = useState<any>(null);
 
+  const [tourPlans, setTourPlans] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTourPlans();
+  }, []);
+
+  const fetchTourPlans = async () => {
+    try {
+      setLoading(true);
+      const data = await getASMTourPlans();
+      
+      const formatted = data.map((item: any) => ({
+        id: item.id.toString(),
+        date: item.tourDate ? new Date(item.tourDate).toLocaleDateString() : 'N/A',
+        mrName: item.mr?.employee?.name || 'Unknown',
+        territory: item.territory || 'Unassigned',
+        visits: (item.tourPlanDoctors?.length || 0) + (item.tourPlanChemists?.length || 0),
+        status: item.status || 'Pending',
+        mrCode: item.mr?.employee?.employeeCode || '-',
+        headquarters: item.mr?.employee?.headquarters || '-',
+        tourMonth: item.tourDate ? new Date(item.tourDate).toLocaleString('default', { month: 'long', year: 'numeric' }) : 'N/A',
+        tourType: item.planType || '-',
+        plannedArea: item.area || '-',
+        plannedRoute: item.beat || '-',
+        plannedVisits: [
+          ...(item.tourPlanDoctors || []).map((d: any) => ({ type: 'Doctor', name: d.doctor?.name, location: d.doctor?.address || '-', time: '-' })),
+          ...(item.tourPlanChemists || []).map((c: any) => ({ type: 'Chemist', name: c.chemist?.name, location: c.chemist?.address || '-', time: '-' }))
+        ],
+        submittedDate: item.createdAt ? new Date(item.createdAt).toLocaleDateString() : '-',
+        mrRemarks: item.remarks || 'None',
+        asmRemarks: 'N/A',
+        raw: item,
+      }));
+      setTourPlans(formatted);
+    } catch (error) {
+      console.error("Failed to fetch tour plans:", error);
+      Alert.alert("Error", "Could not load tour plans.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'Approved': return { bg: '#ECFDF5', text: '#10B981' };
@@ -55,19 +74,14 @@ const ASMTourPlanningScreen = () => {
   };
 
   // Filter Data
-  const filteredData = MOCK_MTP_DATA.filter(item => {
+  const filteredData = tourPlans.filter(item => {
     const matchesSearch = item.mrName.toLowerCase().includes(searchText.toLowerCase()) || 
                           item.territory.toLowerCase().includes(searchText.toLowerCase());
     const matchesStatus = selectedStatus === 'All' || item.status === selectedStatus;
     
-    // Mock Month filtering logic based on dummy data 'August 2026'
     let matchesMonth = true;
-    if (selectedMonth !== 'All') {
-      if (selectedMonth === 'Current Month' || selectedMonth === 'This Quarter') {
-        matchesMonth = item.date === 'August 2026';
-      } else {
-        matchesMonth = false; // No data for Previous/Next Month in mock
-      }
+    if (selectedMonth !== 'All' && selectedMonth !== 'Current Month') {
+       matchesMonth = item.tourMonth === selectedMonth;
     }
 
     return matchesSearch && matchesStatus && matchesMonth;
@@ -442,9 +456,15 @@ const ASMTourPlanningScreen = () => {
         </View>
 
         {/* Data List (Mobile layout of table) */}
-        <View style={styles.listContainer}>
-          {filteredData.map(item => (
-            <View key={item.id} style={styles.listItem}>
+        {loading ? (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#4F46E5" />
+            <Text style={{ marginTop: 10, color: '#64748B' }}>Loading Tour Plans...</Text>
+          </View>
+        ) : (
+          <View style={styles.listContainer}>
+            {filteredData.map(item => (
+              <View key={item.id} style={styles.listItem}>
               <View style={styles.listHeaderRow}>
                 <Text style={styles.listMrName}>{item.mrName}</Text>
                 <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status).bg }]}>
@@ -455,7 +475,7 @@ const ASMTourPlanningScreen = () => {
               
               <View style={styles.listDetailsRow}>
                 <View style={styles.listStat}>
-                  <Text style={styles.listStatLabel}>TOUR DATE</Text>
+                          <Text style={styles.listStatLabel}>TOUR DATE</Text>
                   <Text style={styles.listStatValue}>{item.date}</Text>
                 </View>
                 <View style={styles.listStat}>
@@ -476,6 +496,7 @@ const ASMTourPlanningScreen = () => {
             <Text style={{ textAlign: 'center', padding: 20, color: '#94A3B8' }}>No plans found.</Text>
           )}
         </View>
+        )}
         
         {/* Bottom spacer */}
         <View style={{ height: 40 }} />
