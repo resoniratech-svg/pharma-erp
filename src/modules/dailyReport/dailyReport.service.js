@@ -9,4 +9,5 @@ module.exports = {
   getDailyReportsByMrService: repo.getDailyReportsByMrRepo,
   getDailyReportsByDateService: repo.getDailyReportsByDateRepo,
   getASMDailyReportsService: repo.getASMDailyReportsRepo,
+  getRSMDailyReportsService: repo.getRSMDailyReportsRepo,
 };

@@ -106,6 +106,34 @@ const getASMDailyReportsRepo = async (asmEmployeeId) => {
   });
 };
 
+const getRSMDailyReportsRepo = async (rsmEmployeeId) => {
+  return prisma.dailyReport.findMany({
+    where: {
+      mr: {
+        employee: {
+          reportsTo: {
+            reportsToId: rsmEmployeeId
+          }
+        }
+      }
+    },
+    include: {
+      mr: {
+        include: {
+          employee: {
+            include: {
+              reportsTo: true
+            }
+          }
+        }
+      }
+    },
+    orderBy: {
+      reportDate: "desc"
+    }
+  });
+};
+
 module.exports = {
   createDailyReportRepo,
   getAllDailyReportsRepo,
@@ -115,4 +143,5 @@ module.exports = {
   getDailyReportsByMrRepo,
   getDailyReportsByDateRepo,
   getASMDailyReportsRepo,
+  getRSMDailyReportsRepo,
 };

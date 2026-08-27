@@ -130,6 +130,36 @@ const getASMDailyReports = async (req, res) => {
   }
 };
 
+const getRSMDailyReports = async (req, res) => {
+  try {
+    let employeeId = null;
+    if (req.user) {
+      const employee = await prisma.employee.findUnique({
+        where: { userId: req.user.id }
+      });
+      if (employee) {
+        employeeId = employee.id;
+      }
+    }
+    
+    if (!employeeId) {
+      const rsm = await prisma.employee.findFirst({
+        where: { designation: "Regional Sales Manager", status: "Active" }
+      });
+      if (rsm) employeeId = rsm.id;
+    }
+
+    if (!employeeId) {
+      throw new Error("Could not determine RSM employee ID");
+    }
+
+    const data = await service.getRSMDailyReportsService(employeeId);
+    res.json({ success: true, data });
+  } catch (error) {
+    res.status(400).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   createDailyReport,
   getAllDailyReports,
@@ -139,4 +169,5 @@ module.exports = {
   getDailyReportsByMr,
   getDailyReportsByDate,
   getASMDailyReports,
+  getRSMDailyReports,
 };
