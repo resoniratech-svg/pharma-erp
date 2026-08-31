@@ -42,6 +42,26 @@ const registerUser = async (data) => {
         status: "Active"
       }
     });
+  } else if (["REGIONAL_SALES_MANAGER", "AREA_SALES_MANAGER", "NATIONAL_SALES_HEAD"].includes(user.role)) {
+    // Automatically create Employee record for manager roles
+    let prefix = "EMP";
+    if (user.role === "REGIONAL_SALES_MANAGER") prefix = "RSM";
+    if (user.role === "AREA_SALES_MANAGER") prefix = "ASM";
+    if (user.role === "NATIONAL_SALES_HEAD") prefix = "NSH";
+    
+    await prisma.employee.create({
+      data: {
+        userId: user.id,
+        name: user.name,
+        email: user.email,
+        employeeCode: `${prefix}-00${user.id}`,
+        designation: user.role,
+        mobile: data.mobile || "",
+        territory: data.state || "",
+        headquarters: data.hq || "",
+        area: data.area || ""
+      }
+    });
   }
 
   return user;
