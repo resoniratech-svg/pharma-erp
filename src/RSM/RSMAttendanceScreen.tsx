@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,11 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { getRSMTeamAttendance } from '../services/attendanceService';
 
 const RSMAttendanceScreen = () => {
   const navigation = useNavigation<any>();
@@ -28,13 +30,48 @@ const RSMAttendanceScreen = () => {
     { id: '4', date: '29 Jul 2026', checkIn: '09:10 AM', checkOut: '06:20 PM', hours: '9h 10m', status: 'Present' },
   ]);
 
-  // Team Attendance Data with GPS Exception & Punch Indicators (ASMs)
-  const teamAttendanceData = [
-    { id: '1', asmName: 'Ramesh Kumar', region: 'Mumbai', workingDays: 26, present: 24, absent: 0, leave: 2, late: 1, latePct: '3.8%', earlyOut: 0, missingPunch: 0, gpsException: 0, attdPct: '92.3%', status: 'Excellent', statusBg: '#DCFCE7', statusColor: '#15803D' },
-    { id: '2', asmName: 'Sneha Desai', region: 'Pune', workingDays: 26, present: 25, absent: 0, leave: 1, late: 0, latePct: '0.0%', earlyOut: 0, missingPunch: 0, gpsException: 0, attdPct: '96.1%', status: 'Excellent', statusBg: '#DCFCE7', statusColor: '#15803D' },
-    { id: '3', asmName: 'Anil Mehta', region: 'Nagpur', workingDays: 26, present: 22, absent: 2, leave: 2, late: 3, latePct: '11.5%', earlyOut: 1, missingPunch: 1, gpsException: 2, attdPct: '84.6%', status: 'Good', statusBg: '#DBEAFE', statusColor: '#1D4ED8' },
-    { id: '4', asmName: 'John Doe', region: 'Nashik', workingDays: 26, present: 20, absent: 3, leave: 3, late: 4, latePct: '15.4%', earlyOut: 2, missingPunch: 2, gpsException: 4, attdPct: '76.9%', status: 'Needs Focus', statusBg: '#FEE2E2', statusColor: '#DC2626' },
-  ];
+  const [teamAttendanceData, setTeamAttendanceData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchTeamAttendance();
+    }, [])
+  );
+
+  const fetchTeamAttendance = async () => {
+    try {
+      setLoading(true);
+      const data = await getRSMTeamAttendance();
+      if (data && data.length > 0) {
+        setTeamAttendanceData(data.map((att: any, idx: number) => ({
+          id: att.id?.toString() || idx.toString(),
+          asmName: att.employeeName || 'Unknown ASM',
+          region: att.headquarters || 'N/A',
+          workingDays: 26, 
+          present: att.status === 'PRESENT' ? 1 : 0, 
+          absent: 0, 
+          leave: 0, 
+          late: 0, 
+          latePct: '0.0%', 
+          earlyOut: 0, 
+          missingPunch: 0, 
+          gpsException: 0, 
+          attdPct: '100%', 
+          status: 'Excellent', 
+          statusBg: '#DCFCE7', 
+          statusColor: '#15803D'
+        })));
+      } else {
+        setTeamAttendanceData([]);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to load team attendance');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleCheckIn = () => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
@@ -165,22 +202,22 @@ const RSMAttendanceScreen = () => {
             {/* Team Counters */}
             <View style={styles.summaryGrid}>
               <View style={[styles.summaryBox, { backgroundColor: '#ECFDF5' }]}>
-                <Text style={[styles.sumVal, { color: '#059669' }]}>91</Text>
+                <Text style={[styles.sumVal, { color: '#059669' }]}>{teamAttendanceData.reduce((acc, curr) => acc + curr.present, 0)}</Text>
                 <Text style={styles.sumLbl}>Present</Text>
               </View>
 
               <View style={[styles.summaryBox, { backgroundColor: '#FEE2E2' }]}>
-                <Text style={[styles.sumVal, { color: '#DC2626' }]}>5</Text>
+                <Text style={[styles.sumVal, { color: '#DC2626' }]}>{teamAttendanceData.reduce((acc, curr) => acc + curr.absent, 0)}</Text>
                 <Text style={styles.sumLbl}>Absent</Text>
               </View>
 
               <View style={[styles.summaryBox, { backgroundColor: '#FEF3C7' }]}>
-                <Text style={[styles.sumVal, { color: '#D97706' }]}>4</Text>
+                <Text style={[styles.sumVal, { color: '#D97706' }]}>{teamAttendanceData.reduce((acc, curr) => acc + curr.leave, 0)}</Text>
                 <Text style={styles.sumLbl}>Leave</Text>
               </View>
 
               <View style={[styles.summaryBox, { backgroundColor: '#F3E8FF' }]}>
-                <Text style={[styles.sumVal, { color: '#7E22CE' }]}>8</Text>
+                <Text style={[styles.sumVal, { color: '#7E22CE' }]}>{teamAttendanceData.reduce((acc, curr) => acc + curr.late, 0)}</Text>
                 <Text style={styles.sumLbl}>Late Check-In</Text>
               </View>
             </View>

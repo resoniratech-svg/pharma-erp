@@ -53,7 +53,7 @@ export const leadService = {
 
   assignLead: async (id: number, assignedToMrId: number) => {
     try {
-      const response = await api.patch(`/leads/${id}/assign`, { assignedToMrId });
+      const response = await api.patch(`/leads/${id}/assign`, { mrId: assignedToMrId });
       return response.data;
     } catch (error) {
       console.error(`Error assigning lead ${id}:`, error);

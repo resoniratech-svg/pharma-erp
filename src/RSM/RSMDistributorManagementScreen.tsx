@@ -1,18 +1,12 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Alert, Share } from 'react-native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Alert, Share, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
+import { getDistributors } from '../services/distributorService';
 // REMOVED JSPDF
 // REMOVED JSPDF
-
-const INITIAL_DATA = [
-  { id: '1', code: 'DIST001', name: 'Apollo Pharma', state: 'Maharashtra', asmName: 'Vikas Sharma', outstanding: '₹4,50,000', rawOutstanding: 450000, lastOrder: '2025-06-12', status: 'Active', contactPerson: 'Rahul Desai', phone: '9876543210', email: 'rahul@apollopharma.com', address: 'Andheri West, Mumbai, Maharashtra 400053', ytdSales: '₹24,00,000', creditLimit: '₹5,00,000', recentOrders: [{ id: 'ORD-1234', date: '2025-06-12', amount: '₹1,25,000', status: 'Delivered' }, { id: 'ORD-1230', date: '2025-06-01', amount: '₹95,000', status: 'Delivered' }], recentPayments: [{ date: '2025-06-10', mode: 'NEFT', ref: 'N123456789', amount: '₹1,00,000' }], recentVisits: [{ date: '2025-06-05', emp: 'Vikas Sharma (ASM)', type: 'Business Review', remarks: 'Positive - New line added' }] },
-  { id: '2', code: 'DIST002', name: 'Gujarat Medicals', state: 'Gujarat', asmName: 'Amit Desai', outstanding: '₹8,50,000', rawOutstanding: 850000, lastOrder: '2025-05-28', status: 'At Risk', contactPerson: 'Sanjay Patel', phone: '9876543211', email: 'sanjay@gujmeds.com', address: 'Maninagar, Ahmedabad, Gujarat 380008', ytdSales: '₹12,00,000', creditLimit: '₹8,00,000', recentOrders: [], recentPayments: [], recentVisits: [] },
-  { id: '3', code: 'DIST003', name: 'Pune Distributors', state: 'Maharashtra', asmName: 'Vikas Sharma', outstanding: '₹1,20,000', rawOutstanding: 120000, lastOrder: '2025-06-15', status: 'Active', contactPerson: 'Vijay Kumar', phone: '9876543212', email: 'vijay@punedist.com', address: 'Shivaji Nagar, Pune, Maharashtra 411005', ytdSales: '₹18,50,000', creditLimit: '₹4,00,000', recentOrders: [], recentPayments: [], recentVisits: [] },
-  { id: '4', code: 'DIST004', name: 'Surat Pharma', state: 'Gujarat', asmName: 'Amit Desai', outstanding: '₹50,000', rawOutstanding: 50000, lastOrder: '2025-06-14', status: 'Active', contactPerson: 'Neha Shah', phone: '9876543213', email: 'neha@suratpharma.com', address: 'Adajan, Surat, Gujarat 395009', ytdSales: '₹10,00,000', creditLimit: '₹2,00,000', recentOrders: [], recentPayments: [], recentVisits: [] },
-];
 
 const TIME_FILTERS = ['This Month', 'Last Month', 'This Quarter', 'This Year'];
 const STATUS_FILTERS = ['All Status', 'Active', 'At Risk'];
@@ -35,9 +29,54 @@ const RSMDistributorManagementScreen = () => {
   const [isViewModalVisible, setIsViewModalVisible] = useState(false);
   const [viewModalData, setViewModalData] = useState<any>(null);
 
+  const [distributorData, setDistributorData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDistributors();
+    }, [])
+  );
+
+  const fetchDistributors = async () => {
+    try {
+      setLoading(true);
+      const data = await getDistributors();
+      if (data && data.length > 0) {
+        setDistributorData(data.map((dist: any) => ({
+          id: dist.id?.toString(),
+          code: dist.code || `DIST00${dist.id}`,
+          name: dist.name || 'Unknown Distributor',
+          state: dist.state || 'N/A',
+          asmName: 'Unknown ASM', // Not returned by generic distributor API
+          outstanding: `₹${((dist.id * 150000) || 450000).toLocaleString('en-IN')}`, // Mocking derived stats
+          rawOutstanding: (dist.id * 150000) || 450000,
+          lastOrder: '2026-08-12',
+          status: dist.status || 'Active',
+          contactPerson: dist.contactPerson || 'N/A',
+          phone: dist.mobile || 'N/A',
+          email: dist.email || 'N/A',
+          address: dist.state || 'N/A',
+          ytdSales: `₹${((dist.id * 2500000) || 12400000).toLocaleString('en-IN')}`,
+          creditLimit: '₹15,00,000',
+          recentOrders: [],
+          recentPayments: [],
+          recentVisits: []
+        })));
+      } else {
+        setDistributorData([]);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to load distributors');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Computed Filtered Data
   const filteredData = useMemo(() => {
-    return INITIAL_DATA.filter(item => {
+    return distributorData.filter(item => {
       const matchesStatus = filterStatus === 'All Status' || item.status === filterStatus;
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = item.code.toLowerCase().includes(searchLower) || 
@@ -209,6 +248,12 @@ const RSMDistributorManagementScreen = () => {
             </View>
           </View>
 
+          {loading ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#4F46E5" />
+              <Text style={{ marginTop: 10, color: '#6B7280' }}>Loading distributors data...</Text>
+            </View>
+          ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View>
               <View style={styles.tableHeader}>
@@ -243,6 +288,7 @@ const RSMDistributorManagementScreen = () => {
               ))}
             </View>
           </ScrollView>
+          )}
         </View>
       </ScrollView>
 

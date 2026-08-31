@@ -21,9 +21,8 @@ const MyLeadsScreen = () => {
   const fetchLeads = async () => {
     try {
       setLoading(true);
-      const userStr = await AsyncStorage.getItem('user');
-      const user = userStr ? JSON.parse(userStr) : null;
-      const mrId = user?.mr?.id || user?.id || null;
+      const mrIdStr = await AsyncStorage.getItem('@mrId');
+      const mrId = mrIdStr ? parseInt(mrIdStr, 10) : null;
 
       if (!mrId) {
         Alert.alert('Error', 'MR ID not found');
@@ -31,7 +30,7 @@ const MyLeadsScreen = () => {
       }
 
       const response = await leadService.getLeadsByMr(mrId);
-      const data = response?.data?.data || [];
+      const data = response?.data || [];
       setLeads(data);
       
       // Calculate KPIs

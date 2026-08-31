@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 const LeadDetailsScreen = () => {
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
-  const leadId = route.params?.leadId;
+  const leadId = route.params?.leadId || route.params?.lead?.id;
   
   const [lead, setLead] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -25,10 +25,9 @@ const LeadDetailsScreen = () => {
   }, [leadId]);
 
   const getUserRole = async () => {
-    const userStr = await AsyncStorage.getItem('user');
-    if (userStr) {
-      const user = JSON.parse(userStr);
-      setUserRole(user.role);
+    const designation = await AsyncStorage.getItem('@designation');
+    if (designation) {
+      setUserRole(designation);
     }
   };
 

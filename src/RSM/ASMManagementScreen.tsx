@@ -10,11 +10,13 @@ import {
   Modal,
   KeyboardAvoidingView,
   Platform,
-  Alert
+  Alert,
+  useWindowDimensions
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { getMyTeam } from '../services/employeeService';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const generateCalendarDays = (month: number, year: number) => {
@@ -70,6 +72,8 @@ const STORAGE_KEY = '@rsm_asm_data';
 
 const ASMManagementScreen = () => {
   const navigation = useNavigation<any>();
+  const { width } = useWindowDimensions();
+  const isMobile = width < 768;
   const [searchQuery, setSearchQuery] = useState('');
   
   // Table Data State
@@ -92,22 +96,42 @@ const ASMManagementScreen = () => {
   const [filterStatus, setFilterStatus] = useState('All Status');
   const [viewModalData, setViewModalData] = useState<any>(null);
 
+  const [loading, setLoading] = useState(true);
+
   // Load Data on Mount
   useEffect(() => {
-    const loadData = async () => {
-      try {
-        const stored = await AsyncStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          setAsmData(JSON.parse(stored));
-        } else {
-          setAsmData(INITIAL_ASM_DATA);
-        }
-      } catch (e) {
-        setAsmData(INITIAL_ASM_DATA);
-      }
-    };
-    loadData();
+    fetchTeam();
   }, []);
+
+  const fetchTeam = async () => {
+    try {
+      setLoading(true);
+      const teamData = await getMyTeam();
+      
+      const mappedData = teamData.map((emp: any) => ({
+        id: emp.id?.toString() || Math.random().toString(),
+        code: emp.employeeCode || `EMP-${emp.id}`,
+        name: emp.user?.name || emp.name || 'Unknown',
+        state: emp.state || 'N/A',
+        hq: emp.headquarters || 'N/A',
+        status: emp.status || 'Active',
+        mobile: emp.user?.mobile || emp.mobile || 'N/A',
+        email: emp.user?.email || 'N/A',
+        gender: emp.gender || 'N/A',
+        dob: emp.dob ? new Date(emp.dob).toLocaleDateString() : 'N/A',
+        designation: emp.designation || 'Area Sales Manager',
+        joiningDate: emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString() : 'N/A',
+        employmentStatus: emp.status || 'Active'
+      }));
+      setAsmData(mappedData);
+    } catch (error) {
+      console.error('Failed to load team data', error);
+      Alert,
+    useWindowDimensions.alert('Error', 'Could not load your ASMs. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Form State
   const emptyForm = {
@@ -373,7 +397,7 @@ const ASMManagementScreen = () => {
               {/* 1. BASIC INFORMATION */}
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>1. BASIC INFORMATION</Text>
-                <View style={styles.inputRow}>
+                <View style={[styles.inputRow, { flexDirection: isMobile ? 'column' : 'row' }]}>
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Employee Code</Text>
                     <TextInput style={[styles.input, { backgroundColor: '#F8FAFC', color: '#64748B' }, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} value={formData.code} editable={false} />
@@ -385,7 +409,7 @@ const ASMManagementScreen = () => {
                   </View>
                 </View>
 
-                <View style={styles.inputRow}>
+                <View style={[styles.inputRow, { flexDirection: isMobile ? 'column' : 'row' }]}>
                   <View style={styles.inputGroup}>
                     <Text style={[styles.label, formErrors.mobile && styles.labelError]}>Mobile Number *</Text>
                     <TextInput style={[styles.input, formErrors.mobile && styles.inputError, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} keyboardType="phone-pad" maxLength={10} value={formData.mobile} onChangeText={(t) => handleTextChange('mobile', t)} />
@@ -403,7 +427,7 @@ const ASMManagementScreen = () => {
                   </View>
                 </View>
 
-                <View style={styles.inputRow}>
+                <View style={[styles.inputRow, { flexDirection: isMobile ? 'column' : 'row' }]}>
                   <View style={styles.inputGroup}>
                     <Text style={[styles.label, formErrors.gender && styles.labelError]}>Gender *</Text>
                     <TouchableOpacity style={[styles.selectInput, formErrors.gender && styles.inputError]} onPress={() => setDropdownTarget('formGender')}>
@@ -422,7 +446,7 @@ const ASMManagementScreen = () => {
                   </View>
                 </View>
 
-                <View style={styles.inputRow}>
+                <View style={[styles.inputRow, { flexDirection: isMobile ? 'column' : 'row' }]}>
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Designation</Text>
                     <TextInput style={[styles.input, { backgroundColor: '#F8FAFC', color: '#64748B' }, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} value={formData.designation} editable={false} />
@@ -437,7 +461,7 @@ const ASMManagementScreen = () => {
               {/* 2. TERRITORY INFORMATION */}
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>2. TERRITORY INFORMATION</Text>
-                <View style={styles.inputRow}>
+                <View style={[styles.inputRow, { flexDirection: isMobile ? 'column' : 'row' }]}>
                   <View style={styles.inputGroup}>
                     <Text style={[styles.label, formErrors.state && styles.labelError]}>State *</Text>
                     <TextInput style={[styles.input, formErrors.state && styles.inputError, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} placeholder="State name..." value={formData.state} onChangeText={(t) => handleTextChange('state', t)} />
@@ -449,7 +473,7 @@ const ASMManagementScreen = () => {
                     {formErrors.hq && <Text style={styles.errorText}>{formErrors.hq}</Text>}
                   </View>
                 </View>
-                <View style={styles.inputRow}>
+                <View style={[styles.inputRow, { flexDirection: isMobile ? 'column' : 'row' }]}>
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Territory / Area (Optional)</Text>
                     <TextInput style={[styles.input, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} value={formData.territory} onChangeText={(t) => handleTextChange('territory', t)} />
@@ -461,7 +485,7 @@ const ASMManagementScreen = () => {
               {/* 3. LOGIN CREDENTIALS */}
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>3. LOGIN CREDENTIALS</Text>
-                <View style={styles.inputRow}>
+                <View style={[styles.inputRow, { flexDirection: isMobile ? 'column' : 'row' }]}>
                   <View style={styles.inputGroup}>
                     <Text style={styles.label}>Email Address (Login ID)</Text>
                     <TextInput style={[styles.input, { backgroundColor: '#F8FAFC', color: '#64748B' }, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} placeholder="Auto-populated from email" value={formData.email} editable={false} />
@@ -475,7 +499,7 @@ const ASMManagementScreen = () => {
                     {formErrors.status && <Text style={styles.errorText}>{formErrors.status}</Text>}
                   </View>
                 </View>
-                <View style={styles.inputRow}>
+                <View style={[styles.inputRow, { flexDirection: isMobile ? 'column' : 'row' }]}>
                   <View style={styles.inputGroup}>
                     <Text style={[styles.label, formErrors.password && styles.labelError]}>Password *</Text>
                     <TextInput style={[styles.input, formErrors.password && styles.inputError, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} secureTextEntry value={formData.password} onChangeText={(t) => handleTextChange('password', t)} />
@@ -492,7 +516,7 @@ const ASMManagementScreen = () => {
               {/* 4. EMPLOYMENT INFORMATION */}
               <View style={styles.sectionContainer}>
                 <Text style={styles.sectionTitle}>4. EMPLOYMENT INFORMATION</Text>
-                <View style={styles.inputRow}>
+                <View style={[styles.inputRow, { flexDirection: isMobile ? 'column' : 'row' }]}>
                   <View style={styles.inputGroup}>
                     <Text style={[styles.label, formErrors.joiningDate && styles.labelError]}>Joining Date *</Text>
                     <TouchableOpacity style={[styles.selectInput, formErrors.joiningDate && styles.inputError]} onPress={() => openCalendar('joining')}>
@@ -899,7 +923,6 @@ const styles = StyleSheet.create({
   },
   modalScroll: {
     padding: 16,
-    flex: 1,
   },
   modalFooter: {
     flexDirection: 'row',

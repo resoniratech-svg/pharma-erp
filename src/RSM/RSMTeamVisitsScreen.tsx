@@ -1,18 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Alert, Share } from 'react-native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Alert, Share, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-// REMOVED JSPDF
-// REMOVED JSPDF
-
-const INITIAL_DATA = [
-  { id: '1', visitDate: '2026-08-01', asmName: 'Vikas Sharma', mrName: 'Rahul Verma', visitType: 'Doctor Visit', visitStatus: 'Completed', details: 'Discussed new cardiology range. Positive response.', state: 'Maharashtra', territory: 'Mumbai Central', hq: 'Mumbai', doctorName: 'Dr. Suresh Patel', specialty: 'Cardiology', checkIn: '10:00 AM', checkOut: '10:45 AM', duration: '45 mins', gps: '123 Health Clinic, Andheri West, Mumbai\n19.1136° N, 72.8697° E', jointVisit: 'No' },
-  { id: '2', visitDate: '2026-08-01', asmName: 'Amit Desai', mrName: 'Sneha Patel', visitType: 'Chemist Visit', visitStatus: 'Completed', details: 'Checked stock availability for seasonal flu meds.', state: 'Gujarat', territory: 'Ahmedabad East', hq: 'Ahmedabad', doctorName: 'N/A', specialty: 'N/A', checkIn: '11:00 AM', checkOut: '11:20 AM', duration: '20 mins', gps: 'Patel Pharmacy, Maninagar, Ahmedabad', jointVisit: 'Yes' },
-  { id: '3', visitDate: '2026-08-02', asmName: 'Kiran Rao', mrName: 'Vivek Shetty', visitType: 'Joint Field Work', visitStatus: 'Planned', details: 'Scheduled joint visit in South region.', state: 'Karnataka', territory: 'Bangalore South', hq: 'Bangalore', doctorName: 'Dr. Ramesh Kumar', specialty: 'Neurology', checkIn: '-', checkOut: '-', duration: '-', gps: '-', jointVisit: 'Yes' },
-  { id: '4', visitDate: '2026-07-28', asmName: 'Arjun Singh', mrName: 'Priya Kapoor', visitType: 'Doctor Visit', visitStatus: 'Missed', details: 'Doctor was unavailable.', state: 'Delhi', territory: 'South Delhi', hq: 'Delhi', doctorName: 'Dr. Kavita Verma', specialty: 'Pediatrics', checkIn: '-', checkOut: '-', duration: '-', gps: '-', jointVisit: 'No' },
-];
+import { getRSMDailyReports } from '../services/dailyReportService';
 
 const TIME_FILTERS = ['All', 'This Month', 'Last Month', 'Quarter', 'Financial Year'];
 const STATUS_FILTERS = ['All', 'Completed', 'Planned', 'Missed'];
@@ -35,9 +27,53 @@ const RSMTeamVisitsScreen = () => {
   const [isViewModalVisible, setIsViewModalVisible] = useState(false);
   const [viewModalData, setViewModalData] = useState<any>(null);
 
+  const [visitsData, setVisitsData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchVisits();
+    }, [])
+  );
+
+  const fetchVisits = async () => {
+    try {
+      setLoading(true);
+      const data = await getRSMDailyReports();
+      if (data && data.length > 0) {
+        setVisitsData(data.map((report: any) => ({
+          id: report.id?.toString(),
+          visitDate: report.reportDate ? new Date(report.reportDate).toLocaleDateString() : 'N/A',
+          asmName: report.mr?.employee?.reportsTo?.name || 'Unknown ASM',
+          mrName: report.mr?.employee?.name || 'Unknown MR',
+          visitType: report.doctorVisits > 0 ? 'Doctor Visit' : 'Chemist Visit',
+          visitStatus: report.status === 'SUBMITTED' ? 'Completed' : 'Planned',
+          details: report.remarks || 'No details provided.',
+          state: report.mr?.employee?.state || 'N/A',
+          territory: report.territory || report.mr?.employee?.headquarters || 'N/A',
+          hq: report.mr?.employee?.headquarters || 'N/A',
+          doctorName: report.doctorVisits > 0 ? `${report.doctorVisits} Doctors` : 'N/A',
+          specialty: 'Mixed',
+          checkIn: report.checkInTime || '-',
+          checkOut: report.checkOutTime || '-',
+          duration: '-',
+          gps: '-',
+          jointVisit: report.attendanceStatus === 'JOINT_WORK' ? 'Yes' : 'No'
+        })));
+      } else {
+        setVisitsData([]);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to load team visits');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Computed Filtered Data
   const filteredData = useMemo(() => {
-    return INITIAL_DATA.filter(item => {
+    return visitsData.filter(item => {
       const matchesStatus = filterStatus === 'All' || item.visitStatus === filterStatus;
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = item.asmName.toLowerCase().includes(searchLower) || 

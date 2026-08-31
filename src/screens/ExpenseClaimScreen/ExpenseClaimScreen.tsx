@@ -64,6 +64,7 @@ const ExpenseClaimScreen = () => {
   const [category, setCategory] = useState<'Travel Allowance (TA)' | 'Daily Allowance (DA)' | 'Hotel / Lodging' | 'Toll / Parking' | 'Miscellaneous'>('Travel Allowance (TA)');
   const [amount, setAmount] = useState('');
   const [kmTravelled, setKmTravelled] = useState('');
+  const [taRateStr, setTaRateStr] = useState('5.00');
   const [remarks, setRemarks] = useState('');
   
   // Image Upload State
@@ -97,14 +98,16 @@ const ExpenseClaimScreen = () => {
       const targets = await getTargetsByMr();
       if (targets && (Array.isArray(targets) ? targets.length > 0 : targets)) {
         const tObj = Array.isArray(targets) ? targets[0] : targets;
+        const fetchedTaRate = Number(tObj.taRate || tObj.travelRate) || 5.00;
         setConfigSettings({
-          taRate: Number(tObj.taRate || tObj.travelRate) || 5.00,
+          taRate: fetchedTaRate,
           daAmount: Number(tObj.daAmount || tObj.dailyAllowance || tObj.dailyRate) || 250,
           maxLimit: Number(tObj.maxLimit || tObj.maxClaimLimit) || 50000,
         });
+        setTaRateStr(fetchedTaRate.toFixed(2));
       }
-    } catch (e) {
-      console.log('Failed to fetch targets config from backend:', e);
+    } catch (error) {
+      console.log('Could not load target config for rates:', error);
     }
   };
 
@@ -335,8 +338,9 @@ const ExpenseClaimScreen = () => {
       if (totalDist > 0) {
         const finalDist = parseFloat(totalDist.toFixed(2));
         setKmTravelled(finalDist.toString());
-        setAmount((finalDist * configSettings.taRate).toFixed(0));
-        setRemarks(`Auto-fill: ${finalDist} km calculated from visits & attendance. TA calculated at ₹${configSettings.taRate.toFixed(2)}/km.`);
+        const rate = parseFloat(taRateStr) || 0;
+        setAmount((finalDist * rate).toFixed(0));
+        setRemarks(`Auto-fill: ${finalDist} km calculated from visits & attendance. TA calculated at ₹${rate.toFixed(2)}/km.`);
       } else {
         setKmTravelled('');
         setAmount('');
@@ -707,22 +711,44 @@ const ExpenseClaimScreen = () => {
 
                 {/* Conditional inputs */}
                 {category === 'Travel Allowance (TA)' && (
-                  <View style={{ marginTop: 12 }}>
-                    <Text style={styles.formLabel}>Kilometers Travelled (Rate: ₹{configSettings.taRate.toFixed(2)}/km):</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g. 24"
-                      keyboardType="numeric"
-                      value={kmTravelled}
-                      onChangeText={(val) => {
-                        setKmTravelled(val);
-                        const parsed = parseFloat(val);
-                        if (!isNaN(parsed)) {
-                          setAmount((parsed * configSettings.taRate).toFixed(0));
-                        }
-                      }}
-                    />
-                  </View>
+                  <>
+                    <View style={{ marginTop: 12 }}>
+                      <Text style={styles.formLabel}>Rate per km (₹):</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="e.g. 5.00"
+                        keyboardType="numeric"
+                        value={taRateStr}
+                        onChangeText={(val) => {
+                          setTaRateStr(val);
+                          const parsedRate = parseFloat(val) || 0;
+                          const parsedKm = parseFloat(kmTravelled) || 0;
+                          setAmount((parsedKm * parsedRate).toFixed(0));
+                          if (remarks.includes('Auto-fill')) {
+                            setRemarks(`Auto-fill: ${parsedKm} km calculated from visits & attendance. TA calculated at ₹${parsedRate.toFixed(2)}/km.`);
+                          }
+                        }}
+                      />
+                    </View>
+                    <View style={{ marginTop: 12 }}>
+                      <Text style={styles.formLabel}>Kilometers Travelled:</Text>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="e.g. 24"
+                        keyboardType="numeric"
+                        value={kmTravelled}
+                        onChangeText={(val) => {
+                          setKmTravelled(val);
+                          const parsedKm = parseFloat(val) || 0;
+                          const parsedRate = parseFloat(taRateStr) || 0;
+                          setAmount((parsedKm * parsedRate).toFixed(0));
+                          if (remarks.includes('Auto-fill')) {
+                            setRemarks(`Auto-fill: ${parsedKm} km calculated from visits & attendance. TA calculated at ₹${parsedRate.toFixed(2)}/km.`);
+                          }
+                        }}
+                      />
+                    </View>
+                  </>
                 )}
 
                 <Text style={[styles.formLabel, { marginTop: 12 }]}>Amount (₹):</Text>

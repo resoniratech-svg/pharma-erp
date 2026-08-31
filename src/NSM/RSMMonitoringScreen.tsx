@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { api } from '../services/api';
 import { getRSMList, saveRSMList, addRSMRecord } from '../services/nsmStorageService';
 
 const INDIAN_STATES = [
@@ -57,6 +58,32 @@ const NSMRSMMonitoringScreen = () => {
 
   // Dropdown Modal State
   const [dropdownTarget, setDropdownTarget] = useState<'state' | 'status' | null>(null);
+
+  useEffect(() => {
+    if (activeTab === 'Add') {
+      if (selectedRSM) {
+        setEmpName(selectedRSM.name || '');
+        setMobile(selectedRSM.mobile || '');
+        setStateTerritory(selectedRSM.state || selectedRSM.territory || '');
+        setHeadquarters(selectedRSM.hq || selectedRSM.headquarters || '');
+        setArea(selectedRSM.area || '');
+        setEmail(selectedRSM.email || '');
+        setAccountStatus(selectedRSM.status || 'Active');
+        setPassword('');
+        setConfirmPassword('');
+      } else {
+        setEmpName('');
+        setMobile('');
+        setStateTerritory('');
+        setHeadquarters('');
+        setArea('');
+        setEmail('');
+        setAccountStatus('Active');
+        setPassword('');
+        setConfirmPassword('');
+      }
+    }
+  }, [selectedRSM, activeTab]);
 
   useEffect(() => {
     loadRSMs();
@@ -144,40 +171,80 @@ const NSMRSMMonitoringScreen = () => {
     }
     
     setErrors({});
-
     const currentDate = getCurrentFormattedDate();
 
-    const newRecord = {
-      id: Date.now().toString(),
-      code: `RSM00${rsmList.length + 1}`, // Simulate auto-generating code
-      name: empName,
-      mobile,
-      email,
-      state: stateTerritory,
-      hq: headquarters,
-      area,
-      status: accountStatus,
-      password,
-      
-      // Initialize stats to 0 as requested
-      salesTarget: '₹0',
-      salesAchievedPct: '0%',
-      attendancePct: '0%',
-      activeASM: '0',
-      
-      // Store actual creation and audit dates locally
-      createdDate: currentDate,
-      lastModified: currentDate,
-      lastLogin: 'Never'
-    };
+    try {
+      if (selectedRSM) {
+        // Edit flow
+        const updatedRecord = {
+          ...selectedRSM,
+          name: empName,
+          mobile,
+          email,
+          state: stateTerritory,
+          hq: headquarters,
+          area,
+          status: accountStatus,
+          lastModified: currentDate
+        };
 
-    const updated = await addRSMRecord(newRecord);
-    if (updated) {
-      loadRSMs();
-      setActiveTab('List');
-      Alert.alert('✅ RSM Created', `Regional Sales Manager ${newRecord.name} saved successfully.`);
-      // Reset form
+        const currentList = [...rsmList];
+        const index = currentList.findIndex(r => r.id === selectedRSM.id);
+        if (index > -1) {
+          currentList[index] = updatedRecord;
+          setRsmList(currentList);
+          await saveRSMList(currentList);
+        }
+        Alert.alert('Success', 'RSM updated successfully!');
+      } else {
+        // Add flow
+        const registerPayload = {
+          name: empName,
+          email: email,
+          password: password,
+          role: "REGIONAL_SALES_MANAGER",
+          mobile: mobile,
+          state: stateTerritory,
+          hq: headquarters,
+          area: area
+        };
+
+        // Call real backend API
+        const response = await api.post('/auth/register', registerPayload);
+        
+        const newRecord = {
+          id: response.data?.data?.id?.toString() || Date.now().toString(),
+          code: `RSM-00${response.data?.data?.id || rsmList.length + 1}`,
+          name: empName,
+          mobile,
+          email,
+          state: stateTerritory,
+          hq: headquarters,
+          area,
+          status: accountStatus,
+          password,
+          
+          salesTarget: '₹0',
+          salesAchievedPct: '0%',
+          attendancePct: '0%',
+          activeASM: '0',
+          
+          createdDate: currentDate,
+          lastModified: currentDate,
+          lastLogin: 'Never'
+        };
+
+        const updated = await addRSMRecord(newRecord);
+        if (updated) setRsmList(updated);
+        Alert.alert('✅ RSM Created', `Regional Sales Manager ${newRecord.name} saved successfully.`);
+      }
+
       setEmpName(''); setMobile(''); setEmail(''); setStateTerritory(''); setHeadquarters(''); setArea(''); setPassword(''); setConfirmPassword(''); setAccountStatus('Active');
+      setSelectedRSM(null);
+      setActiveTab('List');
+    } catch (error: any) {
+      console.error("Error saving RSM:", error);
+      Alert.alert('Error', error?.response?.data?.message || 'Failed to save RSM');
     }
   };
 
@@ -197,7 +264,7 @@ const NSMRSMMonitoringScreen = () => {
             <Text style={styles.subtitle}>Manage Regional Sales Managers and assign State Territories.</Text>
           </View>
           {activeTab === 'List' && (
-            <TouchableOpacity style={styles.headerAddBtn} onPress={() => { setErrors({}); setActiveTab('Add'); }}>
+            <TouchableOpacity style={styles.headerAddBtn} onPress={() => { setErrors({}); setSelectedRSM(null); setActiveTab('Add'); }}>
               <Ionicons name="add" size={16} color="#FFF" />
               <Text style={styles.headerAddBtnText}>Add RSM</Text>
             </TouchableOpacity>
@@ -266,7 +333,7 @@ const NSMRSMMonitoringScreen = () => {
         {(activeTab === 'Add') && (
           <View style={styles.modalCard}>
             <View style={styles.modalHeaderRow}>
-              <Text style={styles.modalTitle}>Add Regional Sales Manager (RSM)</Text>
+              <Text style={styles.modalTitle}>{selectedRSM ? 'Edit Regional Sales Manager (RSM)' : 'Add Regional Sales Manager (RSM)'}</Text>
               <TouchableOpacity onPress={() => setActiveTab('List')}>
                 <Ionicons name="close" size={20} color="#64748B" />
               </TouchableOpacity>
@@ -386,7 +453,7 @@ const NSMRSMMonitoringScreen = () => {
                 <Text style={styles.cancelBtnOutlineText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.saveBtnSolid} onPress={handleSaveRSM}>
-                <Text style={styles.saveBtnSolidText}>Create RSM</Text>
+                <Text style={styles.saveBtnSolidText}>{selectedRSM ? 'Save Changes' : 'Create RSM'}</Text>
               </TouchableOpacity>
             </View>
           </View>

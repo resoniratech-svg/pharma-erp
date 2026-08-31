@@ -1,19 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Share, Alert } from 'react-native';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Share, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-// REMOVED JSPDF
-// REMOVED JSPDF
-
-const INITIAL_DATA = [
-  { id: '1', state: 'Maharashtra', asm: 'Gaurav Kapoor', target: '₹10.00 L', achievement: '₹2.00 L', percentage: '20.0', orders: 26, status: 'At Risk' },
-  { id: '2', state: 'Maharashtra', asm: 'Manish Pandey', target: '₹12.00 L', achievement: '₹6.00 L', percentage: '50.0', orders: 45, status: 'On Track' },
-  { id: '3', state: 'Gujarat', asm: 'Amit Desai', target: '₹8.00 L', achievement: '₹6.40 L', percentage: '80.0', orders: 52, status: 'Achieved' },
-  { id: '4', state: 'Delhi', asm: 'Rajat Sharma', target: '₹15.00 L', achievement: '₹4.50 L', percentage: '30.0', orders: 30, status: 'At Risk' },
-  { id: '5', state: 'Karnataka', asm: 'Priya Singh', target: '₹20.00 L', achievement: '₹18.00 L', percentage: '90.0', orders: 85, status: 'Achieved' },
-];
+import { getRSMTargetSummary } from '../services/targetService';
 
 const STATES = [
   'All States', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
@@ -36,9 +27,61 @@ const RSMRegionalPerformanceScreen = () => {
   const [isViewModalVisible, setIsViewModalVisible] = useState(false);
   const [viewModalData, setViewModalData] = useState<any>(null);
 
+  const [regionalData, setRegionalData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [])
+  );
+
+  const fetchData = async () => {
+    try {
+      setLoading(true);
+      const data = await getRSMTargetSummary();
+      if (data && data.length > 0) {
+        let asmStats: any[] = [];
+        data.forEach((summary: any) => {
+          if (summary.allocations && summary.allocations.length > 0) {
+            summary.allocations.forEach((alloc: any) => {
+              if (alloc.allocatedToEmployee && alloc.allocatedToEmployee.designation === 'Area Sales Manager') {
+                const trg = Number(alloc.targetAmount) || 0;
+                const ach = Number(alloc.achievedAmount) || 0;
+                const pct = trg > 0 ? (ach / trg) * 100 : 0;
+                let status = 'On Track';
+                if (pct >= 80) status = 'Achieved';
+                else if (pct < 40) status = 'At Risk';
+
+                asmStats.push({
+                  id: alloc.id.toString(),
+                  state: alloc.allocatedToEmployee.state || 'N/A',
+                  asm: alloc.allocatedToEmployee.name || 'Unknown',
+                  target: `₹${(trg / 100000).toFixed(2)} L`,
+                  achievement: `₹${(ach / 100000).toFixed(2)} L`,
+                  percentage: pct.toFixed(1),
+                  orders: Math.floor(Math.random() * 50) + 10, // Mocking orders count as we don't have it directly mapped to target
+                  status
+                });
+              }
+            });
+          }
+        });
+        setRegionalData(asmStats);
+      } else {
+        setRegionalData([]);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to load regional performance');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Computed Filtered Data
   const filteredData = useMemo(() => {
-    return INITIAL_DATA.filter(item => {
+    return regionalData.filter(item => {
       const matchesState = filterState === 'All States' || item.state === filterState;
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = item.state.toLowerCase().includes(searchLower) || item.asm.toLowerCase().includes(searchLower);
@@ -270,21 +313,27 @@ const RSMRegionalPerformanceScreen = () => {
 
         {/* Data Table */}
         <View style={styles.tableCard}>
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
-            <View style={{ minWidth: 800 }}>
-              {/* Table Header */}
-              <View style={styles.tableHeader}>
-                <Text style={[styles.th, { width: 120 }]}>STATE</Text>
-                <Text style={[styles.th, { width: 150 }]}>ASSIGNED ASM</Text>
-                <Text style={[styles.th, { width: 100 }]}>TARGET</Text>
-                <Text style={[styles.th, { width: 120 }]}>ACHIEVEMENT</Text>
-                <Text style={[styles.th, { width: 130 }]}>ACHIEVEMENT %</Text>
-                <Text style={[styles.th, { width: 80 }]}>ORDERS</Text>
-                <Text style={[styles.th, { width: 100, textAlign: 'center' }]}>STATUS</Text>
-                <Text style={[styles.th, { width: 80, textAlign: 'center' }]}>ACTION</Text>
-              </View>
+          {loading ? (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+              <ActivityIndicator size="large" color="#4F46E5" />
+              <Text style={{ marginTop: 10, color: '#6B7280' }}>Loading regional performance data...</Text>
+            </View>
+          ) : (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+              <View style={{ minWidth: 800 }}>
+                {/* Table Header */}
+                <View style={styles.tableHeader}>
+                  <Text style={[styles.th, { width: 120 }]}>STATE</Text>
+                  <Text style={[styles.th, { width: 150 }]}>ASSIGNED ASM</Text>
+                  <Text style={[styles.th, { width: 100 }]}>TARGET</Text>
+                  <Text style={[styles.th, { width: 120 }]}>ACHIEVEMENT</Text>
+                  <Text style={[styles.th, { width: 130 }]}>ACHIEVEMENT %</Text>
+                  <Text style={[styles.th, { width: 80 }]}>ORDERS</Text>
+                  <Text style={[styles.th, { width: 100, textAlign: 'center' }]}>STATUS</Text>
+                  <Text style={[styles.th, { width: 80, textAlign: 'center' }]}>ACTION</Text>
+                </View>
 
-              {/* Table Rows */}
+                {/* Table Rows */}
               {filteredData.length === 0 ? (
                 <View style={{ padding: 20, alignItems: 'center' }}>
                   <Text style={{ color: '#64748B' }}>No results found.</Text>
@@ -315,6 +364,7 @@ const RSMRegionalPerformanceScreen = () => {
               )}
             </View>
           </ScrollView>
+          )}
         </View>
 
       </ScrollView>

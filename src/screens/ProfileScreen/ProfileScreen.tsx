@@ -699,6 +699,18 @@ const ProfileScreen = () => {
         '@user_email',
         '@user_address',
         '@user_password',
+        // Clear all offline data caches to prevent data leakage between accounts
+        '@doctor_visits',
+        '@chemist_visits',
+        '@monthly_targets',
+        '@attendance_logs',
+        '@recent_orders',
+        '@user',
+        '@nsm_target_planning',
+        '@nsm_recent_target_plans',
+        '@nsm_rsm_list',
+        '@nsm_state_performance',
+        '@nsm_team_visits',
       ]);
     } catch (e) {
       console.log('Logout clear error:', e);

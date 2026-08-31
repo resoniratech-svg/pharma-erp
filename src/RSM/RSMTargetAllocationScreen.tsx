@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions } from 'react-native';
+import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, Dimensions, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { getRSMTargetSummary } from '../services/targetService';
 
 const { width } = Dimensions.get('window');
 const isTablet = width > 768;
@@ -9,6 +10,26 @@ const isTablet = width > 768;
 const RSMTargetAllocationScreen = () => {
   const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<'Overview' | 'ASM Allocation'>('Overview');
+  const [targetData, setTargetData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchTargets();
+    }, [])
+  );
+
+  const fetchTargets = async () => {
+    try {
+      setLoading(true);
+      const data = await getRSMTargetSummary();
+      setTargetData(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -43,7 +64,12 @@ const RSMTargetAllocationScreen = () => {
         </View>
 
         {/* TAB CONTENT */}
-        {activeTab === 'Overview' ? (
+        {loading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50 }}>
+            <ActivityIndicator size="large" color="#4F46E5" />
+            <Text style={{ marginTop: 10, color: '#6B7280' }}>Loading targets...</Text>
+          </View>
+        ) : activeTab === 'Overview' ? (
           <View>
             {/* ROW 1 CARDS */}
             <View style={styles.cardsRow}>
@@ -53,7 +79,7 @@ const RSMTargetAllocationScreen = () => {
                   <Ionicons name="disc-outline" size={18} color="#475569" />
                 </View>
                 <Text style={styles.cardLabel}>Assigned Target</Text>
-                <Text style={styles.cardValue}>Not Set</Text>
+                <Text style={styles.cardValue}>₹{((targetData?.summary?.assignedTarget || 0) / 100000).toFixed(2)} L</Text>
                 <Text style={styles.cardSubtitle}>Awaiting assignment</Text>
               </View>
               {/* Card 2 */}
@@ -62,7 +88,7 @@ const RSMTargetAllocationScreen = () => {
                   <Ionicons name="trending-up-outline" size={18} color="#16A34A" />
                 </View>
                 <Text style={styles.cardLabel}>Total Allocated</Text>
-                <Text style={styles.cardValue}>₹0</Text>
+                <Text style={styles.cardValue}>₹{((targetData?.summary?.totalAllocated || 0) / 100000).toFixed(2)} L</Text>
                 <Text style={styles.cardSubtitle}></Text>
               </View>
               {/* Card 3 */}
@@ -71,7 +97,7 @@ const RSMTargetAllocationScreen = () => {
                   <Ionicons name="alert-circle-outline" size={18} color="#64748B" />
                 </View>
                 <Text style={styles.cardLabel}>Remaining Target</Text>
-                <Text style={styles.cardValue}>₹0</Text>
+                <Text style={styles.cardValue}>₹{((targetData?.summary?.remainingToAllocate || 0) / 100000).toFixed(2)} L</Text>
                 <Text style={styles.cardSubtitle}>Available for allocation</Text>
               </View>
               {/* Card 4 */}
@@ -80,7 +106,7 @@ const RSMTargetAllocationScreen = () => {
                   <Ionicons name="calendar-outline" size={18} color="#9333EA" />
                 </View>
                 <Text style={styles.cardLabel}>Planning Period</Text>
-                <Text style={styles.cardValue}>N/A</Text>
+                <Text style={styles.cardValue}>{targetData?.summary?.financialYear || '2026-27'}</Text>
                 <Text style={styles.cardSubtitle}>Current active cycle</Text>
               </View>
             </View>
@@ -93,7 +119,7 @@ const RSMTargetAllocationScreen = () => {
                   <Ionicons name="disc-outline" size={18} color="#475569" />
                 </View>
                 <Text style={styles.cardLabel}>Total Active ASMs</Text>
-                <Text style={styles.cardValue}>2</Text>
+                <Text style={styles.cardValue}>{targetData?.summary?.totalSubordinates || 0}</Text>
                 <Text style={styles.cardSubtitle}></Text>
               </View>
               {/* Card 6 */}
@@ -102,7 +128,7 @@ const RSMTargetAllocationScreen = () => {
                   <Ionicons name="checkmark-circle-outline" size={18} color="#16A34A" />
                 </View>
                 <Text style={styles.cardLabel}>Allocated ASMs</Text>
-                <Text style={styles.cardValue}>0</Text>
+                <Text style={styles.cardValue}>{targetData?.summary?.allocatedSubordinates || 0}</Text>
                 <Text style={styles.cardSubtitle}></Text>
               </View>
               {/* Card 7 */}
@@ -111,7 +137,7 @@ const RSMTargetAllocationScreen = () => {
                   <Ionicons name="warning-outline" size={18} color="#D97706" />
                 </View>
                 <Text style={styles.cardLabel}>Pending Allocation</Text>
-                <Text style={styles.cardValue}>2</Text>
+                <Text style={styles.cardValue}>{targetData?.summary?.pendingSubordinates || 0}</Text>
                 <Text style={styles.cardSubtitle}></Text>
               </View>
             </View>

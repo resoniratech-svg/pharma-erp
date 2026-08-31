@@ -21,3 +21,11 @@ export const getASMDashboard = async () => {
   });
   return response.data.data || response.data;
 };
+
+export const getRSMDashboard = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.get('/dashboard/rsm', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data.data || response.data;
+};

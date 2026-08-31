@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,48 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
+  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useFocusEffect } from '@react-navigation/native';
+import { getAllNotifications, markAsRead } from '../services/notificationService';
 
 const RSMNotificationsScreen = () => {
-  const [notifications, setNotifications] = useState([
-    { id: '1', title: 'Target Allocated', message: 'Annual Target for your Region has been allocated by NSM Head.', time: '10:30 AM', dateGroup: 'Today', type: 'target', read: false, bg: '#EEF2FF', iconColor: '#4F46E5' },
-    { id: '2', title: 'Team Attendance', message: '4 Late check-ins detected in your territory today.', time: '09:15 AM', dateGroup: 'Today', type: 'attendance', read: false, bg: '#FEE2E2', iconColor: '#DC2626' },
-    { id: '3', title: 'Distributor Alert', message: 'Surat Pharma outstanding payment is overdue.', time: 'Yesterday', dateGroup: 'Yesterday', type: 'performance', read: true, bg: '#FEF3C7', iconColor: '#D97706' },
-    { id: '4', title: 'System Notification', message: 'Pharma ERP system scheduled maintenance on Aug 05.', time: '28 Jul', dateGroup: 'Earlier', type: 'system', read: true, bg: '#F1F5F9', iconColor: '#64748B' },
-  ]);
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchNotifications();
+    }, [])
+  );
+
+  const fetchNotifications = async () => {
+    try {
+      setLoading(true);
+      const data = await getAllNotifications();
+      if (data && data.length > 0) {
+        setNotifications(data.map((item: any) => ({
+          id: item.id.toString(),
+          title: item.title,
+          message: item.message,
+          time: new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          dateGroup: new Date(item.createdAt).toLocaleDateString() === new Date().toLocaleDateString() ? 'Today' : new Date(item.createdAt).toLocaleDateString(),
+          type: item.type.toLowerCase(),
+          read: item.isRead,
+          bg: item.isRead ? '#F1F5F9' : '#EEF2FF',
+          iconColor: item.isRead ? '#64748B' : '#4F46E5',
+        })));
+      } else {
+        setNotifications([]);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to load notifications');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleMarkAllRead = () => {
     setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
@@ -51,16 +83,23 @@ const RSMNotificationsScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Notification Groups */}
-        {['Today', 'Yesterday', 'Earlier'].map((group) => {
-          const groupItems = notifications.filter((n) => n.dateGroup === group);
-          if (groupItems.length === 0) return null;
+        {loading ? (
+          <View style={{ padding: 40, alignItems: 'center' }}>
+            <ActivityIndicator size="large" color="#4F46E5" />
+            <Text style={{ marginTop: 10, color: '#6B7280' }}>Loading notifications...</Text>
+          </View>
+        ) : (
+          <>
+            {/* Notification Groups */}
+            {['Today', 'Yesterday', 'Earlier'].map((group) => {
+              const groupItems = notifications.filter((n) => n.dateGroup === group);
+              if (groupItems.length === 0) return null;
 
-          return (
-            <View key={group} style={{ marginBottom: 16 }}>
-              <Text style={styles.groupHeader}>{group}</Text>
-              <View style={styles.card}>
-                {groupItems.map((item) => (
+              return (
+                <View key={group} style={{ marginBottom: 16 }}>
+                  <Text style={styles.groupHeader}>{group}</Text>
+                  <View style={styles.card}>
+                    {groupItems.map((item) => (
                   <TouchableOpacity
                     key={item.id}
                     style={[styles.notifRow, !item.read && styles.unreadRow]}
@@ -85,6 +124,8 @@ const RSMNotificationsScreen = () => {
             </View>
           );
         })}
+        </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

@@ -12,7 +12,15 @@ export const getTargetsByMr = async () => {
 
 export const getASMTargetSummary = async () => {
   const token = await AsyncStorage.getItem('@token');
-  const response = await api.get('/target-allocation/asm-summary', {
+  const response = await api.get('/target-allocations/asm-summary', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data.data || response.data;
+};
+
+export const getRSMTargetSummary = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.get('/target-allocations/rsm-summary', {
     headers: { Authorization: `Bearer ${token}` },
   });
   return response.data.data || response.data;
@@ -20,7 +28,7 @@ export const getASMTargetSummary = async () => {
 
 export const allocateTarget = async (data: any) => {
   const token = await AsyncStorage.getItem('@token');
-  const response = await api.post('/target-allocation/allocate', data, {
+  const response = await api.post('/target-allocations/allocate', data, {
     headers: { Authorization: `Bearer ${token}` },
   });
   return response.data;

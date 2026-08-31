@@ -70,3 +70,11 @@ export const getASMDailyReports = async () => {
   });
   return response.data.data || response.data;
 };
+
+export const getRSMDailyReports = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.get('/daily-reports/rsm/team', {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data.data || response.data;
+};

@@ -107,11 +107,11 @@ const AppNavigator = () => {
       <Stack.Screen name="ASMNotifications" component={ASMNotificationsScreen} options={{ headerShown: false }} />
       
       {/* ── RSM Module Routes ── */}
-      <Stack.Screen
-        name="RSMDashboard"
-        component={RSMDashboardScreen}
-        options={{ headerShown: false }}
-      />
+        <Stack.Screen
+          name="RSMDashboard"
+          component={RSMDashboardScreen}
+          options={{ title: 'RSM Executive Dashboard', headerBackVisible: false, headerLeft: () => null }}
+        />
       <Stack.Screen name="ASMManagement" component={ASMManagementScreen} options={{ headerShown: false }} />
       <Stack.Screen name="RSMTargetAllocation" component={RSMTargetAllocationScreen} options={{ headerShown: false }} />
       <Stack.Screen name="RSMRegionalPerformance" component={RSMRegionalPerformanceScreen} options={{ headerShown: false }} />

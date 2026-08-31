@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Alert, Share } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import React, { useEffect, useState } from 'react';
+import { Alert, Modal, Platform, SafeAreaView, ScrollView, Share, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+// // REMOVED JSPDF
+// // REMOVED JSPDF
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getASMTargetSummary } from '../services/targetService';

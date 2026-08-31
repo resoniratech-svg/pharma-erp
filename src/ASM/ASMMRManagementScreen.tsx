@@ -1,24 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useNavigation } from '@react-navigation/native';
+import React, { useEffect, useState } from 'react';
 import {
-  View,
-  Text,
-  StyleSheet,
-  SafeAreaView,
-  TouchableOpacity,
-  ScrollView,
-  TextInput,
-  Platform,
-  Modal,
+  ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
+  Modal,
+  Platform,
+  SafeAreaView,
+  ScrollView,
   Share,
-  ActivityIndicator
+  StyleSheet,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  View
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+// // REMOVED JSPDF
+// // REMOVED JSPDF
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getMyTeam } from '../services/employeeService';

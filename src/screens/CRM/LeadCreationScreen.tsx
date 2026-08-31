@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView, TextInput, ActivityIndicator, Alert, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { leadService } from '../../services/leadService';
+import { locationService } from '../../services/locationService';
 import RNDateTimePicker from '@react-native-community/datetimepicker';
 import { Picker } from '@react-native-picker/picker';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -11,6 +12,46 @@ const LeadCreationScreen = () => {
   const navigation = useNavigation<any>();
   
   const [loading, setLoading] = useState(false);
+
+  // Dynamic Location Options
+  const [locations, setLocations] = useState<any[]>([]);
+  const [customState, setCustomState] = useState('');
+  const [customDistrict, setCustomDistrict] = useState('');
+  const [customCity, setCustomCity] = useState('');
+  const [customTerritory, setCustomTerritory] = useState('');
+
+  useEffect(() => {
+    fetchLocations();
+  }, []);
+
+  const fetchLocations = async () => {
+    try {
+      const response = await locationService.getLocations();
+      // Ensure we extract the array properly. If response is { success: true, data: [] }
+      const locationsArray = Array.isArray(response) ? response : (response?.data || []);
+      setLocations(locationsArray);
+    } catch (e) {
+      console.log('Error fetching locations:', e);
+      setLocations([]);
+    }
+  };
+
+  const getStates = () => {
+    if (!Array.isArray(locations)) return [];
+    return [...new Set(locations.filter(l => l?.type === 'STATE').map(l => l?.value))];
+  };
+  const getDistricts = (s: string) => {
+    if (!Array.isArray(locations)) return [];
+    return [...new Set(locations.filter(l => l?.type === 'DISTRICT' && l?.parent === s).map(l => l?.value))];
+  };
+  const getCities = (d: string) => {
+    if (!Array.isArray(locations)) return [];
+    return [...new Set(locations.filter(l => l?.type === 'CITY' && l?.parent === d).map(l => l?.value))];
+  };
+  const getTerritories = (c: string) => {
+    if (!Array.isArray(locations)) return [];
+    return [...new Set(locations.filter(l => l?.type === 'TERRITORY' && l?.parent === c).map(l => l?.value))];
+  };
 
   // Form State
   const [leadDate, setLeadDate] = useState(new Date());
@@ -34,6 +75,11 @@ const LeadCreationScreen = () => {
   const [showFollowUpDatePicker, setShowFollowUpDatePicker] = useState(false);
 
   const handleSave = async () => {
+    const finalState = state === 'ADD_CUSTOM' ? customState : state;
+    const finalDistrict = district === 'ADD_CUSTOM' ? customDistrict : district;
+    const finalCity = city === 'ADD_CUSTOM' ? customCity : city;
+    const finalTerritory = territory === 'ADD_CUSTOM' ? customTerritory : territory;
+
     if (!leadName || !contactPerson || !mobileNumber) {
       Alert.alert('Validation Error', 'Please fill in all mandatory fields (Name, Contact Person, Mobile).');
       return;
@@ -41,19 +87,31 @@ const LeadCreationScreen = () => {
 
     try {
       setLoading(true);
-      const userStr = await AsyncStorage.getItem('user');
-      const user = userStr ? JSON.parse(userStr) : null;
+
+      // Save custom locations to backend if any
+      if (state === 'ADD_CUSTOM' && customState) await locationService.createLocation({ type: 'STATE', value: customState });
+      if (district === 'ADD_CUSTOM' && customDistrict) await locationService.createLocation({ type: 'DISTRICT', value: customDistrict, parent: finalState });
+      if (city === 'ADD_CUSTOM' && customCity) await locationService.createLocation({ type: 'CITY', value: customCity, parent: finalDistrict });
+      if (territory === 'ADD_CUSTOM' && customTerritory) await locationService.createLocation({ type: 'TERRITORY', value: customTerritory, parent: finalCity });
+
+      const mrIdStr = await AsyncStorage.getItem('@mrId');
+      const assignedMrId = mrIdStr ? parseInt(mrIdStr, 10) : null;
       
       const payload = {
         name: leadName,
         type: leadType,
         mobile: mobileNumber,
-        email: '', // Add email if needed, omitted from image UI
-        address: `${city}, ${district}, ${state}`,
-        territory: territory,
-        status: status.toUpperCase(), // Assuming backend expects uppercase
-        notes: `Source: ${leadSource}, Priority: ${priority}`,
-        assignedToMrId: user?.mr?.id || user?.id || null, // Auto assign to logged in MR
+        email: '',
+        address: `${finalCity}, ${finalDistrict}, ${finalState}`,
+        territory: finalTerritory,
+        status: status.toUpperCase(),
+        source: leadSource,
+        priority: priority,
+        assignedMrId: assignedMrId, 
+        contactPerson: contactPerson,
+        state: finalState,
+        district: finalDistrict,
+        city: finalCity
       };
 
       await leadService.createLead(payload);
@@ -143,7 +201,8 @@ const LeadCreationScreen = () => {
             <TextInput 
               style={styles.input} 
               placeholder="e.g. 9876543210" 
-              keyboardType="phone-pad"
+              keyboardType="numeric"
+              maxLength={10}
               value={mobileNumber}
               onChangeText={setMobileNumber}
             />
@@ -151,39 +210,63 @@ const LeadCreationScreen = () => {
         </View>
 
         <View style={styles.row}>
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>State</Text>
-            <View style={styles.pickerContainer}>
-              <Picker selectedValue={state} onValueChange={setState} style={styles.picker}>
-                <Picker.Item label="Select State" value="" />
-                <Picker.Item label="Maharashtra" value="Maharashtra" />
-                <Picker.Item label="Karnataka" value="Karnataka" />
-              </Picker>
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>State</Text>
+              <View style={styles.pickerContainer}>
+                <Picker 
+                  selectedValue={state} 
+                  onValueChange={(val) => {
+                    setState(val);
+                    setDistrict('');
+                    setCity('');
+                    setTerritory('');
+                  }} 
+                  style={styles.picker}
+                >
+                  <Picker.Item label="Select State" value="" />
+                  {getStates().map((s) => (
+                    <Picker.Item key={s} label={s} value={s} />
+                  ))}
+                  <Picker.Item label="+ Add Custom State" value="ADD_CUSTOM" />
+                </Picker>
+              </View>
+              {state === 'ADD_CUSTOM' && (
+                <TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Enter new state" value={customState} onChangeText={setCustomState} />
+              )}
             </View>
-          </View>
-          
-          <View style={styles.fieldContainer}>
-            <Text style={styles.label}>District</Text>
-            <View style={styles.pickerContainer}>
-              <Picker selectedValue={district} onValueChange={setDistrict} style={styles.picker}>
-                <Picker.Item label="Select District" value="" />
-                <Picker.Item label="Mumbai" value="Mumbai" />
-                <Picker.Item label="Bangalore" value="Bangalore" />
-              </Picker>
+            
+            <View style={styles.fieldContainer}>
+              <Text style={styles.label}>District</Text>
+              <View style={styles.pickerContainer}>
+                <Picker selectedValue={district} onValueChange={(val) => { setDistrict(val); setCity(''); setTerritory(''); }} style={styles.picker}>
+                  <Picker.Item label="Select District" value="" />
+                  {getDistricts(state === 'ADD_CUSTOM' ? customState : state).map((d) => (
+                    <Picker.Item key={d} label={d} value={d} />
+                  ))}
+                  <Picker.Item label="+ Add Custom District" value="ADD_CUSTOM" />
+                </Picker>
+              </View>
+              {district === 'ADD_CUSTOM' && (
+                <TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Enter new district" value={customDistrict} onChangeText={setCustomDistrict} />
+              )}
             </View>
-          </View>
         </View>
 
         <View style={styles.row}>
           <View style={styles.fieldContainer}>
             <Text style={styles.label}>City</Text>
             <View style={styles.pickerContainer}>
-              <Picker selectedValue={city} onValueChange={setCity} style={styles.picker}>
+              <Picker selectedValue={city} onValueChange={(val) => { setCity(val); setTerritory(''); }} style={styles.picker}>
                 <Picker.Item label="Select City" value="" />
-                <Picker.Item label="Andheri" value="Andheri" />
-                <Picker.Item label="Koramangala" value="Koramangala" />
+                {getCities(district === 'ADD_CUSTOM' ? customDistrict : district).map((c) => (
+                  <Picker.Item key={c} label={c} value={c} />
+                ))}
+                <Picker.Item label="+ Add Custom City" value="ADD_CUSTOM" />
               </Picker>
             </View>
+            {city === 'ADD_CUSTOM' && (
+              <TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Enter new city" value={customCity} onChangeText={setCustomCity} />
+            )}
           </View>
           
           <View style={styles.fieldContainer}>
@@ -191,10 +274,15 @@ const LeadCreationScreen = () => {
             <View style={styles.pickerContainer}>
               <Picker selectedValue={territory} onValueChange={setTerritory} style={styles.picker}>
                 <Picker.Item label="Select Territory" value="" />
-                <Picker.Item label="Andheri West" value="Andheri West" />
-                <Picker.Item label="Bangalore South" value="Bangalore South" />
+                {getTerritories(city === 'ADD_CUSTOM' ? customCity : city).map((t) => (
+                  <Picker.Item key={t} label={t} value={t} />
+                ))}
+                <Picker.Item label="+ Add Custom Territory" value="ADD_CUSTOM" />
               </Picker>
             </View>
+            {territory === 'ADD_CUSTOM' && (
+              <TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Enter new territory" value={customTerritory} onChangeText={setCustomTerritory} />
+            )}
           </View>
         </View>
 

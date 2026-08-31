@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { leadService } from '../../services/leadService';
 import { api } from '../../services/api';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const LeadAssignmentScreen = () => {
   const navigation = useNavigation<any>();
@@ -22,7 +23,8 @@ const LeadAssignmentScreen = () => {
   const fetchMRs = async () => {
     try {
       setLoading(true);
-      const response = await api.get('/mr'); // Assuming /mr returns all MRs
+      const token = await AsyncStorage.getItem('@token');
+      const response = await api.get('/mrs', { headers: { Authorization: `Bearer ${token}` } }); // Assuming /mrs returns all MRs
       setMrs(response.data?.data || []);
     } catch (error) {
       console.error('Error fetching MRs:', error);

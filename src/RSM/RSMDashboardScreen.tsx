@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import {
   Alert,
   Animated,
@@ -14,8 +14,10 @@ import {
   Text,
   TouchableOpacity,
   TouchableWithoutFeedback,
-  View
+  View,
+  ActivityIndicator
 } from 'react-native';
+import { getRSMDashboard } from '../services/dashboardService';
 
 const { width, height } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.50; // Keep 50% width exactly like NSM
@@ -39,8 +41,30 @@ const RSMDashboardScreen = () => {
   const [isSalesOpsOpen, setIsSalesOpsOpen] = useState(false);
   const [isCRMOpen, setIsCRMOpen] = useState(false);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
+  const [dashboardData, setDashboardData] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  
   const slideAnim = useRef(new Animated.Value(-DRAWER_WIDTH)).current;
   const fadeAnim = useRef(new Animated.Value(0)).current;
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchDashboard();
+    }, [])
+  );
+
+  const fetchDashboard = async () => {
+    try {
+      setLoading(true);
+      const data = await getRSMDashboard();
+      setDashboardData(data);
+    } catch (error) {
+      console.error('Failed to load RSM Dashboard', error);
+      Alert.alert('Error', 'Could not load dashboard data.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Handles the smooth slide-in and out of the left menu
   useEffect(() => {
@@ -131,87 +155,83 @@ const RSMDashboardScreen = () => {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* ── Top Header Bar ── */}
-      <View style={styles.header}>
-        <View style={styles.headerActionBar}>
-          {/* Hamburger Icon on the Left */}
-          <TouchableOpacity onPress={() => setIsMenuVisible(true)} style={{ padding: 4 }}>
-            <Ionicons name="menu-outline" size={26} color="#FFF" />
-          </TouchableOpacity>
-          <View style={{ flex: 1, marginLeft: 10 }}>
-            <Text style={styles.title}>Regional Sales Manager (RSM)</Text>
-          </View>
-
-          {/* Header Icons */}
-          <TouchableOpacity onPress={() => navigation.navigate(RSM_ROUTES.NOTIFICATIONS)} style={{ padding: 4, marginRight: 8, position: 'relative' }}>
-            <Ionicons name="notifications-outline" size={22} color="#FFF" />
-            <View style={[styles.notifBadge, { position: 'absolute', top: 2, right: 2, backgroundColor: '#EF4444', width: 14, height: 14, borderRadius: 7, justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{ color: '#FFF', fontSize: 9, fontWeight: 'bold' }}>3</Text>
-            </View>
-          </TouchableOpacity>
-
-          <TouchableOpacity onPress={() => navigation.navigate(RSM_ROUTES.SETTINGS)} style={{ padding: 4 }}>
-            <Ionicons name="person-circle-outline" size={26} color="#FFF" />
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.subtitle}>Executive overview of regional sales performance and targets.</Text>
-      </View>
-
       <ScrollView style={{ flex: 1 }} showsVerticalScrollIndicator={false} contentContainerStyle={{ padding: 16 }}>
-        <Text style={styles.pageTitle}>Regional Sales Dashboard</Text>
-        <Text style={styles.pageSubtitle}>Executive overview of regional performance and area metrics.</Text>
+        {/* ── Top Header Bar ── */}
+        <View style={styles.header}>
+          <View style={styles.headerActionBar}>
+            {/* Hamburger Icon on the Left */}
+            <TouchableOpacity onPress={() => setIsMenuVisible(true)} style={{ padding: 4 }}>
+              <Ionicons name="menu-outline" size={26} color="#FFF" />
+            </TouchableOpacity>
+            <View style={{ flex: 1, marginLeft: 10 }}>
+              <Text style={styles.title}>Regional Sales Manager (RSM)</Text>
+            </View>
 
-        <View style={styles.cardsRow}>
-          <View style={styles.card}>
-            <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="disc-outline" size={18} color="#3B82F6" />
-            </View>
-            <Text style={styles.cardLabel}>Assigned Target</Text>
-            <Text style={styles.cardValue}>₹0.00 L</Text>
-            <Text style={styles.cardSubtitle}>FY 2026-27</Text>
+            {/* Header Icons */}
+            <TouchableOpacity onPress={() => navigation.navigate(RSM_ROUTES.NOTIFICATIONS)} style={{ padding: 4, marginRight: 8, position: 'relative' }}>
+              <Ionicons name="notifications-outline" size={22} color="#FFF" />
+              <View style={[styles.notifBadge, { position: 'absolute', top: 2, right: 2, backgroundColor: '#EF4444', width: 14, height: 14, borderRadius: 7, justifyContent: 'center', alignItems: 'center' }]}>
+                <Text style={{ color: '#FFF', fontSize: 9, fontWeight: 'bold' }}>3</Text>
+              </View>
+            </TouchableOpacity>
+
+            <TouchableOpacity onPress={() => navigation.navigate(RSM_ROUTES.SETTINGS)} style={{ padding: 4 }}>
+              <Ionicons name="person-circle-outline" size={26} color="#FFF" />
+            </TouchableOpacity>
           </View>
-          <View style={styles.card}>
-            <View style={[styles.iconCircle, { backgroundColor: '#ECFCCB' }]}>
-              <Ionicons name="pulse-outline" size={18} color="#65A30D" />
-            </View>
-            <Text style={styles.cardLabel}>Achieved Target</Text>
-            <Text style={styles.cardValue}>₹0.00 L</Text>
-            <Text style={styles.cardSubtitle}>0.0% Achievement</Text>
-          </View>
-          <View style={styles.card}>
-            <View style={[styles.iconCircle, { backgroundColor: '#ECFCCB' }]}>
-              <Ionicons name="alert-circle-outline" size={18} color="#65A30D" />
-            </View>
-            <Text style={styles.cardLabel}>Remaining Target</Text>
-            <Text style={styles.cardValue}>₹0.00 L</Text>
-            <Text style={styles.cardSubtitle}>Pending realization</Text>
-          </View>
-          <View style={styles.card}>
-            <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
-              <Ionicons name="people-outline" size={18} color="#3B82F6" />
-            </View>
-            <Text style={styles.cardLabel}>Active ASMs</Text>
-            <Text style={styles.cardValue}>2</Text>
-            <Text style={styles.cardSubtitle}>Direct reports</Text>
-          </View>
-          <View style={styles.card}>
-            <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="navigate-circle-outline" size={18} color="#EF4444" />
-            </View>
-            <Text style={styles.cardLabel}>Achievement %</Text>
-            <Text style={styles.cardValue}>0.0%</Text>
-            <Text style={styles.cardSubtitle}>Overall performance</Text>
-          </View>
-          <View style={styles.card}>
-            <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
-              <Ionicons name="warning-outline" size={18} color="#EF4444" />
-            </View>
-            <Text style={styles.cardLabel}>Pending Activities</Text>
-            <Text style={styles.cardValue}>5</Text>
-            <Text style={styles.cardSubtitle}>Awaiting your review</Text>
-          </View>
+
+          <Text style={styles.subtitle}>Executive overview of regional sales performance and targets.</Text>
         </View>
+
+        {loading ? (
+          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 50 }}>
+            <ActivityIndicator size="large" color="#4F46E5" />
+            <Text style={{ marginTop: 10, color: '#6B7280' }}>Loading regional dashboard...</Text>
+          </View>
+        ) : (
+          <View style={styles.cardsRow}>
+            <View style={styles.card}>
+              <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="disc-outline" size={18} color="#3B82F6" />
+              </View>
+              <Text style={styles.cardLabel}>Assigned Target</Text>
+              <Text style={styles.cardValue}>₹{((dashboardData?.assignedTarget || 0) / 100000).toFixed(2)} L</Text>
+              <Text style={styles.cardSubtitle}>FY 2026-27</Text>
+            </View>
+            <View style={styles.card}>
+              <View style={[styles.iconCircle, { backgroundColor: '#ECFCCB' }]}>
+                <Ionicons name="pulse-outline" size={18} color="#65A30D" />
+              </View>
+              <Text style={styles.cardLabel}>Achieved Target</Text>
+              <Text style={styles.cardValue}>₹{((dashboardData?.targetAchievement || 0) / 100000).toFixed(2)} L</Text>
+              <Text style={styles.cardSubtitle}>{dashboardData?.achievementPercentage || 0}% Achievement</Text>
+            </View>
+            <View style={styles.card}>
+              <View style={[styles.iconCircle, { backgroundColor: '#FEF2F2' }]}>
+                <Ionicons name="alert-circle-outline" size={18} color="#EF4444" />
+              </View>
+              <Text style={styles.cardLabel}>Remaining Target</Text>
+              <Text style={styles.cardValue}>₹{((dashboardData?.remainingTarget || 0) / 100000).toFixed(2)} L</Text>
+              <Text style={styles.cardSubtitle}>Pending realization</Text>
+            </View>
+            <View style={styles.card}>
+              <View style={[styles.iconCircle, { backgroundColor: '#EFF6FF' }]}>
+                <Ionicons name="people-outline" size={18} color="#3B82F6" />
+              </View>
+              <Text style={styles.cardLabel}>Active ASMs</Text>
+              <Text style={styles.cardValue}>{dashboardData?.activeAsmCount || 0}</Text>
+              <Text style={styles.cardSubtitle}>Direct reports</Text>
+            </View>
+            <View style={styles.card}>
+              <View style={[styles.iconCircle, { backgroundColor: '#FEE2E2' }]}>
+                <Ionicons name="navigate-circle-outline" size={18} color="#EF4444" />
+              </View>
+              <Text style={styles.cardLabel}>Allocations</Text>
+              <Text style={[styles.cardValue, { fontSize: 18 }]}>{dashboardData?.allocationStatus || 'Pending Allocation'}</Text>
+              <Text style={styles.cardSubtitle}>Status</Text>
+            </View>
+          </View>
+        )}
 
         <Text style={styles.sectionTitle}>Recent Pending Approvals & Activities</Text>
         <View style={styles.tableCard}>
@@ -225,31 +245,30 @@ const RSMDashboardScreen = () => {
                 <Text style={[styles.th, { width: 120 }]}>STATUS</Text>
                 <Text style={[styles.th, { width: 80 }]}>ACTION</Text>
               </View>
-              {[
-                { src: 'Attendance', emp: 'Rahul Verma', act: 'Late Check-in', date: 'Today', stat: 'Pending Review', statColor: '#D97706', statBg: '#FEF3C7' },
-                { src: 'Team Visit', emp: 'Vikash Sharma', act: 'Visit Pending Approval', date: 'Today', stat: 'Pending', statColor: '#64748B', statBg: '#F1F5F9' },
-                { src: 'Attendance', emp: 'Amit Desai', act: 'Attendance Pending Review', date: 'Today', stat: 'Pending', statColor: '#64748B', statBg: '#F1F5F9' },
-                { src: 'Distributor', emp: 'Surat Pharma', act: 'Outstanding Payment Follow-up', date: 'Today', stat: 'Pending', statColor: '#64748B', statBg: '#F1F5F9' },
-                { src: 'Distributor', emp: 'Apollo Pharma', act: 'Outstanding Payment Follow-up', date: 'Yesterday', stat: 'Pending', statColor: '#64748B', statBg: '#F1F5F9' },
-              ].map((row, i) => (
+              {(dashboardData?.activities?.length > 0 ? dashboardData.activities : []).map((row: any, i: number) => (
                 <View key={i} style={styles.tableRow}>
-                  <Text style={[styles.td, { width: 100 }]}>{row.src}</Text>
-                  <Text style={[styles.td, { width: 160, fontWeight: '600', color: '#1E293B' }]}>{row.emp}</Text>
-                  <Text style={[styles.td, { width: 180 }]}>{row.act}</Text>
-                  <Text style={[styles.td, { width: 80 }]}>{row.date}</Text>
+                  <Text style={[styles.td, { width: 100 }]}>{row.src || 'System'}</Text>
+                  <Text style={[styles.td, { width: 160, fontWeight: '600', color: '#1E293B' }]}>{row.emp || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 180 }]}>{row.act || '-'}</Text>
+                  <Text style={[styles.td, { width: 80 }]}>{row.date || 'Today'}</Text>
                   <View style={{ width: 120, justifyContent: 'center' }}>
-                    <View style={[styles.statusBadge, { backgroundColor: row.statBg }]}>
-                      <Text style={[styles.statusText, { color: row.statColor }]}>{row.stat}</Text>
+                    <View style={[styles.statusBadge, { backgroundColor: row.statBg || '#F1F5F9' }]}>
+                      <Text style={[styles.statusText, { color: row.statColor || '#64748B' }]}>{row.stat || 'Pending'}</Text>
                     </View>
                   </View>
                   <View style={{ width: 80, justifyContent: 'center' }}>
-                    <TouchableOpacity style={styles.actionBtn} onPress={() => handlePendingApprovalView(row.src)}>
+                    <TouchableOpacity style={styles.actionBtn} onPress={() => handlePendingApprovalView(row.src || 'Unknown')}>
                       <Ionicons name="eye-outline" size={14} color="#4F46E5" />
                       <Text style={styles.actionBtnText}>View</Text>
                     </TouchableOpacity>
                   </View>
                 </View>
               ))}
+              {(!dashboardData?.activities || dashboardData.activities.length === 0) && (
+                <View style={{ padding: 20, alignItems: 'center' }}>
+                  <Text style={{ color: '#94A3B8' }}>No pending approvals or activities.</Text>
+                </View>
+              )}
             </View>
           </ScrollView>
         </View>

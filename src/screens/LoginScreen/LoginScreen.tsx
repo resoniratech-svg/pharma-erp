@@ -72,12 +72,12 @@ const LoginScreen = () => {
         response.data.token
       );
 
-      if (response.data.mr) {
-        await AsyncStorage.setItem(
-          '@mrId',
-          response.data.mr.id.toString()
-        );
-      }
+      if (response.data.mr && response.data.mr.id) {
+  await AsyncStorage.setItem(
+    '@mrId',
+    response.data.mr.id.toString()
+  );
+}
 
       await AsyncStorage.setItem(
         '@user',
@@ -98,11 +98,11 @@ const LoginScreen = () => {
       setIsSubmitting(false);
       
       const role = response.data.user?.role;
-      if (role === 'Area Sales Manager' || role === 'ASM') {
+      if (role === 'Area Sales Manager' || role === 'ASM' || role === 'AREA_SALES_MANAGER') {
         navigation.replace('App', { screen: 'ASMDashboard' });
-      } else if (role === 'Regional Sales Manager' || role === 'RSM') {
+      } else if (role === 'Regional Sales Manager' || role === 'RSM' || role === 'REGIONAL_SALES_MANAGER') {
         navigation.replace('App', { screen: 'RSMDashboard' });
-      } else if (role === 'National Sales Manager' || role === 'NSM') {
+      } else if (role === 'National Sales Manager' || role === 'NSM' || role === 'NATIONAL_SALES_HEAD') {
         navigation.replace('App', { screen: 'NSMDashboard' });
       } else {
         navigation.replace('App');

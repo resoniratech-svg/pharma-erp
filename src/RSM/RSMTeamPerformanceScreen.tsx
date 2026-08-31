@@ -1,28 +1,10 @@
-import React, { useState, useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Share, Alert } from 'react-native';
+import React, { useState, useMemo, useEffect } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, ScrollView, TextInput, Platform, Modal, Share, Alert, ActivityIndicator } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
-// REMOVED JSPDF
-// REMOVED JSPDF
-
-const INITIAL_DATA = [
-  { 
-    id: '1', asmCode: 'EMP-ASM-001', asmName: 'Gaurav Kapoor', state: 'Maharashtra', 
-    hq: 'Unassigned', assignedTarget: '₹0.00 L', achievement: '₹0.00 L', 
-    achievementPct: '0.0%', attendancePct: '99%', docVisits: 113, 
-    chemVisits: 152, ordersBooked: 47, teamStrength: '2 MRs', 
-    trend: 'Stable', remarks: 'Needs improvement in target achievement.', status: 'Needs Attention' 
-  },
-  { 
-    id: '2', asmCode: 'EMP-ASM-002', asmName: 'Manish Pandey', state: 'Maharashtra', 
-    hq: 'Pune', assignedTarget: '₹0.00 L', achievement: '₹0.00 L', 
-    achievementPct: '0.0%', attendancePct: '98%', docVisits: 105, 
-    chemVisits: 140, ordersBooked: 42, teamStrength: '2 MRs', 
-    trend: 'Stable', remarks: 'Needs attention on chemist visits.', status: 'Needs Attention' 
-  },
-];
+import { getRSMDashboard } from '../services/dashboardService';
 
 const STATUSES = [
   'All Statuses', 'Good', 'Average', 'Needs Attention'
@@ -43,9 +25,50 @@ const RSMTeamPerformanceScreen = () => {
   const [isViewModalVisible, setIsViewModalVisible] = useState(false);
   const [viewModalData, setViewModalData] = useState<any>(null);
 
+  const [teamData, setTeamData] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchTeamPerformance();
+  }, []);
+
+  const fetchTeamPerformance = async () => {
+    try {
+      setLoading(true);
+      const data = await getRSMDashboard();
+      if (data && data.reportingAsms) {
+        setTeamData(data.reportingAsms.map((asm: any) => ({
+          id: asm.employeeId?.toString() || Math.random().toString(),
+          asmCode: asm.employeeCode || 'N/A',
+          asmName: asm.name || 'Unknown',
+          state: asm.state || 'N/A',
+          hq: asm.hq || 'N/A',
+          assignedTarget: `₹${((asm.allocatedTarget || 0) / 100000).toFixed(2)} L`,
+          achievement: `₹${((asm.achievedTarget || 0) / 100000).toFixed(2)} L`,
+          achievementPct: `${asm.achievementPercentage || 0}%`,
+          attendancePct: 'N/A',
+          docVisits: asm.doctorVisits || 0,
+          chemVisits: asm.chemistVisits || 0,
+          ordersBooked: asm.ordersCount || 0,
+          teamStrength: `${asm.teamStrength || 0} MRs`,
+          trend: 'Stable',
+          remarks: 'Based on live data',
+          status: (asm.achievementPercentage || 0) > 80 ? 'Good' : ((asm.achievementPercentage || 0) > 50 ? 'Average' : 'Needs Attention')
+        })));
+      } else {
+        setTeamData([]);
+      }
+    } catch (error) {
+      console.error(error);
+      Alert.alert('Error', 'Failed to load team performance data');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Computed Filtered Data
   const filteredData = useMemo(() => {
-    return INITIAL_DATA.filter(item => {
+    return teamData.filter(item => {
       const matchesStatus = filterStatus === 'All Statuses' || item.status === filterStatus;
       const searchLower = searchQuery.toLowerCase();
       const matchesSearch = 
