@@ -128,6 +128,7 @@ const loginUser = async (
       linkedRetailerCode: user.linkedRetailerCode,
       employeeId: user.employee ? user.employee.id : null,
       employeeCode: user.employee ? user.employee.employeeCode : null,
+      mrId: user.mr ? user.mr.id : null,
     },
     employee: user.employee
       ? {
