@@ -808,6 +808,14 @@ model Lead {
   assignedMr   MR?        @relation(fields: [assignedMrId], references: [id])
 }
 
+model LocationMaster {
+  id        Int      @id @default(autoincrement())
+  type      String   // "STATE", "DISTRICT", "CITY", "TERRITORY"
+  value     String
+  parent    String?  // parent value if applicable
+  createdAt DateTime @default(now())
+}
+
 model LeaveRequest {
   id        Int      @id @default(autoincrement())
   mrId      Int

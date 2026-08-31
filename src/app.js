@@ -213,6 +213,7 @@ const distributorRoutes = require("./modules/distributor/distributor.routes");
 const hospitalRoutes = require("./modules/hospital/hospital.routes");
 const territoryRoutes = require("./modules/territory/territory.routes");
 const exportOperationsRoutes = require("./modules/exportOperations/exportOperations.routes");
+const locationRoutes = require("./modules/location/location.routes");
 
 const app = express();
 
@@ -444,10 +445,8 @@ app.use("/api/daily-reports", dailyReportRoutes);
 
 app.use("/api/tour-plans", tourPlanRoutes);
 
-app.use(
-  "/api/targets",
-  targetRoutes
-);
+app.use("/api/targets", targetRoutes);
+app.use("/api/locations", locationRoutes);
 
 app.use(
   "/api/meetings",
