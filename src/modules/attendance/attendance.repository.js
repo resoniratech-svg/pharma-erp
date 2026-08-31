@@ -82,11 +82,7 @@ const getAttendanceByMRRepo =
         mrId,
       },
       include: {
-        mr: {
-          include: {
-            employee: true
-          }
-        },
+        mr: true,
       },
       orderBy: {
         id: "desc",
