@@ -23,6 +23,17 @@ import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { getMyTeam } from '../services/employeeService';
 
+const MONTH_NAMES = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+const generateCalendarDays = (month: number, year: number) => {
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const days = [];
+  for (let i = 0; i < firstDay; i++) days.push(null);
+  for (let i = 1; i <= daysInMonth; i++) days.push(i);
+  return days;
+};
+
 const STORAGE_KEY = '@asm_mr_list';
 
 const ASMMRManagementScreen = () => {
