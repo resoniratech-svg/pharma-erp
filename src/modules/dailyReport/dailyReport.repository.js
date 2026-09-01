@@ -87,21 +87,26 @@ const getASMDailyReportsRepo = async (asmEmployeeId) => {
   return prisma.dailyReport.findMany({
     where: {
       mr: {
-        employee: {
-          reportsToId: asmEmployeeId,
-          designation: 'Medical Representative'
+        user: {
+          employee: {
+            reportsToId: asmEmployeeId
+          }
         }
       }
     },
     include: {
       mr: {
         include: {
-          employee: true
+          user: {
+            include: {
+              employee: true
+            }
+          }
         }
       }
     },
     orderBy: {
-      reportDate: "desc"
+      reportDate: 'desc'
     }
   });
 };
@@ -110,9 +115,12 @@ const getRSMDailyReportsRepo = async (rsmEmployeeId) => {
   return prisma.dailyReport.findMany({
     where: {
       mr: {
-        employee: {
-          reportsTo: {
-            reportsToId: rsmEmployeeId
+        user: {
+          employee: {
+            OR: [
+              { reportsToId: rsmEmployeeId },
+              { manager: { reportsToId: rsmEmployeeId } }
+            ]
           }
         }
       }
@@ -120,16 +128,20 @@ const getRSMDailyReportsRepo = async (rsmEmployeeId) => {
     include: {
       mr: {
         include: {
-          employee: {
+          user: {
             include: {
-              reportsTo: true
+              employee: {
+                include: {
+                  manager: true
+                }
+              }
             }
           }
         }
       }
     },
     orderBy: {
-      reportDate: "desc"
+      reportDate: 'desc'
     }
   });
 };
