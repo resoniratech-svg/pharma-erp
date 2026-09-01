@@ -5,6 +5,9 @@ const authMiddleware = require("../../middlewares/authMiddleware");
 
 // National Sales Dashboard KPIs
 router.get("/nsm", authMiddleware, controller.getNSMDashboard);
+router.get("/nsm/state-performance", authMiddleware, controller.getStatePerformance);
+router.get("/nsm/team-performance", authMiddleware, controller.getTeamPerformance);
+router.get("/nsm/sales-operations", authMiddleware, controller.getSalesOperations);
 
 // Regional Sales Dashboard KPIs
 router.get("/rsm", authMiddleware, controller.getRSMDashboard);

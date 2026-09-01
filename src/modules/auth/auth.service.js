@@ -187,6 +187,7 @@ const getCurrentUser = async (userId) => {
       role: true,
       isActive: true,
       createdAt: true,
+      employee: true, // INCLUDE EMPLOYEE META DATA
     },
   });
 

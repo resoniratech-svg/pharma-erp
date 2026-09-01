@@ -462,9 +462,52 @@ const getMRDashboardKPIs = async (userId, employeeId, financialYear = "2026-27")
   };
 };
 
+const getStatePerformanceData = async (financialYear) => {
+  // Mock data representing a backend aggregation over States
+  return [
+    { id: '1', state: 'Maharashtra', rsm: 'Arun Kumar', target: '₹115.00 Cr', achieved: '₹113.50 Cr', achvPct: '90.0%', orders: '4,520', drVisits: '12,500', attdPct: '92%', status: 'Good' },
+    { id: '2', state: 'Gujarat', rsm: 'Rajesh Singh', target: '₹112.00 Cr', achieved: '₹19.50 Cr', achvPct: '79.2%', orders: '3,100', drVisits: '9,800', attdPct: '88%', status: 'Average' },
+    { id: '3', state: 'Karnataka', rsm: 'Priya Sharma', target: '₹118.00 Cr', achieved: '₹119.50 Cr', achvPct: '108.3%', orders: '5,800', drVisits: '15,200', attdPct: '95%', status: 'Excellent' },
+    { id: '4', state: 'Tamil Nadu', rsm: 'Vikram Das', target: '₹110.00 Cr', achieved: '₹14.50 Cr', achvPct: '45.0%', orders: '1,200', drVisits: '5,100', attdPct: '78%', status: 'Needs Attention' },
+  ];
+};
+
+const getTeamPerformanceData = async (financialYear) => {
+  return [
+    { id: '1', name: 'Arun Kumar', role: 'RSM - West', target: '₹45.00 Cr', achieved: '₹42.50 Cr', achvPct: '94.4%', teamSize: '12 ASM, 48 MR', drVisits: '42,500', attdPct: '94%', status: 'Excellent' },
+    { id: '2', name: 'Rajesh Singh', role: 'RSM - North', target: '₹42.00 Cr', achieved: '₹38.50 Cr', achvPct: '91.6%', teamSize: '10 ASM, 42 MR', drVisits: '39,800', attdPct: '91%', status: 'Good' },
+    { id: '3', name: 'Priya Sharma', role: 'RSM - South', target: '₹48.00 Cr', achieved: '₹49.50 Cr', achvPct: '103.1%', teamSize: '14 ASM, 55 MR', drVisits: '48,200', attdPct: '96%', status: 'Excellent' },
+    { id: '4', name: 'Vikram Das', role: 'RSM - East', target: '₹40.00 Cr', achieved: '₹28.50 Cr', achvPct: '71.2%', teamSize: '9 ASM, 38 MR', drVisits: '25,100', attdPct: '82%', status: 'Needs Attention' },
+  ];
+};
+
+const getSalesOperationsData = async (financialYear) => {
+  return {
+    pipeline: [
+      { id: '1', zone: 'South Zone', target: '₹45.00 Cr', achieved: '₹48.50 Cr', pipeline: '₹12.50 Cr', conversionPct: '32%', topState: 'Karnataka (₹19.50 Cr)', status: 'Excellent' },
+      { id: '2', zone: 'West Zone', target: '₹42.00 Cr', achieved: '₹38.50 Cr', pipeline: '₹15.20 Cr', conversionPct: '28%', topState: 'Maharashtra (₹18.20 Cr)', status: 'Good' },
+      { id: '3', zone: 'North Zone', target: '₹48.00 Cr', achieved: '₹42.50 Cr', pipeline: '₹18.50 Cr', conversionPct: '25%', topState: 'Delhi (₹15.50 Cr)', status: 'Good' },
+      { id: '4', zone: 'East Zone', target: '₹35.00 Cr', achieved: '₹28.50 Cr', pipeline: '₹10.50 Cr', conversionPct: '22%', topState: 'West Bengal (₹12.00 Cr)', status: 'Average' },
+    ],
+    primarySecondary: [
+      { month: 'Apr', primary: 120, secondary: 110, closingStock: 45 },
+      { month: 'May', primary: 135, secondary: 125, closingStock: 50 },
+      { month: 'Jun', primary: 110, secondary: 115, closingStock: 40 },
+    ],
+    metrics: {
+      totalPrimary: '₹450 Cr',
+      totalSecondary: '₹425 Cr',
+      yoyGrowth: '+18.5%',
+    }
+  };
+};
+
 module.exports = {
   getNSMDashboardKPIs,
   getRSMDashboardKPIs,
   getASMDashboardKPIs,
   getMRDashboardKPIs,
+  getStatePerformanceData,
+  getTeamPerformanceData,
+  getSalesOperationsData,
 };

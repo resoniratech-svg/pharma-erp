@@ -70,9 +70,60 @@ const getMRDashboard = async (req, res) => {
   }
 };
 
+const getStatePerformance = async (req, res) => {
+  try {
+    const fy = req.query.financialYear || "2026-27";
+    const result = await service.getStatePerformanceData(fy);
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const getTeamPerformance = async (req, res) => {
+  try {
+    const fy = req.query.financialYear || "2026-27";
+    const result = await service.getTeamPerformanceData(fy);
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+const getSalesOperations = async (req, res) => {
+  try {
+    const fy = req.query.financialYear || "2026-27";
+    const result = await service.getSalesOperationsData(fy);
+    res.status(200).json({
+      success: true,
+      data: result,
+    });
+  } catch (error) {
+    res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
 module.exports = {
   getNSMDashboard,
   getRSMDashboard,
   getASMDashboard,
   getMRDashboard,
+  getStatePerformance,
+  getTeamPerformance,
+  getSalesOperations,
 };
