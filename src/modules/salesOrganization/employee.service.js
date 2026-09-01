@@ -61,6 +61,13 @@ const createEmployeeService = async (data) => {
   // Resolve manager name if reportsToId is passed
   let reportsTo = data.reportsTo || null;
   let reportsToId = data.reportsToId ? Number(data.reportsToId) : null;
+  if (!reportsToId && data.creatorUserId) {
+    const currentEmp = await repo.getEmployeeByUserIdRepo(data.creatorUserId);
+    if (currentEmp) {
+      reportsToId = currentEmp.id;
+      if (!reportsTo) reportsTo = currentEmp.name;
+    }
+  }
   if (reportsToId && !reportsTo) {
     const manager = await repo.getEmployeeByIdRepo(reportsToId);
     if (manager) reportsTo = manager.name;
