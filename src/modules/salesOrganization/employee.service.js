@@ -62,7 +62,18 @@ const createEmployeeService = async (data) => {
   let reportsTo = data.reportsTo || null;
   let reportsToId = data.reportsToId ? Number(data.reportsToId) : null;
   if (!reportsToId && data.creatorUserId) {
-    const currentEmp = await repo.getEmployeeByUserIdRepo(data.creatorUserId);
+    let currentEmp = await repo.getEmployeeByUserIdRepo(data.creatorUserId);
+    
+    // Fallback if user lacks employee record
+    if (!currentEmp && data.creatorUserRole) {
+      const all = await repo.getEmployeesRepo();
+      if (data.creatorUserRole === 'NATIONAL_SALES_HEAD' || data.creatorUserRole === 'National Sales Head') {
+        currentEmp = all.find((e) => e.designation === 'National Sales Head');
+      } else if (data.creatorUserRole === 'REGIONAL_SALES_MANAGER' || data.creatorUserRole === 'Regional Sales Manager') {
+        currentEmp = all.find((e) => e.designation === 'Regional Sales Manager');
+      }
+    }
+
     if (currentEmp) {
       reportsToId = currentEmp.id;
       if (!reportsTo) reportsTo = currentEmp.name;

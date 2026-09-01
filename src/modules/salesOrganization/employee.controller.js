@@ -2,7 +2,7 @@ const service = require("./employee.service");
 
 const createEmployee = async (req, res) => {
   try {
-    const data = { ...req.body, creatorUserId: req.user ? req.user.id : null };
+    const data = { ...req.body, creatorUserId: req.user ? req.user.id : null, creatorUserRole: req.user ? req.user.role : null };
     const result = await service.createEmployeeService(data);
     res.status(201).json({
       success: true,
