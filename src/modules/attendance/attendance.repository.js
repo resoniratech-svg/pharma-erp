@@ -95,16 +95,22 @@ const getASMTeamAttendanceRepo = async (asmEmployeeId) => {
   return prisma.attendance.findMany({
     where: {
       mr: {
-        employee: {
-          reportsToId: asmEmployeeId,
-          designation: 'Medical Representative'
+        user: {
+          employee: {
+            reportsToId: asmEmployeeId,
+            designation: 'Medical Representative'
+          }
         }
       }
     },
     include: {
       mr: {
         include: {
-          employee: true
+          user: {
+            include: {
+              employee: true
+            }
+          }
         }
       }
     },
