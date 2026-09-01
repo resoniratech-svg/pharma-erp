@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,18 +9,109 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
 
 const NSMNotificationsScreen = () => {
-  const [notifications, setNotifications] = useState([
-    { id: '1', title: 'Target Published', message: 'Annual Target for South Zone published by NSM Head.', time: '10:30 AM', dateGroup: 'Today', type: 'target', read: false, bg: '#EEF2FF', iconColor: '#4F46E5' },
-    { id: '2', title: 'Attendance Alert', message: '4 Late check-ins detected in Gujarat territory today.', time: '09:15 AM', dateGroup: 'Today', type: 'attendance', read: false, bg: '#FEE2E2', iconColor: '#DC2626' },
-    { id: '3', title: 'Performance Alert', message: 'Karnataka achieved 108.3% target — Top Performing State!', time: 'Yesterday', dateGroup: 'Yesterday', type: 'performance', read: true, bg: '#FEF3C7', iconColor: '#D97706' },
-    { id: '4', title: 'System Notification', message: 'Pharma ERP system scheduled maintenance on Aug 05.', time: '28 Jul', dateGroup: 'Earlier', type: 'system', read: true, bg: '#F1F5F9', iconColor: '#64748B' },
-  ]);
+  
+  const [notifications, setNotifications] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+  const fetchNotifications = async () => {
+    try {
+      const token = await AsyncStorage.getItem('@token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [teamRes, stateRes, attdRes] = await Promise.all([
+        api.get('/dashboard/nsm/team-performance', { headers }).catch(() => null),
+        api.get('/dashboard/nsm/state-performance', { headers }).catch(() => null),
+        api.get('/attendance', { headers }).catch(() => null)
+      ]);
+
+      const synthesized: any[] = [];
+      let idCounter = 1;
+
+      // 1. Team Performance Alerts
+      if (teamRes?.data?.data) {
+        teamRes.data.data.forEach((rsm: any) => {
+          const achvPct = parseFloat((rsm.achvPct || '').replace('%', '')) || 0;
+          if (achvPct < 80) {
+            synthesized.push({
+              id: idCounter++,
+              title: 'Target Risk Alert',
+              message: `${rsm.name || rsm.empName || 'RSM'} achieved only ${rsm.achvPct} of target. Action required.`,
+              time: '10:00 AM',
+              dateGroup: 'Today',
+              type: 'target',
+              read: false,
+              bg: '#FEE2E2',
+              iconColor: '#DC2626'
+            });
+          } else if (achvPct >= 100) {
+            synthesized.push({
+              id: idCounter++,
+              title: 'Target Achieved',
+              message: `${rsm.name || rsm.empName || 'RSM'} has successfully achieved ${rsm.achvPct} of their target!`,
+              time: '09:30 AM',
+              dateGroup: 'Today',
+              type: 'performance',
+              read: false,
+              bg: '#DCFCE7',
+              iconColor: '#15803D'
+            });
+          }
+        });
+      }
+
+      // 2. State Performance Alerts
+      if (stateRes?.data?.data) {
+        stateRes.data.data.forEach((state: any) => {
+          const achvPct = parseFloat((state.achvPct || '').replace('%', '')) || 0;
+          if (achvPct < 70) {
+            synthesized.push({
+              id: idCounter++,
+              title: 'State Performance Critical',
+              message: `${state.state || 'A State'} is underperforming at ${state.achvPct}.`,
+              time: '11:15 AM',
+              dateGroup: 'Today',
+              type: 'target',
+              read: false,
+              bg: '#FEF3C7',
+              iconColor: '#D97706'
+            });
+          }
+        });
+      }
+
+      // 3. System Alerts
+      synthesized.push({
+        id: idCounter++,
+        title: 'System Update',
+        message: 'Monthly sales targets for FY 2026-27 have been rolled out.',
+        time: '08:00 AM',
+        dateGroup: 'Yesterday',
+        type: 'system',
+        read: true,
+        bg: '#F3E8FF',
+        iconColor: '#7E22CE'
+      });
+
+      setNotifications(synthesized);
+
+    } catch (error) {
+      console.log('Error synthesizing NSM notifications', error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleMarkAllRead = () => {
     setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
-    Alert.alert('✅ Marked Read', 'All notifications marked as read.');
+    Alert.alert('Success', 'All notifications marked as read.');
   };
 
   const handleClearAll = () => {
@@ -30,7 +121,6 @@ const NSMNotificationsScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>🔔 Notifications Inbox</Text>
@@ -38,7 +128,6 @@ const NSMNotificationsScreen = () => {
           </View>
         </View>
 
-        {/* Action Buttons */}
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.markBtn} onPress={handleMarkAllRead}>
             <Ionicons name="checkmark-done-outline" size={16} color="#4F46E5" />
@@ -51,7 +140,6 @@ const NSMNotificationsScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {/* Notification Groups */}
         {['Today', 'Yesterday', 'Earlier'].map((group) => {
           const groupItems = notifications.filter((n) => n.dateGroup === group);
           if (groupItems.length === 0) return null;
@@ -85,6 +173,12 @@ const NSMNotificationsScreen = () => {
             </View>
           );
         })}
+        {notifications.length === 0 && (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+                <Ionicons name="notifications-off-outline" size={48} color="#CBD5E1" />
+                <Text style={{ marginTop: 16, color: '#64748B', fontSize: 14 }}>No notifications available</Text>
+            </View>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

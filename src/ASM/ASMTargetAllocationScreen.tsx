@@ -62,7 +62,7 @@ const ASMTargetAllocationScreen = () => {
   const filteredTargets = targetOverview;
 
   const filteredMRs = mrAllocations.filter(mr => {
-    const matchesSearch = mr.name.toLowerCase().includes(searchQuery.toLowerCase()) || mr.code.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (mr.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || (mr.code || '').toLowerCase().includes((searchQuery || '').toLowerCase());
     const matchesTerritory = selectedTerritory === 'All Territories' || mr.territory === selectedTerritory;
     const matchesStatus = selectedStatus === 'All Status' || mr.status === selectedStatus;
     
@@ -95,7 +95,7 @@ const ASMTargetAllocationScreen = () => {
   const allocatedMRsCount = mrAllocations.filter(m => m.status === 'Allocated').length;
   const pendingMRsCount = totalActiveMRs - allocatedMRsCount;
 
-  const assignedTargetStr = MOCK_TARGETS[0]?.receivedAmount.replace(/,/g, '') || '15000000';
+  const assignedTargetStr = '15000000';
   const assignedTarget = parseInt(assignedTargetStr);
   const totalAllocated = mrAllocations.reduce((sum, mr) => sum + (parseInt(mr.allocated?.replace(/,/g, '') || '0') || 0), 0);
   const remainingTarget = assignedTarget - totalAllocated;
@@ -243,7 +243,7 @@ const ASMTargetAllocationScreen = () => {
                   <Ionicons name="calendar-outline" size={18} color="#8B5CF6" />
                 </View>
                 <Text style={styles.cardLabel}>Planning Period</Text>
-                <Text style={styles.cardValue}>{MOCK_TARGETS[0]?.planningPeriod || 'Q2 (Jul - Sep)'}</Text>
+                <Text style={styles.cardValue}>{'Q2 (Jul - Sep)'}</Text>
                 <Text style={styles.cardSubtitle}>Current active cycle</Text>
               </View>
               

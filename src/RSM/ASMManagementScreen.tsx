@@ -16,7 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getMyTeam } from '../services/employeeService';
+import { getMyTeam, createEmployee } from '../services/employeeService';
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const generateCalendarDays = (month: number, year: number) => {
@@ -97,6 +97,8 @@ const ASMManagementScreen = () => {
   const [viewModalData, setViewModalData] = useState<any>(null);
 
   const [loading, setLoading] = useState(true);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   // Load Data on Mount
   useEffect(() => {
@@ -109,20 +111,22 @@ const ASMManagementScreen = () => {
       const teamData = await getMyTeam();
       
       const mappedData = teamData.map((emp: any) => ({
-        id: emp.id?.toString() || Math.random().toString(),
-        code: emp.employeeCode || `EMP-${emp.id}`,
-        name: emp.user?.name || emp.name || 'Unknown',
-        state: emp.state || 'N/A',
-        hq: emp.headquarters || 'N/A',
-        status: emp.status || 'Active',
-        mobile: emp.user?.mobile || emp.mobile || 'N/A',
-        email: emp.user?.email || 'N/A',
-        gender: emp.gender || 'N/A',
-        dob: emp.dob ? new Date(emp.dob).toLocaleDateString() : 'N/A',
-        designation: emp.designation || 'Area Sales Manager',
-        joiningDate: emp.joiningDate ? new Date(emp.joiningDate).toLocaleDateString() : 'N/A',
-        employmentStatus: emp.status || 'Active'
-      }));
+          id: emp.id?.toString() || Math.random().toString(),
+          code: emp.employeeCode || `EMP-${emp.id}`,
+          name: emp.user?.name || emp.name || 'Unknown',
+          state: (emp.states && emp.states.length > 0) ? emp.states[0] : (emp.state || 'N/A'),
+          hq: emp.headquarters || 'N/A',
+          status: emp.status || 'Active',
+          mobile: emp.user?.mobile || emp.mobile || 'N/A',
+          email: emp.user?.email || 'N/A',
+          gender: emp.gender || 'N/A',
+          dob: emp.dob ? new Date(emp.dob).toISOString().split('T')[0] : 'N/A',
+          designation: emp.designation || 'Area Sales Manager',
+          joiningDate: emp.joiningDate ? new Date(emp.joiningDate).toISOString().split('T')[0] : 'N/A',
+          employmentStatus: emp.status || 'Active',
+          territory: emp.territory || '',
+          remarks: emp.remarks || ''
+        }));
       setAsmData(mappedData);
     } catch (error) {
       console.error('Failed to load team data', error);
@@ -192,7 +196,7 @@ const ASMManagementScreen = () => {
   };
 
   const handleSelectDate = (day: number) => {
-    const formatted = `${String(day).padStart(2, '0')}-${String(calMonth + 1).padStart(2, '0')}-${calYear}`;
+    const formatted = `${calYear}-${String(calMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     if (calendarTarget === 'dob') { setFormData({ ...formData, dob: formatted }); setFormErrors({...formErrors, dob: ''}); }
     if (calendarTarget === 'joining') { setFormData({ ...formData, joiningDate: formatted }); setFormErrors({...formErrors, joiningDate: ''}); }
     setCalendarTarget(null);
@@ -212,19 +216,19 @@ const ASMManagementScreen = () => {
       id: item.id,
       code: item.code,
       name: item.name,
-      mobile: item.mobile || '',
-      email: item.email || '',
-      gender: item.gender || 'Male',
-      dob: item.dob || '',
+      mobile: item.mobile === 'N/A' ? '' : item.mobile,
+      email: item.email === 'N/A' ? '' : item.email,
+      gender: item.gender === 'N/A' ? 'Male' : item.gender,
+      dob: item.dob === 'N/A' ? '' : item.dob,
       designation: item.designation || 'Area Sales Manager',
       reportingRsm: item.reportingRsm || 'Amitabh Verma (Regional Sales Manager)',
-      state: item.state || '',
-      hq: item.hq || '',
+      state: item.state === 'N/A' ? '' : item.state,
+      hq: item.hq === 'N/A' ? '' : item.hq,
       territory: item.territory || '',
       status: item.status || 'Active',
-      password: item.password || '',
-      confirmPassword: item.confirmPassword || '',
-      joiningDate: item.joiningDate || '',
+      password: '',
+      confirmPassword: '',
+      joiningDate: item.joiningDate === 'N/A' ? '' : item.joiningDate,
       employmentStatus: item.employmentStatus || 'Active',
       remarks: item.remarks || ''
     });
@@ -267,22 +271,38 @@ const ASMManagementScreen = () => {
       return; // Stop submission
     }
 
-    let updatedList;
-    if (formMode === 'add') {
-      const newASM = { ...formData, id: Date.now().toString() };
-      updatedList = [newASM, ...asmData];
-    } else {
-      updatedList = asmData.map(asm => asm.id === formData.id ? { ...formData } : asm);
-    }
-
-    setAsmData(updatedList);
-    setIsFormModalVisible(false);
-
-    // Save to Local Storage
     try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(updatedList));
-    } catch (e) {
+      if (formMode === 'add') {
+        const currentUserStr = await AsyncStorage.getItem('@user');
+        const currentUser = currentUserStr ? JSON.parse(currentUserStr) : null;
+        
+        await createEmployee({
+          name: formData.name,
+          email: formData.email,
+          mobile: formData.mobile,
+          password: formData.password,
+          designation: 'Area Sales Manager',
+          state: formData.state,
+          hq: formData.hq,
+          gender: formData.gender,
+          dob: formData.dob,
+          territory: formData.territory,
+          status: formData.status,
+          joiningDate: formData.joiningDate,
+          remarks: formData.remarks,
+          reportsToId: currentUser?.employeeId || null,
+        });
+        
+        Alert.alert('Success', 'ASM created successfully!');
+      } else {
+        Alert.alert('Notice', 'Edit ASM API integration coming soon');
+      }
+
+      setIsFormModalVisible(false);
+      fetchTeam();
+    } catch (e: any) {
       console.error('Failed to save ASM data', e);
+      Alert.alert('Error', e.response?.data?.message || 'Failed to save ASM');
     }
   };
 
@@ -290,8 +310,8 @@ const ASMManagementScreen = () => {
   const filteredData = asmData.filter(asm => {
     const matchesState = filterState === 'All States' || asm.state === filterState;
     const matchesStatus = filterStatus === 'All Status' || asm.status === filterStatus;
-    const searchLower = searchQuery.toLowerCase();
-    const matchesSearch = asm.name.toLowerCase().includes(searchLower) || asm.code.toLowerCase().includes(searchLower);
+    const searchLower = (searchQuery || '').toLowerCase();
+    const matchesSearch = (asm.name || '').toLowerCase().includes(searchLower) || (asm.code || '').toLowerCase().includes(searchLower);
     return matchesState && matchesStatus && matchesSearch;
   });
 
@@ -502,12 +522,22 @@ const ASMManagementScreen = () => {
                 <View style={[styles.inputRow, { flexDirection: isMobile ? 'column' : 'row' }]}>
                   <View style={styles.inputGroup}>
                     <Text style={[styles.label, formErrors.password && styles.labelError]}>Password *</Text>
-                    <TextInput style={[styles.input, formErrors.password && styles.inputError, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} secureTextEntry value={formData.password} onChangeText={(t) => handleTextChange('password', t)} />
+                    <View style={styles.passwordContainer}>
+                      <TextInput style={[styles.input, styles.passwordInput, formErrors.password && styles.inputError, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} secureTextEntry={!showPassword} value={formData.password} onChangeText={(t) => handleTextChange('password', t)} />
+                      <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowPassword(!showPassword)}>
+                        <Ionicons name={showPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#94A3B8" />
+                      </TouchableOpacity>
+                    </View>
                     {formErrors.password && <Text style={styles.errorText}>{formErrors.password}</Text>}
                   </View>
                   <View style={styles.inputGroup}>
                     <Text style={[styles.label, formErrors.confirmPassword && styles.labelError]}>Confirm Password *</Text>
-                    <TextInput style={[styles.input, formErrors.confirmPassword && styles.inputError, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} secureTextEntry value={formData.confirmPassword} onChangeText={(t) => handleTextChange('confirmPassword', t)} />
+                    <View style={styles.passwordContainer}>
+                      <TextInput style={[styles.input, styles.passwordInput, formErrors.confirmPassword && styles.inputError, Platform.OS === 'web' && { outlineStyle: 'none' } as any]} secureTextEntry={!showConfirmPassword} value={formData.confirmPassword} onChangeText={(t) => handleTextChange('confirmPassword', t)} />
+                      <TouchableOpacity style={styles.eyeIcon} onPress={() => setShowConfirmPassword(!showConfirmPassword)}>
+                        <Ionicons name={showConfirmPassword ? 'eye-off-outline' : 'eye-outline'} size={20} color="#94A3B8" />
+                      </TouchableOpacity>
+                    </View>
                     {formErrors.confirmPassword && <Text style={styles.errorText}>{formErrors.confirmPassword}</Text>}
                   </View>
                 </View>

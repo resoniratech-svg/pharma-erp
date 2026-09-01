@@ -60,3 +60,10 @@ export const updateMrProfile = async (
 
   return response.data;
 };
+export const getMe = async () => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.get('/auth/me', {
+    headers: { Authorization: `Bearer ${token}`}
+  });
+  return response.data;
+};

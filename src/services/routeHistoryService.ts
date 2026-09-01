@@ -10,6 +10,9 @@ export const getRouteHistory = async (
 
   const mrId =
     await AsyncStorage.getItem('@mrId');
+    
+  if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
+
 
     console.log(
   'ROUTE URL:',

@@ -33,6 +33,8 @@ const LeadsScreen = () => {
       case 'QUALIFIED': return '#10B981';
       case 'PROPOSAL': return '#8B5CF6';
       case 'WON': return '#059669';
+      case 'CONVERTED': return '#059669';
+      case 'ASSIGNED': return '#0284C7';
       case 'LOST': return '#EF4444';
       default: return '#64748B';
     }
@@ -45,7 +47,7 @@ const LeadsScreen = () => {
           <Ionicons name="arrow-back" size={28} color="#1E293B" />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>All Leads</Text>
-        <TouchableOpacity onPress={() => navigation.navigate('LeadForm')} style={styles.addButton}>
+        <TouchableOpacity onPress={() => navigation.navigate('LeadCreation')} style={styles.addButton}>
           <Ionicons name="add" size={24} color="#FFFFFF" />
         </TouchableOpacity>
       </View>

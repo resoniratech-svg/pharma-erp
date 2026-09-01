@@ -5,6 +5,7 @@ export const getMrDashboardAnalytics = async () => {
   const token = await AsyncStorage.getItem('@token');
   const mrId = await AsyncStorage.getItem('@mrId');
   
+  if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
   const response = await api.get(`/analytics/mr/${mrId}/dashboard`, {
     headers: {
       Authorization: `Bearer ${token}`,

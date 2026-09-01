@@ -10,3 +10,11 @@ export const getMyTeam = async () => {
   });
   return response.data.data || response.data;
 };
+
+export const createEmployee = async (data: any) => {
+  const token = await AsyncStorage.getItem('@token');
+  const response = await api.post('/sales-organization/employees', data, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return response.data;
+};

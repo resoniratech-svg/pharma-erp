@@ -4,6 +4,7 @@ import { api } from './api';
 export const getFollowUpsByMr = async () => {
   const token = await AsyncStorage.getItem('@token');
   const mrId = await AsyncStorage.getItem('@mrId');
+  if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
   const response = await api.get(`/follow-ups/mr/${mrId}`, {
     headers: { Authorization: `Bearer ${token}` },
   });

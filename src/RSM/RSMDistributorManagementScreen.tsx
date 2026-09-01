@@ -78,11 +78,11 @@ const RSMDistributorManagementScreen = () => {
   const filteredData = useMemo(() => {
     return distributorData.filter(item => {
       const matchesStatus = filterStatus === 'All Status' || item.status === filterStatus;
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = item.code.toLowerCase().includes(searchLower) || 
-                            item.name.toLowerCase().includes(searchLower) ||
-                            item.state.toLowerCase().includes(searchLower) ||
-                            item.asmName.toLowerCase().includes(searchLower);
+      const searchLower = (searchQuery || '').toLowerCase();
+      const matchesSearch = (item.code || '').toLowerCase().includes(searchLower) || 
+                            (item.name || '').toLowerCase().includes(searchLower) ||
+                            (item.state || '').toLowerCase().includes(searchLower) ||
+                            (item.asmName || '').toLowerCase().includes(searchLower);
       return matchesStatus && matchesSearch;
     });
   }, [searchQuery, filterStatus, filterTime]);

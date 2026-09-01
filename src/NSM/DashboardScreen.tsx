@@ -228,9 +228,7 @@ const NSMDashboardScreen = () => {
 
             <TouchableOpacity onPress={() => navigation.navigate(NSM_ROUTES.NOTIFICATIONS)} style={{ padding: 4, marginRight: 8, position: 'relative' }}>
               <Ionicons name="notifications-outline" size={22} color="#FFF" />
-              <View style={styles.notifBadge}>
-                <Text style={styles.notifBadgeText}>3</Text>
-              </View>
+              
             </TouchableOpacity>
 
             <TouchableOpacity onPress={() => navigation.navigate(NSM_ROUTES.PROFILE)} style={{ padding: 4 }}>
@@ -487,7 +485,7 @@ const NSMDashboardScreen = () => {
                 <Text style={styles.subMenuItemText}>Lead Creation</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadAssignment'); }}>
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('Leads'); }}>
                 <Text style={styles.subMenuItemText}>Lead Assignment</Text>
               </TouchableOpacity>
 

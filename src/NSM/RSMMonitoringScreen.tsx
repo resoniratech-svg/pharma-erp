@@ -243,15 +243,15 @@ const NSMRSMMonitoringScreen = () => {
       setSelectedRSM(null);
       setActiveTab('List');
     } catch (error: any) {
-      console.error("Error saving RSM:", error);
+      console.log("Error saving RSM:", error);
       Alert.alert('Error', error?.response?.data?.message || 'Failed to save RSM');
     }
   };
 
   const filteredList = rsmList.filter((item) => {
-    return item.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-           item.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-           item.stateTerritory.toLowerCase().includes(searchQuery.toLowerCase());
+    return (item.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
+           (item.code || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
+           (item.stateTerritory || "").toLowerCase().includes(searchQuery.toLowerCase());
   });
 
   return (

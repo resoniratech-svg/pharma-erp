@@ -28,14 +28,18 @@ const LeadPipelineTrackingScreen = () => {
 
   const stages = [
     { id: 'NEW', label: 'New Leads', icon: 'person-add-outline', color: '#3B82F6', bgColor: '#DBEAFE' },
+    { id: 'ASSIGNED', label: 'Assigned', icon: 'people-outline', color: '#0284C7', bgColor: '#E0F2FE' },
     { id: 'CONTACTED', label: 'Contacted', icon: 'call-outline', color: '#F59E0B', bgColor: '#FEF3C7' },
     { id: 'QUALIFIED', label: 'Qualified', icon: 'checkmark-circle-outline', color: '#10B981', bgColor: '#D1FAE5' },
     { id: 'PROPOSAL', label: 'Proposal', icon: 'document-text-outline', color: '#8B5CF6', bgColor: '#EDE9FE' },
-    { id: 'WON', label: 'Closed Won', icon: 'trophy-outline', color: '#059669', bgColor: '#A7F3D0' },
+    { id: 'WON', label: 'Won / Converted', icon: 'trophy-outline', color: '#059669', bgColor: '#A7F3D0' },
     { id: 'LOST', label: 'Closed Lost', icon: 'close-circle-outline', color: '#EF4444', bgColor: '#FEE2E2' },
   ];
 
   const getCountByStage = (stageId: string) => {
+    if (stageId === 'WON') {
+      return leads.filter(l => l.status === 'WON' || l.status === 'CONVERTED').length;
+    }
     return leads.filter(l => l.status === stageId).length;
   };
 

@@ -89,6 +89,7 @@ export const getDoctors = async () => {
 export const getDoctorVisitsByMr = async () => {
   const token = await AsyncStorage.getItem('@token');
   const mrId = await AsyncStorage.getItem('@mrId');
+  if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
   const response = await api.get(`/doctor-visits/mr/${mrId}`, {
     headers: {
       Authorization: `Bearer ${token}`,

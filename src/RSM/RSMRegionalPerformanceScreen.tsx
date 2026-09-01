@@ -83,8 +83,8 @@ const RSMRegionalPerformanceScreen = () => {
   const filteredData = useMemo(() => {
     return regionalData.filter(item => {
       const matchesState = filterState === 'All States' || item.state === filterState;
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = item.state.toLowerCase().includes(searchLower) || item.asm.toLowerCase().includes(searchLower);
+      const searchLower = (searchQuery || '').toLowerCase();
+      const matchesSearch = (item.state || '').toLowerCase().includes(searchLower) || (item.asm || '').toLowerCase().includes(searchLower);
       return matchesState && matchesSearch;
     });
   }, [searchQuery, filterState]);

@@ -38,11 +38,11 @@ const RSMTeamPerformanceScreen = () => {
       const data = await getRSMDashboard();
       if (data && data.reportingAsms) {
         setTeamData(data.reportingAsms.map((asm: any) => ({
-          id: asm.employeeId?.toString() || Math.random().toString(),
-          asmCode: asm.employeeCode || 'N/A',
+          id: asm.id?.toString() || Math.random().toString(),
+          asmCode: asm.id || 'N/A',
           asmName: asm.name || 'Unknown',
-          state: asm.state || 'N/A',
-          hq: asm.hq || 'N/A',
+          state: asm.area || 'N/A',
+          hq: asm.headquarters || 'N/A',
           assignedTarget: `₹${((asm.allocatedTarget || 0) / 100000).toFixed(2)} L`,
           achievement: `₹${((asm.achievedTarget || 0) / 100000).toFixed(2)} L`,
           achievementPct: `${asm.achievementPercentage || 0}%`,
@@ -70,11 +70,11 @@ const RSMTeamPerformanceScreen = () => {
   const filteredData = useMemo(() => {
     return teamData.filter(item => {
       const matchesStatus = filterStatus === 'All Statuses' || item.status === filterStatus;
-      const searchLower = searchQuery.toLowerCase();
+      const searchLower = (searchQuery || '').toLowerCase();
       const matchesSearch = 
-        item.state.toLowerCase().includes(searchLower) || 
-        item.asmName.toLowerCase().includes(searchLower) ||
-        item.asmCode.toLowerCase().includes(searchLower);
+        (item.state || '').toLowerCase().includes(searchLower) || 
+        (item.asmName || '').toLowerCase().includes(searchLower) ||
+        (item.asmCode || '').toLowerCase().includes(searchLower);
       return matchesStatus && matchesSearch;
     });
   }, [searchQuery, filterStatus]);

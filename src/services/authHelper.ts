@@ -12,13 +12,11 @@ export const getAuthDetails = async () => {
     throw new Error('User session expired or user is not logged in.');
   }
 
-  if (!mrId) {
-    throw new Error('Medical Representative identifier (MR ID) is missing.');
-  }
+
 
   return {
     token,
-    mrId: Number(mrId),
+    mrId: mrId ? Number(mrId) : null,
     headers: {
       Authorization: `Bearer ${token}`,
     },

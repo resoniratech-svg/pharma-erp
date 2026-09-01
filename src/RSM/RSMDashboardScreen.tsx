@@ -351,7 +351,7 @@ const RSMDashboardScreen = () => {
                 <Text style={styles.subMenuItemText}>Lead Creation</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadAssignment'); }}>
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('Leads'); }}>
                 <Text style={styles.subMenuItemText}>Lead Assignment</Text>
               </TouchableOpacity>
 

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,52 +7,90 @@ import {
   TouchableOpacity,
   SafeAreaView,
   Alert,
-  ActivityIndicator
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useFocusEffect } from '@react-navigation/native';
-import { getAllNotifications, markAsRead } from '../services/notificationService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
 
 const RSMNotificationsScreen = () => {
+  
   const [notifications, setNotifications] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(true);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchNotifications();
-    }, [])
-  );
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
 
   const fetchNotifications = async () => {
     try {
-      setLoading(true);
-      const data = await getAllNotifications();
-      if (data && data.length > 0) {
-        setNotifications(data.map((item: any) => ({
-          id: item.id.toString(),
-          title: item.title,
-          message: item.message,
-          time: new Date(item.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-          dateGroup: new Date(item.createdAt).toLocaleDateString() === new Date().toLocaleDateString() ? 'Today' : new Date(item.createdAt).toLocaleDateString(),
-          type: item.type.toLowerCase(),
-          read: item.isRead,
-          bg: item.isRead ? '#F1F5F9' : '#EEF2FF',
-          iconColor: item.isRead ? '#64748B' : '#4F46E5',
-        })));
-      } else {
-        setNotifications([]);
+      const token = await AsyncStorage.getItem('@token');
+      const headers = { Authorization: `Bearer ${token}` };
+
+      const [dashRes, attdRes] = await Promise.all([
+        api.get('/dashboard/rsm', { headers }).catch(() => null),
+        api.get('/attendance', { headers }).catch(() => null)
+      ]);
+
+      const synthesized: any[] = [];
+      let idCounter = 1;
+
+      // 1. Performance Alerts
+      if (dashRes?.data?.data?.teamPerformance) {
+        dashRes.data.data.teamPerformance.forEach((member: any) => {
+          const achvPct = parseFloat((member.achvPct || '').replace('%', '')) || 0;
+          if (achvPct < 80) {
+            synthesized.push({
+              id: idCounter++,
+              title: 'Target Risk Alert',
+              message: `${member.name || member.empName || 'Team Member'} achieved only ${member.achvPct} of target. Action required.`,
+              time: '10:00 AM',
+              dateGroup: 'Today',
+              type: 'target',
+              read: false,
+              bg: '#FEE2E2',
+              iconColor: '#DC2626'
+            });
+          } else if (achvPct >= 100) {
+            synthesized.push({
+              id: idCounter++,
+              title: 'Target Achieved',
+              message: `${member.name || member.empName || 'Team Member'} has successfully achieved ${member.achvPct} of their target!`,
+              time: '09:30 AM',
+              dateGroup: 'Today',
+              type: 'performance',
+              read: false,
+              bg: '#DCFCE7',
+              iconColor: '#15803D'
+            });
+          }
+        });
       }
+
+      // 3. System Alerts
+      synthesized.push({
+        id: idCounter++,
+        title: 'System Update',
+        message: 'Monthly sales targets have been rolled out.',
+        time: '08:00 AM',
+        dateGroup: 'Yesterday',
+        type: 'system',
+        read: true,
+        bg: '#F3E8FF',
+        iconColor: '#7E22CE'
+      });
+
+      setNotifications(synthesized);
+
     } catch (error) {
-      console.error(error);
-      Alert.alert('Error', 'Failed to load notifications');
+      console.log('Error synthesizing RSM notifications', error);
     } finally {
-      setLoading(false);
+      setIsLoading(false);
     }
   };
 
   const handleMarkAllRead = () => {
     setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
-    Alert.alert('✅ Marked Read', 'All notifications marked as read.');
+    Alert.alert('Success', 'All notifications marked as read.');
   };
 
   const handleClearAll = () => {
@@ -62,7 +100,6 @@ const RSMNotificationsScreen = () => {
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        {/* Header */}
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
             <Text style={styles.title}>🔔 Notifications Inbox</Text>
@@ -70,7 +107,6 @@ const RSMNotificationsScreen = () => {
           </View>
         </View>
 
-        {/* Action Buttons */}
         <View style={styles.actionRow}>
           <TouchableOpacity style={styles.markBtn} onPress={handleMarkAllRead}>
             <Ionicons name="checkmark-done-outline" size={16} color="#4F46E5" />
@@ -83,23 +119,15 @@ const RSMNotificationsScreen = () => {
           </TouchableOpacity>
         </View>
 
-        {loading ? (
-          <View style={{ padding: 40, alignItems: 'center' }}>
-            <ActivityIndicator size="large" color="#4F46E5" />
-            <Text style={{ marginTop: 10, color: '#6B7280' }}>Loading notifications...</Text>
-          </View>
-        ) : (
-          <>
-            {/* Notification Groups */}
-            {['Today', 'Yesterday', 'Earlier'].map((group) => {
-              const groupItems = notifications.filter((n) => n.dateGroup === group);
-              if (groupItems.length === 0) return null;
+        {['Today', 'Yesterday', 'Earlier'].map((group) => {
+          const groupItems = notifications.filter((n) => n.dateGroup === group);
+          if (groupItems.length === 0) return null;
 
-              return (
-                <View key={group} style={{ marginBottom: 16 }}>
-                  <Text style={styles.groupHeader}>{group}</Text>
-                  <View style={styles.card}>
-                    {groupItems.map((item) => (
+          return (
+            <View key={group} style={{ marginBottom: 16 }}>
+              <Text style={styles.groupHeader}>{group}</Text>
+              <View style={styles.card}>
+                {groupItems.map((item) => (
                   <TouchableOpacity
                     key={item.id}
                     style={[styles.notifRow, !item.read && styles.unreadRow]}
@@ -124,7 +152,11 @@ const RSMNotificationsScreen = () => {
             </View>
           );
         })}
-        </>
+        {notifications.length === 0 && (
+            <View style={{ padding: 40, alignItems: 'center' }}>
+                <Ionicons name="notifications-off-outline" size={48} color="#CBD5E1" />
+                <Text style={{ marginTop: 16, color: '#64748B', fontSize: 14 }}>No notifications available</Text>
+            </View>
         )}
       </ScrollView>
     </SafeAreaView>

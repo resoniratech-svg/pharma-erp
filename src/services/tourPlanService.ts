@@ -114,10 +114,11 @@ export const updateTourPlanStatus = async (planId: number | string, status: stri
 export const getTourPlansByMr = async () => {
   const token = await AsyncStorage.getItem('@token');
   const mrId = await AsyncStorage.getItem('@mrId');
+  if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
   const response = await api.get(`/tour-plans/mr/${mrId}`, {
     headers: {
       Authorization: `Bearer ${token}`,
     },
   });
   return response.data.data || response.data;
-};export const getASMTourPlans = async () => { const token = await AsyncStorage.getItem('@token'); const response = await api.get('/tour-plans/asm/team', { headers: { Authorization: Bearer  } }); return response.data.data || response.data; };
+};export const getASMTourPlans = async () => { const token = await AsyncStorage.getItem('@token'); const response = await api.get('/tour-plans/asm/team', { headers: { Authorization: `Bearer ${token}` } }); return response.data.data || response.data; };

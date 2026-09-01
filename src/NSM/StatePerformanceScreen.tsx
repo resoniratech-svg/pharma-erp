@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -13,6 +13,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
 import { LineChart } from 'react-native-chart-kit';
 
 const screenWidth = Dimensions.get('window').width;
@@ -26,12 +28,28 @@ const NSMStatePerformanceScreen = () => {
   const [filterState, setFilterState] = useState('All States');
   const [dropdownTarget, setDropdownTarget] = useState<'period' | 'state' | null>(null);
 
-  const statePerformanceData = [
-    { id: '1', state: 'Maharashtra', rsm: 'Arun Kumar', target: '₹15.00 Cr', achieved: '₹13.50 Cr', achvPct: '90.0%', orders: '4,520', drVisits: '12,500', attdPct: '92%', status: 'Good' },
-    { id: '2', state: 'Gujarat', rsm: 'Rajesh Singh', target: '₹12.00 Cr', achieved: '₹9.50 Cr', achvPct: '79.2%', orders: '3,100', drVisits: '9,800', attdPct: '88%', status: 'Average' },
-    { id: '3', state: 'Karnataka', rsm: 'Priya Sharma', target: '₹18.00 Cr', achieved: '₹19.50 Cr', achvPct: '108.3%', orders: '5,800', drVisits: '15,200', attdPct: '95%', status: 'Excellent' },
-    { id: '4', state: 'Tamil Nadu', rsm: 'Vikram Das', target: '₹10.00 Cr', achieved: '₹4.50 Cr', achvPct: '45.0%', orders: '1,200', drVisits: '5,100', attdPct: '78%', status: 'Needs Attention' },
-  ];
+  
+  const [statePerformanceData, setStatePerformanceData] = useState<any>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await api.get('/dashboard/nsm/state-performance', { headers: { Authorization: `Bearer ${await AsyncStorage.getItem('@token')}` } });
+        if (res?.data?.data) {
+          setStatePerformanceData(res.data.data);
+        }
+      } catch (e) {
+        console.log('Failed to fetch statePerformanceData', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  if (isLoading || !statePerformanceData) return null;
+
 
   const handleExport = () => {
     const headers = ['State', 'Assigned RSM', 'State Target (Cr)', 'Achievement (Cr)', 'Achievement %', 'Orders Booked', 'Doctor Visits', 'Attendance %', 'Status'];
@@ -41,12 +59,12 @@ const NSMStatePerformanceScreen = () => {
       const values = [
         row.state,
         row.rsm,
-        row.target.replace(/[^\d.]/g, ''),
-        row.achieved.replace(/[^\d.]/g, ''),
-        row.achvPct.replace('%', ''),
-        row.orders.replace(/,/g, ''),
-        row.drVisits.replace(/,/g, ''),
-        row.attdPct.replace('%', ''),
+        (row.target || '').replace(/[^\d.]/g, ''),
+        (row.achieved || '').replace(/[^\d.]/g, ''),
+        (row.achvPct || '').replace('%', ''),
+        (row.orders || '').replace(/,/g, ''),
+        (row.drVisits || '').replace(/,/g, ''),
+        (row.attdPct || '').replace('%', ''),
         row.status
       ];
       csvRows.push(values.map(v => `"${v}"`).join(','));
@@ -100,20 +118,20 @@ const NSMStatePerformanceScreen = () => {
   ];
 
   const filteredData = statePerformanceData.filter(row => {
-    const matchesSearch = row.state.toLowerCase().includes(searchQuery.toLowerCase()) || row.rsm.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (row.state || "").toLowerCase().includes(searchQuery.toLowerCase()) || (row.rsm || row.role || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesState = filterState === 'All States' || row.state === filterState;
     return matchesSearch && matchesState;
   });
 
   // Dynamic Summary Stats Calculations
-  const parseCr = (val: string) => parseFloat(val.replace(/[^\d.]/g, '')) || 0;
-  const parsePct = (val: string) => parseFloat(val.replace('%', '')) || 0;
+  const parseCr = (val: string) => parseFloat((val ? String(val) : '0').replace(/[^\d.]/g, '')) || 0;
+  const parsePct = (val: string) => parseFloat((val ? String(val) : '0').replace('%', '')) || 0;
 
   const totalStates = statePerformanceData.length;
   
-  const topStateRow = statePerformanceData.reduce((prev, current) => 
+  const topStateRow = statePerformanceData.length > 0 ? statePerformanceData.reduce((prev: any, current: any) => 
     parsePct(prev.achvPct) > parsePct(current.achvPct) ? prev : current
-  );
+  ) : { state: 'N/A', achvPct: '0%' };
 
   const totalTarget = statePerformanceData.reduce((sum, row) => sum + parseCr(row.target), 0);
   const totalAchieved = statePerformanceData.reduce((sum, row) => sum + parseCr(row.achieved), 0);
@@ -224,17 +242,17 @@ const NSMStatePerformanceScreen = () => {
                 const statusStyle = getStatusStyle(row.status);
                 return (
                 <View key={row.id} style={styles.tableRow}>
-                  <Text style={[styles.td, { width: 100, fontWeight: 'bold' }]}>{row.state}</Text>
-                  <Text style={[styles.td, { width: 110 }]}>{row.rsm}</Text>
-                  <Text style={[styles.td, { width: 100 }]}>{row.target}</Text>
-                  <Text style={[styles.td, { width: 100, color: '#059669', fontWeight: 'bold' }]}>{row.achieved}</Text>
-                  <Text style={[styles.td, { width: 70 }]}>{row.achvPct}</Text>
-                  <Text style={[styles.td, { width: 80 }]}>{row.orders}</Text>
-                  <Text style={[styles.td, { width: 90 }]}>{row.drVisits}</Text>
-                  <Text style={[styles.td, { width: 70 }]}>{row.attdPct}</Text>
+                  <Text style={[styles.td, { width: 100, fontWeight: 'bold' }]}>{row.state || row.role || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 110 }]}>{row.rsm || row.role || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 100 }]}>{row.target || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 100, color: '#059669', fontWeight: 'bold' }]}>{row.achieved || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 70 }]}>{row.achvPct || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 80 }]}>{row.orders || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 90 }]}>{row.drVisits || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 70 }]}>{row.attdPct || 'N/A'}</Text>
                   <View style={{ width: 110, alignItems: 'center' }}>
                      <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg, borderColor: statusStyle.border }]}>
-                        <Text style={[styles.statusText, { color: statusStyle.text }]}>{row.status}</Text>
+                        <Text style={[styles.statusText, { color: statusStyle.text }]}>{row.status || 'N/A'}</Text>
                      </View>
                   </View>
                   <TouchableOpacity style={{ width: 60, alignItems: 'center', paddingVertical: 4 }} onPress={() => setViewDetails(row)}>
@@ -258,7 +276,7 @@ const NSMStatePerformanceScreen = () => {
              
              <View style={styles.chartBody}>
                 {filteredData.map((item, idx) => {
-                  const val = parseFloat(item.achvPct.replace('%', ''));
+                  const val = parseFloat((item.achvPct || '').replace('%', ''));
                   return (
                   <View key={idx} style={styles.barRow}>
                      <Text style={styles.barLabel}>{item.state}</Text>

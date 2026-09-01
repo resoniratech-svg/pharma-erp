@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
 
 const NSMTeamPerformanceScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -23,12 +25,28 @@ const NSMTeamPerformanceScreen = () => {
   const [filterState, setFilterState] = useState('All States');
   const [dropdownTarget, setDropdownTarget] = useState<'target' | 'region' | 'state' | null>(null);
 
-  const teamPerformanceData = [
-    { id: '1', empCode: 'RSM001', empName: 'Arun Kumar', state: 'Maharashtra', target: '₹15.00 Cr', achieved: '₹13.50 Cr', achvPct: '90.0%', teamStrength: '53 Members', attdPct: '92%', orders: '4,520', status: 'Good' },
-    { id: '2', empCode: 'RSM002', empName: 'Rajesh Singh', state: 'Gujarat', target: '₹12.00 Cr', achieved: '₹9.50 Cr', achvPct: '79.2%', teamStrength: '41 Members', attdPct: '88%', orders: '3,100', status: 'Average' },
-    { id: '3', empCode: 'RSM003', empName: 'Priya Sharma', state: 'Karnataka', target: '₹18.00 Cr', achieved: '₹19.50 Cr', achvPct: '108.3%', teamStrength: '65 Members', attdPct: '95%', orders: '5,800', status: 'Excellent' },
-    { id: '4', empCode: 'RSM004', empName: 'Vikram Das', state: 'Tamil Nadu', target: '₹10.00 Cr', achieved: '₹4.50 Cr', achvPct: '45.0%', teamStrength: '30 Members', attdPct: '78%', orders: '1,200', status: 'Needs Attention' },
-  ];
+  
+  const [teamPerformanceData, setTeamPerformanceData] = useState<any>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await api.get('/dashboard/nsm/team-performance', { headers: { Authorization: `Bearer ${await AsyncStorage.getItem('@token')}` } });
+        if (res?.data?.data) {
+          setTeamPerformanceData(res.data.data);
+        }
+      } catch (e) {
+        console.log('Failed to fetch teamPerformanceData', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchData();
+  }, []);
+
+  if (isLoading || !teamPerformanceData) return null;
+
 
   const targetOptions = ['Monthly Target', 'Quarterly Target', 'Annual Target'];
   const regionOptions = ['All Regions', 'North Zone', 'South Zone', 'East Zone', 'West Zone'];
@@ -40,7 +58,7 @@ const NSMTeamPerformanceScreen = () => {
   ];
 
   const filteredData = teamPerformanceData.filter(row => {
-    const matchesSearch = row.empName.toLowerCase().includes(searchQuery.toLowerCase()) || row.empCode.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (row.empName || row.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || (row.empCode || row.role || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesState = filterState === 'All States' || row.state === filterState;
     return matchesSearch && matchesState;
   });
@@ -64,12 +82,12 @@ const NSMTeamPerformanceScreen = () => {
         row.empCode,
         row.empName,
         row.state,
-        row.target.replace(/[^\d.]/g, ''),
-        row.achieved.replace(/[^\d.]/g, ''),
-        row.achvPct.replace('%', ''),
-        row.teamStrength.replace(/[^\d]/g, ''),
-        row.attdPct.replace('%', ''),
-        row.orders.replace(/,/g, ''),
+        (row.target || '').replace(/[^\d.]/g, ''),
+        (row.achieved || '').replace(/[^\d.]/g, ''),
+        (row.achvPct || '').replace('%', ''),
+        (row.teamStrength || row.teamSize || '').replace(/[^\d]/g, ''),
+        (row.attdPct || '').replace('%', ''),
+        (row.orders || '').replace(/,/g, ''),
         row.status
       ];
       csvRows.push(values.map(v => `"${v}"`).join(','));
@@ -93,9 +111,9 @@ const NSMTeamPerformanceScreen = () => {
   };
 
   // Dynamic Summary Stats Calculations
-  const parseCr = (val: string) => parseFloat(val.replace(/[^\d.]/g, '')) || 0;
-  const parsePct = (val: string) => parseFloat(val.replace('%', '')) || 0;
-  const parseMembers = (val: string) => parseInt(val.replace(/[^\d]/g, '')) || 0;
+  const parseCr = (val: string) => parseFloat((val ? String(val) : '0').replace(/[^\d.]/g, '')) || 0;
+  const parsePct = (val: string) => parseFloat((val ? String(val) : '0').replace('%', '')) || 0;
+  const parseMembers = (val: string) => parseInt((val ? String(val) : '0').replace(/[^\d]/g, '')) || 0;
 
   const activeRSMs = filteredData.length;
   
@@ -103,9 +121,9 @@ const NSMTeamPerformanceScreen = () => {
   
   let topRsmRow = filteredData[0];
   if (filteredData.length > 0) {
-    topRsmRow = filteredData.reduce((prev, current) => 
+    topRsmRow = filteredData.length > 0 ? filteredData.reduce((prev: any, current: any) => 
       parsePct(prev.achvPct) > parsePct(current.achvPct) ? prev : current
-    );
+    ) : { name: 'N/A', achvPct: '0%' };
   }
 
   const totalTarget = filteredData.reduce((sum, row) => sum + parseCr(row.target), 0);
@@ -216,18 +234,18 @@ const NSMTeamPerformanceScreen = () => {
                 const statusStyle = getStatusStyle(row.status);
                 return (
                 <View key={row.id} style={styles.tableRow}>
-                  <Text style={[styles.td, { width: 110 }]}>{row.empCode}</Text>
-                  <Text style={[styles.td, { width: 110, fontWeight: 'bold' }]}>{row.empName}</Text>
-                  <Text style={[styles.td, { width: 90 }]}>{row.state}</Text>
-                  <Text style={[styles.td, { width: 110 }]}>{row.target}</Text>
-                  <Text style={[styles.td, { width: 100, color: '#059669', fontWeight: 'bold' }]}>{row.achieved}</Text>
-                  <Text style={[styles.td, { width: 70 }]}>{row.achvPct}</Text>
-                  <Text style={[styles.td, { width: 110 }]}>{row.teamStrength}</Text>
-                  <Text style={[styles.td, { width: 70 }]}>{row.attdPct}</Text>
-                  <Text style={[styles.td, { width: 70 }]}>{row.orders}</Text>
+                  <Text style={[styles.td, { width: 110 }]}>{row.empCode || row.role || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 110, fontWeight: 'bold' }]}>{row.empName || row.name || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 90 }]}>{row.state || row.role || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 110 }]}>{row.target || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 100, color: '#059669', fontWeight: 'bold' }]}>{row.achieved || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 70 }]}>{row.achvPct || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 110 }]}>{row.teamStrength || row.teamSize || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 70 }]}>{row.attdPct || 'N/A'}</Text>
+                  <Text style={[styles.td, { width: 70 }]}>{row.orders || 'N/A'}</Text>
                   <View style={{ width: 100, alignItems: 'center' }}>
                      <View style={[styles.statusBadge, { backgroundColor: statusStyle.bg, borderColor: statusStyle.border }]}>
-                        <Text style={[styles.statusText, { color: statusStyle.text }]}>{row.status}</Text>
+                        <Text style={[styles.statusText, { color: statusStyle.text }]}>{row.status || 'N/A'}</Text>
                      </View>
                   </View>
                   <TouchableOpacity style={{ width: 60, alignItems: 'center', paddingVertical: 4 }} onPress={() => setViewDetails(row)}>

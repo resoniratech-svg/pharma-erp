@@ -595,7 +595,7 @@ const NSMTargetPlanningScreen = () => {
                         const filteredRSMList = RSM_LIST.filter(rsm => {
                           const currentStatus = rowStatuses[rsm.id] || rsm.status;
                           const matchesStatus = filterStatus === 'All Status' || currentStatus === filterStatus;
-                          const matchesSearch = rsm.name.toLowerCase().includes(searchQuery.toLowerCase()) || rsm.code.toLowerCase().includes(searchQuery.toLowerCase());
+                          const matchesSearch = (rsm.name || "").toLowerCase().includes(searchQuery.toLowerCase()) || (rsm.code || "").toLowerCase().includes(searchQuery.toLowerCase());
                           const matchesState = filterState === 'All States' || rsm.state === filterState;
                           return matchesStatus && matchesSearch && matchesState;
                         });

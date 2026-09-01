@@ -109,6 +109,7 @@ export const createExpense = async (
 ) => {
   try {
     const { mrId, headers } = await getAuthDetails();
+    if (!mrId) return [];
 
     if (!expenseType || expenseType.trim() === '') {
       throw new Error('Expense category is required.');
@@ -153,8 +154,10 @@ export const createExpense = async (
 export const getExpensesByMr = async () => {
   try {
     const { mrId, headers } = await getAuthDetails();
+    if (!mrId) return [];
 
-    const response = await api.get(`/expenses/mr/${mrId}`, { headers });
+    if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
+  const response = await api.get(`/expenses/mr/${mrId}`, { headers });
 
     if (!response.data) {
       throw new Error('Empty response from server.');

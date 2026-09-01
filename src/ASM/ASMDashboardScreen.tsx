@@ -16,6 +16,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
 
 const { width, height } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.50; // Keep 50% width exactly like NSM/RSM
@@ -111,6 +112,28 @@ const ASMDashboardScreen = () => {
       navigation.navigate(routeKey);
     }
   };
+
+  
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const res = await api.get('/dashboard/asm', { headers: { Authorization: `Bearer ${await AsyncStorage.getItem('@token')}` } });
+        if (res?.data?.data) {
+          const d = res.data.data;
+          setActiveMRs(d.activeMRCount || 0);
+          setAssignedTarget(((d.assignedTarget || 0) / 100000).toFixed(2)); // Display in Lakhs
+          setAchievedTarget(((d.targetAchievement || 0) / 100000).toFixed(2));
+          setRemainingTarget(((d.remainingTarget || 0) / 100000).toFixed(2));
+          if (d.assignedTarget > 0) {
+            setAchievementPercent(((d.targetAchievement / d.assignedTarget) * 100).toFixed(1));
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch asm dashboard', e);
+      }
+    };
+    fetchData();
+  }, []);
 
   useFocusEffect(
     React.useCallback(() => {
@@ -337,7 +360,7 @@ const ASMDashboardScreen = () => {
                 <Text style={styles.subMenuItemText}>Lead Creation</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('LeadAssignment'); }}>
+              <TouchableOpacity style={styles.subMenuItem} onPress={() => { setIsMenuVisible(false); navigation.navigate('Leads'); }}>
                 <Text style={styles.subMenuItemText}>Lead Assignment</Text>
               </TouchableOpacity>
 

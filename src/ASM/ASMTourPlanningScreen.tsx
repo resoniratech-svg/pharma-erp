@@ -34,14 +34,14 @@ const ASMTourPlanningScreen = () => {
       const data = await getASMTourPlans();
       
       const formatted = data.map((item: any) => ({
-        id: item.id.toString(),
+        id: item.id?.toString(),
         date: item.tourDate ? new Date(item.tourDate).toLocaleDateString() : 'N/A',
-        mrName: item.mr?.employee?.name || 'Unknown',
+        mrName: item.mr?.user?.employee?.name || item.mr?.employee?.name || item.mr?.name || 'Unknown',
         territory: item.territory || 'Unassigned',
         visits: (item.tourPlanDoctors?.length || 0) + (item.tourPlanChemists?.length || 0),
         status: item.status || 'Pending',
-        mrCode: item.mr?.employee?.employeeCode || '-',
-        headquarters: item.mr?.employee?.headquarters || '-',
+        mrCode: item.mr?.user?.employee?.employeeCode || item.mr?.employee?.employeeCode || item.mr?.mrCode || '-',
+        headquarters: item.mr?.user?.employee?.headquarters || item.mr?.employee?.headquarters || '-',
         tourMonth: item.tourDate ? new Date(item.tourDate).toLocaleString('default', { month: 'long', year: 'numeric' }) : 'N/A',
         tourType: item.planType || '-',
         plannedArea: item.area || '-',
@@ -75,8 +75,8 @@ const ASMTourPlanningScreen = () => {
 
   // Filter Data
   const filteredData = tourPlans.filter(item => {
-    const matchesSearch = item.mrName.toLowerCase().includes(searchText.toLowerCase()) || 
-                          item.territory.toLowerCase().includes(searchText.toLowerCase());
+    const matchesSearch = (item.mrName || '').toLowerCase().includes((searchText || '').toLowerCase()) || 
+                          (item.territory || '').toLowerCase().includes((searchText || '').toLowerCase());
     const matchesStatus = selectedStatus === 'All' || item.status === selectedStatus;
     
     let matchesMonth = true;

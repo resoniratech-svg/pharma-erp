@@ -24,14 +24,14 @@ const ASMDailyActivitiesScreen = () => {
         setActivities(data.map((report: any) => ({
           id: report.id?.toString() || Math.random().toString(),
           date: report.reportDate ? new Date(report.reportDate).toLocaleDateString() : new Date().toLocaleDateString(),
-          mrName: report.employee?.name || 'Unknown',
+          mrName: (report.mr?.user?.employee || report.mr).name || 'Unknown',
           activityType: 'Daily Report',
           customer: '-',
           territory: report.territory || '-',
           status: 'Completed',
           activityTime: report.checkInTime || '-',
-          mrCode: report.employee?.employeeCode || '-',
-          headquarters: report.employee?.headquarters || '-',
+          mrCode: (report.mr?.user?.employee || report.mr).employeeCode || '-',
+          headquarters: (report.mr?.user?.employee || report.mr).headquarters || '-',
           customerType: 'N/A',
           specialty: 'N/A',
           clinicName: 'N/A',
@@ -70,8 +70,8 @@ const ASMDailyActivitiesScreen = () => {
 
   // Filter Logic
   const filteredActivities = activities.filter(act => {
-    const matchesSearch = act.mrName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          act.customer.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (act.mrName || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || 
+                          (act.customer || '').toLowerCase().includes((searchQuery || '').toLowerCase());
     
     const matchesActivity = selectedActivityFilter === 'All' || selectedActivityFilter === 'All Activities' || act.activityType === selectedActivityFilter;
     

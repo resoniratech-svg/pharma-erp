@@ -44,8 +44,8 @@ const RSMTeamVisitsScreen = () => {
         setVisitsData(data.map((report: any) => ({
           id: report.id?.toString(),
           visitDate: report.reportDate ? new Date(report.reportDate).toLocaleDateString() : 'N/A',
-          asmName: report.mr?.employee?.reportsTo?.name || 'Unknown ASM',
-          mrName: report.mr?.employee?.name || 'Unknown MR',
+          asmName: report.mr?.user?.employee?.manager?.name || report.mr?.employee?.manager?.name || report.mr?.employee?.reportsTo?.name || 'Unknown ASM',
+          mrName: report.mr?.user?.employee?.name || report.mr?.employee?.name || report.mr?.name || 'Unknown MR',
           visitType: report.doctorVisits > 0 ? 'Doctor Visit' : 'Chemist Visit',
           visitStatus: report.status === 'SUBMITTED' ? 'Completed' : 'Planned',
           details: report.remarks || 'No details provided.',
@@ -75,10 +75,10 @@ const RSMTeamVisitsScreen = () => {
   const filteredData = useMemo(() => {
     return visitsData.filter(item => {
       const matchesStatus = filterStatus === 'All' || item.visitStatus === filterStatus;
-      const searchLower = searchQuery.toLowerCase();
-      const matchesSearch = item.asmName.toLowerCase().includes(searchLower) || 
-                            item.mrName.toLowerCase().includes(searchLower) ||
-                            item.visitType.toLowerCase().includes(searchLower);
+      const searchLower = (searchQuery || '').toLowerCase();
+      const matchesSearch = (item.asmName || '').toLowerCase().includes(searchLower) || 
+                            (item.mrName || '').toLowerCase().includes(searchLower) ||
+                            (item.visitType || '').toLowerCase().includes(searchLower);
       return matchesStatus && matchesSearch;
     });
   }, [searchQuery, filterStatus, filterTime]);

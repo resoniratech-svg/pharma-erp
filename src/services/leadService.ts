@@ -13,7 +13,8 @@ export const leadService = {
 
   getLeadsByMr: async (mrId: number) => {
     try {
-      const response = await api.get(`/leads/mr/${mrId}`);
+      if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
+  const response = await api.get(`/leads/mr/${mrId}`);
       return response.data;
     } catch (error) {
       console.error('Error fetching MR leads:', error);

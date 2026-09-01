@@ -96,8 +96,8 @@ const ASMMRManagementScreen = () => {
   const [calYear, setCalYear] = useState(new Date().getFullYear());
 
   const filteredMRs = mrList.filter(mr => {
-    const matchesSearch = mr.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          mr.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    const matchesSearch = (mr.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || 
+                          (mr.code || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
                           mr.mobile.includes(searchQuery);
     const matchesStatus = selectedStatus === 'All Status' || mr.status === selectedStatus;
     return matchesSearch && matchesStatus;

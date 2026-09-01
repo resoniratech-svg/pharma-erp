@@ -23,7 +23,11 @@ const LeadListScreen = () => {
       const data = await leadService.getLeads();
       let fetchedLeads = data?.data || [];
       if (filterStatus) {
-        fetchedLeads = fetchedLeads.filter((l: any) => l.status === filterStatus);
+        if (filterStatus === 'WON') {
+          fetchedLeads = fetchedLeads.filter((l: any) => l.status === 'WON' || l.status === 'CONVERTED');
+        } else {
+          fetchedLeads = fetchedLeads.filter((l: any) => l.status === filterStatus);
+        }
       }
       setLeads(fetchedLeads);
     } catch (error) {
@@ -40,6 +44,8 @@ const LeadListScreen = () => {
       case 'QUALIFIED': return '#10B981';
       case 'PROPOSAL': return '#8B5CF6';
       case 'WON': return '#059669';
+      case 'CONVERTED': return '#059669';
+      case 'ASSIGNED': return '#0284C7';
       case 'LOST': return '#EF4444';
       default: return '#64748B';
     }

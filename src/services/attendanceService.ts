@@ -53,6 +53,7 @@ export const checkOutAttendance = async (
 export const getAttendanceLogs = async () => {
   const token = await AsyncStorage.getItem('@token');
   const mrId = await AsyncStorage.getItem('@mrId');
+  if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
   const response = await api.get(`/attendance/mr/${mrId}`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -71,10 +72,15 @@ export const getASMTeamAttendance = async () => {
 
 export const getRSMTeamAttendance = async () => {
   const token = await AsyncStorage.getItem('@token');
-  const response = await api.get('/attendance/asm/team', {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return response.data.data || response.data;
+  try {
+    const response = await api.get('/attendance', {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return response.data.data || response.data;
+  } catch (error) {
+    console.warn('Fallback to empty array for team attendance');
+    return [];
+  }
 };
 
 ///////////////////////////////////////////////////////////////

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,6 +12,8 @@ import {
   Platform,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
 
 const NSMTeamVisitsScreen = () => {
   const [searchQuery, setSearchQuery] = useState('');
@@ -22,12 +24,53 @@ const NSMTeamVisitsScreen = () => {
   const [filterState, setFilterState] = useState('All States');
   const [dropdownTarget, setDropdownTarget] = useState<'period' | 'state' | null>(null);
 
-  const teamVisitsData = [
-    { id: '1', date: '2026-08-01', rsmName: 'Arun Kumar', state: 'Maharashtra', visitType: 'Doctor Visit', doctorChemist: 'Dr. Suresh Patel', territory: 'Mumbai Central', checkIn: '10:00 AM', checkOut: '10:45 AM', duration: '45 mins', visitStatus: 'Completed' },
-    { id: '2', date: '2026-08-01', rsmName: 'Rajesh Singh', state: 'Gujarat', visitType: 'Chemist Visit', doctorChemist: 'Apollo Pharmacy', territory: 'Ahmedabad East', checkIn: '11:30 AM', checkOut: '12:00 PM', duration: '30 mins', visitStatus: 'Completed' },
-    { id: '3', date: '2026-08-02', rsmName: 'Priya Sharma', state: 'Karnataka', visitType: 'Joint Field Work', doctorChemist: 'Dr. Anil Kumar', territory: 'Bangalore South', checkIn: '-', checkOut: '-', duration: '-', visitStatus: 'Planned' },
-    { id: '4', date: '2026-08-02', rsmName: 'Arun Kumar', state: 'Maharashtra', visitType: 'Chemist Visit', doctorChemist: 'LifeCare Pharmacy', territory: 'Andheri West', checkIn: '14:00 PM', checkOut: '14:20 PM', duration: '20 mins', visitStatus: 'Completed' },
-  ];
+  
+  const [teamVisitsData, setTeamVisitsData] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchVisits = async () => {
+      try {
+        const [docs, chems] = await Promise.all([
+          api.get('/doctor-visits', { headers: { Authorization: `Bearer ${await AsyncStorage.getItem('@token')}` } }),
+          api.get('/chemist-visits', { headers: { Authorization: `Bearer ${await AsyncStorage.getItem('@token')}` } })
+        ]);
+        
+        const docsData = (docs.data?.data || []).map((d: any) => ({
+          id: 'dv_' + d.id,
+          date: new Date(d.visitDate || d.createdAt).toLocaleDateString(),
+          rsmName: d.mr?.employee?.manager?.name || d.mr?.name || 'Unknown',
+          state: d.mr?.employee?.states?.[0] || 'Unknown',
+          visitType: 'Doctor Visit',
+          doctorChemist: d.doctor?.name || 'Unknown',
+          territory: d.mr?.headquarters || 'Unknown',
+          checkIn: d.checkInTime ? new Date(d.checkInTime).toLocaleTimeString() : '-',
+          checkOut: d.checkOutTime ? new Date(d.checkOutTime).toLocaleTimeString() : '-',
+          duration: '-',
+          visitStatus: d.status || 'Completed'
+        }));
+
+        const chemsData = (chems.data?.data || []).map((c: any) => ({
+          id: 'cv_' + c.id,
+          date: new Date(c.visitDate || c.createdAt).toLocaleDateString(),
+          rsmName: c.mr?.employee?.manager?.name || c.mr?.name || 'Unknown',
+          state: c.mr?.employee?.states?.[0] || 'Unknown',
+          visitType: 'Chemist Visit',
+          doctorChemist: c.chemist?.name || 'Unknown',
+          territory: c.mr?.headquarters || 'Unknown',
+          checkIn: '-',
+          checkOut: '-',
+          duration: '-',
+          visitStatus: 'Completed'
+        }));
+
+        setTeamVisitsData([...docsData, ...chemsData]);
+      } catch (e) {
+        console.log('Failed to fetch team visits', e);
+      }
+    };
+    fetchVisits();
+  }, []);
+
 
   const periodOptions = ['Monthly', 'Quarterly', 'Annually'];
   const stateOptions = [
@@ -38,9 +81,9 @@ const NSMTeamVisitsScreen = () => {
   ];
 
   const filteredData = teamVisitsData.filter(row => {
-    const matchesSearch = row.rsmName.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          row.doctorChemist.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          row.territory.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (row.rsmName || row.doctorName || row.chemistName || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (row.doctorChemist || row.type || "").toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          (row.territory || row.location || "").toLowerCase().includes(searchQuery.toLowerCase());
     const matchesState = filterState === 'All States' || row.state === filterState;
     return matchesSearch && matchesState;
   });

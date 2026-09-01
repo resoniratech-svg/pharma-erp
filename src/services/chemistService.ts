@@ -129,6 +129,7 @@ export const getChemists = async () => {
 export const getChemistVisitsByMr = async () => {
   const token = await AsyncStorage.getItem('@token');
   const mrId = await AsyncStorage.getItem('@mrId');
+  if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
   const response = await api.get(`/chemist-visits/mr/${mrId}`, {
     headers: {
       Authorization: `Bearer ${token}`,

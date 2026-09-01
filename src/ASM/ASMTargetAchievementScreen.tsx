@@ -20,14 +20,14 @@ const ASMTargetAchievementScreen = () => {
     try {
       setLoading(true);
       const data = await getASMDashboard();
-      if (data && data.teamPerformance) {
-        setAchievements(data.teamPerformance.map((mr: any) => ({
-          id: mr.employeeId?.toString() || Math.random().toString(),
+      if (data && data.reportingMRs) {
+        setAchievements(data.reportingMRs.map((mr: any) => ({
+          id: mr.id?.toString() || Math.random().toString(),
           code: mr.employeeCode || 'EMP-?',
-          name: mr.employeeName || 'Unknown',
-          territory: mr.territory || 'Unassigned',
+          name: mr.name || 'Unknown',
+          territory: mr.area || 'Unassigned',
           hq: mr.headquarters || 'Unassigned',
-          reportingAsm: data.asmName || 'Current ASM User',
+          reportingAsm: data.asm?.name || 'Current ASM User',
           financialYear: 'FY 2026-27',
           assignedTarget: mr.assignedTarget || 0,
           achieved: mr.achieved || 0,
@@ -83,9 +83,9 @@ const ASMTargetAchievementScreen = () => {
 
   // Filter Logic
   const filteredAchievements = achievements.filter(mr => {
-    const matchesSearch = mr.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
-                          mr.code.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          mr.territory.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesSearch = (mr.name || '').toLowerCase().includes((searchQuery || '').toLowerCase()) || 
+                          (mr.code || '').toLowerCase().includes((searchQuery || '').toLowerCase()) ||
+                          (mr.territory || '').toLowerCase().includes((searchQuery || '').toLowerCase());
     const matchesStatus = selectedStatus === 'All' || mr.status === selectedStatus;
     return matchesSearch && matchesStatus;
   });

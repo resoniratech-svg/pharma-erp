@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -12,18 +12,43 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
+import { getMe } from '../services/authService';
 
 const RSMSettingsScreen = () => {
   const navigation = useNavigation<any>();
   const [activeTab, setActiveTab] = useState<'Profile' | 'Password'>('Profile');
 
-  // Profile fields for Amitabh Verma
-  const [employeeId] = useState('RSM001');
-  const [name, setName] = useState('Amitabh Verma');
-  const [mobile, setMobile] = useState('+91 98765 11223');
-  const [email, setEmail] = useState('amitabh.verma@pharmaerp.com');
-  const [designation] = useState('Regional Sales Manager');
-  const [region] = useState('South Zone');
+  
+  const [employeeId, setEmployeeId] = useState('');
+  const [name, setName] = useState('');
+  const [mobile, setMobile] = useState('');
+  const [email, setEmail] = useState('');
+  const [designation, setDesignation] = useState('');
+  const [region, setRegion] = useState('');
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await getMe();
+        if (res?.data) {
+          setName(res.data.name || '');
+          setEmail(res.data.email || '');
+          if (res.data.employee) {
+            setEmployeeId(res.data.employee.employeeCode || '');
+            setMobile(res.data.employee.contactNumber || '');
+            setDesignation(res.data.employee.designation || '');
+            setRegion(res.data.employee.states?.join(', ') || res.data.employee.headquarters || '');
+          }
+        }
+      } catch (e) {
+        console.error('Failed to fetch profile', e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   // Change Password fields
   const [currentPassword, setCurrentPassword] = useState('');

@@ -21,7 +21,7 @@ const ASMAttendanceScreen = () => {
   const [checkOutTime, setCheckOutTime] = useState<string | null>(null);
 
   // Self Attendance History
-  const [attendanceHistory] = useState([
+  const [attendanceHistory, setAttendanceHistory] = useState([
     { id: '1', date: '01 Aug 2026', checkIn: '09:15 AM', checkOut: '06:30 PM', hours: '9h 15m', status: 'Present' },
     { id: '2', date: '31 Jul 2026', checkIn: '09:05 AM', checkOut: '06:15 PM', hours: '9h 10m', status: 'Present' },
     { id: '3', date: '30 Jul 2026', checkIn: '09:45 AM', checkOut: '06:45 PM', hours: '9h 00m', status: 'Late Check-In' },
@@ -47,7 +47,7 @@ const ASMAttendanceScreen = () => {
            const presence = item.status === 'PRESENT' ? 1 : 0;
            return {
               id: item.id?.toString() || Math.random().toString(),
-              mrName: item.employee?.name || 'Unknown',
+              mrName: item.mr?.user?.employee?.name || item.mr?.employee?.name || item.mr?.name || 'Unknown',
               region: item.territory || 'Unassigned',
               workingDays: 26, // Derived dynamically in a real scenario
               present: presence,
@@ -74,19 +74,35 @@ const ASMAttendanceScreen = () => {
     }
   };
 
-  const handleCheckIn = () => {
+    const handleCheckIn = () => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setIsCheckedIn(true);
     setCheckInTime(time);
     setCheckOutTime(null);
-    Alert.alert('🟢 Checked In Successfully', `Recorded Check-In at ${time} with GPS Location (Lat: 19.0760, Long: 72.8777).`);
+    setAttendanceHistory(prev => [{
+      id: Math.random().toString(),
+      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+      checkIn: time,
+      checkOut: '-',
+      hours: '-',
+      status: 'Present'
+    }, ...prev]);
+    Alert.alert('Checked In Successfully', `Recorded Check-In at ${time} with GPS Location.`);
   };
 
-  const handleCheckOut = () => {
+    const handleCheckOut = () => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     setIsCheckedIn(false);
     setCheckOutTime(time);
-    Alert.alert('🔴 Checked Out Successfully', `Recorded Check-Out at ${time}. Working hours today: 8h 45m.`);
+    setAttendanceHistory(prev => {
+      const newHistory = [...prev];
+      if (newHistory.length > 0) {
+        newHistory[0].checkOut = time;
+        newHistory[0].hours = '8h 45m';
+      }
+      return newHistory;
+    });
+    Alert.alert('Checked Out Successfully', `Recorded Check-Out at ${time}.`);
   };
 
   return (

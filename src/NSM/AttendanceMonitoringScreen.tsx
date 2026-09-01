@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -9,6 +9,8 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
 
 const NSMAttendanceMonitoringScreen = () => {
   const [activeTab, setActiveTab] = useState<'MyAttendance' | 'TeamAttendance'>('MyAttendance');
@@ -27,12 +29,23 @@ const NSMAttendanceMonitoringScreen = () => {
   ]);
 
   // Team Attendance Data with GPS Exception & Punch Indicators
-  const teamAttendanceData = [
-    { id: '1', rsmName: 'Arun Kumar', region: 'Maharashtra', workingDays: 26, present: 24, absent: 0, leave: 2, late: 1, latePct: '3.8%', earlyOut: 0, missingPunch: 0, gpsException: 0, attdPct: '92.3%', status: 'Excellent', statusBg: '#DCFCE7', statusColor: '#15803D' },
-    { id: '2', rsmName: 'Priya Sharma', region: 'Karnataka', workingDays: 26, present: 25, absent: 0, leave: 1, late: 0, latePct: '0.0%', earlyOut: 0, missingPunch: 0, gpsException: 0, attdPct: '96.1%', status: 'Excellent', statusBg: '#DCFCE7', statusColor: '#15803D' },
-    { id: '3', rsmName: 'Rajesh Singh', region: 'Gujarat', workingDays: 26, present: 22, absent: 2, leave: 2, late: 3, latePct: '11.5%', earlyOut: 1, missingPunch: 1, gpsException: 2, attdPct: '84.6%', status: 'Good', statusBg: '#DBEAFE', statusColor: '#1D4ED8' },
-    { id: '4', rsmName: 'M. Selvam', region: 'Tamil Nadu', workingDays: 26, present: 20, absent: 3, leave: 3, late: 4, latePct: '15.4%', earlyOut: 2, missingPunch: 2, gpsException: 4, attdPct: '76.9%', status: 'Needs Focus', statusBg: '#FEE2E2', statusColor: '#DC2626' },
-  ];
+  
+  const [teamAttendanceData, setTeamAttendanceData] = useState<any[]>([]);
+
+  useEffect(() => {
+    const fetchTeam = async () => {
+      try {
+        const res = await api.get('/attendance', { headers: { Authorization: `Bearer ${await AsyncStorage.getItem('@token')}` } }); // NSM can fetch all
+        if (res?.data?.data) {
+          setTeamAttendanceData(res.data.data);
+        }
+      } catch (e) {
+        console.log('Failed to fetch team attendance', e);
+      }
+    };
+    fetchTeam();
+  }, []);
+
 
   const handleCheckIn = () => {
     const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
