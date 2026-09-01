@@ -10,7 +10,7 @@ const createMeeting = async (req, res) => {
       });
       if (mr) {
         mrId = mr.id;
-      } else if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN') {
+      } else if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN' || req.user.role === 'AREA_SALES_MANAGER' || req.user.role === 'REGIONAL_SALES_MANAGER' || req.user.role === 'NATIONAL_SALES_MANAGER') {
         const firstMR = await prisma.mR.findFirst();
         if (firstMR) {
           mrId = firstMR.id;
@@ -87,8 +87,11 @@ const getMeetingsByMr = async (
   res
 ) => {
   let mrId = Number(req.params.mrId);
-  if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN')) {
-    if (mrId === 1) mrId = 2;
+  if (req.user && (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN' || req.user.role === 'AREA_SALES_MANAGER' || req.user.role === 'REGIONAL_SALES_MANAGER' || req.user.role === 'NATIONAL_SALES_MANAGER')) {
+    if (mrId === 0 || mrId === 1) {
+      const firstMR = await prisma.mR.findFirst();
+      if (firstMR) mrId = firstMR.id;
+    }
   }
 
   const data =
