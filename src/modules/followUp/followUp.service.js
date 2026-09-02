@@ -1,7 +1,26 @@
 const repo = require("./followUp.repository");
+const notificationService = require("../notification/notification.service");
+
+const createFollowUpService = async (data) => {
+  const result = await repo.createFollowUpRepo(data);
+  if (data.mrId) {
+    try {
+      await notificationService.createNotificationService({
+        mrId: data.mrId,
+        title: 'Follow-Up Created',
+        message: `A follow-up was scheduled with priority: ${data.priority}`,
+        type: 'follow-up',
+        isRead: false
+      });
+    } catch (e) {
+      console.log('Error creating notification', e);
+    }
+  }
+  return result;
+};
 
 module.exports = {
-  createFollowUpService: repo.createFollowUpRepo,
+  createFollowUpService,
 
   getAllFollowUpsService: repo.getAllFollowUpsRepo,
 
