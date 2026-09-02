@@ -96,13 +96,13 @@ const getNSMDashboardKPIs = async (financialYear = "2026-27") => {
   const productIds = topSellingItems.map(item => item.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, productName: true }
+    select: { id: true, name: true }
   });
 
   const topProducts = topSellingItems.map(item => {
     const product = products.find(p => p.id === item.productId);
     return {
-      name: product ? product.productName : 'Unknown Product',
+      name: product ? product.name : 'Unknown Product',
       totalSales: item._sum.amount
     };
   });
@@ -187,13 +187,13 @@ const getRSMDashboardKPIs = async (userId, employeeId, financialYear = "2026-27"
   const productIds = topSellingItems.map(item => item.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, productName: true }
+    select: { id: true, name: true }
   });
 
   const topProducts = topSellingItems.map(item => {
     const product = products.find(p => p.id === item.productId);
     return {
-      name: product ? product.productName : 'Unknown Product',
+      name: product ? product.name : 'Unknown Product',
       totalSales: item._sum.amount
     };
   });
@@ -300,13 +300,13 @@ const getRSMDashboardKPIs = async (userId, employeeId, financialYear = "2026-27"
   const productIds = topSellingItems.map(item => item.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, productName: true }
+    select: { id: true, name: true }
   });
 
   const topProducts = topSellingItems.map(item => {
     const product = products.find(p => p.id === item.productId);
     return {
-      name: product ? product.productName : 'Unknown Product',
+      name: product ? product.name : 'Unknown Product',
       totalSales: item._sum.amount
     };
   });
@@ -395,13 +395,13 @@ const getASMDashboardKPIs = async (userId, employeeId, financialYear = "2026-27"
   const productIds = topSellingItems.map(item => item.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, productName: true }
+    select: { id: true, name: true }
   });
 
   const topProducts = topSellingItems.map(item => {
     const product = products.find(p => p.id === item.productId);
     return {
-      name: product ? product.productName : 'Unknown Product',
+      name: product ? product.name : 'Unknown Product',
       totalSales: item._sum.amount
     };
   });
@@ -523,13 +523,13 @@ const getASMDashboardKPIs = async (userId, employeeId, financialYear = "2026-27"
   const productIds = topSellingItems.map(item => item.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, productName: true }
+    select: { id: true, name: true }
   });
 
   const topProducts = topSellingItems.map(item => {
     const product = products.find(p => p.id === item.productId);
     return {
-      name: product ? product.productName : 'Unknown Product',
+      name: product ? product.name : 'Unknown Product',
       totalSales: item._sum.amount
     };
   });
@@ -716,13 +716,13 @@ const getMRDashboardKPIs = async (userId, employeeId, financialYear = "2026-27")
   const productIds = topSellingItems.map(item => item.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, productName: true }
+    select: { id: true, name: true }
   });
 
   const topProducts = topSellingItems.map(item => {
     const product = products.find(p => p.id === item.productId);
     return {
-      name: product ? product.productName : 'Unknown Product',
+      name: product ? product.name : 'Unknown Product',
       totalSales: item._sum.amount
     };
   });
@@ -809,13 +809,13 @@ const getSalesOperationsData = async (financialYear) => {
   const productIds = topSellingItems.map(item => item.productId);
   const products = await prisma.product.findMany({
     where: { id: { in: productIds } },
-    select: { id: true, productName: true }
+    select: { id: true, name: true }
   });
 
   const topProducts = topSellingItems.map(item => {
     const product = products.find(p => p.id === item.productId);
     return {
-      name: product ? product.productName : 'Unknown Product',
+      name: product ? product.name : 'Unknown Product',
       totalSales: item._sum.amount
     };
   });
