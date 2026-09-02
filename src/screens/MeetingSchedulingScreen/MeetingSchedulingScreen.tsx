@@ -449,8 +449,8 @@ const MeetingSchedulerScreen = () => {
   };
 
   const getMeetingStatus = (meet: Meeting): 'Completed' | 'Cancelled' | 'Expired' | "Today's Meeting" | 'Scheduled' => {
-    if (meet.status === 'Completed') return 'Completed';
-    if (meet.status === 'Cancelled') return 'Cancelled';
+    if (meet.status === 'Completed' || meet.status === 'COMPLETED') return 'Completed';
+    if (meet.status === 'Cancelled' || meet.status === 'CANCELLED') return 'Cancelled';
 
     const meetDateVal = meet.meetingDate ? new Date(meet.meetingDate) : null;
     if (!meetDateVal || isNaN(meetDateVal.getTime())) {

@@ -13,8 +13,10 @@ export const getMeetingsByMr = async () => {
   const token = await AsyncStorage.getItem('@token');
   const mrId = await AsyncStorage.getItem('@mrId');
   
-  if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
-  let url = `/meetings/mr/${mrId}`;
+  let url = '/meetings';
+  if (mrId && mrId !== 'null' && mrId !== 'undefined') {
+    url = `/meetings/mr/${mrId}`;
+  }
   
   const response = await api.get(url, {
     headers: { Authorization: `Bearer ${token}` },

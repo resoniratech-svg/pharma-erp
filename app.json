@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "PharmaERPExpo",
-    "slug": "PharmaERPExpo",
+    "name": "pharmaERP",
+    "slug": "pharmaERP",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
@@ -39,9 +39,6 @@
       "reactCompiler": false
     },
     "extra": {
-      "eas": {
-        "projectId": "249f96f5-a21f-409f-b848-3ffa9a096a66"
-      }
     },
     "owner": "resonira_technologies"
   }

@@ -17,6 +17,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
 import { getTargetPlanningData, getRSMList } from '../services/nsmStorageService';
 import { LineChart } from 'react-native-chart-kit';
 
@@ -38,6 +39,7 @@ export const NSM_ROUTES = {
 const NSMDashboardScreen = () => {
   const navigation = useNavigation<any>();
 
+  const [unreadCount, setUnreadCount] = useState(0);
   const [isMenuVisible, setIsMenuVisible] = useState(false);
   const [isSalesOpsOpen, setIsSalesOpsOpen] = useState(false);
   const [isCRMOpen, setIsCRMOpen] = useState(false);
@@ -111,69 +113,87 @@ const NSMDashboardScreen = () => {
     { rsm: 'Rajesh Singh', region: 'North Zone', target: '₹12.00 Cr', achieved: '₹9.50 Cr', grade: 'On Track' },
   ];
 
-  const [nationalTarget, setNationalTarget] = useState('₹15,00,00,000');
-  const [remainingTarget, setRemainingTarget] = useState('₹15,00,00,000');
-  const [activeRSMsCount, setActiveRSMsCount] = useState(5);
-  const [dynamicRSMs, setDynamicRSMs] = useState(topRSMs);
+  const [nationalTarget, setNationalTarget] = useState('₹0');
+  const [achievedTarget, setAchievedTarget] = useState('₹0');
+  const [remainingTarget, setRemainingTarget] = useState('₹0');
+  const [activeRSMsCount, setActiveRSMsCount] = useState(0);
+  const [stateCoverage, setStateCoverage] = useState('0%');
+  const [pendingApprovals, setPendingApprovals] = useState(0);
+  const [dynamicRSMs, setDynamicRSMs] = useState<any[]>([]);
+  const [monthlyTrendData, setMonthlyTrendData] = useState<any[]>([]);
+  const [topStatesList, setTopStatesList] = useState<any[]>([]);
+  const [topProductsList, setTopProductsList] = useState<any[]>([]);
 
   useFocusEffect(
     useCallback(() => {
       const loadDashboardData = async () => {
-        const tpData = await getTargetPlanningData();
-        const rsmList = await getRSMList();
+        // Fetch Unread Notifications
+        try {
+          const mrId = await AsyncStorage.getItem('@mrId');
+          if (mrId) {
+            const notifRes = await api.get(`/notifications/mr/${mrId}`);
+            if (notifRes.data && notifRes.data.success) {
+               const unread = notifRes.data.data.filter((n: any) => !n.isRead).length;
+               setUnreadCount(unread);
+            }
+          }
+        } catch(e) {}
+    
+        try {
+          const formatCurrency = (val: number) => {
+            return new Intl.NumberFormat('en-IN', {
+              style: 'currency',
+              currency: 'INR',
+              maximumFractionDigits: 0,
+            }).format(val);
+          };
 
-        const formatCurrency = (val: number) => {
-          return new Intl.NumberFormat('en-IN', {
-            style: 'currency',
-            currency: 'INR',
-            maximumFractionDigits: 0,
-          }).format(val);
-        };
-
-        // Check if we should keep the menu open upon returning
-        const keepMenuOpen = await AsyncStorage.getItem('@nsm_keep_menu_open');
-        if (keepMenuOpen === 'true') {
-          // Instantly open the drawer without animation
-          slideAnim.setValue(0);
-          fadeAnim.setValue(1);
-          setIsMenuVisible(true);
-          await AsyncStorage.removeItem('@nsm_keep_menu_open');
-        }
-
-        // 1. National Target
-        const nTarget = parseInt(tpData.nationalTargetInput || '0', 10);
-        setNationalTarget(formatCurrency(nTarget));
-
-        // 2. Active RSMs
-        const activeCount = rsmList.filter((r: any) => r.status === 'Active').length;
-        setActiveRSMsCount(activeCount);
-
-        // 3. Allocations / Remaining Target / Top RSMs
-        let totalAllocated = 0;
-        const mappedRSMs: any[] = [];
-
-        tpData.allocations.forEach((alloc: any) => {
-          const allocatedAmt = parseInt(alloc.allocatedTarget || '0', 10);
-          if (alloc.status === 'Allocated') {
-             totalAllocated += allocatedAmt;
+          const keepMenuOpen = await AsyncStorage.getItem('@nsm_keep_menu_open');
+          if (keepMenuOpen === 'true') {
+            slideAnim.setValue(0);
+            fadeAnim.setValue(1);
+            setIsMenuVisible(true);
+            await AsyncStorage.removeItem('@nsm_keep_menu_open');
           }
 
-          // Build dynamic RSM table row
-          mappedRSMs.push({
-            rsm: alloc.name,
-            region: alloc.state,
-            target: formatCurrency(allocatedAmt),
-            achieved: alloc.currAchv,
-            grade: parseFloat(alloc.currAchv) >= 100 ? 'Star Performer' : parseFloat(alloc.currAchv) > 85 ? 'Top Performer' : 'On Track',
-            rawAchv: parseFloat(alloc.currAchv) || 0
+          // Fetch Live Data
+          const token = await AsyncStorage.getItem('@token');
+          const response = await api.get('/dashboard/nsm', {
+            headers: { Authorization: `Bearer ${token}` }
           });
-        });
+          const liveData = response.data?.data;
+          
+          if (liveData) {
+            setNationalTarget(formatCurrency(liveData.nationalTarget || 0));
+            setAchievedTarget(formatCurrency(liveData.achievedTarget || 0));
+            setRemainingTarget(formatCurrency(liveData.remainingTarget || 0));
+            setActiveRSMsCount(liveData.activeRSMCount || 0);
+            setStateCoverage(`${liveData.stateCoverage || 0}%`);
+            setPendingApprovals(liveData.pendingApprovals || 0);
 
-        const rem = nTarget - totalAllocated;
-        setRemainingTarget(formatCurrency(rem > 0 ? rem : 0));
+            // Mapping Monthly Trend
+            if (liveData.monthlyData && liveData.monthlyData.length > 0) {
+              setMonthlyTrendData(liveData.monthlyData);
+            }
 
-        mappedRSMs.sort((a, b) => b.rawAchv - a.rawAchv);
-        setDynamicRSMs(mappedRSMs.slice(0, 3));
+            // Mapping Top States
+            if (liveData.topStates && liveData.topStates.length > 0) {
+              const formattedStates = liveData.topStates.map((s: any) => ({
+                ...s,
+                target: formatCurrency(s.target),
+                achieved: formatCurrency(s.achieved)
+              }));
+              setTopStatesList(formattedStates);
+            }
+
+            // Mapping Top Products
+            if (liveData.topProducts && liveData.topProducts.length > 0) {
+              setTopProductsList(liveData.topProducts.map((p: any) => p.name));
+            }
+          }
+        } catch (error) {
+          console.log('Error loading dashboard live data:', error);
+        }
       };
 
       loadDashboardData();
@@ -251,7 +271,7 @@ const NSMDashboardScreen = () => {
           <View style={styles.summaryCard}>
             <View style={styles.iconCircleGreen}><Ionicons name="trending-up-outline" size={20} color="#10B981" /></View>
             <Text style={styles.summaryLabel}>Achieved Target</Text>
-            <Text style={styles.summaryValue}>₹0</Text>
+            <Text style={styles.summaryValue}>{achievedTarget}</Text>
             <Text style={styles.summarySubtext}>0.0% Achievement</Text>
           </View>
 
@@ -272,14 +292,14 @@ const NSMDashboardScreen = () => {
           <View style={styles.summaryCard}>
             <View style={styles.iconCirclePurple}><Ionicons name="location-outline" size={20} color="#8B5CF6" /></View>
             <Text style={styles.summaryLabel}>State Coverage</Text>
-            <Text style={styles.summaryValue}>85%</Text>
+            <Text style={styles.summaryValue}>{stateCoverage}</Text>
             <Text style={styles.summarySubtext}>Of planned territories</Text>
           </View>
 
           <View style={styles.summaryCard}>
             <View style={[styles.iconCirclePurple, { backgroundColor: '#FCE7F3' }]}><Ionicons name="checkbox-outline" size={20} color="#EC4899" /></View>
             <Text style={styles.summaryLabel}>Pending Approvals</Text>
-            <Text style={styles.summaryValue}>12</Text>
+            <Text style={styles.summaryValue}>{pendingApprovals}</Text>
             <Text style={styles.summarySubtext}>Awaiting your review</Text>
           </View>
         </View>
@@ -289,16 +309,16 @@ const NSMDashboardScreen = () => {
           <Text style={styles.chartTitle}>Monthly Sales Trend</Text>
           <LineChart
             data={{
-              labels: ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
+              labels: monthlyTrendData.length > 0 ? monthlyTrendData.map(d => d.name) : ["Jan", "Feb", "Mar", "Apr", "May", "Jun"],
               datasets: [
                 {
-                  data: [1.5, 1.5, 1.5, 1.7, 1.7, 2.0],
+                  data: monthlyTrendData.length > 0 ? monthlyTrendData.map(d => Number(d.target) / 10000000) : [1.5, 1.5, 1.5, 1.7, 1.7, 2.0], // Convert to Cr
                   color: (opacity = 1) => `rgba(148, 163, 184, 1)`, // Gray (Target)
                   strokeWidth: 2,
                   strokeDashArray: [5, 5]
                 },
                 {
-                  data: [0, 0, 0, 0, 0, 0],
+                  data: monthlyTrendData.length > 0 ? monthlyTrendData.map(d => Number(d.sales) / 10000000) : [0, 0, 0, 0, 0, 0], // Convert to Cr
                   color: (opacity = 1) => `rgba(30, 58, 138, 1)`, // Dark Blue (Actual)
                   strokeWidth: 2,
                 }
@@ -358,7 +378,7 @@ const NSMDashboardScreen = () => {
           <Text style={styles.chartTitle}>Top Products</Text>
           
           <View style={{ marginTop: 16 }}>
-            {['Aspirin 500mg', 'Amoxicillin 250mg', 'Ibuprofen 400mg', 'Paracetamol 500mg', 'Cetirizine 10mg'].map((prod, idx) => (
+            {(topProductsList.length > 0 ? topProductsList : ['No Products Found']).map((prod, idx) => (
               <View key={idx} style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#F1F5F9', alignItems: 'center' }}>
                 <Text style={{ fontSize: 13, color: '#475569', fontWeight: '500' }}>{prod}</Text>
               </View>
@@ -377,7 +397,7 @@ const NSMDashboardScreen = () => {
             <Text style={[styles.th, { flex: 0.9, textAlign: 'right' }]}>Achv %</Text>
           </View>
 
-          {topStates.map((s, idx) => (
+          {topStatesList.map((s, idx) => (
             <View key={idx} style={styles.tableBodyRow}>
               <Text style={[styles.td, { flex: 1.2, fontWeight: 'bold' }]}>{s.state}</Text>
               <Text style={[styles.td, { flex: 1 }]}>{s.target}</Text>
@@ -434,7 +454,7 @@ const NSMDashboardScreen = () => {
         }
       ]}>
         <View style={styles.webDrawerHeader}>
-          <Image source={require('../../assets/images/logo.jpg')} style={{ width: 170, height: 48, resizeMode: 'contain' }} />
+          <Image source={require('../../assets/images/header_logo.jpg')} style={{ width: 170, height: 48, resizeMode: 'contain' }} />
         </View>
 
         <ScrollView style={{ paddingHorizontal: 12, paddingVertical: 10 }}>

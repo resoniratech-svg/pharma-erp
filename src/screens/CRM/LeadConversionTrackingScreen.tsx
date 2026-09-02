@@ -26,7 +26,7 @@ const LeadConversionTrackingScreen = () => {
   };
 
   const totalLeads = leads.length;
-  const wonLeads = leads.filter(l => l.status === 'WON').length;
+  const wonLeads = leads.filter(l => l.status === 'WON' || l.status === 'CONVERTED').length;
   const lostLeads = leads.filter(l => l.status === 'LOST').length;
   const activeLeads = totalLeads - wonLeads - lostLeads;
 

@@ -163,6 +163,7 @@ const RSMTeamPerformanceScreen = () => {
 
     try {
       if (Platform.OS === 'web') {
+        // @ts-ignore
         const doc = new jsPDF();
         doc.text("Team Performance Report", 14, 15);
         
@@ -181,7 +182,8 @@ const RSMTeamPerformanceScreen = () => {
           ]);
         });
         
-        autoTable(doc, {
+        // @ts-ignore
+          autoTable(doc, {
           head: [tableColumn],
           body: tableRows,
           startY: 20,

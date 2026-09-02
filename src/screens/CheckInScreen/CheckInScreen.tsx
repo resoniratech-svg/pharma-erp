@@ -169,17 +169,13 @@ const CheckInScreen = () => {
       const lngVal = activeCoords.longitude;
 
       const mrId = await AsyncStorage.getItem('@mrId');
+      const finalMrId = mrId || '0';
 
-      if (!mrId) {
-        Alert.alert('Error', 'MR ID not found');
-        return;
-      }
-
-      console.log('MR ID:', mrId);
+      console.log('MR ID:', finalMrId);
 
       const attendanceResponse =
         await checkInAttendance(
-          Number(mrId),
+          Number(finalMrId),
           latVal,
           lngVal
         );
@@ -197,6 +193,20 @@ const CheckInScreen = () => {
           resolvedId = attendanceResponse.id.toString();
         } else if (attendanceResponse.data && typeof attendanceResponse.data === 'object' && attendanceResponse.data.data && attendanceResponse.data.data.id) {
           resolvedId = attendanceResponse.data.data.id.toString();
+        }
+        
+        // Save dynamically generated Proxy MR ID for Managers
+        let newMrId = null;
+        if (attendanceResponse.data && attendanceResponse.data.mrId) {
+          newMrId = attendanceResponse.data.mrId.toString();
+        } else if (attendanceResponse.mrId) {
+          newMrId = attendanceResponse.mrId.toString();
+        } else if (attendanceResponse.data && attendanceResponse.data.data && attendanceResponse.data.data.mrId) {
+          newMrId = attendanceResponse.data.data.mrId.toString();
+        }
+        
+        if (newMrId) {
+          await AsyncStorage.setItem('@mrId', newMrId);
         }
       }
 

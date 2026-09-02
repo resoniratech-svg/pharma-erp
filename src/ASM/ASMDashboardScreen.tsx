@@ -35,6 +35,7 @@ export const ASM_ROUTES = {
 };
 
 const ASMDashboardScreen = () => {
+  const [unreadCount, setUnreadCount] = useState(0);
   const [userName, setUserName] = useState('');
   const [designation, setDesignation] = useState('Area Sales Manager');
 
@@ -179,7 +180,7 @@ const ASMDashboardScreen = () => {
           <TouchableOpacity onPress={() => navigation.navigate(ASM_ROUTES.NOTIFICATIONS)} style={{ padding: 4, marginRight: 8, position: 'relative' }}>
             <Ionicons name="notifications-outline" size={22} color="#FFF" />
             <View style={[styles.notifBadge, { position: 'absolute', top: 2, right: 2, backgroundColor: '#EF4444', width: 14, height: 14, borderRadius: 7, justifyContent: 'center', alignItems: 'center' }]}>
-              <Text style={{ color: '#FFF', fontSize: 9, fontWeight: 'bold' }}>3</Text>
+              <Text style={{ color: '#FFF', fontSize: 9, fontWeight: 'bold' }}>{unreadCount}</Text>
             </View>
           </TouchableOpacity>
 
@@ -311,7 +312,7 @@ const ASMDashboardScreen = () => {
       ]}>
         {/* Sidebar Logo */}
         <View style={styles.webDrawerHeader}>
-          <Image source={require('../../assets/images/logo.jpg')} style={{ width: 170, height: 48, resizeMode: 'contain' }} />
+          <Image source={require('../../assets/images/header_logo.jpg')} style={{ width: 170, height: 48, resizeMode: 'contain' }} />
         </View>
 
         {/* Sidebar Links */}

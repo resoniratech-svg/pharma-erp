@@ -117,9 +117,11 @@ const ASMTargetAchievementScreen = () => {
 
     try {
       if (Platform.OS === 'web') {
+        // @ts-ignore
         const doc = new jsPDF();
         doc.text("Target Achievement Report", 14, 15);
-        autoTable(doc, {
+        // @ts-ignore
+          autoTable(doc, {
           head: [["NAME", "TERRITORY", "ASSIGNED", "ACHIEVED", "ACH. %", "ORDERS", "STATUS"]],
           body: filteredAchievements.map(item => [item.name, item.territory, item.assignedTarget.toString(), item.achieved.toString(), `${item.achievementPercent}%`, item.totalOrders.toString(), item.status]),
           startY: 20,

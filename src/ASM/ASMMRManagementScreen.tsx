@@ -180,9 +180,11 @@ const ASMMRManagementScreen = () => {
 
     try {
       if (Platform.OS === 'web') {
+        // @ts-ignore
         const doc = new jsPDF();
         doc.text("MR Management Report", 14, 15);
-        autoTable(doc, {
+        // @ts-ignore
+          autoTable(doc, {
           head: [["CODE", "NAME", "HQ", "TERRITORY", "MOBILE", "STATUS"]],
           body: filteredMRs.map(item => [item.code, item.name, item.hq, item.territory, item.mobile, item.status]),
           startY: 20,

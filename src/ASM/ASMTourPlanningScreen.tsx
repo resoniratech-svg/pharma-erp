@@ -114,9 +114,11 @@ const ASMTourPlanningScreen = () => {
   const generatePDF = async () => {
     try {
       if (Platform.OS === 'web') {
+        // @ts-ignore
         const doc = new jsPDF();
         doc.text("Tour Planning (MTP) Report", 14, 15);
-        autoTable(doc, {
+        // @ts-ignore
+          autoTable(doc, {
           startY: 20,
           head: [['Tour Date', 'MR Name', 'Territory', 'Planned Visits', 'Status']],
           body: filteredData.map(item => [item.date, item.mrName, item.territory, item.visits, item.status]),

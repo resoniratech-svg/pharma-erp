@@ -142,9 +142,11 @@ const RSMDistributorManagementScreen = () => {
 
     try {
       if (Platform.OS === 'web') {
+        // @ts-ignore
         const doc = new jsPDF();
         doc.text("Distributor Management Report", 14, 15);
-        autoTable(doc, {
+        // @ts-ignore
+          autoTable(doc, {
           head: [["CODE", "NAME", "STATE", "ASM", "OUTSTANDING", "LAST ORDER", "STATUS"]],
           body: filteredData.map(item => [item.code, item.name, item.state, item.asmName, item.outstanding, item.lastOrder, item.status]),
           startY: 20,

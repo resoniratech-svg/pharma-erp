@@ -21,101 +21,54 @@ const NSMNotificationsScreen = () => {
     fetchNotifications();
   }, []);
 
-  const fetchNotifications = async () => {
+    const fetchNotifications = async () => {
     try {
-      const token = await AsyncStorage.getItem('@token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const [teamRes, stateRes, attdRes] = await Promise.all([
-        api.get('/dashboard/nsm/team-performance', { headers }).catch(() => null),
-        api.get('/dashboard/nsm/state-performance', { headers }).catch(() => null),
-        api.get('/attendance', { headers }).catch(() => null)
-      ]);
-
-      const synthesized: any[] = [];
-      let idCounter = 1;
-
-      // 1. Team Performance Alerts
-      if (teamRes?.data?.data) {
-        teamRes.data.data.forEach((rsm: any) => {
-          const achvPct = parseFloat((rsm.achvPct || '').replace('%', '')) || 0;
-          if (achvPct < 80) {
-            synthesized.push({
-              id: idCounter++,
-              title: 'Target Risk Alert',
-              message: `${rsm.name || rsm.empName || 'RSM'} achieved only ${rsm.achvPct} of target. Action required.`,
-              time: '10:00 AM',
-              dateGroup: 'Today',
-              type: 'target',
-              read: false,
-              bg: '#FEE2E2',
-              iconColor: '#DC2626'
-            });
-          } else if (achvPct >= 100) {
-            synthesized.push({
-              id: idCounter++,
-              title: 'Target Achieved',
-              message: `${rsm.name || rsm.empName || 'RSM'} has successfully achieved ${rsm.achvPct} of their target!`,
-              time: '09:30 AM',
-              dateGroup: 'Today',
-              type: 'performance',
-              read: false,
-              bg: '#DCFCE7',
-              iconColor: '#15803D'
-            });
-          }
-        });
+      const mrId = await AsyncStorage.getItem('@mrId');
+      if (!mrId) {
+        setIsLoading(false);
+        return;
       }
-
-      // 2. State Performance Alerts
-      if (stateRes?.data?.data) {
-        stateRes.data.data.forEach((state: any) => {
-          const achvPct = parseFloat((state.achvPct || '').replace('%', '')) || 0;
-          if (achvPct < 70) {
-            synthesized.push({
-              id: idCounter++,
-              title: 'State Performance Critical',
-              message: `${state.state || 'A State'} is underperforming at ${state.achvPct}.`,
-              time: '11:15 AM',
-              dateGroup: 'Today',
-              type: 'target',
-              read: false,
-              bg: '#FEF3C7',
-              iconColor: '#D97706'
-            });
-          }
-        });
+      const response = await api.get(`/notifications/mr/${mrId}`);
+      if (response.data && response.data.success) {
+        setNotifications(response.data.data.reverse()); // newest first
       }
-
-      // 3. System Alerts
-      synthesized.push({
-        id: idCounter++,
-        title: 'System Update',
-        message: 'Monthly sales targets for FY 2026-27 have been rolled out.',
-        time: '08:00 AM',
-        dateGroup: 'Yesterday',
-        type: 'system',
-        read: true,
-        bg: '#F3E8FF',
-        iconColor: '#7E22CE'
-      });
-
-      setNotifications(synthesized);
-
     } catch (error) {
-      console.log('Error synthesizing NSM notifications', error);
+      console.log('Error fetching live notifications', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
-    Alert.alert('Success', 'All notifications marked as read.');
+  const handleMarkAllRead = async () => {
+    try {
+      const unreadIds = notifications.filter(n => !n.isRead).map(n => n.id);
+      if (unreadIds.length === 0) {
+         Alert.alert('Info', 'All notifications are already marked as read.');
+         return;
+      }
+      
+      await Promise.all(unreadIds.map(id => api.patch(`/notifications/${id}/read`)));
+      
+      Alert.alert('Success', 'All notifications marked as read.');
+      fetchNotifications(); // Refresh the list
+    } catch (error) {
+      Alert.alert('Error', 'Failed to mark notifications as read.');
+    }
   };
 
   const handleClearAll = () => {
-    setNotifications([]);
+    Alert.alert('Delete All', 'Are you sure you want to delete all notifications?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+         // Optionally, add logic here to call a delete all endpoint if backend supports it
+         const mrId = await AsyncStorage.getItem('@mrId');
+         // If delete is per ID
+         try {
+           await Promise.all(notifications.map(n => api.delete(`/notifications/${n.id}`)));
+           setNotifications([]);
+         } catch(e) {}
+      } }
+    ]);
   };
 
   return (

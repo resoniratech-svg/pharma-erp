@@ -133,9 +133,11 @@ const ASMTargetAllocationScreen = () => {
 
     try {
       if (Platform.OS === 'web') {
+        // @ts-ignore
         const doc = new jsPDF();
         doc.text("MR Allocation Report", 14, 15);
-        autoTable(doc, {
+        // @ts-ignore
+          autoTable(doc, {
           head: [["CODE", "NAME", "HQ", "TERRITORY", "ALLOCATED", "STATUS"]],
           body: filteredMRs.map(item => [item.code, item.name, item.hq, item.territory, item.allocated || '0', item.status]),
           startY: 20,

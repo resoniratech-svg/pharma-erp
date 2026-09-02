@@ -175,6 +175,7 @@ const RSMRegionalPerformanceScreen = () => {
 
     try {
       if (Platform.OS === 'web') {
+        // @ts-ignore
         const doc = new jsPDF();
         doc.text("Regional Performance Report", 14, 15);
         
@@ -193,7 +194,8 @@ const RSMRegionalPerformanceScreen = () => {
           ]);
         });
         
-        autoTable(doc, {
+        // @ts-ignore
+          autoTable(doc, {
           head: [tableColumn],
           body: tableRows,
           startY: 20,

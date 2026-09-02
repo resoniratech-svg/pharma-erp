@@ -106,9 +106,11 @@ const ASMDailyActivitiesScreen = () => {
 
     try {
       if (Platform.OS === 'web') {
+        // @ts-ignore
         const doc = new jsPDF();
         doc.text("Daily Activities Report", 14, 15);
-        autoTable(doc, {
+        // @ts-ignore
+          autoTable(doc, {
           head: [["DATE", "MR NAME", "ACTIVITY TYPE", "CUSTOMER", "TERRITORY", "STATUS"]],
           body: filteredActivities.map(item => [item.date, item.mrName, item.activityType, item.customer, item.territory, item.status]),
           startY: 20,

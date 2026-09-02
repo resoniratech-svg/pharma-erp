@@ -134,9 +134,11 @@ const RSMTeamVisitsScreen = () => {
 
     try {
       if (Platform.OS === 'web') {
+        // @ts-ignore
         const doc = new jsPDF();
         doc.text("Team Visits Report", 14, 15);
-        autoTable(doc, {
+        // @ts-ignore
+          autoTable(doc, {
           head: [["VISIT DATE", "ASM NAME", "MR NAME", "VISIT TYPE", "VISIT STATUS"]],
           body: filteredData.map(item => [item.visitDate, item.asmName, item.mrName, item.visitType, item.visitStatus]),
           startY: 20,

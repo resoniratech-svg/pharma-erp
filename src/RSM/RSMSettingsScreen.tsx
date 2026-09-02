@@ -1,3 +1,5 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { api } from '../services/api';
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -59,19 +61,37 @@ const RSMSettingsScreen = () => {
     Alert.alert('✅ Profile Updated', 'RSM Profile information updated.');
   };
 
-  const handleChangePassword = () => {
+  const handleChangePassword = async () => {
     if (!currentPassword || !newPassword || !confirmPassword) {
-      Alert.alert('⚠️ Input Required', 'Please fill in all password fields.');
+      Alert.alert('Input Required', 'Please fill in all password fields.');
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('❌ Password Mismatch', 'New Password and Confirm Password do not match.');
+      Alert.alert('Password Mismatch', 'New Password and Confirm Password do not match.');
       return;
     }
-    setCurrentPassword('');
-    setNewPassword('');
-    setConfirmPassword('');
-    Alert.alert('🔒 Password Changed', 'Your security password has been updated.');
+    
+    try {
+      const token = await AsyncStorage.getItem('@token');
+      const response = await api.put('/auth/change-password', {
+        currentPassword,
+        newPassword
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      
+      if (response.data && response.data.success) {
+        setCurrentPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+        Alert.alert('Success', 'Your security password has been updated.');
+      } else {
+        Alert.alert('Error', response.data.message || 'Failed to update password');
+      }
+    } catch (error: any) {
+      const msg = error.response?.data?.message || 'Failed to connect to the server.';
+      Alert.alert('Error', msg);
+    }
   };
 
   const handleLogoutConfirm = () => {

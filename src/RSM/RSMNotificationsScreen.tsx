@@ -21,80 +21,54 @@ const RSMNotificationsScreen = () => {
     fetchNotifications();
   }, []);
 
-  const fetchNotifications = async () => {
+    const fetchNotifications = async () => {
     try {
-      const token = await AsyncStorage.getItem('@token');
-      const headers = { Authorization: `Bearer ${token}` };
-
-      const [dashRes, attdRes] = await Promise.all([
-        api.get('/dashboard/rsm', { headers }).catch(() => null),
-        api.get('/attendance', { headers }).catch(() => null)
-      ]);
-
-      const synthesized: any[] = [];
-      let idCounter = 1;
-
-      // 1. Performance Alerts
-      if (dashRes?.data?.data?.teamPerformance) {
-        dashRes.data.data.teamPerformance.forEach((member: any) => {
-          const achvPct = parseFloat((member.achvPct || '').replace('%', '')) || 0;
-          if (achvPct < 80) {
-            synthesized.push({
-              id: idCounter++,
-              title: 'Target Risk Alert',
-              message: `${member.name || member.empName || 'Team Member'} achieved only ${member.achvPct} of target. Action required.`,
-              time: '10:00 AM',
-              dateGroup: 'Today',
-              type: 'target',
-              read: false,
-              bg: '#FEE2E2',
-              iconColor: '#DC2626'
-            });
-          } else if (achvPct >= 100) {
-            synthesized.push({
-              id: idCounter++,
-              title: 'Target Achieved',
-              message: `${member.name || member.empName || 'Team Member'} has successfully achieved ${member.achvPct} of their target!`,
-              time: '09:30 AM',
-              dateGroup: 'Today',
-              type: 'performance',
-              read: false,
-              bg: '#DCFCE7',
-              iconColor: '#15803D'
-            });
-          }
-        });
+      const mrId = await AsyncStorage.getItem('@mrId');
+      if (!mrId) {
+        setIsLoading(false);
+        return;
       }
-
-      // 3. System Alerts
-      synthesized.push({
-        id: idCounter++,
-        title: 'System Update',
-        message: 'Monthly sales targets have been rolled out.',
-        time: '08:00 AM',
-        dateGroup: 'Yesterday',
-        type: 'system',
-        read: true,
-        bg: '#F3E8FF',
-        iconColor: '#7E22CE'
-      });
-
-      setNotifications(synthesized);
-
+      const response = await api.get(`/notifications/mr/${mrId}`);
+      if (response.data && response.data.success) {
+        setNotifications(response.data.data.reverse()); // newest first
+      }
     } catch (error) {
-      console.log('Error synthesizing RSM notifications', error);
+      console.log('Error fetching live notifications', error);
     } finally {
       setIsLoading(false);
     }
   };
 
-  const handleMarkAllRead = () => {
-    setNotifications((prev) => prev.map((item) => ({ ...item, read: true })));
-    Alert.alert('Success', 'All notifications marked as read.');
+  const handleMarkAllRead = async () => {
+    try {
+      const unreadIds = notifications.filter(n => !n.isRead).map(n => n.id);
+      if (unreadIds.length === 0) {
+         Alert.alert('Info', 'All notifications are already marked as read.');
+         return;
+      }
+      
+      await Promise.all(unreadIds.map(id => api.patch(`/notifications/${id}/read`)));
+      
+      Alert.alert('Success', 'All notifications marked as read.');
+      fetchNotifications(); // Refresh the list
+    } catch (error) {
+      Alert.alert('Error', 'Failed to mark notifications as read.');
+    }
   };
 
   const handleClearAll = () => {
-    setNotifications([]);
+    Alert.alert('Delete All', 'Are you sure you want to delete all notifications?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Delete', style: 'destructive', onPress: async () => {
+         // Optionally, add logic here to call a delete all endpoint if backend supports it
+         const mrId = await AsyncStorage.getItem('@mrId');
+         // If delete is per ID
+         try {
+           await Promise.all(notifications.map(n => api.delete(`/notifications/${n.id}`)));
+           setNotifications([]);
+         } catch(e) {}
+      } }
+    ]);
   };
 
   return (
