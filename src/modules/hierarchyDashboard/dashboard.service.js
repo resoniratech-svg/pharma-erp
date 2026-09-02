@@ -108,6 +108,8 @@ const getNSMDashboardKPIs = async (financialYear = "2026-27") => {
   });
 
   return {
+    topStates,
+    topProducts,
     financialYear,
     nationalTarget: effectiveNationalTarget,
     achievedTarget: totalAchieved,
@@ -117,8 +119,6 @@ const getNSMDashboardKPIs = async (financialYear = "2026-27") => {
     coveredStatesCount: coveredStates.size,
     pendingApprovals: 12,
     monthlyData,
-    topStates,
-    topProducts,
     rsms: rsms.map((r) => ({
       id: r.employeeCode,
       name: r.name,
@@ -150,55 +150,7 @@ const getRSMDashboardKPIs = async (userId, employeeId, financialYear = "2026-27"
   }
 
   if (!rsmEmployee) {
-  
-  // 5. Top States Calculation
-  const stateMap = {};
-  for (const allocation of allocations) {
-    if (allocation.allocatedToEmployeeId) {
-      const rsm = await employeeRepo.getEmployeeByIdRepo(allocation.allocatedToEmployeeId);
-      if (rsm && rsm.states && rsm.states.length > 0) {
-        const stateCount = rsm.states.length;
-        rsm.states.forEach(state => {
-          if (!stateMap[state]) stateMap[state] = { target: 0, achieved: 0 };
-          stateMap[state].target += Number(allocation.targetAmount) / stateCount;
-          stateMap[state].achieved += Number(allocation.achievedAmount) / stateCount;
-        });
-      }
-    }
-  }
-
-  const topStates = Object.keys(stateMap).map(state => ({
-    state,
-    target: stateMap[state].target,
-    achieved: stateMap[state].achieved,
-    percent: stateMap[state].target > 0 
-      ? ((stateMap[state].achieved / stateMap[state].target) * 100).toFixed(1) + '%' 
-      : '0.0%'
-  })).sort((a, b) => b.achieved - a.achieved).slice(0, 5);
-
-  // 6. Top Products Calculation
-  const topSellingItems = await prisma.invoiceItem.groupBy({
-    by: ['productId'],
-    _sum: { amount: true },
-    orderBy: { _sum: { amount: 'desc' } },
-    take: 5
-  });
-
-  const productIds = topSellingItems.map(item => item.productId);
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds } },
-    select: { id: true, name: true }
-  });
-
-  const topProducts = topSellingItems.map(item => {
-    const product = products.find(p => p.id === item.productId);
     return {
-      name: product ? product.name : 'Unknown Product',
-      totalSales: item._sum.amount
-    };
-  });
-
-  return {
       assignedTarget: 0,
       allocatedTarget: 0,
       remainingTarget: 0,
@@ -263,54 +215,6 @@ const getRSMDashboardKPIs = async (userId, employeeId, financialYear = "2026-27"
     else if (allocatedTarget > 0) allocationStatus = "Partially Allocated";
   }
 
-
-  // 5. Top States Calculation
-  const stateMap = {};
-  for (const allocation of allocations) {
-    if (allocation.allocatedToEmployeeId) {
-      const rsm = await employeeRepo.getEmployeeByIdRepo(allocation.allocatedToEmployeeId);
-      if (rsm && rsm.states && rsm.states.length > 0) {
-        const stateCount = rsm.states.length;
-        rsm.states.forEach(state => {
-          if (!stateMap[state]) stateMap[state] = { target: 0, achieved: 0 };
-          stateMap[state].target += Number(allocation.targetAmount) / stateCount;
-          stateMap[state].achieved += Number(allocation.achievedAmount) / stateCount;
-        });
-      }
-    }
-  }
-
-  const topStates = Object.keys(stateMap).map(state => ({
-    state,
-    target: stateMap[state].target,
-    achieved: stateMap[state].achieved,
-    percent: stateMap[state].target > 0 
-      ? ((stateMap[state].achieved / stateMap[state].target) * 100).toFixed(1) + '%' 
-      : '0.0%'
-  })).sort((a, b) => b.achieved - a.achieved).slice(0, 5);
-
-  // 6. Top Products Calculation
-  const topSellingItems = await prisma.invoiceItem.groupBy({
-    by: ['productId'],
-    _sum: { amount: true },
-    orderBy: { _sum: { amount: 'desc' } },
-    take: 5
-  });
-
-  const productIds = topSellingItems.map(item => item.productId);
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds } },
-    select: { id: true, name: true }
-  });
-
-  const topProducts = topSellingItems.map(item => {
-    const product = products.find(p => p.id === item.productId);
-    return {
-      name: product ? product.name : 'Unknown Product',
-      totalSales: item._sum.amount
-    };
-  });
-
   return {
     rsm: {
       id: rsmEmployee.id,
@@ -358,55 +262,7 @@ const getASMDashboardKPIs = async (userId, employeeId, financialYear = "2026-27"
   }
 
   if (!asmEmployee) {
-  
-  // 5. Top States Calculation
-  const stateMap = {};
-  for (const allocation of allocations) {
-    if (allocation.allocatedToEmployeeId) {
-      const rsm = await employeeRepo.getEmployeeByIdRepo(allocation.allocatedToEmployeeId);
-      if (rsm && rsm.states && rsm.states.length > 0) {
-        const stateCount = rsm.states.length;
-        rsm.states.forEach(state => {
-          if (!stateMap[state]) stateMap[state] = { target: 0, achieved: 0 };
-          stateMap[state].target += Number(allocation.targetAmount) / stateCount;
-          stateMap[state].achieved += Number(allocation.achievedAmount) / stateCount;
-        });
-      }
-    }
-  }
-
-  const topStates = Object.keys(stateMap).map(state => ({
-    state,
-    target: stateMap[state].target,
-    achieved: stateMap[state].achieved,
-    percent: stateMap[state].target > 0 
-      ? ((stateMap[state].achieved / stateMap[state].target) * 100).toFixed(1) + '%' 
-      : '0.0%'
-  })).sort((a, b) => b.achieved - a.achieved).slice(0, 5);
-
-  // 6. Top Products Calculation
-  const topSellingItems = await prisma.invoiceItem.groupBy({
-    by: ['productId'],
-    _sum: { amount: true },
-    orderBy: { _sum: { amount: 'desc' } },
-    take: 5
-  });
-
-  const productIds = topSellingItems.map(item => item.productId);
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds } },
-    select: { id: true, name: true }
-  });
-
-  const topProducts = topSellingItems.map(item => {
-    const product = products.find(p => p.id === item.productId);
     return {
-      name: product ? product.name : 'Unknown Product',
-      totalSales: item._sum.amount
-    };
-  });
-
-  return {
       assignedTarget: 0,
       allocatedTarget: 0,
       remainingTarget: 0,
@@ -485,54 +341,6 @@ const getASMDashboardKPIs = async (userId, employeeId, financialYear = "2026-27"
   } catch (e) {
     // Ignore schema errors if tables not yet queried
   }
-
-
-  // 5. Top States Calculation
-  const stateMap = {};
-  for (const allocation of allocations) {
-    if (allocation.allocatedToEmployeeId) {
-      const rsm = await employeeRepo.getEmployeeByIdRepo(allocation.allocatedToEmployeeId);
-      if (rsm && rsm.states && rsm.states.length > 0) {
-        const stateCount = rsm.states.length;
-        rsm.states.forEach(state => {
-          if (!stateMap[state]) stateMap[state] = { target: 0, achieved: 0 };
-          stateMap[state].target += Number(allocation.targetAmount) / stateCount;
-          stateMap[state].achieved += Number(allocation.achievedAmount) / stateCount;
-        });
-      }
-    }
-  }
-
-  const topStates = Object.keys(stateMap).map(state => ({
-    state,
-    target: stateMap[state].target,
-    achieved: stateMap[state].achieved,
-    percent: stateMap[state].target > 0 
-      ? ((stateMap[state].achieved / stateMap[state].target) * 100).toFixed(1) + '%' 
-      : '0.0%'
-  })).sort((a, b) => b.achieved - a.achieved).slice(0, 5);
-
-  // 6. Top Products Calculation
-  const topSellingItems = await prisma.invoiceItem.groupBy({
-    by: ['productId'],
-    _sum: { amount: true },
-    orderBy: { _sum: { amount: 'desc' } },
-    take: 5
-  });
-
-  const productIds = topSellingItems.map(item => item.productId);
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds } },
-    select: { id: true, name: true }
-  });
-
-  const topProducts = topSellingItems.map(item => {
-    const product = products.find(p => p.id === item.productId);
-    return {
-      name: product ? product.name : 'Unknown Product',
-      totalSales: item._sum.amount
-    };
-  });
 
   return {
     asm: {
@@ -679,54 +487,6 @@ const getMRDashboardKPIs = async (userId, employeeId, financialYear = "2026-27")
   const achievementPercentage =
     assignedTarget > 0 ? (targetAchievement / assignedTarget) * 100 : 0;
 
-
-  // 5. Top States Calculation
-  const stateMap = {};
-  for (const allocation of allocations) {
-    if (allocation.allocatedToEmployeeId) {
-      const rsm = await employeeRepo.getEmployeeByIdRepo(allocation.allocatedToEmployeeId);
-      if (rsm && rsm.states && rsm.states.length > 0) {
-        const stateCount = rsm.states.length;
-        rsm.states.forEach(state => {
-          if (!stateMap[state]) stateMap[state] = { target: 0, achieved: 0 };
-          stateMap[state].target += Number(allocation.targetAmount) / stateCount;
-          stateMap[state].achieved += Number(allocation.achievedAmount) / stateCount;
-        });
-      }
-    }
-  }
-
-  const topStates = Object.keys(stateMap).map(state => ({
-    state,
-    target: stateMap[state].target,
-    achieved: stateMap[state].achieved,
-    percent: stateMap[state].target > 0 
-      ? ((stateMap[state].achieved / stateMap[state].target) * 100).toFixed(1) + '%' 
-      : '0.0%'
-  })).sort((a, b) => b.achieved - a.achieved).slice(0, 5);
-
-  // 6. Top Products Calculation
-  const topSellingItems = await prisma.invoiceItem.groupBy({
-    by: ['productId'],
-    _sum: { amount: true },
-    orderBy: { _sum: { amount: 'desc' } },
-    take: 5
-  });
-
-  const productIds = topSellingItems.map(item => item.productId);
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds } },
-    select: { id: true, name: true }
-  });
-
-  const topProducts = topSellingItems.map(item => {
-    const product = products.find(p => p.id === item.productId);
-    return {
-      name: product ? product.name : 'Unknown Product',
-      totalSales: item._sum.amount
-    };
-  });
-
   return {
     mr: {
       id: mrEmployee ? mrEmployee.id : (mrRecord ? mrRecord.id : 1),
@@ -772,54 +532,6 @@ const getTeamPerformanceData = async (financialYear) => {
 };
 
 const getSalesOperationsData = async (financialYear) => {
-
-  // 5. Top States Calculation
-  const stateMap = {};
-  for (const allocation of allocations) {
-    if (allocation.allocatedToEmployeeId) {
-      const rsm = await employeeRepo.getEmployeeByIdRepo(allocation.allocatedToEmployeeId);
-      if (rsm && rsm.states && rsm.states.length > 0) {
-        const stateCount = rsm.states.length;
-        rsm.states.forEach(state => {
-          if (!stateMap[state]) stateMap[state] = { target: 0, achieved: 0 };
-          stateMap[state].target += Number(allocation.targetAmount) / stateCount;
-          stateMap[state].achieved += Number(allocation.achievedAmount) / stateCount;
-        });
-      }
-    }
-  }
-
-  const topStates = Object.keys(stateMap).map(state => ({
-    state,
-    target: stateMap[state].target,
-    achieved: stateMap[state].achieved,
-    percent: stateMap[state].target > 0 
-      ? ((stateMap[state].achieved / stateMap[state].target) * 100).toFixed(1) + '%' 
-      : '0.0%'
-  })).sort((a, b) => b.achieved - a.achieved).slice(0, 5);
-
-  // 6. Top Products Calculation
-  const topSellingItems = await prisma.invoiceItem.groupBy({
-    by: ['productId'],
-    _sum: { amount: true },
-    orderBy: { _sum: { amount: 'desc' } },
-    take: 5
-  });
-
-  const productIds = topSellingItems.map(item => item.productId);
-  const products = await prisma.product.findMany({
-    where: { id: { in: productIds } },
-    select: { id: true, name: true }
-  });
-
-  const topProducts = topSellingItems.map(item => {
-    const product = products.find(p => p.id === item.productId);
-    return {
-      name: product ? product.name : 'Unknown Product',
-      totalSales: item._sum.amount
-    };
-  });
-
   return {
     pipeline: [
       { id: '1', zone: 'South Zone', target: '₹45.00 Cr', achieved: '₹48.50 Cr', pipeline: '₹12.50 Cr', conversionPct: '32%', topState: 'Karnataka (₹19.50 Cr)', status: 'Excellent' },
