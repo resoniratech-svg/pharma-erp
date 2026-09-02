@@ -14,6 +14,7 @@ const {
   updateProfile,
   forgotPassword,
   resetPassword,
+  changePassword,
 } = require("./auth.controller");
 
 router.post("/register", register);
@@ -31,6 +32,7 @@ router.put(
 );
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
+router.put("/change-password", authMiddleware, changePassword);
 
 
 module.exports = router;

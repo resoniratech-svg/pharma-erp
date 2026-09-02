@@ -268,10 +268,40 @@ const resetPassword = async (id, token, newPassword) => {
   return { message: "Password updated successfully" };
 };
 
+
+const changePassword = async (userId, currentPassword, newPassword) => {
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+  });
+
+  if (!user) {
+    const error = new Error("User not found");
+    error.statusCode = 404;
+    throw error;
+  }
+
+  const isMatch = await bcrypt.compare(currentPassword, user.password);
+  if (!isMatch) {
+    const error = new Error("Incorrect current password");
+    error.statusCode = 401;
+    throw error;
+  }
+
+  const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+  await prisma.user.update({
+    where: { id: userId },
+    data: { password: hashedPassword },
+  });
+
+  return { message: "Password updated successfully" };
+};
+
 module.exports = {
   registerUser,
   loginUser,
   getCurrentUser,
   forgotPassword,
   resetPassword,
+  changePassword,
 };

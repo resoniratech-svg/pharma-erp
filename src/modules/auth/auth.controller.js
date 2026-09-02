@@ -4,6 +4,7 @@ const {
   getCurrentUser,
   forgotPassword: forgotPasswordService,
   resetPassword: resetPasswordService,
+  changePassword: changePasswordService,
 } = require("./auth.service");
 
 const register = async (req, res) => {
@@ -179,6 +180,24 @@ const resetPassword = async (req, res) => {
   }
 };
 
+
+const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+    const userId = req.user.id;
+
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: "Missing required fields" });
+    }
+
+    const result = await changePasswordService(userId, currentPassword, newPassword);
+    res.status(200).json({ success: true, message: result.message });
+  } catch (error) {
+    const statusCode = error.statusCode || 400;
+    res.status(statusCode).json({ success: false, message: error.message });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -187,4 +206,5 @@ module.exports = {
   updateProfile,
   forgotPassword,
   resetPassword,
+  changePassword,
 };
