@@ -39,6 +39,9 @@
       "reactCompiler": false
     },
     "extra": {
+      "eas": {
+        "projectId": "ac2186cc-f645-49fb-a4e0-7d5f980089ef"
+      }
     },
     "owner": "resonira_technologies"
   }
