@@ -1,5 +1,4 @@
-const { PrismaClient } = require("@prisma/client");
-const prisma = new PrismaClient();
+const prisma = require('../../config/db');
 
 const createGST = async (data) => {
   return await prisma.gSTRecord.create({ data });
