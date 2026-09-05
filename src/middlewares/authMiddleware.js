@@ -1,3 +1,4 @@
+const { tenantContext } = require('../utils/tenantContext');
 const jwt = require("jsonwebtoken");
 const prisma = require("../config/db");
 
@@ -39,7 +40,15 @@ const authMiddleware = async (req, res, next) => {
       }
     }
 
-    next();
+    
+    const companyId = decoded.companyId || 1;
+    const role = decoded.role;
+    
+    // Wrap next() in tenantContext
+    tenantContext.run({ companyId, role }, () => {
+      next();
+    });
+
   } catch (error) {
     return res.status(401).json({
       success: false,

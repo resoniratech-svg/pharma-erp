@@ -1,6 +1,6 @@
 const repo = require('./finance.repository');
 
-const createVoucherService = async (voucherData) => {
+const createVoucherService = async (voucherData, user) => {
   // Strict Validation: Debit must equal Credit
   let totalDr = 0;
   let totalCr = 0;
@@ -18,19 +18,19 @@ const createVoucherService = async (voucherData) => {
     throw new Error('Voucher amount must be greater than 0.');
   }
 
-  return repo.createVoucherRepo(voucherData);
+  return repo.createVoucherRepo(voucherData, user);
 };
 
-const getVouchersService = async (filters) => {
-  return repo.getVouchersRepo(filters);
+const getVouchersService = async (filters, user) => {
+  return repo.getVouchersRepo(filters, user);
 };
 
-const getTrialBalanceService = async () => {
-  return repo.getTrialBalanceRepo();
+const getTrialBalanceService = async (user) => {
+  return repo.getTrialBalanceRepo(user);
 };
 
-const getProfitLossService = async () => {
-  const trialBalance = await repo.getTrialBalanceRepo();
+const getProfitLossService = async (user) => {
+  const trialBalance = await repo.getTrialBalanceRepo(user);
   
   // Filter for Income and Expenses
   const incomes = trialBalance.filter(l => (l.nature || '').toUpperCase() === 'INCOME');
@@ -50,9 +50,9 @@ const getProfitLossService = async () => {
   };
 };
 
-const getBalanceSheetService = async () => {
-  const trialBalance = await repo.getTrialBalanceRepo();
-  const pnl = await getProfitLossService();
+const getBalanceSheetService = async (user) => {
+  const trialBalance = await repo.getTrialBalanceRepo(user);
+  const pnl = await getProfitLossService(user);
   
   // Filter for Assets, Liabilities, Equity
   const assets = trialBalance.filter(l => (l.nature || '').toUpperCase() === 'ASSET');
@@ -73,12 +73,12 @@ const getBalanceSheetService = async () => {
   };
 };
 
-const getLedgersService = async () => {
-  return repo.getLedgersRepo();
+const getLedgersService = async (user) => {
+  return repo.getLedgersRepo(user);
 };
 
-const getGroupsService = async () => {
-  return repo.getGroupsRepo();
+const getGroupsService = async (user) => {
+  return repo.getGroupsRepo(user);
 };
 
 const createGroupService = async (data) => {
@@ -96,16 +96,16 @@ const createLedgerService = async (data) => {
   return repo.createLedgerRepo(data);
 };
 
-const createCommissionService = async (data) => {
-  return repo.createCommissionRepo(data);
+const createCommissionService = async (data, user) => {
+  return repo.createCommissionRepo(data, user);
 };
 
-const getCommissionsService = async () => {
-  return repo.getCommissionsRepo();
+const getCommissionsService = async (user) => {
+  return repo.getCommissionsRepo(user);
 };
 
-const updateCommissionStatusService = async (id, status) => {
-  return repo.updateCommissionStatusRepo(id, status);
+const updateCommissionStatusService = async (id, status, user) => {
+  return repo.updateCommissionStatusRepo(id, status, user);
 };
 
 module.exports = {

@@ -108,6 +108,7 @@ model RolePermission {
 }
 
 model ProductCategory {
+  companyId Int @default(1)
   id          Int       @id @default(autoincrement())
   name        String    @unique
   description String?
@@ -163,6 +164,7 @@ model Product {
 }
 
 model Batch {
+  companyId Int @default(1)
   id                     Int                     @id @default(autoincrement())
   batchNumber            String
   productId              Int
@@ -183,6 +185,7 @@ model Batch {
 }
 
 model Inventory {
+  companyId Int @default(1)
   id             Int             @id @default(autoincrement())
   batchId        Int
   quantity       Int
@@ -227,6 +230,7 @@ model Warehouse {
 }
 
 model StockMovement {
+  companyId Int @default(1)
   id           Int       @id @default(autoincrement())
   quantity     Int
   createdAt    DateTime  @default(now())
@@ -237,6 +241,7 @@ model StockMovement {
 }
 
 model WarehouseTransfer {
+  companyId Int @default(1)
   id              Int                     @id @default(autoincrement())
   fromWarehouseId Int
   toWarehouseId   Int
@@ -251,6 +256,7 @@ model WarehouseTransfer {
 }
 
 model WarehouseTransferItem {
+  companyId Int @default(1)
   id                  Int               @id @default(autoincrement())
   warehouseTransferId Int
   productId           Int
@@ -263,6 +269,7 @@ model WarehouseTransferItem {
 }
 
 model Dispatch {
+  companyId Int @default(1)
   id                 Int                @id @default(autoincrement())
   batchId            Int?
   warehouseId        Int?
@@ -302,6 +309,7 @@ model Dispatch {
 }
 
 model TransportChallan {
+  companyId Int @default(1)
   id                 Int          @id @default(autoincrement())
   dispatchId         Int?
   transporterName    String?
@@ -338,6 +346,7 @@ model TransportChallan {
 }
 
 model LRTracking {
+  companyId Int @default(1)
   id                 Int                @id @default(autoincrement())
   transportChallanId Int
   lrNumber           String             @unique
@@ -350,6 +359,7 @@ model LRTracking {
 }
 
 model DeliveryTracking {
+  companyId Int @default(1)
   id             Int        @id @default(autoincrement())
   lrTrackingId   Int
   receiverName   String
@@ -362,6 +372,7 @@ model DeliveryTracking {
 }
 
 model Stockist {
+  companyId Int @default(1)
   id                Int               @id @default(autoincrement())
   name              String
   code              String?           @unique
@@ -378,6 +389,7 @@ model Stockist {
 }
 
 model Retailer {
+  companyId Int @default(1)
   id                Int             @id @default(autoincrement())
   stockistId        Int
   name              String
@@ -402,6 +414,7 @@ model Retailer {
 }
 
 model Invoice {
+  companyId Int @default(1)
   id                 Int           @id @default(autoincrement())
   retailerId         Int
   invoiceNumber      String        @unique
@@ -430,6 +443,7 @@ model Invoice {
 }
 
 model InvoiceItem {
+  companyId Int @default(1)
   id        Int     @id @default(autoincrement())
   invoiceId Int
   productId Int
@@ -442,6 +456,7 @@ model InvoiceItem {
 }
 
 model RetailerOrder {
+  companyId Int @default(1)
   id          Int                 @id @default(autoincrement())
   retailerId  Int?
   orderNumber String              @unique
@@ -462,6 +477,7 @@ model RetailerOrder {
 }
 
 model RetailerOrderItem {
+  companyId Int @default(1)
   id              Int           @id @default(autoincrement())
   retailerOrderId Int
   productId       Int
@@ -473,6 +489,7 @@ model RetailerOrderItem {
 }
 
 model AccountGroup {
+  companyId   Int             @default(1)
   id          Int             @id @default(autoincrement())
   name        String          @unique
   nature      String
@@ -481,6 +498,7 @@ model AccountGroup {
 }
 
 model AccountLedger {
+  companyId      Int                 @default(1)
   id             Int                 @id @default(autoincrement())
   name           String
   groupId        Int
@@ -494,6 +512,7 @@ model AccountLedger {
 }
 
 model Voucher {
+  companyId     Int                 @default(1)
   id            Int                 @id @default(autoincrement())
   voucherNumber String              @unique
   voucherType   String
@@ -511,6 +530,7 @@ model Voucher {
 }
 
 model LedgerTransaction {
+  companyId Int @default(1)
   id        Int           @id @default(autoincrement())
   voucherId Int
   ledgerId  Int
@@ -521,6 +541,7 @@ model LedgerTransaction {
 }
 
 model MR {
+  companyId Int @default(1)
   id             Int             @id @default(autoincrement())
   mrCode         String          @unique
   name           String
@@ -550,6 +571,7 @@ model MR {
 }
 
 model Doctor {
+  companyId Int @default(1)
   id              Int              @id @default(autoincrement())
   doctorCode      String           @unique
   name            String
@@ -569,6 +591,7 @@ model Doctor {
 }
 
 model Chemist {
+  companyId Int @default(1)
   id                Int               @id @default(autoincrement())
   chemistCode       String            @unique
   name              String
@@ -589,6 +612,7 @@ model Chemist {
 }
 
 model Attendance {
+  companyId Int @default(1)
   id                Int       @id @default(autoincrement())
   mrId              Int
   attendanceDate    DateTime  @default(now())
@@ -604,6 +628,7 @@ model Attendance {
 }
 
 model DoctorVisit {
+  companyId Int @default(1)
   id                Int       @id @default(autoincrement())
   mrId              Int
   doctorId          Int
@@ -620,6 +645,7 @@ model DoctorVisit {
 }
 
 model ChemistVisit {
+  companyId Int @default(1)
   id                Int       @id @default(autoincrement())
   mrId              Int
   chemistId         Int
@@ -636,6 +662,7 @@ model ChemistVisit {
 }
 
 model TourPlan {
+  companyId Int @default(1)
   id               Int               @id @default(autoincrement())
   mrId             Int
   tourDate         DateTime
@@ -649,6 +676,7 @@ model TourPlan {
 }
 
 model TourPlanDoctor {
+  companyId Int @default(1)
   id         Int      @id @default(autoincrement())
   tourPlanId Int
   doctorId   Int
@@ -657,6 +685,7 @@ model TourPlanDoctor {
 }
 
 model TourPlanChemist {
+  companyId Int @default(1)
   id         Int      @id @default(autoincrement())
   tourPlanId Int
   chemistId  Int
@@ -665,6 +694,7 @@ model TourPlanChemist {
 }
 
 model DailyReport {
+  companyId Int @default(1)
   id                 Int      @id @default(autoincrement())
   mrId               Int
   reportDate         DateTime
@@ -679,6 +709,7 @@ model DailyReport {
 }
 
 model Target {
+  companyId Int @default(1)
   id                    Int      @id @default(autoincrement())
   mrId                  Int
   month                 Int
@@ -695,6 +726,7 @@ model Target {
 }
 
 model Meeting {
+  companyId Int @default(1)
   id               Int               @id @default(autoincrement())
   mrId             Int
   doctorId         Int?
@@ -716,6 +748,7 @@ model Meeting {
 }
 
 model MeetingDoctor {
+  companyId Int @default(1)
   id        Int     @id @default(autoincrement())
   meetingId Int
   doctorId  Int
@@ -724,6 +757,7 @@ model MeetingDoctor {
 }
 
 model MeetingChemist {
+  companyId Int @default(1)
   id        Int     @id @default(autoincrement())
   meetingId Int
   chemistId Int
@@ -732,6 +766,7 @@ model MeetingChemist {
 }
 
 model MeetingHospital {
+  companyId Int @default(1)
   id         Int      @id @default(autoincrement())
   meetingId  Int
   hospitalId Int
@@ -740,6 +775,7 @@ model MeetingHospital {
 }
 
 model MeetingStockist {
+  companyId Int @default(1)
   id         Int      @id @default(autoincrement())
   meetingId  Int
   stockistId Int
@@ -748,6 +784,7 @@ model MeetingStockist {
 }
 
 model FollowUp {
+  companyId Int @default(1)
   id           Int      @id @default(autoincrement())
   mrId         Int
   doctorId     Int?
@@ -769,6 +806,7 @@ model FollowUp {
 }
 
 model Activity {
+  companyId Int @default(1)
   id           Int      @id @default(autoincrement())
   mrId         Int
   activityType String
@@ -781,6 +819,7 @@ model Activity {
 }
 
 model Lead {
+  companyId Int @default(1)
   id           Int        @id @default(autoincrement())
   leadCode     String     @unique
   name         String
@@ -809,6 +848,7 @@ model Lead {
 }
 
 model LocationMaster {
+  companyId Int @default(1)
   id        Int      @id @default(autoincrement())
   type      String   // "STATE", "DISTRICT", "CITY", "TERRITORY"
   value     String
@@ -817,6 +857,7 @@ model LocationMaster {
 }
 
 model LeaveRequest {
+  companyId Int @default(1)
   id        Int      @id @default(autoincrement())
   mrId      Int
   leaveType String
@@ -829,6 +870,7 @@ model LeaveRequest {
 }
 
 model ExpenseClaim {
+  companyId Int @default(1)
   id          Int      @id @default(autoincrement())
   mrId        Int
   expenseType String
@@ -842,6 +884,7 @@ model ExpenseClaim {
 }
 
 model Notification {
+  companyId Int @default(1)
   id        Int      @id @default(autoincrement())
   mrId      Int
   title     String
@@ -853,6 +896,7 @@ model Notification {
 }
 
 model Distributor {
+  companyId Int @default(1)
   id            Int          @id @default(autoincrement())
   name          String
   mobile        String?
@@ -872,6 +916,7 @@ model Distributor {
 }
 
 model Hospital {
+  companyId Int @default(1)
   id               Int               @id @default(autoincrement())
   name             String
   mobile           String?
@@ -881,6 +926,7 @@ model Hospital {
 }
 
 model TerritoryBeat {
+  companyId Int @default(1)
   id            Int    @id @default(autoincrement())
   area          String
   district      String
@@ -890,6 +936,7 @@ model TerritoryBeat {
 }
 
 model Supplier {
+  companyId Int @default(1)
   id           Int           @id @default(autoincrement())
   name         String        @unique
   contact      String?
@@ -900,6 +947,7 @@ model Supplier {
 }
 
 model InwardStock {
+  companyId Int @default(1)
   id            Int               @id @default(autoincrement())
   grnNo         String            @unique
   date          DateTime          @default(now())
@@ -922,6 +970,7 @@ model InwardStock {
 }
 
 model InwardStockItem {
+  companyId Int @default(1)
   id            Int         @id @default(autoincrement())
   inwardStockId Int
   productId     Int
@@ -937,6 +986,7 @@ model InwardStockItem {
 }
 
 model OutwardStock {
+  companyId Int @default(1)
   id                   Int                @id @default(autoincrement())
   dispatchNo           String             @unique
   date                 DateTime           @default(now())
@@ -960,6 +1010,7 @@ model OutwardStock {
 }
 
 model OutwardStockItem {
+  companyId Int @default(1)
   id             Int          @id @default(autoincrement())
   outwardStockId Int
   productId      Int
@@ -972,6 +1023,7 @@ model OutwardStockItem {
 }
 
 model HSNCode {
+  companyId Int @default(1)
   id          Int      @id @default(autoincrement())
   code        String   @unique
   description String
@@ -982,6 +1034,7 @@ model HSNCode {
 }
 
 model GSTRecord {
+  companyId Int @default(1)
   id            Int       @id @default(autoincrement())
   hsnCode       String
   description   String
@@ -996,6 +1049,7 @@ model GSTRecord {
 }
 
 model PackingType {
+  companyId Int @default(1)
   id          Int      @id @default(autoincrement())
   code        String   @unique
   description String
@@ -1007,6 +1061,7 @@ model PackingType {
 }
 
 model PricingMaster {
+  companyId Int @default(1)
   id             Int       @id @default(autoincrement())
   productId      Int
   mrp            Float
@@ -1027,6 +1082,7 @@ model PricingMaster {
 }
 
 model SchemeMaster {
+  companyId Int @default(1)
   id                  Int       @id @default(autoincrement())
   code                String    @unique
   name                String
@@ -1050,6 +1106,7 @@ model SchemeMaster {
 }
 
 model CreditNote {
+  companyId Int @default(1)
   id               Int              @id @default(autoincrement())
   cnNo             String           @unique
   cnDate           DateTime         @default(now())
@@ -1077,6 +1134,7 @@ model CreditNote {
 }
 
 model CreditNoteItem {
+  companyId Int @default(1)
   id           Int        @id @default(autoincrement())
   creditNoteId Int
   productId    Int
@@ -1092,6 +1150,7 @@ model CreditNoteItem {
 }
 
 model Composition {
+  companyId Int @default(1)
   id               Int      @id @default(autoincrement())
   genericName      String
   strength         String?
@@ -1106,6 +1165,7 @@ model Composition {
 }
 
 model Employee {
+  companyId Int @default(1)
   id                     Int                @id @default(autoincrement())
   employeeCode           String             @unique
   name                   String
@@ -1137,6 +1197,7 @@ model Employee {
 }
 
 model NationalTarget {
+  companyId Int @default(1)
   id                  Int                @id @default(autoincrement())
   targetCode          String             @unique
   financialYear       String
@@ -1155,6 +1216,7 @@ model NationalTarget {
 }
 
 model TargetAllocation {
+  companyId Int @default(1)
   id                    Int                @id @default(autoincrement())
   allocationCode        String             @unique
   nationalTargetId      Int?
@@ -1180,6 +1242,7 @@ model TargetAllocation {
 }
 
 model Commission {
+  companyId        Int      @default(1)
   id               Int      @id @default(autoincrement())
   repId            Int
   month            String
@@ -1210,6 +1273,7 @@ enum Role {
 // ==========================================
 
 model CurrencyMaster {
+  companyId Int @default(1)
   id              Int              @id @default(autoincrement())
   code            String           @unique // e.g. USD, EUR, GBP
   name            String
@@ -1223,6 +1287,7 @@ model CurrencyMaster {
 }
 
 model CountryPricing {
+  companyId Int @default(1)
   id         Int      @id @default(autoincrement())
   country    String
   productId  Int
@@ -1238,6 +1303,7 @@ model CountryPricing {
 }
 
 model ExportCustomer {
+  companyId Int @default(1)
   id              Int      @id @default(autoincrement())
   name            String
   country         String
@@ -1254,6 +1320,7 @@ model ExportCustomer {
 }
 
 model ExportOrder {
+  companyId Int @default(1)
   id                  Int      @id @default(autoincrement())
   orderNumber         String   @unique
   customerId          Int?
@@ -1288,6 +1355,7 @@ model ExportOrder {
 }
 
 model ExportDocument {
+  companyId Int @default(1)
   id           Int      @id @default(autoincrement())
   orderId      Int
   documentType String // e.g. Invoice, Packing List, FDA Cert, GMP Cert, Bill of Lading

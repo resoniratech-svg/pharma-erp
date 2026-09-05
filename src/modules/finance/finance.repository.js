@@ -1,7 +1,17 @@
 const { PrismaClient } = require('@prisma/client');
 const prisma = new PrismaClient();
 
-const createVoucherRepo = async (voucherData) => {
+
+const getWhereClause = (user) => {
+  const where = {};
+  if (user && user.role === "COMPANY_ADMIN") {
+    where.companyId = user.companyId || 1;
+  }
+  return where;
+};
+
+
+const createVoucherRepo = async (voucherData, user) => {
   const { 
     voucherType, 
     voucherDate, 
@@ -26,6 +36,7 @@ const createVoucherRepo = async (voucherData) => {
         voucherNumber,
         voucherType,
         voucherDate: voucherDate ? new Date(voucherDate) : new Date(),
+        companyId: (user && user.role === "COMPANY_ADMIN") ? (user.companyId || 1) : 1,
         amount,
         narration,
         referenceType,
@@ -82,9 +93,9 @@ const createVoucherRepo = async (voucherData) => {
   });
 };
 
-const getVouchersRepo = async (filters = {}) => {
+const getVouchersRepo = async (filters = {}, user) => {
   return prisma.voucher.findMany({
-    where: filters,
+    where: { ...filters, ...getWhereClause(user) },
     include: {
       transactions: {
         include: {
@@ -98,7 +109,7 @@ const getVouchersRepo = async (filters = {}) => {
   });
 };
 
-const getTrialBalanceRepo = async () => {
+const getTrialBalanceRepo = async (user) => {
   // Aggregate all DR and CR per ledger
   const transactions = await prisma.ledgerTransaction.groupBy({
     by: ['ledgerId', 'type'],
@@ -108,6 +119,7 @@ const getTrialBalanceRepo = async () => {
   });
 
   const ledgers = await prisma.accountLedger.findMany({
+    where: getWhereClause(user),
     include: {
       group: true
     }
@@ -150,8 +162,9 @@ const getTrialBalanceRepo = async () => {
   });
 };
 
-const getLedgersRepo = async () => {
+const getLedgersRepo = async (user) => {
   return prisma.accountLedger.findMany({
+    where: getWhereClause(user),
     include: {
       group: true
     },
@@ -161,17 +174,17 @@ const getLedgersRepo = async () => {
   });
 };
 
-const getGroupsRepo = async () => {
-  return prisma.accountGroup.findMany();
+const getGroupsRepo = async (user) => {
+  return prisma.accountGroup.findMany({ where: getWhereClause(user) });
 };
 
-const createGroupRepo = async (data) => {
+const createGroupRepo = async (data, user) => {
   return prisma.accountGroup.create({
-    data
+    data: { ...data, companyId: (user && user.role === "COMPANY_ADMIN") ? (user.companyId || 1) : 1 }
   });
 };
 
-const getLedgerStatementRepo = async (ledgerId) => {
+const getLedgerStatementRepo = async (ledgerId, user) => {
   return prisma.ledgerTransaction.findMany({
     where: { ledgerId: parseInt(ledgerId) },
     include: {
@@ -183,25 +196,26 @@ const getLedgerStatementRepo = async (ledgerId) => {
   });
 };
 
-const createLedgerRepo = async (data) => {
+const createLedgerRepo = async (data, user) => {
   return prisma.accountLedger.create({
-    data
+    data: { ...data, companyId: (user && user.role === "COMPANY_ADMIN") ? (user.companyId || 1) : 1 }
   });
 };
 
-const createCommissionRepo = async (data) => {
+const createCommissionRepo = async (data, user) => {
   return prisma.commission.create({
-    data
+    data: { ...data, companyId: (user && user.role === "COMPANY_ADMIN") ? (user.companyId || 1) : 1 }
   });
 };
 
-const getCommissionsRepo = async () => {
+const getCommissionsRepo = async (user) => {
   return prisma.commission.findMany({
+    where: getWhereClause(user),
     orderBy: { createdAt: 'desc' }
   });
 };
 
-const updateCommissionStatusRepo = async (id, status) => {
+const updateCommissionStatusRepo = async (id, status, user) => {
   return prisma.commission.update({
     where: { id: parseInt(id) },
     data: { status }
