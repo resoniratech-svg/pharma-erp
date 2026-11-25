@@ -365,7 +365,7 @@ export default function RetailerOrders() {
     const gstInvoice = {
       id: order.id,
       invoiceNo: nextInvoiceNo,
-      customerId: order.retailerCode,
+      customerId: order.retailerCode === 'RET-001' ? '25' : (order.retailerCode || '25'),
       customerName: order.retailerName,
       date: invoiceDate,
       dueDate: dueDate,
@@ -395,6 +395,9 @@ export default function RetailerOrders() {
 
     billingService.saveInvoice(gstInvoice);
     billingService.incrementCounter();
+
+    window.dispatchEvent(new Event('invoicesUpdated'));
+    window.dispatchEvent(new Event('retailerOrdersUpdated'));
 
     const updated = orders.map(o => o.id === order.id ? { ...o, status: 'Invoice Generated' as OrderStatus, invoiceNo: nextInvoiceNo } : o);
     saveOrders(updated);

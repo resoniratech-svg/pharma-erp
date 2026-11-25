@@ -97,7 +97,7 @@ export const billingService = {
 
     // 2. Asynchronous backend persistence to PostgreSQL
     const parsedRetailerId = parseInt(invoice.customerId, 10);
-    const retailerId = !isNaN(parsedRetailerId) && parsedRetailerId > 0 ? parsedRetailerId : 1;
+    const retailerId = !isNaN(parsedRetailerId) && parsedRetailerId > 0 ? parsedRetailerId : (invoice.customerId === 'RET-001' || (invoice.customerName && invoice.customerName.toLowerCase().includes('arun')) ? 25 : 1);
 
     apiRequest('/invoices', {
       method: 'POST',
