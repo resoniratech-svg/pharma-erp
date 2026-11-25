@@ -271,9 +271,11 @@ export default function Invoices() {
           });
         });
 
-        // Priority 3: Merge any local sales invoices not yet seen
+        // Priority 3: Merge any local sales invoices not yet seen (excluding obsolete mock data if real invoices exist)
         localSalesInvoices.forEach(si => {
           if (!seenInvoiceNos.has(si.invoiceNo)) {
+            const isMock2023 = si.invoiceNo?.startsWith('SAL-INV-2023');
+            if (isMock2023 && combined.length > 0) return;
             seenInvoiceNos.add(si.invoiceNo);
             combined.push(si as any);
           }
