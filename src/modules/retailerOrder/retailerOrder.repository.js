@@ -12,7 +12,11 @@ const createRetailerOrderRepo =
         chemist: true,
         hospital: true,
         stockist: true,
-        orderItems: true,
+        orderItems: {
+          include: {
+            product: true
+          }
+        },
       },
     });
 
