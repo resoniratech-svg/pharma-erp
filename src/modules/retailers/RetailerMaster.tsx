@@ -39,6 +39,7 @@ export default function RetailerMaster() {
     contactPerson: '',
     mobileNumber: '',
     emailAddress: '',
+    address: '',
     state: '',
     assignedDistributors: [] as {code: string, name: string}[],
     status: 'Active' as 'Active' | 'Inactive',
@@ -138,6 +139,11 @@ export default function RetailerMaster() {
       return;
     }
 
+    if (!formData.address?.trim()) {
+      alert('Address is required');
+      return;
+    }
+
     if (!formData.dlNumber?.trim()) {
       alert('Drug License Number is required');
       return;
@@ -184,8 +190,15 @@ export default function RetailerMaster() {
         contactPerson: formData.contactPerson,
         mobileNumber: formData.mobileNumber,
         emailAddress: formData.emailAddress,
+        address: formData.address,
         assignedDistributors: formData.assignedDistributors,
-        status: formData.status
+        status: formData.status,
+        dlNumber: formData.dlNumber,
+        companyPan: formData.companyPan,
+        bankName: formData.bankName,
+        accountName: formData.accountName,
+        accountNumber: formData.accountNumber,
+        ifscCode: formData.ifscCode
       });
       activityLogService.addLog({
         userId: currentUser?.id,
@@ -199,8 +212,15 @@ export default function RetailerMaster() {
         contactPerson: formData.contactPerson,
         mobileNumber: formData.mobileNumber,
         emailAddress: formData.emailAddress,
+        address: formData.address,
         assignedDistributors: formData.assignedDistributors,
-        status: formData.status
+        status: formData.status,
+        dlNumber: formData.dlNumber,
+        companyPan: formData.companyPan,
+        bankName: formData.bankName,
+        accountName: formData.accountName,
+        accountNumber: formData.accountNumber,
+        ifscCode: formData.ifscCode
       }, formData.password);
       activityLogService.addLog({
         userId: currentUser?.id,
@@ -229,10 +249,18 @@ export default function RetailerMaster() {
       contactPerson: retailer.contactPerson,
       mobileNumber: retailer.mobileNumber,
       emailAddress: retailer.emailAddress || '',
+      address: retailer.address || '',
+      state: '',
       assignedDistributors: retailer.assignedDistributors || [],
       status: retailer.status,
       password: '',
-      confirmPassword: ''
+      confirmPassword: '',
+      dlNumber: retailer.dlNumber || '',
+      companyPan: retailer.companyPan || '',
+      bankName: retailer.bankName || '',
+      accountName: retailer.accountName || '',
+      accountNumber: retailer.accountNumber || '',
+      ifscCode: retailer.ifscCode || ''
     });
     setDistributorSearch('');
     setShowFormModal(true);
@@ -465,6 +493,16 @@ export default function RetailerMaster() {
                       <option value="Active">Active</option>
                       <option value="Inactive">Inactive</option>
                     </select>
+                  </div>
+                  <div className="col-span-1 md:col-span-2">
+                    <label className="block text-xs font-medium text-slate-700 mb-1">Address *</label>
+                    <textarea 
+                      rows={2}
+                      value={formData.address}
+                      onChange={(e) => setFormData({...formData, address: e.target.value})}
+                      placeholder="Enter retailer complete address..."
+                      className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-400 text-sm"
+                    />
                   </div>
                 </div>
               </section>
@@ -728,6 +766,7 @@ export default function RetailerMaster() {
                 <DrawerField label="Contact Person" value={selectedRetailer.contactPerson} />
                 <DrawerField label="Mobile Number" value={selectedRetailer.mobileNumber} />
                 <DrawerField label="Email Address" value={selectedRetailer.emailAddress || 'N/A'} />
+                <DrawerField label="Address" value={selectedRetailer.address || 'N/A'} />
                 <DrawerField label="Password" value={(() => {
                   const users = JSON.parse(localStorage.getItem('pharma_erp_users') || '[]');
                   const user = users.find((u: any) => u.username === selectedRetailer.code);

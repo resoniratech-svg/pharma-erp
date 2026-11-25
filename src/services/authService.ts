@@ -249,6 +249,9 @@ export class AuthService {
         localStorage.setItem('mrCode', mr.mrCode);
         localStorage.setItem('mrTerritory', mr.territory || '');
       }
+      if ((user as any).linkedRetailerCode) {
+        localStorage.setItem('retailerCode', (user as any).linkedRetailerCode);
+      }
 
       return userRecord;
     } catch (err: any) {

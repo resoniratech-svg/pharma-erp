@@ -220,6 +220,8 @@ export default function LoginPage() {
           navigate("/workspace/area-sales-manager");
         } else if (userRecord.roleId === 'MEDICAL_REPRESENTATIVE') {
           navigate("/workspace/medical-representative");
+        } else if (userRecord.roleId === 'RETAILER') {
+          navigate("/workspace/retailers/catalog");
         } else {
           navigate("/workspace/dashboard");
         }

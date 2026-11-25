@@ -13,6 +13,7 @@ export interface RetailerMasterRecord {
   contactPerson: string;
   mobileNumber: string;
   emailAddress?: string;
+  address?: string;
   status: 'Active' | 'Inactive';
   createdDate: string;
   dlNumber?: string;
@@ -42,6 +43,7 @@ export const retailerMasterService = {
           contactPerson: r.contactPerson || r.name,
           mobileNumber: r.mobile || r.mobileNumber || '-',
           emailAddress: r.email || r.emailAddress || '',
+          address: r.address || '',
           assignedDistributors: r.stockist ? [{ code: r.stockist.code || 'N/A', name: r.stockist.name }] : (r.assignedDistributors || []),
           status: (r.status === 'Inactive' || r.isActive === false) ? 'Inactive' : 'Active',
           createdDate: r.createdAt ? new Date(r.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
@@ -101,6 +103,7 @@ export const retailerMasterService = {
           contactPerson: newRecord.contactPerson,
           mobile: newRecord.mobileNumber,
           email: newRecord.emailAddress,
+          address: newRecord.address || '',
           assignedDistributors: newRecord.assignedDistributors,
           status: newRecord.status,
           password: password || '123456',
@@ -147,6 +150,7 @@ export const retailerMasterService = {
           contactPerson: updates.contactPerson,
           mobile: updates.mobileNumber,
           email: updates.emailAddress,
+          address: updates.address,
           assignedDistributors: updates.assignedDistributors,
           status: updates.status,
           drugLicenseNumber: updates.dlNumber,

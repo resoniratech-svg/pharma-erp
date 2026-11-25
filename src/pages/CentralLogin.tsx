@@ -53,6 +53,13 @@ export default function CentralLogin() {
           purchasedModules: companyAdmin?.subscription?.purchasedModules || defaultModules,
           user: userRecord
         };
+      } else if (userRecord.roleId === 'RETAILER') {
+        authPayload = {
+          role: 'RETAILER',
+          tenantId: null,
+          purchasedModules: ['Retailer Ordering System'],
+          user: userRecord
+        };
       } else {
         authPayload = {
           role: userRecord.roleId,
@@ -65,7 +72,11 @@ export default function CentralLogin() {
       setTimeout(() => {
         setLoading(false);
         localStorage.setItem('centralAuthSession', JSON.stringify(authPayload));
-        navigate('/workspace');
+        if (userRecord.roleId === 'RETAILER') {
+          navigate('/workspace/retailers/catalog');
+        } else {
+          navigate('/workspace');
+        }
       }, 500);
 
     } catch (err: any) {
