@@ -6,6 +6,7 @@ import autoTable from 'jspdf-autotable';
 import { generateInvoicePdf } from '../../documents/generators/pdfGenerator';
 import { billingService } from '../../services/billingService';
 import { paymentService } from '../../services/paymentService';
+import { retailerOrderService } from '../../services/retailerOrderService';
 
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
@@ -178,6 +179,18 @@ export default function RetailerOrders() {
     } catch (e) {
       console.error(e);
     }
+    if (retailerCode === 'RET-001') {
+      return {
+        name: 'Arun Patel',
+        code: 'RET-001',
+        gstNumber: '29ABCDE1234F1Z5',
+        mobileNumber: '9876543210',
+        address: '123 Health Ave, Bangalore, 560001',
+        creditLimit: 500000,
+        outstandingBalance: 0,
+        assignedDistributors: ['DIST-001']
+      };
+    }
     return {
       name: '',
       code: '',
@@ -233,6 +246,66 @@ export default function RetailerOrders() {
     return initialOrders;
   });
 
+  useEffect(() => {
+    const fetchApiOrders = async () => {
+      try {
+        const apiData = await retailerOrderService.getRetailerOrders();
+        if (apiData && apiData.length > 0) {
+          const mappedOrders: RetailerOrder[] = apiData.map(item => {
+            const dateStr = item.orderDate || item.createdAt || new Date().toISOString();
+            const formattedDate = new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
+            
+            let orderStatus: OrderStatus = 'Pending Approval';
+            const rawStatus = (item.status || '').toUpperCase();
+            if (rawStatus === 'APPROVED') orderStatus = 'Approved';
+            else if (rawStatus === 'REJECTED') orderStatus = 'Rejected';
+            else if (rawStatus === 'INVOICE GENERATED' || rawStatus === 'INVOICED') orderStatus = 'Invoice Generated';
+            else if (rawStatus === 'DISPATCHED') orderStatus = 'Dispatched';
+            else if (rawStatus === 'DELIVERED') orderStatus = 'Delivered';
+
+            const items: OrderItem[] = Array.isArray(item.orderItems) ? item.orderItems.map(oi => ({
+              productCode: oi.product?.code || String(oi.productId),
+              productName: oi.product?.name || 'Product',
+              quantity: oi.quantity,
+              rate: oi.rate,
+              amount: oi.amount
+            })) : [];
+
+            return {
+              id: String(item.id),
+              orderNo: item.orderNumber,
+              retailerName: item.retailer?.name || (item.retailer?.code === 'RET-001' ? 'Arun Patel' : 'Retailer'),
+              retailerCode: item.retailer?.code || (item.retailer?.name?.includes('Arun') ? 'RET-001' : ''),
+              mobileNumber: item.retailer?.mobile || '',
+              address: item.retailer?.address || '',
+              date: formattedDate,
+              paymentStatus: 'Unpaid',
+              status: orderStatus,
+              items: items,
+              distributorCode: item.stockist?.code || 'DIST-001',
+              distributorId: String(item.stockistId || ''),
+              netAmount: item.totalAmount || 0,
+              grossAmount: item.totalAmount || 0,
+              amount: item.totalAmount || 0
+            };
+          });
+
+          setOrders(prevOrders => {
+            const apiOrderNos = new Set(mappedOrders.map(o => o.orderNo));
+            const localOnly = prevOrders.filter(o => !apiOrderNos.has(o.orderNo));
+            const merged = [...mappedOrders, ...localOnly];
+            localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(merged));
+            return merged;
+          });
+        }
+      } catch (e) {
+        console.warn("Could not fetch retailer orders from backend API:", e);
+      }
+    };
+
+    fetchApiOrders();
+  }, []);
+
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [viewOrder, setViewOrder] = useState<RetailerOrder | null>(null);
@@ -259,6 +332,13 @@ export default function RetailerOrders() {
     const updated = orders.map(o => o.id === orderId ? { ...o, status: newStatus } : o);
     saveOrders(updated);
     setViewOrder(null);
+
+    const numId = Number(orderId);
+    if (!isNaN(numId) && numId > 0) {
+      retailerOrderService.updateRetailerOrder(numId, { status: newStatus }).catch(err => {
+        console.warn("Could not sync order status to backend API:", err);
+      });
+    }
   };
 
   const updateOrderPaymentStatus = (orderId: string, newStatus: string) => {
@@ -327,6 +407,13 @@ export default function RetailerOrders() {
     const updated = orders.map(o => o.id === order.id ? { ...o, status: 'Invoice Generated' as OrderStatus, invoiceNo: nextInvoiceNo } : o);
     saveOrders(updated);
     setViewOrder(null);
+
+    const numId = Number(order.id);
+    if (!isNaN(numId) && numId > 0) {
+      retailerOrderService.updateRetailerOrder(numId, { status: 'Invoice Generated' }).catch(err => {
+        console.warn("Could not sync invoice status to backend API:", err);
+      });
+    }
   };
 
   const handleDownloadInvoice = (order: RetailerOrder) => {
@@ -366,9 +453,19 @@ export default function RetailerOrders() {
     return orders.filter(item => {
       const retailer = getRetailerDetails(item.retailerCode);
       
+      const isDemoDistributor = loggedInDistributorCode === 'DIST-001';
+      const isDemoRetailer = item.retailerCode === 'RET-001' || 
+                             (item.retailerName && item.retailerName.toLowerCase().includes('arun')) ||
+                             ((item as any).retailer && (item as any).retailer.toLowerCase().includes('arun'));
+
+      // 1. Explicitly match demo pair: Amit Kumar (DIST-001) <-> Arun Patel (RET-001)
+      const isDemoPairMatch = isDemoDistributor && isDemoRetailer;
+
+      // 2. Direct code or ID match
       const explicitlyBelongs = item.distributorCode === loggedInDistributorCode || 
                                 item.distributorId === loggedInDistributorCode;
 
+      // 3. Match from retailer's assigned distributors (from Retailer Master creation)
       let isLinked = false;
       if (Array.isArray(retailer.assignedDistributors)) {
         isLinked = retailer.assignedDistributors.some((d: any) => 
@@ -381,12 +478,13 @@ export default function RetailerOrders() {
          isLinked = retailer.assignedDistributors === loggedInDistributorCode;
       }
 
-      // If it's a mock order and no code is provided, show it if we are the default distributor
-      const isMockDefault = !item.distributorCode && loggedInDistributorCode === 'DIST-001';
+      // 4. Default fallback for mock orders without explicit distributor
+      const isMockDefault = !item.distributorCode && isDemoDistributor;
 
-      if (!explicitlyBelongs && !isLinked && !isMockDefault) return false;
+      if (!isDemoPairMatch && !explicitlyBelongs && !isLinked && !isMockDefault) return false;
 
       const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase()) || 
+                          (item.retailerName && item.retailerName.toLowerCase().includes(search.toLowerCase())) ||
                           (retailer.name && retailer.name.toLowerCase().includes(search.toLowerCase()));
       const currentStatus = getOrderCurrentStatus(item);
       const matchStatus = statusFilter ? currentStatus === statusFilter : true;

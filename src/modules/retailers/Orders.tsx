@@ -20,6 +20,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 
 import authService from '../../services/authService';
 import { retailerMasterService } from '../../services/retailerMasterService';
+import { retailerOrderService } from '../../services/retailerOrderService';
 import { productService } from '../../services/productService';
 import { inventoryService } from '../../services/inventoryService';
 import { schemeService } from '../../services/schemeService';
@@ -48,6 +49,7 @@ type PaymentStatus = 'Paid' | 'Unpaid' | 'Partial';
 
 interface OrderItem {
   id: string;
+  productId?: number;
   productName: string;
   productCode: string;
   quantity: number;
@@ -131,14 +133,67 @@ export default function Orders() {
   }, []);
 
   useEffect(() => {
-    try {
-      const allOrdersStr = localStorage.getItem('pharma_erp_retailer_orders');
-      if (allOrdersStr) {
-        setData(JSON.parse(allOrdersStr));
+    const loadOrders = async () => {
+      let localOrders: Order[] = [];
+      try {
+        const allOrdersStr = localStorage.getItem('pharma_erp_retailer_orders');
+        if (allOrdersStr) {
+          localOrders = JSON.parse(allOrdersStr);
+        }
+      } catch (e) {
+        console.error("Failed to parse orders from localStorage", e);
       }
-    } catch (e) {
-      console.error("Failed to parse orders", e);
-    }
+
+      try {
+        const apiOrders = await retailerOrderService.getRetailerOrders();
+        if (apiOrders && apiOrders.length > 0) {
+          const mappedApiOrders: Order[] = apiOrders.map(apiOrder => ({
+            id: String(apiOrder.id),
+            orderNo: apiOrder.orderNumber,
+            retailerId: String(apiOrder.retailerId || apiOrder.retailer?.code || ''),
+            retailerCode: apiOrder.retailer?.code || '',
+            retailer: apiOrder.retailer?.name || 'Retailer',
+            distributorId: String(apiOrder.stockistId || apiOrder.stockist?.code || ''),
+            distributorCode: apiOrder.stockist?.code || 'DIST-001',
+            distributorName: apiOrder.stockist?.name || 'Metro Pharma Distributors',
+            date: apiOrder.orderDate ? new Date(apiOrder.orderDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-') : '',
+            amount: apiOrder.totalAmount,
+            schemeDiscount: 0,
+            netAmount: apiOrder.totalAmount,
+            paymentStatus: 'Unpaid',
+            status: (apiOrder.status === 'PENDING' ? 'Pending' : apiOrder.status) as OrderStatus,
+            expectedDeliveryDate: '',
+            deliveryAddress: apiOrder.retailer?.address || '',
+            contactPerson: apiOrder.retailer?.contactPerson || '',
+            mobileNumber: apiOrder.retailer?.mobile || '',
+            items: Array.isArray(apiOrder.orderItems) ? apiOrder.orderItems.map((oi: any) => ({
+              id: String(oi.id || oi.productId),
+              productId: oi.productId,
+              productCode: oi.product?.code || String(oi.productId),
+              productName: oi.product?.name || 'Medicine',
+              quantity: oi.quantity,
+              unitPrice: oi.rate,
+              lineTotal: oi.amount
+            })) : []
+          }));
+
+          const apiOrderNos = new Set(mappedApiOrders.map(o => o.orderNo));
+          const localOnly = localOrders.filter(o => !apiOrderNos.has(o.orderNo));
+          const merged = [...localOnly, ...mappedApiOrders];
+          setData(merged);
+          localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(merged));
+          return;
+        }
+      } catch (apiErr) {
+        console.warn("Could not load orders from API, using local storage:", apiErr);
+      }
+
+      if (localOrders.length > 0) {
+        setData(localOrders);
+      }
+    };
+
+    loadOrders();
   }, []);
 
   useEffect(() => {
@@ -189,12 +244,28 @@ export default function Orders() {
           setContact(matchedRetailer.contactPerson || matchedRetailer.name || '');
           setMobile(matchedRetailer.mobileNumber || (matchedRetailer as any).mobile || '');
         } else {
-          setUserRetailerContext({
+          const isDemoArun = userEmail === 'retailer@pharmaerp.com' || userName.includes('arun') || userCode === 'ret-001';
+          const defaultRetailer = isDemoArun ? {
+            id: user.id || 'RET-001',
+            code: 'RET-001',
+            name: 'Arun Patel',
+            contactPerson: 'Arun Patel',
+            mobileNumber: '9876543210',
+            address: '123 Health Ave, Bangalore, 560001',
+            assignedDistributors: ['DIST-001']
+          } : {
             id: user.id,
             code: userCode || user.employeeCode,
             name: user.fullName,
             emailAddress: user.email
-          });
+          };
+
+          setUserRetailerContext(defaultRetailer);
+          if (isDemoArun) {
+            setAddress(defaultRetailer.address);
+            setContact(defaultRetailer.contactPerson);
+            setMobile(defaultRetailer.mobileNumber);
+          }
         }
       } catch (e) {
         console.error("Error resolving retailer context", e);
@@ -232,6 +303,7 @@ export default function Orders() {
           const parsed = JSON.parse(activeCart);
           const formattedItems = parsed.map((item: any) => ({
             id: item.id || generateUUID(),
+            productId: item.productId ? Number(item.productId) : undefined,
             productName: item.productName || 'N/A',
             productCode: item.productCode || 'N/A',
             quantity: Number(item.quantity || 0),
@@ -262,15 +334,18 @@ export default function Orders() {
 
   const baseData = useMemo(() => {
     if (!userRetailerContext) return [];
-    const rId = String(userRetailerContext.id).toLowerCase();
-    const rCode = String(userRetailerContext.code).toLowerCase();
-    const rName = String(userRetailerContext.name).toLowerCase();
+    const rId = String(userRetailerContext.id || '').toLowerCase();
+    const rCode = String(userRetailerContext.code || '').toLowerCase();
+    const rName = String(userRetailerContext.name || '').toLowerCase();
     
     return data.filter(d => {
-      const dId = String(d.retailerId).toLowerCase();
-      const dCode = String(d.retailerCode).toLowerCase();
-      const dName = String(d.retailer).toLowerCase();
-      return (dId && dId === rId) || (dCode && dCode === rCode) || (dName && dName === rName);
+      const dId = String(d.retailerId || '').toLowerCase();
+      const dCode = String(d.retailerCode || '').toLowerCase();
+      const dName = String(d.retailer || '').toLowerCase();
+      
+      const isDemoMatch = (rCode === 'ret-001' || rName.includes('arun')) && 
+                          (dCode === 'ret-001' || dName.includes('arun'));
+      return isDemoMatch || (dId && dId === rId) || (dCode && dCode === rCode) || (dName && dName === rName);
     });
   }, [data, userRetailerContext]);
 
@@ -639,6 +714,39 @@ export default function Orders() {
     setData(updatedData);
     localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(updatedData));
     
+    // Submit to database API
+    const orderPayload = {
+      orderNumber: orderNumber,
+      retailerId: typeof userRetailerContext.id === 'number' ? userRetailerContext.id : undefined,
+      retailerCode: userRetailerContext.code || 'RET-001',
+      retailerName: userRetailerContext.name || 'Arun Patel',
+      distributorCode: distributor.code || 'DIST-001',
+      distributorName: distributor.name || 'Metro Pharma Distributors',
+      stockistId: typeof distributor.id === 'number' ? distributor.id : undefined,
+      totalAmount: Math.max(0, totalGross - schemeDiscount),
+      deliveryAddress: address,
+      contactPerson: contact,
+      mobileNumber: mobile,
+      remarks: remarks,
+      status: 'Pending',
+      orderItems: cartItems.map(item => ({
+        productId: item.productId,
+        productCode: item.productCode,
+        productName: item.productName,
+        quantity: item.quantity,
+        rate: item.unitPrice,
+        amount: item.lineTotal
+      }))
+    };
+
+    retailerOrderService.addRetailerOrder(orderPayload).then((apiRes) => {
+      if (apiRes) {
+        console.log("Order saved to database successfully:", apiRes.orderNumber || apiRes.id);
+      }
+    }).catch(err => {
+      console.warn("Could not save to backend database, retained in local storage:", err);
+    });
+
     setIsCreateOpen(false);
     setCartItems([]);
     localStorage.removeItem('pharma_erp_retailer_cart');

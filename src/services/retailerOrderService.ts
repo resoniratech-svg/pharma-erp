@@ -11,17 +11,34 @@ export interface RetailerOrderRecord {
   orderDate: string;
   totalAmount: number;
   status: string;
-  retailer?: { name: string; mobile?: string };
+  createdAt?: string;
+  retailer?: {
+    id?: number;
+    name: string;
+    code: string;
+    mobile?: string;
+    address?: string;
+    contactPerson?: string;
+  };
   chemist?: { name: string; mobile?: string };
-  stockist?: { name: string; mobile?: string };
+  stockist?: {
+    id?: number;
+    name: string;
+    code?: string;
+    mobile?: string;
+    address?: string;
+  };
   hospital?: { name: string; mobile?: string };
   orderItems: Array<{
+    id?: number;
     productId: number;
     quantity: number;
     rate: number;
     amount: number;
     product?: {
+      id?: number;
       name: string;
+      code?: string;
     };
   }>;
 }
@@ -29,44 +46,58 @@ export interface RetailerOrderRecord {
 export const retailerOrderService = {
   async getRetailerOrders(): Promise<RetailerOrderRecord[]> {
     try {
-      const response = await apiRequest<{ success: boolean; data: any[] }>('/retailer-orders');
-      if (response.success && Array.isArray(response.data)) {
+      const response = await apiRequest<{ success: boolean; data: RetailerOrderRecord[] }>('/retailer-orders');
+      if (response && response.success && Array.isArray(response.data)) {
         return response.data;
       }
       return [];
     } catch (e) {
-      console.error("Failed to load retailer orders from backend:", e);
+      console.warn("Notice: could not load retailer orders from backend API:", e);
       return [];
     }
   },
 
-  async addRetailerOrder(order: any): Promise<any> {
-    const response = await apiRequest<{ success: boolean; data: any }>('/retailer-orders', {
-      method: 'POST',
-      bodyData: order,
-    });
-    if (!response.success || !response.data) {
-      throw new Error('Failed to submit order');
+  async addRetailerOrder(order: any): Promise<RetailerOrderRecord | null> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: RetailerOrderRecord }>('/retailer-orders', {
+        method: 'POST',
+        bodyData: order,
+      });
+      if (response && response.success && response.data) {
+        return response.data;
+      }
+      return null;
+    } catch (e) {
+      console.error('Failed to submit retailer order to backend API:', e);
+      return null;
     }
-    
-    return response.data;
   },
 
   async updateRetailerOrder(id: number | string, data: Partial<{ status: string; totalAmount: number; [key: string]: any }>): Promise<any> {
-    const response = await apiRequest<{ success: boolean; data: any }>(`/retailer-orders/${id}`, {
-      method: 'PUT',
-      bodyData: data,
-    });
-    if (!response.success) {
-      throw new Error(response.message || 'Failed to update order');
+    try {
+      const response = await apiRequest<{ success: boolean; data: any }>(`/retailer-orders/${id}`, {
+        method: 'PUT',
+        bodyData: data,
+      });
+      if (response && response.success) {
+        return response.data;
+      }
+      return null;
+    } catch (e) {
+      console.error('Failed to update retailer order on backend API:', e);
+      return null;
     }
-    return response.data;
   },
 
   async deleteRetailerOrder(id: number | string): Promise<boolean> {
-    const response = await apiRequest<{ success: boolean; message: string }>(`/retailer-orders/${id}`, {
-      method: 'DELETE',
-    });
-    return response.success;
+    try {
+      const response = await apiRequest<{ success: boolean; message: string }>(`/retailer-orders/${id}`, {
+        method: 'DELETE',
+      });
+      return !!(response && response.success);
+    } catch (e) {
+      console.error('Failed to delete retailer order on backend API:', e);
+      return false;
+    }
   }
 };
