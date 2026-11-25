@@ -73,9 +73,18 @@ const loginUser = async (
   deviceId = null,
   force = false
 ) => {
-  const user = await prisma.user.findUnique({
+  const cleanInput = (email || "").trim();
+  const user = await prisma.user.findFirst({
     where: {
-      email,
+      OR: [
+        { email: cleanInput },
+        { email: cleanInput.toLowerCase() },
+        { mobile: cleanInput },
+        { linkedRetailerCode: cleanInput },
+        { linkedRetailerCode: cleanInput.toUpperCase() },
+        { linkedDistributorCode: cleanInput },
+        { linkedDistributorCode: cleanInput.toUpperCase() },
+      ],
     },
     include: {
       mr: true,
