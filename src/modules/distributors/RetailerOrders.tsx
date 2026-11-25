@@ -187,8 +187,11 @@ export default function RetailerOrders() {
       try {
         const parsed = JSON.parse(data);
         if (Array.isArray(parsed)) {
-          // Filter out legacy mock placeholder IDs
-          return parsed.filter(o => !['ro1', 'ro2', 'ro3', 'ro4', 'ro5'].includes(o.id));
+          // Filter out legacy mock placeholder IDs and old unrelated chemist/hospital orders
+          return parsed.filter(o => 
+            !['ro1', 'ro2', 'ro3', 'ro4', 'ro5'].includes(o.id) &&
+            (!o.orderNo.startsWith('ORD-') || o.retailerCode === 'RET-001' || (o.retailerName && o.retailerName.toLowerCase().includes('arun')))
+          );
         }
       } catch (e) {
         console.error("Failed to parse retailer orders:", e);
@@ -204,7 +207,10 @@ export default function RetailerOrders() {
         if (raw) {
           const parsed = JSON.parse(raw);
           if (Array.isArray(parsed)) {
-            setOrders(parsed.filter(o => !['ro1', 'ro2', 'ro3', 'ro4', 'ro5'].includes(o.id)));
+            setOrders(parsed.filter(o => 
+              !['ro1', 'ro2', 'ro3', 'ro4', 'ro5'].includes(o.id) &&
+              (!o.orderNo.startsWith('ORD-') || o.retailerCode === 'RET-001' || (o.retailerName && o.retailerName.toLowerCase().includes('arun')))
+            ));
           }
         }
       } catch (e) {
@@ -273,8 +279,8 @@ export default function RetailerOrders() {
           });
 
           setOrders(prevOrders => {
-            const apiOrderNos = new Set(mappedOrders.map(o => o.orderNo));
-            const localOnly = prevOrders.filter(o => !apiOrderNos.has(o.orderNo));
+            const allRawApiNos = new Set(apiData.map(o => o.orderNumber));
+            const localOnly = prevOrders.filter(o => !allRawApiNos.has(o.orderNo) && !o.orderNo.startsWith('ORD-') && !['ro1', 'ro2', 'ro3', 'ro4', 'ro5'].includes(o.id));
             const merged = [...mappedOrders, ...localOnly];
             localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(merged));
             return merged;
