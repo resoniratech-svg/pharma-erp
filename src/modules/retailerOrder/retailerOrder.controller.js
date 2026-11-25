@@ -3,7 +3,11 @@ const service = require("./retailerOrder.service");
 
 const createRetailerOrder = async (req, res) => {
   try {
-    const orderNumber = req.body.orderNumber || ("ORD-" + Math.floor(100000 + Math.random() * 900000));
+    let orderNumber = req.body.orderNumber || ("ORD-" + Math.floor(100000 + Math.random() * 900000));
+    const existingOrder = await prisma.retailerOrder.findUnique({ where: { orderNumber } });
+    if (existingOrder) {
+      orderNumber = `${orderNumber}-${Math.floor(100 + Math.random() * 900)}`;
+    }
 
     let retailerId = req.body.retailerId ? Number(req.body.retailerId) : undefined;
     if (isNaN(retailerId)) retailerId = undefined;
@@ -40,16 +44,30 @@ const createRetailerOrder = async (req, res) => {
             }
           });
         }
-        r = await prisma.retailer.create({
-          data: {
-            code: 'RET-001',
-            name: 'Arun Patel',
-            contactPerson: req.body.contactPerson || 'Arun Patel',
-            mobile: req.body.mobileNumber || '9876543210',
-            address: req.body.deliveryAddress || '123 Health Ave, Bangalore, 560001',
-            stockistId: demoStockist.id,
-          }
-        });
+        r = await prisma.retailer.findFirst({ where: { code: 'RET-001' } });
+        if (r) {
+          r = await prisma.retailer.update({
+            where: { id: r.id },
+            data: {
+              name: 'Arun Patel',
+              contactPerson: req.body.contactPerson || 'Arun Patel',
+              mobile: req.body.mobileNumber || '9876543210',
+              address: req.body.deliveryAddress || '123 Health Ave, Bangalore, 560001',
+              stockistId: demoStockist.id,
+            }
+          });
+        } else {
+          r = await prisma.retailer.create({
+            data: {
+              code: 'RET-001',
+              name: 'Arun Patel',
+              contactPerson: req.body.contactPerson || 'Arun Patel',
+              mobile: req.body.mobileNumber || '9876543210',
+              address: req.body.deliveryAddress || '123 Health Ave, Bangalore, 560001',
+              stockistId: demoStockist.id,
+            }
+          });
+        }
       }
       if (r) retailerId = r.id;
     }
