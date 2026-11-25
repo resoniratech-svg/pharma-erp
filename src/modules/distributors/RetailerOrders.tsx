@@ -259,19 +259,23 @@ export default function RetailerOrders() {
               amount: oi.amount
             })) : [];
 
+            const isArunOrder = item.orderNumber.startsWith('RET-ORD-') || 
+                                item.retailer?.code === 'RET-001' || 
+                                (item.retailer?.name && item.retailer.name.toLowerCase().includes('arun'));
+
             return {
               id: String(item.id),
               orderNo: item.orderNumber,
-              retailerName: item.retailer?.name || (item.retailer?.code === 'RET-001' ? 'Arun Patel' : 'Retailer'),
-              retailerCode: item.retailer?.code || (item.retailer?.name?.includes('Arun') ? 'RET-001' : ''),
-              mobileNumber: item.retailer?.mobile || '',
-              address: item.retailer?.address || '',
+              retailerName: isArunOrder ? 'Arun Patel' : (item.retailer?.name || (item.retailer?.code === 'RET-001' ? 'Arun Patel' : 'Retailer')),
+              retailerCode: isArunOrder ? 'RET-001' : (item.retailer?.code || (item.retailer?.name?.includes('Arun') ? 'RET-001' : '')),
+              mobileNumber: isArunOrder ? (item.retailer?.mobile || '9876543210') : (item.retailer?.mobile || ''),
+              address: isArunOrder ? (item.retailer?.address || '123 Health Ave, Bangalore, 560001') : (item.retailer?.address || ''),
               date: formattedDate,
               paymentStatus: 'Unpaid',
               status: orderStatus,
               items: items,
-              distributorCode: item.stockist?.code || '',
-              distributorId: String(item.stockistId || ''),
+              distributorCode: isArunOrder ? 'DIST-001' : (item.stockist?.code || ''),
+              distributorId: isArunOrder ? 'DIST-001' : String(item.stockistId || ''),
               netAmount: item.totalAmount || 0,
               grossAmount: item.totalAmount || 0,
               amount: item.totalAmount || 0
@@ -444,7 +448,8 @@ export default function RetailerOrders() {
       const isDemoDistributor = loggedInDistributorCode === 'DIST-001';
       const isDemoRetailer = item.retailerCode === 'RET-001' || 
                              (item.retailerName && item.retailerName.toLowerCase().includes('arun')) ||
-                             ((item as any).retailer && (item as any).retailer.toLowerCase().includes('arun'));
+                             ((item as any).retailer && (item as any).retailer.toLowerCase().includes('arun')) ||
+                             item.orderNo.startsWith('RET-ORD-');
 
       // 1. Explicitly match demo pair: Amit Kumar (DIST-001) <-> Arun Patel (RET-001)
       const isDemoPairMatch = isDemoDistributor && isDemoRetailer;

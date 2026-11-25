@@ -223,23 +223,40 @@ export default function Orders() {
         const username = String((user as any).username || '').trim().toLowerCase();
         const userName = String(user.fullName || (user as any).name || '').trim().toLowerCase();
 
+        const isDemoArun = userEmail === 'retailer@pharmaerp.com' || userName.includes('arun') || userCode === 'ret-001';
         let matchedRetailer = null;
 
-        // Strongest identifier priority: Code -> Email -> ID -> Username -> Name
-        if (userCode) {
-          matchedRetailer = retailers.find((r: any) => String(r.code || '').trim().toLowerCase() === userCode);
-        }
-        if (!matchedRetailer && userEmail) {
-          matchedRetailer = retailers.find((r: any) => String(r.emailAddress || r.email || '').trim().toLowerCase() === userEmail);
-        }
-        if (!matchedRetailer && userId) {
-          matchedRetailer = retailers.find((r: any) => String(r.id || '').trim().toLowerCase() === userId);
-        }
-        if (!matchedRetailer && username) {
-          matchedRetailer = retailers.find((r: any) => String(r.username || '').trim().toLowerCase() === username);
-        }
-        if (!matchedRetailer && userName) {
-          matchedRetailer = retailers.find((r: any) => String(r.name || r.retailerName || '').trim().toLowerCase() === userName);
+        // High priority for demo retailer Arun Patel (RET-001)
+        if (isDemoArun) {
+          matchedRetailer = retailers.find((r: any) => String(r.code || '').trim().toLowerCase() === 'ret-001');
+          if (!matchedRetailer) {
+            matchedRetailer = {
+              id: 'RET-001',
+              code: 'RET-001',
+              name: 'Arun Patel',
+              contactPerson: 'Arun Patel',
+              mobileNumber: '9876543210',
+              address: '123 Health Ave, Bangalore, 560001',
+              assignedDistributors: ['DIST-001']
+            };
+          }
+        } else {
+          // Strongest identifier priority: Code -> Email -> ID -> Username -> Name
+          if (userCode) {
+            matchedRetailer = retailers.find((r: any) => String(r.code || '').trim().toLowerCase() === userCode);
+          }
+          if (!matchedRetailer && userEmail) {
+            matchedRetailer = retailers.find((r: any) => String(r.emailAddress || r.email || '').trim().toLowerCase() === userEmail);
+          }
+          if (!matchedRetailer && userId) {
+            matchedRetailer = retailers.find((r: any) => String(r.id || '').trim().toLowerCase() === userId);
+          }
+          if (!matchedRetailer && username) {
+            matchedRetailer = retailers.find((r: any) => String(r.username || '').trim().toLowerCase() === username);
+          }
+          if (!matchedRetailer && userName) {
+            matchedRetailer = retailers.find((r: any) => String(r.name || r.retailerName || '').trim().toLowerCase() === userName);
+          }
         }
 
         if (matchedRetailer) {
@@ -248,16 +265,7 @@ export default function Orders() {
           setContact(matchedRetailer.contactPerson || matchedRetailer.name || '');
           setMobile(matchedRetailer.mobileNumber || (matchedRetailer as any).mobile || '');
         } else {
-          const isDemoArun = userEmail === 'retailer@pharmaerp.com' || userName.includes('arun') || userCode === 'ret-001';
-          const defaultRetailer = isDemoArun ? {
-            id: user.id || 'RET-001',
-            code: 'RET-001',
-            name: 'Arun Patel',
-            contactPerson: 'Arun Patel',
-            mobileNumber: '9876543210',
-            address: '123 Health Ave, Bangalore, 560001',
-            assignedDistributors: ['DIST-001']
-          } : {
+          const defaultRetailer = {
             id: user.id,
             code: userCode || user.employeeCode,
             name: user.fullName,
@@ -265,11 +273,6 @@ export default function Orders() {
           };
 
           setUserRetailerContext(defaultRetailer);
-          if (isDemoArun) {
-            setAddress(defaultRetailer.address);
-            setContact(defaultRetailer.contactPerson);
-            setMobile(defaultRetailer.mobileNumber);
-          }
         }
       } catch (e) {
         console.error("Error resolving retailer context", e);
@@ -348,7 +351,7 @@ export default function Orders() {
       const dName = String(d.retailer || '').toLowerCase();
       
       const isDemoMatch = (rCode === 'ret-001' || rName.includes('arun')) && 
-                          (dCode === 'ret-001' || dName.includes('arun'));
+                          (dCode === 'ret-001' || dName.includes('arun') || d.orderNo.startsWith('RET-ORD-'));
       return isDemoMatch || (dId && dId === rId) || (dCode && dCode === rCode) || (dName && dName === rName);
     });
   }, [data, userRetailerContext]);
@@ -397,6 +400,13 @@ export default function Orders() {
     if (!userRetailerContext) return null;
     let distId = '', distCode = '', distName = '';
 
+    const isDemoArun = userRetailerContext.code === 'RET-001' || 
+                       (userRetailerContext.name && userRetailerContext.name.toLowerCase().includes('arun'));
+
+    if (isDemoArun) {
+      return { id: 'DIST-001', code: 'DIST-001', name: 'Metro Pharma Distributors' };
+    }
+
     if (userRetailerContext.assignedDistributors && Array.isArray(userRetailerContext.assignedDistributors) && userRetailerContext.assignedDistributors.length > 0) {
       const dist = userRetailerContext.assignedDistributors[0];
       if (typeof dist === 'string') {
@@ -416,7 +426,7 @@ export default function Orders() {
 
     if (!distCode) {
       // Fallback for administrators / users without a linked profile
-      distId = '1';
+      distId = 'DIST-001';
       distCode = 'DIST-001';
       distName = 'Metro Pharma Distributors';
     }
@@ -612,7 +622,7 @@ export default function Orders() {
     localStorage.setItem('pharma_erp_retailer_cart', JSON.stringify(updatedCart));
   };
 
-  const handlePlaceOrder = () => {
+  const handlePlaceOrder = async () => {
     if (cartItems.length === 0) {
       alert("Your order sheet is completely empty. Please pull items from the catalog first.");
       return;
@@ -750,13 +760,19 @@ export default function Orders() {
       }))
     };
 
-    retailerOrderService.addRetailerOrder(orderPayload).then((apiRes) => {
-      if (apiRes) {
-        console.log("Order saved to database successfully:", apiRes.orderNumber || apiRes.id);
+    try {
+      const apiRes = await retailerOrderService.addRetailerOrder(orderPayload);
+      if (apiRes && apiRes.id) {
+        console.log("Order saved to database successfully with ID:", apiRes.id);
+        newOrder.id = String(apiRes.id);
+        if (apiRes.orderNumber) newOrder.orderNo = apiRes.orderNumber;
+        const syncedData = [newOrder, ...data];
+        setData(syncedData);
+        localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(syncedData));
       }
-    }).catch(err => {
+    } catch (err) {
       console.warn("Could not save to backend database, retained in local storage:", err);
-    });
+    }
 
     setIsCreateOpen(false);
     setCartItems([]);
