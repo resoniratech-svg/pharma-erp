@@ -142,55 +142,90 @@ export default function Orders() {
   }, []);
 
   useEffect(() => {
-    try {
-      const user = authService.getCurrentUser();
-      if (!user) return;
+    const resolveContext = async () => {
+      try {
+        const user = authService.getCurrentUser();
+        if (!user) return;
 
-      const retailers = retailerMasterService.getAll ? retailerMasterService.getAll() : [];
-      
-      const userId = String(user.id || '').trim().toLowerCase();
-      const userCode = String(user.employeeCode || '').trim().toLowerCase();
-      const userEmail = String(user.email || '').trim().toLowerCase();
-      const username = String((user as any).username || '').trim().toLowerCase();
-      const userName = String(user.fullName || (user as any).name || '').trim().toLowerCase();
+        let retailers: any[] = [];
+        try {
+          retailers = await retailerMasterService.fetchFromApi();
+        } catch (apiErr) {
+          console.warn("API retailer fetch failed, using local fallback:", apiErr);
+        }
 
-      let matchedRetailer = null;
+        if (!retailers || retailers.length === 0) {
+          retailers = retailerMasterService.getAll ? retailerMasterService.getAll() : [];
+        }
+        
+        const userId = String(user.id || '').trim().toLowerCase();
+        const userCode = String(user.employeeCode || (user as any).linkedRetailerCode || localStorage.getItem('retailerCode') || '').trim().toLowerCase();
+        const userEmail = String(user.email || '').trim().toLowerCase();
+        const username = String((user as any).username || '').trim().toLowerCase();
+        const userName = String(user.fullName || (user as any).name || '').trim().toLowerCase();
 
-      // Strongest identifier priority: ID -> Code -> Email -> Username -> Name
-      matchedRetailer = retailers.find((r: any) => String(r.id || '').trim().toLowerCase() === userId);
-      if (!matchedRetailer && userCode) {
-        matchedRetailer = retailers.find((r: any) => String(r.code || '').trim().toLowerCase() === userCode);
-      }
-      if (!matchedRetailer && userEmail) {
-        matchedRetailer = retailers.find((r: any) => String(r.emailAddress || r.email || '').trim().toLowerCase() === userEmail);
-      }
-      if (!matchedRetailer && username) {
-        matchedRetailer = retailers.find((r: any) => String(r.username || '').trim().toLowerCase() === username);
-      }
-      if (!matchedRetailer && userName) {
-        matchedRetailer = retailers.find((r: any) => String(r.name || r.retailerName || '').trim().toLowerCase() === userName);
-      }
+        let matchedRetailer = null;
 
-      if (matchedRetailer) {
-        setUserRetailerContext(matchedRetailer);
-        setAddress((matchedRetailer as any).address || '');
-        setContact(matchedRetailer.contactPerson || '');
-        setMobile(matchedRetailer.mobileNumber || '');
-      } else {
-        setUserRetailerContext({
-          id: user.id,
-          code: user.employeeCode,
-          name: user.fullName,
-          emailAddress: user.email
-        });
+        // Strongest identifier priority: Code -> Email -> ID -> Username -> Name
+        if (userCode) {
+          matchedRetailer = retailers.find((r: any) => String(r.code || '').trim().toLowerCase() === userCode);
+        }
+        if (!matchedRetailer && userEmail) {
+          matchedRetailer = retailers.find((r: any) => String(r.emailAddress || r.email || '').trim().toLowerCase() === userEmail);
+        }
+        if (!matchedRetailer && userId) {
+          matchedRetailer = retailers.find((r: any) => String(r.id || '').trim().toLowerCase() === userId);
+        }
+        if (!matchedRetailer && username) {
+          matchedRetailer = retailers.find((r: any) => String(r.username || '').trim().toLowerCase() === username);
+        }
+        if (!matchedRetailer && userName) {
+          matchedRetailer = retailers.find((r: any) => String(r.name || r.retailerName || '').trim().toLowerCase() === userName);
+        }
+
+        if (matchedRetailer) {
+          setUserRetailerContext(matchedRetailer);
+          setAddress(matchedRetailer.address || '');
+          setContact(matchedRetailer.contactPerson || matchedRetailer.name || '');
+          setMobile(matchedRetailer.mobileNumber || (matchedRetailer as any).mobile || '');
+        } else {
+          setUserRetailerContext({
+            id: user.id,
+            code: userCode || user.employeeCode,
+            name: user.fullName,
+            emailAddress: user.email
+          });
+        }
+      } catch (e) {
+        console.error("Error resolving retailer context", e);
       }
-    } catch (e) {
-      console.error("Error resolving retailer context", e);
-    }
+    };
+
+    resolveContext();
   }, []);
+
+  const handleOpenCreateOrder = () => {
+    if (userRetailerContext) {
+      if (!address && userRetailerContext.address) {
+        setAddress(userRetailerContext.address);
+      }
+      if (!contact && (userRetailerContext.contactPerson || userRetailerContext.name)) {
+        setContact(userRetailerContext.contactPerson || userRetailerContext.name);
+      }
+      if (!mobile && (userRetailerContext.mobileNumber || userRetailerContext.mobile)) {
+        setMobile(userRetailerContext.mobileNumber || userRetailerContext.mobile);
+      }
+    }
+    setIsCreateOpen(true);
+  };
 
   useEffect(() => {
     if (isCreateOpen) {
+      if (userRetailerContext) {
+        if (!address && userRetailerContext.address) setAddress(userRetailerContext.address);
+        if (!contact && (userRetailerContext.contactPerson || userRetailerContext.name)) setContact(userRetailerContext.contactPerson || userRetailerContext.name);
+        if (!mobile && (userRetailerContext.mobileNumber || userRetailerContext.mobile)) setMobile(userRetailerContext.mobileNumber || userRetailerContext.mobile);
+      }
       const activeCart = localStorage.getItem('pharma_erp_retailer_cart');
       if (activeCart) {
         try {
@@ -213,7 +248,7 @@ export default function Orders() {
         setCartItems([]);
       }
     }
-  }, [isCreateOpen]);
+  }, [isCreateOpen, userRetailerContext]);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -333,21 +368,22 @@ export default function Orders() {
       }, 0);
   };
 
-  const calculateSchemeDiscount = (items: OrderItem[]) => {
+  const getSchemeCalculation = (items: OrderItem[]) => {
     try {
       let totalDiscount = 0;
-      
+      const breakdownMap = new Map<string, number>();
+
       const today = new Date();
       today.setHours(0, 0, 0, 0);
 
       const activeSchemes = schemes.filter((s: any) => {
-        if (s.status !== 'Active') return false;
-        if (s.validFrom) {
-          const fromDate = new Date(s.validFrom);
+        if (s.status && s.status !== 'Active') return false;
+        if (s.validFrom || s.startDate) {
+          const fromDate = new Date(s.validFrom || s.startDate);
           if (!isNaN(fromDate.getTime()) && today < fromDate) return false;
         }
-        if (s.validTo) {
-          const toDate = new Date(s.validTo);
+        if (s.validTo || s.endDate) {
+          const toDate = new Date(s.validTo || s.endDate);
           if (!isNaN(toDate.getTime())) {
             toDate.setHours(23, 59, 59, 999);
             if (today > toDate) return false;
@@ -357,61 +393,116 @@ export default function Orders() {
       });
 
       const products = productService.getProducts ? productService.getProducts() : [];
-      
-      const totalOrderQuantity = items.reduce((sum, item) => sum + item.quantity, 0);
-      const totalOrderValue = items.reduce((sum, item) => sum + item.lineTotal, 0);
 
       items.forEach(item => {
+        if (!item.quantity || item.quantity <= 0) return;
         const product = products.find((p: any) => p.code === item.productCode);
-        
-        const applicableSchemes = activeSchemes.filter((s: any) => {
-          const minQty = Number(s.minQuantity || s.minOrderQty || 0);
-          const minVal = Number(s.minOrderValue || 0);
 
-          if (s.applicableTo === 'All Products') {
-             if (minQty > 0 && totalOrderQuantity < minQty) return false;
-             if (minVal > 0 && totalOrderValue < minVal) return false;
-             return true;
-          }
+        // Priority 1: Direct match by scheme name / code attached to cart item
+        let matchedScheme = null;
+        if (item.schemeBenefit && item.schemeBenefit !== 'No Scheme' && item.schemeBenefit !== '-') {
+          const benefitClean = item.schemeBenefit.trim().toLowerCase();
+          matchedScheme = activeSchemes.find((s: any) => {
+            const sName = String(s.name || '').trim().toLowerCase();
+            const sCode = String(s.code || '').trim().toLowerCase();
+            return (sName && (sName === benefitClean || benefitClean.includes(sName) || sName.includes(benefitClean))) ||
+                   (sCode && sCode === benefitClean);
+          });
+        }
 
-          let itemMatches = false;
-          if (s.applicableTo === 'Product' && s.applicableSelection === item.productCode) itemMatches = true;
-          if (s.applicableTo === 'Category' && product && product.category === s.applicableSelection) itemMatches = true;
-          if (s.applicableTo === 'Brand' && product && (product.brandName || (product as any).brand) === s.applicableSelection) itemMatches = true;
+        // Priority 2: Match by product code, category, brand, or All Products
+        if (!matchedScheme) {
+          matchedScheme = activeSchemes.find((s: any) => {
+            if (s.productId && product && s.productId === product.id) return true;
+            if (s.applicableTo === 'Product' && s.applicableSelection === item.productCode) return true;
+            if (s.applicableTo === 'Category' && product && product.category === s.applicableSelection) return true;
+            if (s.applicableTo === 'Brand' && product && (product.brandName || (product as any).brand) === s.applicableSelection) return true;
+            if (s.applicableTo === 'All Products') return true;
+            return false;
+          });
+        }
 
-          if (itemMatches) {
-             if (minQty > 0 && item.quantity < minQty) return false;
-             if (minVal > 0 && item.lineTotal < minVal) return false;
-             return true;
-          }
-          return false;
-        });
+        let itemDiscount = 0;
+        let schemeLabel = item.schemeBenefit || matchedScheme?.name || 'Promotional Scheme';
 
-        applicableSchemes.forEach((s: any) => {
-          const bType = String(s.benefitType || s.schemeType || '').toLowerCase();
-          const bValue = parseFloat(s.benefitValue || s.discountPct || s.ptrDiscount || '0') || 0;
+        if (matchedScheme) {
+          schemeLabel = matchedScheme.name || schemeLabel;
+          const buyQty = Number(matchedScheme.buyQty || matchedScheme.minQuantity || matchedScheme.minOrderQty || 0);
+          const freeQty = Number(matchedScheme.freeQty || 0);
+          const bType = String(matchedScheme.benefitType || matchedScheme.schemeType || matchedScheme.type || '').toLowerCase();
+          
+          const rawVal = matchedScheme.benefitValue || matchedScheme.discountPct || matchedScheme.ptrDiscount || '0';
+          const bValue = parseFloat(String(rawVal).replace(/[^0-9.]/g, '')) || 0;
 
-          if (bType.includes('percentage') || bType.includes('pct')) {
-            totalDiscount += (item.lineTotal * bValue) / 100;
-          } else if (bType.includes('flat') || bType.includes('cash')) {
-            // Apply proportionate flat discount or full if item specific
-            if (s.applicableTo === 'All Products') {
-               // Approximate distribute flat discount based on line ratio to avoid over-discounting
-               totalDiscount += bValue * (item.lineTotal / totalOrderValue);
-            } else {
-               totalDiscount += bValue;
+          const meetsMinQty = buyQty <= 0 || item.quantity >= buyQty;
+
+          if (meetsMinQty) {
+            // Case 1: Buy X Get Y Free / Free Quantity
+            if (freeQty > 0 && buyQty > 0) {
+              const freeUnits = Math.floor(item.quantity / buyQty) * freeQty;
+              itemDiscount += freeUnits * item.unitPrice;
+            } 
+            // Case 2: Percentage discount
+            else if (bType.includes('percentage') || bType.includes('pct') || bValue > 0) {
+              if (bValue <= 100) {
+                itemDiscount += (item.lineTotal * bValue) / 100;
+              } else {
+                itemDiscount += bValue;
+              }
+            } 
+            // Case 3: Flat or PTR discount
+            else if (bType.includes('flat') || bType.includes('cash')) {
+              itemDiscount += bValue;
+            } else if (bType.includes('ptr') || bType.includes('pts')) {
+              itemDiscount += (item.unitPrice * bValue / 100) * item.quantity;
             }
-          } else if (bType.includes('ptr') || bType.includes('pts')) {
-            totalDiscount += (item.unitPrice * bValue / 100) * item.quantity;
           }
-        });
+        } 
+        // Fallback: If no scheme matched in DB list, but item has scheme text like "10% off" or "Buy 20 Get 1"
+        else if (item.schemeBenefit && item.schemeBenefit !== 'No Scheme' && item.schemeBenefit !== '-') {
+          const pctMatch = item.schemeBenefit.match(/(\d+(\.\d+)?)%/);
+          const buyGetMatch = item.schemeBenefit.match(/buy\s+(\d+)\s+get\s+(\d+)/i);
+
+          if (pctMatch) {
+            const pct = parseFloat(pctMatch[1]);
+            itemDiscount += (item.lineTotal * pct) / 100;
+          } else if (buyGetMatch) {
+            const bQty = parseInt(buyGetMatch[1], 10);
+            const fQty = parseInt(buyGetMatch[2], 10);
+            if (bQty > 0 && fQty > 0 && item.quantity >= bQty) {
+              const freeUnits = Math.floor(item.quantity / bQty) * fQty;
+              itemDiscount += freeUnits * item.unitPrice;
+            }
+          }
+        }
+
+        if (itemDiscount > 0) {
+          totalDiscount += itemDiscount;
+          const current = breakdownMap.get(schemeLabel) || 0;
+          breakdownMap.set(schemeLabel, current + itemDiscount);
+        }
       });
 
-      return totalDiscount;
+      const breakdown = Array.from(breakdownMap.entries()).map(([name, amount]) => ({
+        name,
+        amount
+      }));
+
+      return { totalDiscount, breakdown };
     } catch (e) {
       console.error("Error calculating schemes", e);
-      return 0;
+      return { totalDiscount: 0, breakdown: [] };
     }
+  };
+
+  const calculateSchemeDiscount = (items: OrderItem[]) => {
+    return getSchemeCalculation(items).totalDiscount;
+  };
+
+  const handleRemoveCartItem = (id: string) => {
+    const updatedCart = cartItems.filter(item => item.id !== id);
+    setCartItems(updatedCart);
+    localStorage.setItem('pharma_erp_retailer_cart', JSON.stringify(updatedCart));
   };
 
   const getNextOrderSequence = () => {
@@ -672,6 +763,20 @@ export default function Orders() {
     { key: 'unitPrice', label: 'Unit Price', render: (row) => <span className="text-slate-600">{formatCurrency(row.unitPrice)}</span> },
     { key: 'schemeBenefit', label: 'Scheme Benefit', render: (row) => <span className="text-emerald-600 text-sm">{row.schemeBenefit || '-'}</span> },
     { key: 'lineTotal', label: 'Line Total', render: (row) => <span className="font-medium text-slate-900">{formatCurrency(row.lineTotal)}</span> },
+    {
+      key: 'id',
+      label: 'Action',
+      render: (row) => (
+        <button
+          type="button"
+          onClick={() => handleRemoveCartItem(row.id)}
+          className="w-6 h-6 flex items-center justify-center rounded-full bg-red-50 text-red-600 hover:bg-red-100 font-bold text-sm transition-colors shadow-sm"
+          title="Remove from cart"
+        >
+          -
+        </button>
+      )
+    }
   ];
 
   return (
@@ -699,7 +804,7 @@ export default function Orders() {
                 </div>
               )}
             </div>
-            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => setIsCreateOpen(true)}>
+            <ActionButton icon={<Plus className="w-4 h-4" />} onClick={handleOpenCreateOrder}>
               Create Order
             </ActionButton>
           </div>
@@ -893,24 +998,50 @@ export default function Orders() {
 
           <div>
             <h4 className="text-sm font-bold text-slate-900 border-b border-slate-100 pb-2 mb-4">Order Summary</h4>
-            <div className="bg-slate-50 p-4 rounded-lg space-y-2">
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Total Quantity</span>
-                <span className="font-medium text-slate-900">{cartItems.reduce((acc, i) => acc + i.quantity, 0)} Units</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Total Order Value</span>
-                <span className="font-medium text-slate-900">{formatCurrency(cartItems.reduce((acc, i) => acc + i.lineTotal, 0))}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span className="text-slate-600">Scheme Discount</span>
-                <span className="font-medium text-emerald-600">- {formatCurrency(calculateSchemeDiscount(cartItems))}</span>
-              </div>
-              <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between">
-                <span className="font-bold text-slate-900">Net Order Value</span>
-                <span className="font-bold text-violet-700">{formatCurrency(cartItems.reduce((acc, i) => acc + i.lineTotal, 0) - calculateSchemeDiscount(cartItems))}</span>
-              </div>
-            </div>
+            {(() => {
+              const schemeCalc = getSchemeCalculation(cartItems);
+              const totalGross = cartItems.reduce((acc, i) => acc + i.lineTotal, 0);
+              const netAmount = Math.max(0, totalGross - schemeCalc.totalDiscount);
+
+              return (
+                <div className="bg-slate-50 p-4 rounded-lg space-y-2">
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Total Quantity</span>
+                    <span className="font-medium text-slate-900">{cartItems.reduce((acc, i) => acc + i.quantity, 0)} Units</span>
+                  </div>
+                  <div className="flex justify-between text-sm">
+                    <span className="text-slate-600">Total Order Value</span>
+                    <span className="font-medium text-slate-900">{formatCurrency(totalGross)}</span>
+                  </div>
+
+                  {schemeCalc.breakdown.length > 0 ? (
+                    schemeCalc.breakdown.map((s, idx) => (
+                      <div key={idx} className="flex justify-between text-sm">
+                        <span className="text-emerald-800 font-medium">Scheme Discount ({s.name})</span>
+                        <span className="font-medium text-emerald-600">- {formatCurrency(s.amount)}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="flex justify-between text-sm">
+                      <span className="text-slate-600">Scheme Discount</span>
+                      <span className="font-medium text-slate-400">- {formatCurrency(0)}</span>
+                    </div>
+                  )}
+
+                  {schemeCalc.breakdown.length > 1 && (
+                    <div className="flex justify-between text-sm pt-1 border-t border-slate-200/60">
+                      <span className="text-slate-700 font-medium">Total Scheme Discount</span>
+                      <span className="font-bold text-emerald-600">- {formatCurrency(schemeCalc.totalDiscount)}</span>
+                    </div>
+                  )}
+
+                  <div className="pt-2 mt-2 border-t border-slate-200 flex justify-between">
+                    <span className="font-bold text-slate-900">Net Order Value</span>
+                    <span className="font-bold text-violet-700">{formatCurrency(netAmount)}</span>
+                  </div>
+                </div>
+              );
+            })()}
           </div>
 
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
