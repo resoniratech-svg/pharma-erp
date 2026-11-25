@@ -153,7 +153,7 @@ const NavModules = {
     subItems: [
       { label: 'Retailer Master', path: '/workspace/retailers/master' },
       { label: 'Product Browsing', path: '/workspace/retailers/catalog' },
-      { label: 'Offer Visibility', path: '/workspace/retailers/offers' },
+      // { label: 'Offer Visibility', path: '/workspace/retailers/offers' },
       { label: 'Scheme Visibility', path: '/workspace/retailers/scheme-visibility' },
       { label: 'Order Placement', path: '/workspace/retailers/orders' },
       { label: 'Reorder Functionality', path: '/workspace/retailers/reorders' },
