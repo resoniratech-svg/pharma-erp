@@ -43,6 +43,76 @@ export const attendanceService = {
     return attendanceRecords;
   },
 
+  async getTodayStatus(): Promise<{
+    isCheckedIn: boolean;
+    isCheckedOut: boolean;
+    activeRecord: AttendanceRecord | null;
+    todayRecord: AttendanceRecord | null;
+  }> {
+    try {
+      const response = await apiRequest<{ success: boolean; data: any }>('/attendance/status');
+      if (response && response.success && response.data) {
+        const d = response.data;
+        const active = d.activeRecord ? {
+          id: String(d.activeRecord.id),
+          date: d.activeRecord.attendanceDate ? d.activeRecord.attendanceDate.split('T')[0] : new Date().toISOString().split('T')[0],
+          repName: d.activeRecord.mr?.name || "User",
+          checkInTime: d.activeRecord.checkInTime ? new Date(d.activeRecord.checkInTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-',
+          checkOutTime: '-',
+          status: 'Present',
+          location: `Lat: ${d.activeRecord.checkInLatitude}, Lng: ${d.activeRecord.checkInLongitude}`,
+          checkInDateTime: d.activeRecord.checkInTime,
+          dayStatus: 'In-Progress'
+        } as AttendanceRecord : null;
+
+        const todayRec = d.todayRecord ? {
+          id: String(d.todayRecord.id),
+          date: d.todayRecord.attendanceDate ? d.todayRecord.attendanceDate.split('T')[0] : new Date().toISOString().split('T')[0],
+          repName: d.todayRecord.mr?.name || "User",
+          checkInTime: d.todayRecord.checkInTime ? new Date(d.todayRecord.checkInTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-',
+          checkOutTime: d.todayRecord.checkOutTime ? new Date(d.todayRecord.checkOutTime).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-',
+          status: 'Present',
+          location: `Lat: ${d.todayRecord.checkInLatitude}, Lng: ${d.todayRecord.checkInLongitude}`,
+          checkInDateTime: d.todayRecord.checkInTime,
+          checkOutDateTime: d.todayRecord.checkOutTime,
+          dayStatus: d.todayRecord.checkOutTime ? 'Completed' : 'In-Progress'
+        } as AttendanceRecord : null;
+
+        const checkinState = {
+          checkedIn: d.isCheckedIn,
+          user: active?.repName || todayRec?.repName || '',
+          time: active?.checkInDateTime || todayRec?.checkInDateTime,
+          checkedOut: d.isCheckedOut
+        };
+        localStorage.setItem(getCheckinKey(), JSON.stringify(checkinState));
+        localStorage.setItem('today_checkin', JSON.stringify(checkinState));
+
+        return {
+          isCheckedIn: d.isCheckedIn,
+          isCheckedOut: d.isCheckedOut,
+          activeRecord: active,
+          todayRecord: todayRec
+        };
+      }
+    } catch (e) {
+      console.warn("Failed to query live attendance status, checking local fallback:", e);
+    }
+
+    // Local fallback check
+    const todayStr = new Date().toISOString().split('T')[0];
+    const recs = this.getAll();
+    const todayLog = recs.find(r => r.date === todayStr);
+    const isCheckedIn = !!todayLog && (!todayLog.checkOutTime || todayLog.checkOutTime === '-');
+    const isCheckedOut = !!todayLog && (!!todayLog.checkOutTime && todayLog.checkOutTime !== '-');
+
+    return {
+      isCheckedIn,
+      isCheckedOut,
+      activeRecord: isCheckedIn ? todayLog : null,
+      todayRecord: todayLog || null
+    };
+  },
+
   async loadAllAttendance(): Promise<AttendanceRecord[]> {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>(`/attendance`);
@@ -76,16 +146,17 @@ export const attendanceService = {
     return [];
   },
 
-  async loadAttendance(mrId: number): Promise<AttendanceRecord[]> {
+  async loadAttendance(mrId?: number): Promise<AttendanceRecord[]> {
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>(`/attendance`);
       if (response.success && Array.isArray(response.data)) {
         const currentUser = authService.getCurrentUser();
+        const effectiveMrId = mrId || (localStorage.getItem('mrId') ? Number(localStorage.getItem('mrId')) : undefined);
         const myAttendance = response.data.filter(r => {
           if (currentUser && currentUser.id) {
-            return r.mr?.userId === currentUser.id || Number(r.mrId) === Number(mrId);
+            return r.mr?.userId === currentUser.id || (effectiveMrId && Number(r.mrId) === Number(effectiveMrId));
           }
-          return Number(r.mrId) === Number(mrId);
+          return effectiveMrId ? Number(r.mrId) === Number(effectiveMrId) : true;
         });
         
         // Optimistic Merge: If the backend returns empty but we have local records, don't wipe everything instantly.
@@ -96,7 +167,7 @@ export const attendanceService = {
           return {
             id: String(r.id),
             date: r.attendanceDate ? r.attendanceDate.split('T')[0] : new Date().toISOString().split('T')[0],
-            repName: r.mr?.name || "Medical Representative",
+            repName: r.mr?.name || currentUser?.fullName || "Employee",
             checkInTime: checkIn ? checkIn.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-',
             checkOutTime: checkOut ? checkOut.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : '-',
             status: 'Present',
@@ -123,19 +194,23 @@ export const attendanceService = {
         }
         
         localStorage.setItem(getRecordsKey(), JSON.stringify(attendanceRecords));
+        localStorage.setItem('web_attendance_records', JSON.stringify(attendanceRecords));
 
         // Sync today_checkin logic
         const todayRecord = attendanceRecords.find(r => r.date === todayStr);
         if (todayRecord) {
           const checkedIn = todayRecord.dayStatus === 'In-Progress';
-          localStorage.setItem(getCheckinKey(), JSON.stringify({
+          const checkinPayload = {
             checkedIn,
             user: todayRecord.repName,
             time: todayRecord.checkInDateTime,
             checkedOut: todayRecord.dayStatus === 'Completed'
-          }));
+          };
+          localStorage.setItem(getCheckinKey(), JSON.stringify(checkinPayload));
+          localStorage.setItem('today_checkin', JSON.stringify(checkinPayload));
         } else {
           localStorage.removeItem(getCheckinKey());
+          localStorage.removeItem('today_checkin');
         }
       }
     } catch (e) {
@@ -160,7 +235,7 @@ export const attendanceService = {
     });
 
     if (!response.success || !response.data) {
-      throw new Error("Failed to check in");
+      throw new Error(response.message || "Failed to check in");
     }
 
     const created = response.data;
@@ -178,14 +253,18 @@ export const attendanceService = {
       dayStatus: 'In-Progress'
     };
 
-    attendanceRecords = [mapped, ...attendanceRecords];
+    attendanceRecords = [mapped, ...attendanceRecords.filter(r => r.id !== mapped.id)];
+    localStorage.setItem(getRecordsKey(), JSON.stringify(attendanceRecords));
     localStorage.setItem('web_attendance_records', JSON.stringify(attendanceRecords));
-    localStorage.setItem('today_checkin', JSON.stringify({
+    const checkinState = {
       checkedIn: true,
       user: name,
       time: created.checkInTime
-    }));
+    };
+    localStorage.setItem(getCheckinKey(), JSON.stringify(checkinState));
+    localStorage.setItem('today_checkin', JSON.stringify(checkinState));
 
+    window.dispatchEvent(new Event('attendanceUpdated'));
     return mapped;
   },
 
@@ -196,13 +275,14 @@ export const attendanceService = {
       checkOutLongitude: lng
     };
 
-    const response = await apiRequest<{ success: boolean; data: any }>(`/attendance/checkout/${id}`, {
+    const checkoutUrl = id && id !== '0' && id !== 'undefined' ? `/attendance/checkout/${id}` : '/attendance/checkout/active';
+    const response = await apiRequest<{ success: boolean; data: any }>(checkoutUrl, {
       method: 'PUT',
       bodyData: dbPayload
     });
 
     if (!response.success || !response.data) {
-      throw new Error("Failed to check out");
+      throw new Error(response.message || "Failed to check out");
     }
 
     const updated = response.data;
@@ -226,15 +306,19 @@ export const attendanceService = {
       checkOutLocation: location
     };
 
-    attendanceRecords = attendanceRecords.map(r => r.id === id ? mapped : r);
+    attendanceRecords = attendanceRecords.map(r => (r.id === id || r.id === String(updated.id)) ? mapped : r);
+    localStorage.setItem(getRecordsKey(), JSON.stringify(attendanceRecords));
     localStorage.setItem('web_attendance_records', JSON.stringify(attendanceRecords));
-    localStorage.setItem('today_checkin', JSON.stringify({
+    const checkoutState = {
       checkedIn: false,
       user: mapped.repName,
       checkoutTime: updated.checkOutTime,
       checkedOut: true
-    }));
+    };
+    localStorage.setItem(getCheckinKey(), JSON.stringify(checkoutState));
+    localStorage.setItem('today_checkin', JSON.stringify(checkoutState));
 
+    window.dispatchEvent(new Event('attendanceUpdated'));
     return mapped;
   }
 };

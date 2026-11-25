@@ -107,36 +107,8 @@ export default function Attendance() {
   React.useEffect(() => {
     const fetchMyRecords = async () => {
       try {
-        let authUser = null;
-        try {
-          const authUserString = localStorage.getItem('authUser');
-          authUser = authUserString ? JSON.parse(authUserString) : null;
-        } catch { }
-        
-        let isManager = false;
-        if (authUser) {
-          const userRole = authUser.roleId || authUser.role;
-          const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
-          if (managementRoles.includes(userRole)) {
-            isManager = true;
-          }
-        }
-
-        const rawMrId = localStorage.getItem('mrId');
-        
-        if (!isManager && rawMrId) {
-          const mrId = Number(rawMrId);
-          const data = await attendanceService.loadAttendance(mrId);
-          setMyRecords(data);
-        } else {
-          // Managers load from scoped localStorage
-          const userId = authUser?.id || 'default';
-          const scopedKey = `web_attendance_records_${userId}`;
-          const stored = localStorage.getItem(scopedKey);
-          if (stored) {
-            setMyRecords(JSON.parse(stored));
-          }
-        }
+        const data = await attendanceService.loadAttendance();
+        setMyRecords(data);
       } catch (e) {
         console.error("Failed to load personal attendance records:", e);
       }
@@ -144,6 +116,11 @@ export default function Attendance() {
     if (activeTab === 'my-attendance') {
       fetchMyRecords();
     }
+
+    window.addEventListener('attendanceUpdated', fetchMyRecords);
+    return () => {
+      window.removeEventListener('attendanceUpdated', fetchMyRecords);
+    };
   }, [activeTab]);
 
   // Team Attendance State
@@ -360,11 +337,16 @@ export default function Attendance() {
                     key: 'status',
                     label: 'Status',
                     render: (row: any) => {
-                      const currentStatus = row.dayStatus || row.status;
-                      const variant = currentStatus === 'Present' || currentStatus === 'Completed' ? 'success' : 
-                                      currentStatus === 'Absent' || currentStatus === 'Missed Check-Out' || currentStatus === 'Auto Closed' ? 'danger' : 
-                                      currentStatus === 'Half Day' || currentStatus === 'Pending Checkout' ? 'warning' : 'neutral';
-                      return <Badge variant={variant as any}>{currentStatus}</Badge>;
+                      const isCheckedIn = !row.checkOutTime || row.checkOutTime === '-';
+                      const currentStatus = isCheckedIn ? 'Checked-In' : 'Checked-Out';
+                      return (
+                        <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+                          isCheckedIn ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 mr-1.5 rounded-full ${isCheckedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                          {currentStatus}
+                        </span>
+                      );
                     }
                   }
                 ]}

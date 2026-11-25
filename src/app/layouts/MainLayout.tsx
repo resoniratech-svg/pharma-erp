@@ -44,6 +44,7 @@ import { warehouseService } from '../../services/warehouseService';
 import { inventoryService } from '../../services/inventoryService';
 import authService from '../../services/authService';
 import { batchService } from '../../services/batchService';
+import { attendanceService } from '../../services/attendanceService';
 
 const PRIMARY_HEX = 'var(--color-brand-primary)';
 const BG_HEX = 'var(--color-brand-light)';
@@ -547,8 +548,34 @@ export function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [expandedMenus, setExpandedMenus] = useState<string[]>(['Products']);
+  const [attendanceStatus, setAttendanceStatus] = useState<{
+    isCheckedIn: boolean;
+    isCheckedOut: boolean;
+  }>({ isCheckedIn: true, isCheckedOut: false });
+  const [showCheckInModal, setShowCheckInModal] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
+
+  // Check live attendance status for field force enforcement
+  useEffect(() => {
+    const verifyAttendance = async () => {
+      try {
+        const st = await attendanceService.getTodayStatus();
+        setAttendanceStatus({
+          isCheckedIn: st.isCheckedIn,
+          isCheckedOut: st.isCheckedOut
+        });
+      } catch (e) {
+        console.warn("Could not check live attendance status:", e);
+      }
+    };
+    verifyAttendance();
+
+    window.addEventListener('attendanceUpdated', verifyAttendance);
+    return () => {
+      window.removeEventListener('attendanceUpdated', verifyAttendance);
+    };
+  }, []);
 
   // Load backend database records in parallel on mount to populate the cache globally
   useEffect(() => {
@@ -581,6 +608,48 @@ export function MainLayout() {
   const authUserSession = authUserString ? JSON.parse(authUserString) : null;
   const localUserString = localStorage.getItem('authUser');
   const authUser = localUserString ? JSON.parse(localUserString) : authUserSession?.user;
+  
+  // Intercept route navigation to enforce Check-In for field operations
+  useEffect(() => {
+    const FIELD_ROLES = [
+      'NATIONAL_SALES_HEAD',
+      'National Sales Head',
+      'REGIONAL_SALES_MANAGER',
+      'Regional Sales Manager',
+      'AREA_SALES_MANAGER',
+      'Area Sales Manager',
+      'MEDICAL_REPRESENTATIVE',
+      'Medical Representative',
+      'MR'
+    ];
+
+    const currentRole = activeRole || authUser?.roleId || authUser?.role;
+    const isFieldForce = FIELD_ROLES.some(r => r.toLowerCase() === String(currentRole || '').toLowerCase());
+
+    if (!isFieldForce) {
+      setShowCheckInModal(false);
+      return;
+    }
+
+    const EXEMPT_PATHS = [
+      '/workspace/gps/check-in',
+      '/workspace/gps/check-out',
+      '/workspace/gps/attendance',
+      '/workspace/national-sales-head/attendance',
+      '/workspace/regional-sales-manager/attendance',
+      '/workspace/area-sales-manager/attendance',
+      '/workspace/settings',
+      '/workspace/notifications',
+      '/login'
+    ];
+
+    const isExempt = EXEMPT_PATHS.some(p => location.pathname.startsWith(p));
+    if (!isExempt && !attendanceStatus.isCheckedIn) {
+      setShowCheckInModal(true);
+    } else {
+      setShowCheckInModal(false);
+    }
+  }, [location.pathname, attendanceStatus, activeRole, authUser]);
   
   const getRoleTitle = (roleIdOrName?: string) => {
     if (!roleIdOrName) return activeRoleData.title;
@@ -1162,6 +1231,54 @@ const activeStyle =
             </div>
           </div>
         </main>
+
+        {/* Mandatory Check-In Gate Blocking Modal */}
+        {showCheckInModal && (
+          <div className="fixed inset-0 bg-slate-900/70 backdrop-blur-sm z-[9999] flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 text-center shadow-2xl border border-slate-100 animate-in zoom-in-95 duration-200">
+              <div className="w-16 h-16 bg-[#163c78]/10 text-[#163c78] rounded-full flex items-center justify-center mx-auto mb-4">
+                <Navigation className="w-8 h-8" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 mb-2">Check-In Required</h3>
+              <p className="text-slate-600 text-sm mb-6 leading-relaxed">
+                {attendanceStatus.isCheckedOut ? 
+                  "Your work shift for today has already ended (Checked-Out). Field operations are locked until your next shift." :
+                  "Before performing any operational activities or accessing CRM features, you must record your starting attendance for the day."
+                }
+              </p>
+              <div className="flex flex-col gap-3">
+                {!attendanceStatus.isCheckedOut && (
+                  <button
+                    onClick={() => {
+                      setShowCheckInModal(false);
+                      navigate('/workspace/gps/check-in');
+                    }}
+                    className="w-full py-3 bg-[#163c78] hover:bg-[#112d5a] text-white font-semibold rounded-xl transition-colors shadow-sm"
+                  >
+                    Go to Check-In Now
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setShowCheckInModal(false);
+                    if (activeRole.includes('NATIONAL_SALES_HEAD')) {
+                      navigate('/workspace/national-sales-head/attendance');
+                    } else if (activeRole.includes('REGIONAL_SALES_MANAGER')) {
+                      navigate('/workspace/regional-sales-manager/attendance');
+                    } else if (activeRole.includes('AREA_SALES_MANAGER')) {
+                      navigate('/workspace/area-sales-manager/attendance');
+                    } else {
+                      navigate('/workspace/gps/attendance');
+                    }
+                  }}
+                  className="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-xl transition-colors text-sm"
+                >
+                  View Attendance Record
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

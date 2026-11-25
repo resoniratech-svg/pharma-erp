@@ -167,7 +167,7 @@ export default function CheckIn() {
   const [locationText, setLocationText] = useState('Fetching accurate location...');
   const [isReady, setIsReady] = useState(false);
   const [latLng, setLatLng] = useState<{lat: number, lng: number} | null>(null);
-  const [records, setRecords] = useState<any[]>([]);
+  const [statusState, setStatusState] = useState<{ isCheckedIn: boolean; isCheckedOut: boolean; activeRecord: any; todayRecord: any } | null>(null);
 
   const fetchLocation = () => {
     setLocationText('Fetching accurate location...');
@@ -203,49 +203,47 @@ export default function CheckIn() {
     }
   };
 
-  useEffect(() => {
-    const fetchRecords = async () => {
-      try {
-        let authUser = null;
-        try {
-          const authUserString = localStorage.getItem('authUser');
-          authUser = authUserString ? JSON.parse(authUserString) : null;
-        } catch { }
-        
-        let isManager = false;
-        if (authUser) {
-          const userRole = authUser.roleId || authUser.role;
-          const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
-          if (managementRoles.includes(userRole)) {
-            isManager = true;
-          }
-        }
+  const getRedirectPath = () => {
+    try {
+      const authUserStr = localStorage.getItem('authUser');
+      if (authUserStr) {
+        const authUser = JSON.parse(authUserStr);
+        const role = authUser.roleId || authUser.role;
+        if (role === 'NATIONAL_SALES_HEAD' || role === 'National Sales Head') return '/workspace/national-sales-head/attendance';
+        if (role === 'REGIONAL_SALES_MANAGER' || role === 'Regional Sales Manager') return '/workspace/regional-sales-manager/attendance';
+        if (role === 'AREA_SALES_MANAGER' || role === 'Area Sales Manager') return '/workspace/area-sales-manager/attendance';
+      }
+    } catch (e) {}
+    return '/workspace/gps/attendance';
+  };
 
-        const rawMrId = localStorage.getItem('mrId');
-        
-        if (!isManager && rawMrId) {
-          const mrId = Number(rawMrId);
-          const data = await attendanceService.loadAttendance(mrId);
-          setRecords(data);
-        } else {
-          // Managers load from scoped localStorage
-          const userId = authUser?.id || 'default';
-          const scopedKey = `web_attendance_records_${userId}`;
-          const stored = localStorage.getItem(scopedKey);
-          if (stored) {
-            setRecords(JSON.parse(stored));
-          }
-        }
+  useEffect(() => {
+    const fetchStatus = async () => {
+      try {
+        const st = await attendanceService.getTodayStatus();
+        setStatusState(st);
+        await attendanceService.loadAttendance();
       } catch (e) {
-        console.error("Failed to load records on checkin mount:", e);
+        console.error("Failed to load status on checkin mount:", e);
       }
     };
-    fetchRecords();
+    fetchStatus();
     fetchLocation();
+
+    window.addEventListener('attendanceUpdated', fetchStatus);
+    return () => {
+      window.removeEventListener('attendanceUpdated', fetchStatus);
+    };
   }, []);
 
   const handleCheckIn = async () => {
     if (!isReady || !latLng) return;
+
+    if (statusState?.isCheckedIn) {
+      alert('You are already checked in today! Please check out first.');
+      navigate('/workspace/gps/check-out');
+      return;
+    }
 
     let authUser = null;
     try {
@@ -255,114 +253,12 @@ export default function CheckIn() {
       authUser = null;
     }
 
-    const userName = authUser?.fullName || authUser?.name || 'Medical Representative';
-    const userId = authUser?.id || `USR-${Date.now()}`;
-
-    const now = new Date();
-    // Use ISO YYYY-MM-DD format (or map it exactly) for reliable comparison since loadAttendance returns ISO strings for date
-    const todayDateStr = now.toISOString().split('T')[0];
-
-    const activeSession = records.find((r: any) => {
-      const recordDate = r.date; // already YYYY-MM-DD from service
-      return recordDate === todayDateStr && (!r.checkOutTime || r.checkOutTime === '-');
-    });
-
-    const getRedirectPath = () => {
-      try {
-        const authUserStr = localStorage.getItem('authUser');
-        if (authUserStr) {
-          const authUser = JSON.parse(authUserStr);
-          const role = authUser.roleId || authUser.role;
-          if (role === 'NATIONAL_SALES_HEAD' || role === 'National Sales Head') return '/workspace/national-sales-head/attendance';
-          if (role === 'REGIONAL_SALES_MANAGER' || role === 'Regional Sales Manager') return '/workspace/regional-sales-manager/attendance';
-          if (role === 'AREA_SALES_MANAGER' || role === 'Area Sales Manager') return '/workspace/area-sales-manager/attendance';
-        }
-      } catch (e) {}
-      return '/workspace/gps/attendance';
-    };
-
-    if (activeSession) {
-      alert('You have already checked in today! Please check out first.');
-      navigate(getRedirectPath());
-      return;
-    }
+    const userName = authUser?.fullName || authUser?.name || 'Employee';
+    const rawMrId = localStorage.getItem('mrId');
+    const mrId = rawMrId ? Number(rawMrId) : 1;
 
     try {
-      const rawMrId = localStorage.getItem('mrId');
-      const authUserStr = localStorage.getItem('authUser');
-      const authUser = authUserStr ? JSON.parse(authUserStr) : null;
-      
-      let isManager = false;
-      let mrId: number | null = null;
-      if (rawMrId) {
-        mrId = Number(rawMrId);
-      } else if (authUser) {
-        const userRole = authUser.roleId || authUser.role;
-        const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
-        if (managementRoles.includes(userRole)) {
-          isManager = true;
-        } else {
-          alert('Your account is not linked to an MR profile. Please create an MR profile first.');
-          return;
-        }
-      } else {
-        alert('Your account is not linked to an MR profile. Please create an MR profile first.');
-        return;
-      }
-      
-      let newRecord: any = null;
-
-      if (!isManager && mrId !== null) {
-        // Real Backend Flow for MR
-        const dbRecord = await attendanceService.checkIn(mrId, userName, latLng.lat, latLng.lng, locationText);
-        newRecord = {
-          id: String(dbRecord.id),
-          userId: userId, 
-          date: todayDateStr,
-          repName: userName,
-          checkInDateTime: now.toISOString(),
-          checkInTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          checkOutTime: '-',
-          status: "Present", 
-          location: locationText,
-          latitude: latLng.lat,
-          longitude: latLng.lng,
-          createdAt: now.toISOString(),
-          dayStatus: 'In-Progress'
-        };
-      } else {
-        // Scoped Local Storage Mock Flow for Managers
-        newRecord = {
-          id: crypto.randomUUID(),
-          userId: userId, 
-          date: todayDateStr,
-          repName: userName,
-          checkInDateTime: now.toISOString(),
-          checkInTime: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-          checkOutTime: '-',
-          status: "Present", 
-          location: locationText,
-          latitude: latLng.lat,
-          longitude: latLng.lng,
-          createdAt: now.toISOString(),
-          dayStatus: 'In-Progress'
-        };
-        const scopedKey = `web_attendance_records_${userId}`;
-        const existingData = localStorage.getItem(scopedKey);
-        const scopedRecords = existingData ? JSON.parse(existingData) : [];
-        scopedRecords.unshift(newRecord);
-        localStorage.setItem(scopedKey, JSON.stringify(scopedRecords));
-      }
-
-      localStorage.setItem(
-        `today_checkin_${userId}`,
-        JSON.stringify({
-            checkedIn: true,
-            user: userName,
-            time: now.toISOString()
-        })
-      );
-
+      await attendanceService.checkIn(mrId, userName, latLng.lat, latLng.lng, locationText);
       alert('Checked in successfully!');
       navigate(getRedirectPath());
     } catch (e: any) {
@@ -384,44 +280,69 @@ export default function CheckIn() {
                 <Navigation className="w-10 h-10 text-[#163c78]" />
             </div>
             
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Ready to start your day?</h2>
-            <p className="text-slate-500 mb-8">Ensure your device GPS is enabled. Your current location will be recorded as your starting point.</p>
-            
-            <div className="bg-slate-50 rounded-xl p-4 mb-8 flex flex-col items-center justify-center gap-2 text-slate-700">
-                <div className="flex items-center gap-3">
-                  <MapPin className="w-5 h-5 text-slate-400" />
-                  <span className={`font-medium ${!isReady && locationText !== 'Fetching accurate location...' ? 'text-rose-500' : ''}`}>
-                    {locationText}
-                  </span>
+            {statusState?.isCheckedIn ? (
+              <div className="mb-6 bg-emerald-50 border border-emerald-200 rounded-xl p-4 text-center">
+                <p className="text-emerald-800 font-semibold text-lg">🟢 You are currently checked in for today</p>
+                <p className="text-emerald-600 text-sm mt-1">
+                  Check-in recorded at {statusState.activeRecord?.checkInTime || 'earlier today'}.
+                </p>
+                <div className="flex items-center justify-center gap-3 mt-4">
+                  <button 
+                    onClick={() => navigate('/workspace/gps/check-out')} 
+                    className="px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Go to Check-Out
+                  </button>
+                  <button 
+                    onClick={() => navigate(getRedirectPath())} 
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    View Attendance
+                  </button>
                 </div>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Ready to start your day?</h2>
+                <p className="text-slate-500 mb-8">Ensure your device GPS is enabled. Your current location will be recorded as your starting point.</p>
                 
-                {/* Error Resolution Buttons */}
-                {!isReady && locationText !== 'Fetching accurate location...' && (
-                  <div className="flex flex-col gap-3 mt-3">
-                    <button onClick={fetchLocation} className="text-sm font-semibold text-[#163c78] hover:text-violet-700 underline transition-colors">
-                      Retry GPS Connection
-                    </button>
-                    {/* ✅ DEV BYPASS: Click this if you are stuck testing! */}
-                    <button 
-                      onClick={() => {
-                        setLocationText("Mock Location (Dev Bypass)");
-                        setLatLng({ lat: 19.0760, lng: 72.8777 });
-                        setIsReady(true);
-                      }} 
-                      className="text-xs text-slate-400 hover:text-slate-600 underline"
-                    >
-                      Use Mock Location (Dev Only)
-                    </button>
-                  </div>
-                )}
-            </div>
+                <div className="bg-slate-50 rounded-xl p-4 mb-8 flex flex-col items-center justify-center gap-2 text-slate-700">
+                    <div className="flex items-center gap-3">
+                      <MapPin className="w-5 h-5 text-slate-400" />
+                      <span className={`font-medium ${!isReady && locationText !== 'Fetching accurate location...' ? 'text-rose-500' : ''}`}>
+                        {locationText}
+                      </span>
+                    </div>
+                    
+                    {/* Error Resolution Buttons */}
+                    {!isReady && locationText !== 'Fetching accurate location...' && (
+                      <div className="flex flex-col gap-3 mt-3">
+                        <button onClick={fetchLocation} className="text-sm font-semibold text-[#163c78] hover:text-violet-700 underline transition-colors">
+                          Retry GPS Connection
+                        </button>
+                        {/* ✅ DEV BYPASS: Click this if you are stuck testing! */}
+                        <button 
+                          onClick={() => {
+                            setLocationText("Mock Location (Dev Bypass)");
+                            setLatLng({ lat: 19.0760, lng: 72.8777 });
+                            setIsReady(true);
+                          }} 
+                          className="text-xs text-slate-400 hover:text-slate-600 underline"
+                        >
+                          Use Mock Location (Dev Only)
+                        </button>
+                      </div>
+                    )}
+                </div>
 
-            <ActionButton 
-                onClick={handleCheckIn}
-                disabled={!isReady}
-                className={`w-full justify-center py-4 text-lg rounded-xl shadow-sm ${!isReady ? 'opacity-50 cursor-not-allowed' : ''}`}>
-                Confirm Check-In
-            </ActionButton>
+                <ActionButton 
+                    onClick={handleCheckIn}
+                    disabled={!isReady}
+                    className={`w-full justify-center py-4 text-lg rounded-xl shadow-sm ${!isReady ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                    Confirm Check-In
+                </ActionButton>
+              </>
+            )}
         </div>
       </div>
     </div>

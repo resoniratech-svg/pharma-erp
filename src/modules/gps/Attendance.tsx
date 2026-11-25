@@ -144,13 +144,7 @@ export default function Attendance() {
           return;
         }
 
-        const rawMrId = localStorage.getItem('mrId');
-        if (!rawMrId) {
-          setRecords([]);
-          return;
-        }
-        const mrId = Number(rawMrId);
-        const data = await attendanceService.loadAttendance(mrId);
+        const data = await attendanceService.loadAttendance();
         setRecords(data);
       } catch (e) {
         console.error("Failed to load attendance records:", e);
@@ -161,6 +155,11 @@ export default function Attendance() {
       }
     };
     fetchRecords();
+
+    window.addEventListener('attendanceUpdated', fetchRecords);
+    return () => {
+      window.removeEventListener('attendanceUpdated', fetchRecords);
+    };
   }, []);
 
   const columns: Column<AttendanceRecord>[] = [
@@ -181,16 +180,16 @@ export default function Attendance() {
       key: 'status',
       label: 'Status',
       render: (row) => {
-        // Read dayStatus from localStorage record, fallback to status
-        const currentStatus = (row as any).dayStatus || row.status;
-        
-        // Define color variant mapping
-        const variant = 
-          currentStatus === 'Present' || currentStatus === 'Completed' ? 'success' : 
-          currentStatus === 'Absent' || currentStatus === 'Missed Check-Out' || currentStatus === 'Auto Closed' ? 'danger' : 
-          currentStatus === 'Half Day' || currentStatus === 'Pending Checkout' ? 'warning' : 'neutral';
-          
-        return <Badge variant={variant}>{currentStatus}</Badge>;
+        const isCheckedIn = !row.checkOutTime || row.checkOutTime === '-';
+        const currentStatus = isCheckedIn ? 'Checked-In' : 'Checked-Out';
+        return (
+          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${
+            isCheckedIn ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'
+          }`}>
+            <span className={`w-1.5 h-1.5 mr-1.5 rounded-full ${isCheckedIn ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+            {currentStatus}
+          </span>
+        );
       },
     },
     {

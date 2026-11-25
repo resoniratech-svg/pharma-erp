@@ -87,56 +87,30 @@ export default function CheckOut() {
     }
   };
 
-  const [records, setRecords] = useState<any[]>([]);
+  const [statusState, setStatusState] = useState<{ isCheckedIn: boolean; isCheckedOut: boolean; activeRecord: any; todayRecord: any } | null>(null);
 
   useEffect(() => {
-    const fetchRecords = async () => {
+    const fetchStatus = async () => {
       try {
-        let authUser = null;
-        try {
-          const authUserString = localStorage.getItem('authUser');
-          authUser = authUserString ? JSON.parse(authUserString) : null;
-        } catch { }
-        
-        let isManager = false;
-        if (authUser) {
-          const userRole = authUser.roleId || authUser.role;
-          const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
-          if (managementRoles.includes(userRole)) {
-            isManager = true;
-          }
-        }
-
-        const rawMrId = localStorage.getItem('mrId');
-        
-        if (!isManager && rawMrId) {
-          const mrId = Number(rawMrId);
-          const data = await attendanceService.loadAttendance(mrId);
-          setRecords(data);
-        } else {
-          const userId = authUser?.id || 'default';
-          const scopedKey = `web_attendance_records_${userId}`;
-          const stored = localStorage.getItem(scopedKey);
-          if (stored) {
-            setRecords(JSON.parse(stored));
-          }
-        }
+        const st = await attendanceService.getTodayStatus();
+        setStatusState(st);
+        const data = await attendanceService.loadAttendance();
+        setRecords(data);
       } catch (e) {
-        console.error("Failed to load records on checkout mount:", e);
+        console.error("Failed to load status on checkout mount:", e);
       }
     };
-    fetchRecords();
+    fetchStatus();
     fetchLocation();
+
+    window.addEventListener('attendanceUpdated', fetchStatus);
+    return () => {
+      window.removeEventListener('attendanceUpdated', fetchStatus);
+    };
   }, []);
 
   const handleCheckOut = async () => {
     if (!isReady || !latLng) return;
-
-    const userName = getMRName();
-    const now = new Date();
-    const todayDateStr = now.toISOString().split('T')[0];
-
-    const recordIndex = records.findIndex((r: any) => r.date === todayDateStr);
 
     const getRedirectPath = () => {
       try {
@@ -152,95 +126,15 @@ export default function CheckOut() {
       return '/workspace/gps/attendance';
     };
 
-    if (recordIndex === -1) {
+    if (!statusState?.isCheckedIn && !statusState?.activeRecord) {
       alert('You have not checked in today! Please Check-In first.');
       navigate('/workspace/gps/check-in');
       return;
     }
 
-    if (records[recordIndex].checkOutTime && records[recordIndex].checkOutTime !== '-') {
-      alert('You have already checked out today!');
-      navigate(getRedirectPath());
-      return;
-    }
-
     try {
-      const todayRecord = records[recordIndex];
-      
-      let isManager = false;
-      const authUserStr = localStorage.getItem('authUser');
-      const authUser = authUserStr ? JSON.parse(authUserStr) : null;
-      if (authUser) {
-        const userRole = authUser.roleId || authUser.role;
-        const managementRoles = ['SUPER_ADMIN', 'ADMIN', 'NATIONAL_SALES_HEAD', 'REGIONAL_SALES_MANAGER', 'AREA_SALES_MANAGER', 'National Sales Head', 'Regional Sales Manager', 'Area Sales Manager'];
-        if (managementRoles.includes(userRole)) {
-          isManager = true;
-        }
-      }
-      
-      const rawMrId = localStorage.getItem('mrId');
-      
-      if (!isManager && rawMrId !== null) {
-        // Real Backend Flow
-        await attendanceService.checkOut(String(todayRecord.id), latLng.lat, latLng.lng, locationText);
-      } else {
-        // Mock Flow
-        const userId = authUser?.id || 'default';
-        const scopedKey = `web_attendance_records_${userId}`;
-        const existingData = localStorage.getItem(scopedKey);
-        if (existingData) {
-          const scopedRecords = JSON.parse(existingData);
-          const idx = scopedRecords.findIndex((r: any) => r.id === todayRecord.id);
-          if (idx !== -1) {
-            scopedRecords[idx].checkOutTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-            scopedRecords[idx].checkOutDateTime = now.toISOString();
-            if (scopedRecords[idx].checkInDateTime) {
-              const checkIn = new Date(scopedRecords[idx].checkInDateTime);
-              const diffMs = now.getTime() - checkIn.getTime();
-              const hours = Math.floor(diffMs / 3600000);
-              const minutes = Math.floor((diffMs % 3600000) / 60000);
-              scopedRecords[idx].workingHours = `${hours}h ${minutes}m`;
-              scopedRecords[idx].totalMinutes = Math.floor(diffMs / 60000);
-            }
-            scopedRecords[idx].checkOutLocation = locationText;
-            scopedRecords[idx].checkOutLatitude = latLng.lat;
-            scopedRecords[idx].checkOutLongitude = latLng.lng;
-            scopedRecords[idx].dayStatus = "Completed";
-            localStorage.setItem(scopedKey, JSON.stringify(scopedRecords));
-          }
-        }
-      }
-
-      records[recordIndex].checkOutTime = now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      records[recordIndex].checkOutDateTime = now.toISOString();
-      
-      if (records[recordIndex].checkInDateTime) {
-        const checkIn = new Date(records[recordIndex].checkInDateTime);
-        const diffMs = now.getTime() - checkIn.getTime();
-        const hours = Math.floor(diffMs / 3600000);
-        const minutes = Math.floor((diffMs % 3600000) / 60000);
-        
-        records[recordIndex].workingHours = `${hours}h ${minutes}m`;
-        records[recordIndex].totalMinutes = Math.floor(diffMs / 60000);
-      }
-
-      records[recordIndex].checkOutLocation = locationText;
-      records[recordIndex].checkOutLatitude = latLng.lat;
-      records[recordIndex].checkOutLongitude = latLng.lng;
-      records[recordIndex].dayStatus = "Completed";
-
-      const userId = authUser?.id || 'default';
-
-      localStorage.setItem(
-        `today_checkin_${userId}`,
-        JSON.stringify({
-          checkedIn: false,
-          user: userName,
-          checkoutTime: now.toISOString(),
-          checkedOut: true
-        })
-      );
-      
+      const activeId = statusState.activeRecord?.id || 'active';
+      await attendanceService.checkOut(String(activeId), latLng.lat, latLng.lng, locationText);
       alert('Checked out successfully!');
       navigate(getRedirectPath());
     } catch (e: any) {
@@ -275,7 +169,7 @@ export default function CheckOut() {
     const todayReport = storedReports.find((r: any) => r.mrName === userName && isTodayDate(r.date));
 
     let workingHoursText = '0h 0m';
-    const record = records.find((r: any) => r.date === todayDateStr && r.repName === userName);
+    const record = statusState?.activeRecord || records.find((r: any) => r.date === todayDateStr);
     if (record && record.checkInDateTime) {
       const checkIn = new Date(record.checkInDateTime);
       const diffMs = Date.now() - checkIn.getTime();
@@ -308,32 +202,53 @@ export default function CheckOut() {
                 <Flag className="w-10 h-10 text-rose-600" />
             </div>
             
-            <h2 className="text-2xl font-bold text-slate-900 mb-2">Ready to end your day?</h2>
-            <p className="text-slate-500 mb-8">Ensure your DCR is submitted before checking out. Your current location will be recorded as your ending point.</p>
-            
-            <div className="bg-slate-50 rounded-xl p-4 mb-8 flex flex-col gap-2 text-left">
-                <div className="flex items-center justify-between text-sm pt-2 border-t border-slate-200 mt-2">
-                    <span className="text-slate-500 flex items-center gap-1"><MapPin className="w-4 h-4"/> Location:</span>
-                    <span className={`font-semibold ${!isReady && locationText !== 'Fetching accurate location...' ? 'text-rose-500' : 'text-slate-700'}`}>
-                      {locationText}
-                    </span>
+            {!statusState?.isCheckedIn && !statusState?.activeRecord ? (
+              <div className="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+                <p className="text-amber-800 font-semibold text-lg">⚠️ You have not checked in today</p>
+                <p className="text-amber-600 text-sm mt-1">Please start your day by checking in first before you can check out.</p>
+                <div className="flex items-center justify-center gap-3 mt-4">
+                  <button 
+                    onClick={() => navigate('/workspace/gps/check-in')} 
+                    className="px-4 py-2 bg-[#163c78] hover:bg-[#112d5a] text-white rounded-lg text-sm font-medium transition-colors"
+                  >
+                    Go to Check-In
+                  </button>
+                  <button 
+                    onClick={() => navigate('/workspace/gps/attendance')} 
+                    className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-colors"
+                  >
+                    View Attendance
+                  </button>
                 </div>
+              </div>
+            ) : (
+              <>
+                <h2 className="text-2xl font-bold text-slate-900 mb-2">Ready to end your day?</h2>
+                <p className="text-slate-500 mb-8">Ensure your DCR is submitted before checking out. Your current location will be recorded as your ending point.</p>
                 
-                {/* Error Resolution Buttons */}
-                {!isReady && locationText !== 'Fetching accurate location...' && (
-                  <div className="flex flex-col gap-3 mt-3 items-end">
-                    <button onClick={fetchLocation} className="text-sm font-semibold text-rose-600 hover:text-rose-700 underline transition-colors">
-                      Retry GPS Connection
-                    </button>
-                    <button 
-                      onClick={() => {
-                        setLocationText("Mock Location (Dev Bypass)");
-                        setLatLng({ lat: 19.0760, lng: 72.8777 });
-                        setIsReady(true);
-                      }} 
-                      className="text-xs text-slate-400 hover:text-slate-600 underline"
-                    >
-                      Use Mock Location (Dev Only)
+                <div className="bg-slate-50 rounded-xl p-4 mb-8 flex flex-col gap-2 text-left">
+                    <div className="flex items-center justify-between text-sm pt-2 border-t border-slate-200 mt-2">
+                        <span className="text-slate-500 flex items-center gap-1"><MapPin className="w-4 h-4"/> Location:</span>
+                        <span className={`font-semibold ${!isReady && locationText !== 'Fetching accurate location...' ? 'text-rose-500' : 'text-slate-700'}`}>
+                          {locationText}
+                        </span>
+                    </div>
+                    
+                    {/* Error Resolution Buttons */}
+                    {!isReady && locationText !== 'Fetching accurate location...' && (
+                      <div className="flex flex-col gap-3 mt-3 items-end">
+                        <button onClick={fetchLocation} className="text-sm font-semibold text-rose-600 hover:text-rose-700 underline transition-colors">
+                          Retry GPS Connection
+                        </button>
+                        <button 
+                          onClick={() => {
+                            setLocationText("Mock Location (Dev Bypass)");
+                            setLatLng({ lat: 19.0760, lng: 72.8777 });
+                            setIsReady(true);
+                          }} 
+                          className="text-xs text-slate-400 hover:text-slate-600 underline"
+                        >
+                          Use Mock Location (Dev Only)
                     </button>
                   </div>
                 )}
