@@ -29,6 +29,12 @@ router.get(
 );
 
 router.get(
+  "/status",
+  authMiddleware,
+  controller.getAttendanceStatus
+);
+
+router.get(
   "/:id",
   authMiddleware,
   controller.getAttendanceById

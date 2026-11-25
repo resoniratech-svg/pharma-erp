@@ -84,7 +84,7 @@ const checkOut =
 
       let attendanceId = Number(req.params.id);
       
-      if (isNaN(attendanceId)) {
+      if (isNaN(attendanceId) || attendanceId <= 0 || req.params.id === 'active') {
         let mrId = 1;
         if (req.user && req.user.id) {
           let mr = await prisma.mR.findUnique({
@@ -250,6 +250,72 @@ const getASMTeamAttendance = async (req, res) => {
   }
 };
 
+const getAttendanceStatus = async (req, res) => {
+  try {
+    let mrId = null;
+    if (req.user && req.user.id) {
+      let mr = await prisma.mR.findUnique({
+        where: { userId: req.user.id }
+      });
+      if (mr) mrId = mr.id;
+    }
+    if (!mrId && req.query.mrId) {
+      mrId = Number(req.query.mrId);
+    }
+
+    if (!mrId) {
+      return res.status(200).json({
+        success: true,
+        data: {
+          isCheckedIn: false,
+          isCheckedOut: false,
+          activeRecord: null,
+          todayRecord: null,
+          records: []
+        }
+      });
+    }
+
+    const now = new Date();
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    const records = await prisma.attendance.findMany({
+      where: {
+        mrId: mrId,
+        attendanceDate: {
+          gte: startOfDay,
+          lte: endOfDay
+        }
+      },
+      orderBy: { id: 'desc' }
+    });
+
+    const activeRecord = records.find(r => r.checkOutTime === null) || null;
+    const completedRecord = records.find(r => r.checkOutTime !== null) || null;
+    const latestRecord = records[0] || null;
+
+    const isCheckedIn = !!activeRecord;
+    const isCheckedOut = !isCheckedIn && !!completedRecord;
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        isCheckedIn,
+        isCheckedOut,
+        activeRecord,
+        todayRecord: latestRecord,
+        records
+      }
+    });
+  } catch (error) {
+    return res.status(400).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   checkIn,
   checkOut,
@@ -257,4 +323,5 @@ module.exports = {
   getAttendanceById,
   getAttendanceByMR,
   getASMTeamAttendance,
+  getAttendanceStatus,
 };
