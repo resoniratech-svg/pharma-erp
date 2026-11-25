@@ -225,7 +225,15 @@ export default function RetailerOrders() {
       try {
         const apiData = await retailerOrderService.getRetailerOrders();
         if (apiData && apiData.length > 0) {
-          const mappedOrders: RetailerOrder[] = apiData.map(item => {
+          // Exclude institutional hospital/chemist orders that do not belong to Retailer Orders
+          const retailerOnlyData = apiData.filter(item => {
+            if ((item.hospitalId || item.hospital || item.chemistId || item.chemist) && !item.retailerId && !item.retailer) {
+              return false;
+            }
+            return true;
+          });
+
+          const mappedOrders: RetailerOrder[] = retailerOnlyData.map(item => {
             const dateStr = item.orderDate || item.createdAt || new Date().toISOString();
             const formattedDate = new Date(dateStr).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-');
             
@@ -256,7 +264,7 @@ export default function RetailerOrders() {
               paymentStatus: 'Unpaid',
               status: orderStatus,
               items: items,
-              distributorCode: item.stockist?.code || 'DIST-001',
+              distributorCode: item.stockist?.code || '',
               distributorId: String(item.stockistId || ''),
               netAmount: item.totalAmount || 0,
               grossAmount: item.totalAmount || 0,
@@ -452,10 +460,7 @@ export default function RetailerOrders() {
          isLinked = retailer.assignedDistributors === loggedInDistributorCode;
       }
 
-      // 4. Default fallback for mock orders without explicit distributor
-      const isMockDefault = !item.distributorCode && isDemoDistributor;
-
-      if (!isDemoPairMatch && !explicitlyBelongs && !isLinked && !isMockDefault) return false;
+      if (!isDemoPairMatch && !explicitlyBelongs && !isLinked) return false;
 
       const matchSearch = item.orderNo.toLowerCase().includes(search.toLowerCase()) || 
                           (item.retailerName && item.retailerName.toLowerCase().includes(search.toLowerCase())) ||
