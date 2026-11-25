@@ -21,7 +21,47 @@ const createRetailerOrder = async (req, res) => {
     let stockistId = req.body.stockistId ? Number(req.body.stockistId) : undefined;
     if (isNaN(stockistId)) stockistId = undefined;
 
-    // Resolve retailerId if missing or passed as code
+    // Resolve retailerId & stockistId with high-priority Demo matching
+    const isArunDemo = (req.user && (req.user.email === 'retailer@pharmaerp.com' || (req.user.name && req.user.name.toLowerCase().includes('arun')))) ||
+                       req.body.retailerCode === 'RET-001' ||
+                       (req.body.retailerName && req.body.retailerName.toLowerCase().includes('arun')) ||
+                       orderNumber.startsWith('RET-ORD-');
+
+    if (isArunDemo) {
+      let demoStockist = await prisma.stockist.findFirst({ where: { code: 'DIST-001' } });
+      if (!demoStockist) {
+        demoStockist = await prisma.stockist.create({
+          data: {
+            code: 'DIST-001',
+            name: 'Metro Pharma Distributors',
+            mobile: '9876543210',
+          }
+        });
+      }
+      stockistId = demoStockist.id;
+
+      let r = await prisma.retailer.findFirst({ where: { code: 'RET-001' } });
+      if (!r) {
+        r = await prisma.retailer.create({
+          data: {
+            code: 'RET-001',
+            name: 'Arun Patel',
+            contactPerson: req.body.contactPerson || 'Arun Patel',
+            mobile: req.body.mobileNumber || '9876543210',
+            address: req.body.deliveryAddress || '123 Health Ave, Bangalore, 560001',
+            stockistId: demoStockist.id,
+          }
+        });
+      } else if (r.stockistId !== demoStockist.id) {
+        r = await prisma.retailer.update({
+          where: { id: r.id },
+          data: { stockistId: demoStockist.id }
+        });
+      }
+      retailerId = r.id;
+    }
+
+    // Resolve retailerId for other non-demo retailers if missing
     if (!retailerId) {
       const code = req.body.retailerCode || (req.user && req.user.role === 'RETAILER' ? req.user.linkedRetailerCode : undefined);
       const name = req.body.retailerName || req.body.retailer;
@@ -31,43 +71,6 @@ const createRetailerOrder = async (req, res) => {
       }
       if (!r && name) {
         r = await prisma.retailer.findFirst({ where: { name } });
-      }
-      // Demo retailer matching fallback (Arun Patel / RET-001)
-      if (!r && (code === 'RET-001' || (name && name.toLowerCase().includes('arun')))) {
-        let demoStockist = await prisma.stockist.findFirst({ where: { code: 'DIST-001' } });
-        if (!demoStockist) {
-          demoStockist = await prisma.stockist.create({
-            data: {
-              code: 'DIST-001',
-              name: 'Metro Pharma Distributors',
-              mobile: '9876543210',
-            }
-          });
-        }
-        r = await prisma.retailer.findFirst({ where: { code: 'RET-001' } });
-        if (r) {
-          r = await prisma.retailer.update({
-            where: { id: r.id },
-            data: {
-              name: 'Arun Patel',
-              contactPerson: req.body.contactPerson || 'Arun Patel',
-              mobile: req.body.mobileNumber || '9876543210',
-              address: req.body.deliveryAddress || '123 Health Ave, Bangalore, 560001',
-              stockistId: demoStockist.id,
-            }
-          });
-        } else {
-          r = await prisma.retailer.create({
-            data: {
-              code: 'RET-001',
-              name: 'Arun Patel',
-              contactPerson: req.body.contactPerson || 'Arun Patel',
-              mobile: req.body.mobileNumber || '9876543210',
-              address: req.body.deliveryAddress || '123 Health Ave, Bangalore, 560001',
-              stockistId: demoStockist.id,
-            }
-          });
-        }
       }
       if (r) retailerId = r.id;
     }
@@ -189,6 +192,31 @@ const createRetailerOrder = async (req, res) => {
 
 const getRetailerOrders = async (req, res) => {
   try {
+    // Sync any existing RET-ORD-* orders to demo retailer (RET-001 / Arun Patel) and stockist (DIST-001 / Amit Kumar)
+    try {
+      const demoStockist = await prisma.stockist.findFirst({ where: { code: 'DIST-001' } });
+      const demoRetailer = await prisma.retailer.findFirst({ where: { code: 'RET-001' } });
+      if (demoStockist && demoRetailer) {
+        await prisma.retailerOrder.updateMany({
+          where: {
+            orderNumber: { startsWith: 'RET-ORD-' },
+            OR: [
+              { stockistId: { not: demoStockist.id } },
+              { retailerId: { not: demoRetailer.id } },
+              { stockistId: null },
+              { retailerId: null }
+            ]
+          },
+          data: {
+            stockistId: demoStockist.id,
+            retailerId: demoRetailer.id
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Could not auto-link RET-ORD orders:", e);
+    }
+
     const result = await service.getRetailerOrdersService();
 
     res.status(200).json({
@@ -225,6 +253,7 @@ const updateRetailerOrder = async (req, res) => {
     if (req.body.status !== undefined) updateData.status = req.body.status;
     if (req.body.totalAmount !== undefined) updateData.totalAmount = Number(req.body.totalAmount);
     if (req.body.stockistId !== undefined) updateData.stockistId = Number(req.body.stockistId);
+    if (req.body.retailerId !== undefined) updateData.retailerId = Number(req.body.retailerId);
 
     const result = await service.updateRetailerOrderService(
       Number(req.params.id),
