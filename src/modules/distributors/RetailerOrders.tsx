@@ -55,60 +55,8 @@ interface RetailerOrder {
   distributorId?: string;
 }
 
-// --- Seed Mock Data if not present ---
-const initialOrders: RetailerOrder[] = [
-  {
-    id: 'ro1', orderNo: 'ORD-RET-5001', retailerName: 'Apollo Pharmacy', retailerCode: 'RET-001',
-    mobileNumber: '+91 9876543210', address: '123 Health Ave, Bangalore, 560001',
-    date: '10-Oct-2026', paymentStatus: 'Paid', status: 'Delivered',
-    items: [
-      { productCode: 'PRD-001', productName: 'Amoxicillin 500mg', quantity: 200, rate: 150, amount: 30000 },
-      { productCode: 'PRD-002', productName: 'Paracetamol 650mg', quantity: 100, rate: 45, amount: 4500 }
-    ],
-    schemeInfo: { appliedScheme: 'Volume Discount', discountAmount: 1500, freeQuantity: 10 },
-    grossAmount: 34500, netAmount: 33000
-  },
-  {
-    id: 'ro2', orderNo: 'ORD-RET-5002', retailerName: 'MedPlus Store', retailerCode: 'RET-002',
-    mobileNumber: '+91 8765432109', address: '45 Wellness Blvd, Mumbai, 400001',
-    date: '12-Oct-2026', paymentStatus: 'Unpaid', status: 'Pending Approval',
-    items: [
-      { productCode: 'PRD-005', productName: 'Ibuprofen 400mg', quantity: 150, rate: 75, amount: 11250 }
-    ],
-    schemeInfo: { appliedScheme: 'No Scheme', discountAmount: 0, freeQuantity: 0 },
-    grossAmount: 11250, netAmount: 11250
-  },
-  {
-    id: 'ro3', orderNo: 'ORD-RET-5003', retailerName: 'Wellness Forever', retailerCode: 'RET-003',
-    mobileNumber: '+91 7654321098', address: '78 Care Lane, Delhi, 110001',
-    date: '14-Oct-2026', paymentStatus: 'Partial', status: 'Approved',
-    items: [
-      { productCode: 'PRD-003', productName: 'Vitamin C 1000mg', quantity: 50, rate: 180, amount: 9000 }
-    ],
-    schemeInfo: { appliedScheme: 'Festive Offer 5%', discountAmount: 450, freeQuantity: 0 },
-    grossAmount: 9000, netAmount: 8550
-  },
-  {
-    id: 'ro4', orderNo: 'ORD-RET-5004', retailerName: 'Apollo Pharmacy', retailerCode: 'RET-001',
-    mobileNumber: '+91 9876543210', address: '123 Health Ave, Bangalore, 560001',
-    date: '15-Oct-2026', invoiceNo: 'INV-2026-5004', paymentStatus: 'Unpaid', status: 'Invoice Generated',
-    items: [
-      { productCode: 'PRD-002', productName: 'Paracetamol 650mg', quantity: 300, rate: 45, amount: 13500 }
-    ],
-    schemeInfo: { appliedScheme: 'No Scheme', discountAmount: 0, freeQuantity: 0 },
-    grossAmount: 13500, netAmount: 13500
-  },
-  {
-    id: 'ro5', orderNo: 'ORD-RET-5005', retailerName: 'PharmaTrust', retailerCode: 'RET-004',
-    mobileNumber: '+91 6543210987', address: '12 Clinic Road, Chennai, 600001',
-    date: '16-Oct-2026', paymentStatus: 'Paid', status: 'Dispatched',
-    items: [
-      { productCode: 'PRD-001', productName: 'Amoxicillin 500mg', quantity: 100, rate: 150, amount: 15000 }
-    ],
-    schemeInfo: { appliedScheme: 'No Scheme', discountAmount: 0, freeQuantity: 0 },
-    grossAmount: 15000, netAmount: 15000
-  }
-];
+// --- Initial Orders (Empty by default so mock dummy orders do not pollute the view) ---
+const initialOrders: RetailerOrder[] = [];
 
 const formatCurrency = (amount: number | undefined | null) => {
   if (amount === null || amount === undefined || isNaN(amount)) return '₹ 0.00';
@@ -237,14 +185,40 @@ export default function RetailerOrders() {
     const data = localStorage.getItem('pharma_erp_retailer_orders');
     if (data !== null) {
       try {
-        return JSON.parse(data);
+        const parsed = JSON.parse(data);
+        if (Array.isArray(parsed)) {
+          // Filter out legacy mock placeholder IDs
+          return parsed.filter(o => !['ro1', 'ro2', 'ro3', 'ro4', 'ro5'].includes(o.id));
+        }
       } catch (e) {
         console.error("Failed to parse retailer orders:", e);
       }
     }
-    localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(initialOrders));
-    return initialOrders;
+    return [];
   });
+
+  useEffect(() => {
+    const handleSync = () => {
+      try {
+        const raw = localStorage.getItem('pharma_erp_retailer_orders');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) {
+            setOrders(parsed.filter(o => !['ro1', 'ro2', 'ro3', 'ro4', 'ro5'].includes(o.id)));
+          }
+        }
+      } catch (e) {
+        console.error("Error syncing retailer orders:", e);
+      }
+    };
+
+    window.addEventListener('storage', handleSync);
+    window.addEventListener('retailerOrdersUpdated', handleSync);
+    return () => {
+      window.removeEventListener('storage', handleSync);
+      window.removeEventListener('retailerOrdersUpdated', handleSync);
+    };
+  }, []);
 
   useEffect(() => {
     const fetchApiOrders = async () => {

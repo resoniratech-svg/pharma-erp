@@ -54,8 +54,10 @@ interface OrderItem {
   productCode: string;
   quantity: number;
   unitPrice: number;
+  rate?: number;
   schemeBenefit?: string;
   lineTotal: number;
+  amount?: number;
 }
 
 interface Order {
@@ -64,11 +66,13 @@ interface Order {
   retailerId: string;
   retailerCode: string;
   retailer: string;
+  retailerName?: string;
   distributorId: string;
   distributorCode: string;
   distributorName: string;
   date: string;
   amount: number;
+  grossAmount?: number;
   schemeDiscount: number;
   netAmount: number;
   paymentStatus: PaymentStatus;
@@ -583,7 +587,7 @@ export default function Orders() {
   const getNextOrderSequence = () => {
     let maxSeq = 0;
     data.forEach(order => {
-      const match = order.orderNo.match(/RET-ORD-(product.brandName || (product as any).brandd+)/);
+      const match = order.orderNo.match(/RET-ORD-(\d+)/);
       if (match && match[1]) {
         const seq = parseInt(match[1], 10);
         if (seq > maxSeq) maxSeq = seq;
@@ -683,14 +687,16 @@ export default function Orders() {
     const newOrder: Order = {
       id: generateUUID(),
       orderNo: orderNumber,
-      retailerId: userRetailerContext.id || '',
-      retailerCode: userRetailerContext.code || '',
-      retailer: userRetailerContext.name || 'Unknown Retailer',
+      retailerId: userRetailerContext.id || 'RET-001',
+      retailerCode: userRetailerContext.code || 'RET-001',
+      retailer: userRetailerContext.name || 'Arun Patel',
+      retailerName: userRetailerContext.name || 'Arun Patel',
       distributorId: distributor.id,
-      distributorCode: distributor.code,
-      distributorName: distributor.name,
+      distributorCode: distributor.code || 'DIST-001',
+      distributorName: distributor.name || 'Metro Pharma Distributors',
       date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
       amount: totalGross,
+      grossAmount: totalGross,
       schemeDiscount: schemeDiscount,
       netAmount: Math.max(0, totalGross - schemeDiscount),
       paymentStatus: 'Unpaid',
@@ -700,7 +706,11 @@ export default function Orders() {
       contactPerson: contact,
       mobileNumber: mobile,
       remarks: remarks,
-      items: cartItems,
+      items: cartItems.map(item => ({
+        ...item,
+        rate: item.unitPrice,
+        amount: item.lineTotal
+      })),
       
       createdAt: timestamp,
       createdBy: createdBy,
@@ -713,6 +723,7 @@ export default function Orders() {
     const updatedData = [newOrder, ...data];
     setData(updatedData);
     localStorage.setItem('pharma_erp_retailer_orders', JSON.stringify(updatedData));
+    window.dispatchEvent(new Event('retailerOrdersUpdated'));
     
     // Submit to database API
     const orderPayload = {
