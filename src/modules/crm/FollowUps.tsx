@@ -120,7 +120,8 @@ export default function FollowUps() {
       const validCreatorIds = [currentUserId, currentEmpId].filter(Boolean);
 
       const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
-      const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
+      const isNSM = currentRole === 'NATIONAL_SALES_HEAD' || currentRole === 'National Sales Head';
+      const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin || isNSM);
       const subNames = subordinates.map(s => s.employeeName);
       const subIds = subordinates.map(s => s.id);
 
@@ -128,7 +129,7 @@ export default function FollowUps() {
       const apiLeads = await leadService.getAll();
       
       let visibleLeads = apiLeads;
-      if (!isSuperAdmin) {
+      if (!isSuperAdmin && !isNSM) {
            visibleLeads = apiLeads.filter(l => {
              const createdMatch = (l.createdByEmpId && (validCreatorIds.includes(String(l.createdByEmpId)) || subIds.includes(l.createdByEmpId))) || 
                                   (!l.createdByEmpId && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName)));
@@ -152,7 +153,7 @@ export default function FollowUps() {
       const apiFollowUps = await followUpService.getAll();
       const todayStr = new Date().toISOString().split('T')[0];
       
-      const visibleFollowUps = isSuperAdmin ? apiFollowUps : apiFollowUps.filter(f => f.leadId && validLeadIds.has(String(f.leadId)));
+      const visibleFollowUps = (isSuperAdmin || isNSM) ? apiFollowUps : apiFollowUps.filter(f => f.leadId && validLeadIds.has(String(f.leadId)));
       
       const mapped: FollowUp[] = visibleFollowUps.map((f) => ({
         id: String(f.id),

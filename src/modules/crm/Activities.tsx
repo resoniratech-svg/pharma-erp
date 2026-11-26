@@ -595,12 +595,13 @@ export default function ActivityTracking() {
       }
 
       const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
-      const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
+      const isNSM = currentRole === 'NATIONAL_SALES_HEAD' || currentRole === 'National Sales Head';
+      const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin || isNSM);
       const subNames = subordinates.map(s => s.employeeName);
       const subIds = subordinates.map(s => s.id);
 
       const auth = {
-        isSuperAdmin,
+        isSuperAdmin: isSuperAdmin || isNSM,
         isAuthorizedName: (name: string) => !name || isSuperAdmin || name === currentName || subNames.includes(name),
         isAuthorizedId: (id: string | number) => !id || isSuperAdmin || String(id) === currentEmpId || subIds.includes(String(id)),
         filterAny: function(item: any) {

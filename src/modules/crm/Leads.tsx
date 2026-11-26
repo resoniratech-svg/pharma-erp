@@ -264,11 +264,12 @@ export default function Leads() {
     }
 
     const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
+    const isNSM = currentRole === 'NATIONAL_SALES_HEAD' || currentRole === 'National Sales Head';
 
     leadService.getAll().then((apiLeads) => {
       // 1) Filter leads for visibility
       let visibleLeads = apiLeads;
-      if (!isSuperAdmin) {
+      if (!isSuperAdmin && !isNSM) {
         visibleLeads = apiLeads.filter(l => {
           // If lead has creator ID, match it. Else fallback to assigned name matching for legacy leads
           if (l.createdByEmpId) {

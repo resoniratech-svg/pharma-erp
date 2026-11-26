@@ -153,11 +153,12 @@ export default function AssignedLeads() {
     }
 
     const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
+    const isNSM = currentRole === 'NATIONAL_SALES_HEAD' || currentRole === 'National Sales Head';
 
     leadService.getAll().then((apiLeads) => {
       // 1) Filter leads for visibility
       let visibleLeads = apiLeads;
-      if (!isSuperAdmin) {
+      if (!isSuperAdmin && !isNSM) {
         visibleLeads = apiLeads.filter(l => {
           if (currentRole === 'MEDICAL_REPRESENTATIVE' || currentRole === 'ROLE_MEDICAL_REPRESENTATIVE') {
             return l.assignedMrName === currentName || (l.assignedMrId && l.assignedMrId.toString() === currentEmpId);

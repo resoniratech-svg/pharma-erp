@@ -547,14 +547,15 @@ export default function CrmMeetings() {
         }
 
         const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
-        const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
+        const isNSM = currentRole === 'NATIONAL_SALES_HEAD' || currentRole === 'National Sales Head';
+        const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin || isNSM);
         const subNames = subordinates.map(s => s.employeeName);
         const subIds = subordinates.map(s => s.id);
 
         const apiLeads = await leadService.getAll();
         
         let visibleLeads = apiLeads;
-        if (!isSuperAdmin) {
+        if (!isSuperAdmin && !isNSM) {
              visibleLeads = apiLeads.filter(l => {
                const createdMatch = (l.createdByEmpId && (l.createdByEmpId === currentEmpId || subIds.includes(l.createdByEmpId))) || 
                                     (!l.createdByEmpId && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName)));

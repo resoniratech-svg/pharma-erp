@@ -325,12 +325,13 @@ export default function LeadAssignment() {
       const validCreatorIds = [currentUserId, currentEmpId].filter(Boolean);
 
       const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
+      const isNSM = currentRole === 'NATIONAL_SALES_HEAD' || currentRole === 'National Sales Head';
 
       // Determine Allowed Designations
       let allowedDesigArr: string[] = [];
       if (isSuperAdmin) {
         allowedDesigArr = ['National Sales Head', 'Regional Sales Manager', 'Area Sales Manager', 'Medical Representative'];
-      } else if (currentRole === 'NATIONAL_SALES_HEAD' || currentRole === 'National Sales Head') {
+      } else if (isNSM) {
         allowedDesigArr = ['Regional Sales Manager', 'Area Sales Manager', 'Medical Representative'];
       } else if (currentRole === 'REGIONAL_SALES_MANAGER' || currentRole === 'Regional Sales Manager') {
         allowedDesigArr = ['Area Sales Manager', 'Medical Representative'];
@@ -341,13 +342,13 @@ export default function LeadAssignment() {
       if (allowedDesigArr.length > 0) setSelectedDesignation(allowedDesigArr[0]);
 
       // Fetch Subordinates Hierarchy
-      const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
+      const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin || isNSM);
       setAllSubordinates(subordinates);
 
       // Fetch Leads
       leadService.getAll().then((apiLeads) => {
         let visibleLeads = apiLeads;
-        if (!isSuperAdmin) {
+        if (!isSuperAdmin && !isNSM) {
            const subNames = subordinates.map(s => s.employeeName);
            const subIds = subordinates.map(s => s.id);
              visibleLeads = apiLeads.filter(l => {

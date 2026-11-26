@@ -377,6 +377,15 @@ class EmployeeService {
       return allEmployees;
     }
 
+    const isNationalHead = 
+      managerName === 'NATIONAL_SALES_HEAD' ||
+      managerName === 'National Sales Head' ||
+      allEmployees.some(e => (String(e.id) === String(managerId) || e.employeeName === managerName) && e.designation === 'National Sales Head');
+
+    if (isNationalHead) {
+      return allEmployees;
+    }
+
     return allEmployees.filter(emp => 
       (emp.reportsToId && emp.reportsToId === managerId) || 
       (emp.reportsTo && emp.reportsTo === managerName)
@@ -399,6 +408,15 @@ class EmployeeService {
     }
     
     if (isSuperAdmin) {
+      return allEmployees;
+    }
+
+    const isNationalHead = 
+      managerName === 'NATIONAL_SALES_HEAD' ||
+      managerName === 'National Sales Head' ||
+      allEmployees.some(e => (String(e.id) === String(managerId) || e.employeeName === managerName) && e.designation === 'National Sales Head');
+
+    if (isNationalHead) {
       return allEmployees;
     }
 

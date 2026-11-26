@@ -75,29 +75,33 @@ export default function LeadPipelineTracking() {
       }
 
       const isSuperAdmin = currentRole === 'SUPER_ADMIN' || currentRole === 'Super Admin';
-      const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin);
-      const subNames = subordinates.map(s => s.employeeName);
-      const subIds = subordinates.map(s => s.id);
+      const isNSM = currentRole === 'NATIONAL_SALES_HEAD' || currentRole === 'National Sales Head';
+
+      const subordinates = await employeeService.getAllSubordinates(currentEmpId, currentName, isSuperAdmin || isNSM);
+      const subNames = subordinates.map(s => s.employeeName.trim().toLowerCase());
+      const subIds = subordinates.map(s => String(s.id));
 
       const apiLeads = await leadService.getAll();
 
       let visibleLeads = apiLeads;
-      if (!isSuperAdmin) {
-           visibleLeads = apiLeads.filter(l => {
-             const createdMatch = (l.createdByEmpId && (l.createdByEmpId === currentEmpId || subIds.includes(l.createdByEmpId))) || 
-                                  (!l.createdByEmpId && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName)));
-             const assignedMatchReal = l.assignedMrName && (l.assignedMrName === currentName || subNames.includes(l.assignedMrName));
-             return createdMatch || assignedMatchReal;
-           });
+      if (!isSuperAdmin && !isNSM) {
+        visibleLeads = apiLeads.filter(l => {
+          const assigned = (l.assignedMrName || l.assignedTo || (l.assignedMr ? l.assignedMr.name : '') || '').trim().toLowerCase();
+          const userLower = currentName.trim().toLowerCase();
+          const isSelf = assigned === userLower || assigned === 'national_sales_head' || assigned === 'nsm';
+          const isSub = subNames.includes(assigned);
+          const isCreator = l.createdByEmpId && (String(l.createdByEmpId) === String(currentEmpId) || subIds.includes(String(l.createdByEmpId)));
+          return isSelf || isSub || isCreator;
+        });
       }
 
       const mapped = visibleLeads.map(l => ({
-          id: String(l.id),
-          name: l.name,
-          status: l.status,
-          assignedTo: l.assignedMrName,
-          probability: '',
-          updatedAt: l.createdAt
+        id: String(l.id),
+        name: l.name,
+        status: l.status || 'NEW',
+        assignedTo: l.assignedMrName || l.assignedTo || (l.assignedMr ? l.assignedMr.name : 'Unassigned'),
+        probability: '',
+        updatedAt: l.createdAt
       }));
       setLeads(mapped);
     } catch (e) {
@@ -143,21 +147,24 @@ export default function LeadPipelineTracking() {
 
   // Auto-Probability Calculation
   const getProbability = (stage: string) => {
-    switch (stage) {
-      case 'New': return '10%';
-      case 'Assigned': return '20%';
-      case 'Contacted': return '40%';
-      case 'Qualified': return '60%';
-      case 'Proposal Sent': return '80%';
-      case 'Converted': return '100%';
-      case 'Lost': return '0%';
+    const s = (stage || '').toUpperCase();
+    switch (s) {
+      case 'NEW': return '10%';
+      case 'ASSIGNED': return '20%';
+      case 'CONTACTED': return '40%';
+      case 'QUALIFIED': return '60%';
+      case 'PROPOSAL SENT':
+      case 'PROPOSAL_SENT': return '80%';
+      case 'CONVERTED': return '100%';
+      case 'LOST': return '0%';
       default: return '10%';
     }
   };
 
   const getStatusType = (stage: string) => {
-    if (stage === 'Converted') return 'Won';
-    if (stage === 'Lost') return 'Lost';
+    const s = (stage || '').toUpperCase();
+    if (s === 'CONVERTED') return 'Won';
+    if (s === 'LOST') return 'Lost';
     return 'Active';
   };
 
@@ -165,7 +172,7 @@ export default function LeadPipelineTracking() {
     if (leads.length === 0) return alert("No data to export!");
     const headers = ['Lead ID', 'Lead Name', 'Stage', 'Assigned To', 'Probability', 'Status'];
     const rows = leads.map(l => [
-      l.id, `"${l.name}"`, l.status || 'New', `"${l.assignedTo || 'Unassigned'}"`, getProbability(l.status || 'New'), getStatusType(l.status || 'New')
+      l.id, `"${l.name}"`, l.status || 'NEW', `"${l.assignedTo || 'Unassigned'}"`, getProbability(l.status || 'NEW'), getStatusType(l.status || 'NEW')
     ]);
     const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -181,17 +188,20 @@ export default function LeadPipelineTracking() {
 
   // Dynamic KPI Calculations
   const totalLeads = leads.length;
-  const qualifiedLeads = leads.filter(l => l.status === 'Qualified' || l.status === 'Proposal Sent').length;
-  const convertedLeads = leads.filter(l => l.status === 'Converted').length;
-  const lostLeads = leads.filter(l => l.status === 'Lost').length;
+  const qualifiedLeads = leads.filter(l => {
+    const s = (l.status || '').toUpperCase();
+    return s === 'QUALIFIED' || s === 'PROPOSAL SENT' || s === 'PROPOSAL_SENT';
+  }).length;
+  const convertedLeads = leads.filter(l => (l.status || '').toUpperCase() === 'CONVERTED').length;
+  const lostLeads = leads.filter(l => (l.status || '').toUpperCase() === 'LOST').length;
 
   const tableData = leads.map(l => ({
     leadId: l.id,
     leadName: l.name,
-    currentStage: l.status || 'New',
+    currentStage: l.status || 'NEW',
     assignedTo: l.assignedTo || 'Unassigned',
-    probability: getProbability(l.status || 'New'),
-    status: getStatusType(l.status || 'New')
+    probability: getProbability(l.status || 'NEW'),
+    status: getStatusType(l.status || 'NEW')
   }));
 
   const columns: Column<any>[] = [
