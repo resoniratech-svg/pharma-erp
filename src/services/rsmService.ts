@@ -37,6 +37,23 @@ class RSMService {
    * Gets all ASMs that report directly to the current RSM from DB
    */
   async getReportingASMs(): Promise<Employee[]> {
+    const authUserStr = typeof localStorage !== 'undefined' ? localStorage.getItem('authUser') : null;
+    const authUser = authUserStr ? JSON.parse(authUserStr) : null;
+    const empId = authUser?.employeeId;
+
+    if (empId) {
+      try {
+        const myAsms = await employeeService.getEmployees({
+          designation: 'Area Sales Manager',
+          reportsToId: empId,
+          status: 'Active',
+        });
+        if (myAsms && myAsms.length > 0) return myAsms;
+      } catch (err) {
+        console.warn('Could not fetch filtered subordinates, falling back', err);
+      }
+    }
+
     return employeeService.getEmployees({
       designation: 'Area Sales Manager',
       status: 'Active',

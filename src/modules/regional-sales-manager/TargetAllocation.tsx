@@ -164,8 +164,6 @@ export default function TargetAllocation() {
           className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
             activeStep === 'asm' ? 'bg-white text-[#163c78] shadow-sm' : 'text-slate-600 hover:bg-slate-200'
           }`}
-          disabled={!activeTarget}
-          title={!activeTarget ? "No active assigned targets to allocate" : ""}
         >
           ASM Allocation
         </button>
@@ -252,7 +250,18 @@ export default function TargetAllocation() {
           </div>
         </div>
       ) : (
-        activeTarget && (
+        !activeTarget ? (
+          <div className="bg-white p-12 rounded-2xl border border-slate-200 shadow-sm text-center">
+            <AlertCircle className="w-12 h-12 text-amber-500 mx-auto mb-3" />
+            <h3 className="text-lg font-bold text-slate-800 mb-2">No Active Target Assigned Yet</h3>
+            <p className="text-sm text-slate-500 max-w-md mx-auto mb-6">
+              You must have an active target assigned by the National Sales Head (NSM) before targets can be cascaded down to your Area Sales Managers.
+            </p>
+            <ActionButton onClick={() => setActiveStep('overview')}>
+              View Target Overview
+            </ActionButton>
+          </div>
+        ) : (
           <div className="animate-in fade-in duration-500 space-y-6">
             {/* Section 1 - Planning Summary */}
             <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
@@ -299,10 +308,10 @@ export default function TargetAllocation() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-200">
-                    {asms.filter(a => a.employeeName.toLowerCase().includes(search.toLowerCase()) || a.employeeCode.toLowerCase().includes(search.toLowerCase())).map((asm) => (
+                    {asms.filter(a => ((a.employeeName || (a as any).name || '').toLowerCase().includes(search.toLowerCase()) || (a.employeeCode || '').toLowerCase().includes(search.toLowerCase()))).map((asm) => (
                       <tr key={asm.id} className="hover:bg-slate-50">
                         <td className="p-4 text-sm font-medium text-slate-900">{asm.employeeCode || `ASM-${asm.id}`}</td>
-                        <td className="p-4 text-sm text-slate-700">{asm.employeeName}</td>
+                        <td className="p-4 text-sm text-slate-700">{asm.employeeName || (asm as any).name}</td>
                         <td className="p-4 text-sm text-slate-700">{asm.headquarters || '-'}</td>
                         <td className="p-4">
                           <input 

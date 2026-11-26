@@ -237,12 +237,22 @@ class TargetAllocationService {
   }
 
   async getRSMTargetSummary(financialYear = '2026-27') {
-    const res = await apiRequest<{ success: boolean; data: any }>(`/target-allocations/rsm-summary?financialYear=${encodeURIComponent(financialYear)}`);
+    const authUserStr = typeof localStorage !== 'undefined' ? localStorage.getItem('authUser') : null;
+    const authUser = authUserStr ? JSON.parse(authUserStr) : null;
+    const empId = authUser?.employeeId || '';
+    const qs = new URLSearchParams({ financialYear });
+    if (empId) qs.append('employeeId', String(empId));
+    const res = await apiRequest<{ success: boolean; data: any }>(`/target-allocations/rsm-summary?${qs.toString()}`);
     return res.data;
   }
 
   async getASMTargetSummary(financialYear = '2026-27') {
-    const res = await apiRequest<{ success: boolean; data: any }>(`/target-allocations/asm-summary?financialYear=${encodeURIComponent(financialYear)}`);
+    const authUserStr = typeof localStorage !== 'undefined' ? localStorage.getItem('authUser') : null;
+    const authUser = authUserStr ? JSON.parse(authUserStr) : null;
+    const empId = authUser?.employeeId || '';
+    const qs = new URLSearchParams({ financialYear });
+    if (empId) qs.append('employeeId', String(empId));
+    const res = await apiRequest<{ success: boolean; data: any }>(`/target-allocations/asm-summary?${qs.toString()}`);
     return res.data;
   }
 }
