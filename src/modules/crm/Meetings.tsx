@@ -439,6 +439,7 @@ import { type Column } from './components/shared';
 import { meetingService } from '../../services/meetingService';
 import { leadService } from '../../services/leadService';
 import { employeeService } from '../../services/employeeService';
+import { mrService } from '../../services/mrService';
 
 const generateMeetingId = (history: CRMMeeting[]) => {
   if (history.length === 0) return 'MT-0001';
@@ -463,7 +464,11 @@ const generateActivityId = (history: any[]) => {
 
 interface Lead {
   id: string;
+  leadCode?: string;
   name: string;
+  assignedMrId?: number | null;
+  assignedMrName?: string;
+  assignedTo?: string;
 }
 
 interface CRMMeeting {
@@ -563,7 +568,14 @@ export default function CrmMeetings() {
                return createdMatch || assignedMatchReal;
              });
         }
-        setLeads(visibleLeads.map((l) => ({ id: l.leadCode || l.id, name: l.name })));
+        setLeads(visibleLeads.map((l) => ({
+          id: String(l.id),
+          leadCode: l.leadCode || String(l.id),
+          name: l.name,
+          assignedMrId: l.assignedMrId || (l.assignedMr ? l.assignedMr.id : null),
+          assignedMrName: l.assignedMrName || l.assignedTo || (l.assignedMr ? l.assignedMr.name : ''),
+          assignedTo: l.assignedTo || l.assignedMrName || (l.assignedMr ? l.assignedMr.name : '')
+        })));
 
         // Load meetings from DB
         const cached = meetingService.getAll();
@@ -651,15 +663,22 @@ export default function CrmMeetings() {
     setIsFormOpen(true);
   };
 
-  const handleScheduleOrUpdate = () => {
+  const handleScheduleOrUpdate = async () => {
     if (!title.trim() || !venue.trim() || !participants.trim() || !leadId) {
       alert('Please fill in all required fields (Title, Client/Lead, Venue, Participants).');
       return;
     }
 
-    const selectedLead = leads.find(l => l.id === leadId);
+    const selectedLead = leads.find(l => String(l.id) === String(leadId) || l.leadCode === leadId);
     if (!selectedLead) return;
-    if (!selectedLead.assignedMrId) {
+
+    const hasAssignedMR = Boolean(
+      selectedLead.assignedMrId || 
+      (selectedLead.assignedTo && selectedLead.assignedTo !== 'Unassigned' && selectedLead.assignedTo !== 'NATIONAL_SALES_HEAD') ||
+      (selectedLead.assignedMrName && selectedLead.assignedMrName !== 'Unassigned' && selectedLead.assignedMrName !== 'NATIONAL_SALES_HEAD')
+    );
+
+    if (!hasAssignedMR) {
       alert('Please assign this lead to an MR before scheduling a meeting.');
       return;
     }
@@ -683,7 +702,7 @@ export default function CrmMeetings() {
     }
 
     const isConflict = meetings.some(
-      (m) => m.date === date && m.rawTime === time && m.status === 'Scheduled' && m.id !== editMeetingId && m.leadId === leadId
+      (m) => m.date === date && m.rawTime === time && m.status === 'Scheduled' && m.id !== editMeetingId && (String(m.leadId) === String(leadId) || m.leadId === selectedLead.leadCode)
     );
     if (isConflict) {
       alert(`Scheduling Conflict: You already have an active meeting scheduled with ${selectedLead.name} at this exact time and date.`);
@@ -717,8 +736,21 @@ export default function CrmMeetings() {
       updatedMeetings = meetings.map(m => m.id === editMeetingId ? newMeetingData : m);
     } else {
       updatedMeetings = [newMeetingData, ...meetings];
+      
+      // Auto-resolve MR ID if lead has assigned MR name
+      let mrIdToUse = Number(selectedLead.assignedMrId) || 0;
+      const assignedEmp = selectedLead.assignedTo || selectedLead.assignedMrName;
+      if (!mrIdToUse && assignedEmp && assignedEmp !== 'Unassigned' && assignedEmp !== 'NATIONAL_SALES_HEAD') {
+        try {
+          const resolvedId = await mrService.ensureMR(assignedEmp);
+          if (resolvedId) mrIdToUse = resolvedId;
+        } catch (e) {
+          console.warn('Could not auto-resolve MR ID for meeting:', e);
+        }
+      }
+
       // Save to DB via meetingService
-      meetingService.addMeeting(0, {
+      meetingService.addMeeting(mrIdToUse, {
         title: newMeetingData.title,
         agenda: newMeetingData.agenda,
         date: newMeetingData.date,
@@ -878,7 +910,7 @@ const filteredData = meetings.filter((item) => {
                   >
                     <option value="" disabled>-- Choose a Lead --</option>
                     {leads.map(lead => (
-                      <option key={lead.id} value={lead.id}>{lead.name} ({lead.id})</option>
+                      <option key={lead.id} value={lead.id}>{lead.name} ({lead.leadCode || lead.id})</option>
                     ))}
                   </select>
                   {leads.length === 0 && <p className="text-xs text-rose-500 mt-1">No leads found. Create one first!</p>}

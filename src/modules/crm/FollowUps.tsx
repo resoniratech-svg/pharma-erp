@@ -15,6 +15,7 @@ import { type Column } from './components/shared';
 import { employeeService } from '../../services/employeeService';
 import { followUpService } from '../../services/followUpService';
 import { leadService } from '../../services/leadService';
+import { mrService } from '../../services/mrService';
 
 interface Lead {
   id: string;
@@ -23,6 +24,8 @@ interface Lead {
   territory?: string;
   leadCode?: string;
   assignedMrId?: number | null;
+  assignedMrName?: string;
+  assignedTo?: string;
 }
 
 interface FollowUp {
@@ -139,12 +142,14 @@ export default function FollowUps() {
       }
 
       setLeads(visibleLeads.map((l) => ({
-        id: l.id,
+        id: String(l.id),
         name: l.name,
         contact: l.mobile || l.email || '',
         territory: l.territory || '',
         leadCode: l.leadCode || String(l.id),
-        assignedMrId: l.assignedMrId
+        assignedMrId: l.assignedMrId || (l.assignedMr ? l.assignedMr.id : null),
+        assignedMrName: l.assignedMrName || l.assignedTo || (l.assignedMr ? l.assignedMr.name : ''),
+        assignedTo: l.assignedTo || l.assignedMrName || (l.assignedMr ? l.assignedMr.name : '')
       })));
 
       const validLeadIds = new Set(visibleLeads.map(l => String(l.id)));
@@ -202,17 +207,29 @@ export default function FollowUps() {
       alert('Please fill out all mandatory fields.');
       return;
     }
-    const selectedLead = leads.find((l) => l.id === formData.leadId);
+    const selectedLead = leads.find((l) => String(l.id) === String(formData.leadId) || l.leadCode === formData.leadId);
     if (!selectedLead) return;
-    if (!selectedLead.assignedMrId) {
+
+    let mrId = selectedLead.assignedMrId ? Number(selectedLead.assignedMrId) : null;
+    const assignedEmp = selectedLead.assignedTo || selectedLead.assignedMrName;
+    if (!mrId && assignedEmp && assignedEmp !== 'Unassigned' && assignedEmp !== 'NATIONAL_SALES_HEAD') {
+      try {
+        const resolvedId = await mrService.ensureMR(assignedEmp);
+        if (resolvedId) mrId = resolvedId;
+      } catch (err) {
+        console.warn('Could not auto-resolve MR in FollowUps:', err);
+      }
+    }
+
+    if (!mrId && (!assignedEmp || assignedEmp === 'Unassigned')) {
       alert('Please assign this lead to an MR before scheduling a follow-up.');
       return;
     }
 
     try {
-      const mrId = Number(selectedLead.assignedMrId);
+      const mrIdToUse = mrId || 0;
       await followUpService.create({
-        mrId: mrId,
+        mrId: mrIdToUse,
         leadId: Number(selectedLead.id),
         type: formData.type,
         method: formData.method || 'Phone Call',

@@ -143,7 +143,12 @@ export default function LeadConversionTracking() {
   };
 
   const handleConvertClick = (lead: Lead) => {
-    if (!lead.assignedMrId) {
+    const isAssigned = Boolean(
+      lead.assignedMrId || 
+      (lead.assignedTo && lead.assignedTo !== 'Unassigned') ||
+      (lead.assignedMrName && lead.assignedMrName !== 'Unassigned')
+    );
+    if (!isAssigned) {
       alert('Please assign this lead to an MR before converting it.');
       return;
     }
