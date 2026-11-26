@@ -319,8 +319,10 @@ export default function CheckOut() {
                 </div>
               </div>
             )}
-        </div>
+          </>
+        )}
       </div>
     </div>
-  );
+  </div>
+);
 }
