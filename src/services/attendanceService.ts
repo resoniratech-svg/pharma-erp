@@ -98,7 +98,35 @@ export const getLocalDateStr = (d = new Date()) => {
 export const checkAttendanceStatus = async (): Promise<{
   isCheckedInToday: boolean;
   isCheckedOutToday: boolean;
+  activeRecord?: any;
 }> => {
+  try {
+    const token = await AsyncStorage.getItem('@token');
+    if (token) {
+      const statusRes = await api.get('/attendance/status', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (statusRes.data && statusRes.data.success && statusRes.data.data) {
+        const d = statusRes.data.data;
+        if (d.isCheckedIn) {
+          await AsyncStorage.setItem('@checked_in', 'true');
+          if (d.activeRecord?.id) {
+            await AsyncStorage.setItem('@attendanceId', String(d.activeRecord.id));
+          }
+        } else if (d.isCheckedOut) {
+          await AsyncStorage.setItem('@checked_in', 'false');
+        }
+        return {
+          isCheckedInToday: !!d.isCheckedIn,
+          isCheckedOutToday: !!d.isCheckedOut,
+          activeRecord: d.activeRecord
+        };
+      }
+    }
+  } catch (e) {
+    console.log('Error checking /attendance/status in mobile, falling back to logs:', e);
+  }
+
   const todayLocalStr = getLocalDateStr();
   
   // Call live Easypanel backend API
@@ -122,9 +150,14 @@ export const checkAttendanceStatus = async (): Promise<{
       if (checkOut && checkOut !== 'null' && checkOut !== 'NULL') {
         isCheckedOutToday = true;
         isCheckedInToday = false;
+        await AsyncStorage.setItem('@checked_in', 'false');
       } else {
         isCheckedInToday = true;
         isCheckedOutToday = false;
+        await AsyncStorage.setItem('@checked_in', 'true');
+        if (todayLog.id) {
+          await AsyncStorage.setItem('@attendanceId', String(todayLog.id));
+        }
       }
     }
   }

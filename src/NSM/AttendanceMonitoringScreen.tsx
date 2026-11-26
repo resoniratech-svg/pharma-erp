@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -11,6 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api';
+import { checkInAttendance, checkOutAttendance, checkAttendanceStatus } from '../services/attendanceService';
 
 const NSMAttendanceMonitoringScreen = () => {
   const [activeTab, setActiveTab] = useState<'MyAttendance' | 'TeamAttendance'>('MyAttendance');
@@ -19,9 +20,10 @@ const NSMAttendanceMonitoringScreen = () => {
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
   const [checkOutTime, setCheckOutTime] = useState<string | null>(null);
+  const [activeAttendanceId, setActiveAttendanceId] = useState<number | null>(null);
 
   // Self Attendance History
-  const [attendanceHistory] = useState([
+  const [attendanceHistory, setAttendanceHistory] = useState([
     { id: '1', date: '01 Aug 2026', checkIn: '09:15 AM', checkOut: '06:30 PM', hours: '9h 15m', status: 'Present' },
     { id: '2', date: '31 Jul 2026', checkIn: '09:05 AM', checkOut: '06:15 PM', hours: '9h 10m', status: 'Present' },
     { id: '3', date: '30 Jul 2026', checkIn: '09:45 AM', checkOut: '06:45 PM', hours: '9h 00m', status: 'Late Check-In' },
@@ -29,13 +31,28 @@ const NSMAttendanceMonitoringScreen = () => {
   ]);
 
   // Team Attendance Data with GPS Exception & Punch Indicators
-  
   const [teamAttendanceData, setTeamAttendanceData] = useState<any[]>([]);
 
+  const loadStatus = useCallback(async () => {
+    try {
+      const status = await checkAttendanceStatus();
+      setIsCheckedIn(status.isCheckedInToday);
+      if (status.activeRecord) {
+        setActiveAttendanceId(status.activeRecord.id);
+        if (status.activeRecord.checkInTime) {
+          setCheckInTime(new Date(status.activeRecord.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        }
+      }
+    } catch (e) {
+      console.log('Failed to check attendance status:', e);
+    }
+  }, []);
+
   useEffect(() => {
+    loadStatus();
     const fetchTeam = async () => {
       try {
-        const res = await api.get('/attendance', { headers: { Authorization: `Bearer ${await AsyncStorage.getItem('@token')}` } }); // NSM can fetch all
+        const res = await api.get('/attendance', { headers: { Authorization: `Bearer ${await AsyncStorage.getItem('@token')}` } });
         if (res?.data?.data) {
           setTeamAttendanceData(res.data.data);
         }
@@ -44,22 +61,40 @@ const NSMAttendanceMonitoringScreen = () => {
       }
     };
     fetchTeam();
-  }, []);
+  }, [loadStatus]);
 
-
-  const handleCheckIn = () => {
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setIsCheckedIn(true);
-    setCheckInTime(time);
-    setCheckOutTime(null);
-    Alert.alert('🟢 Checked In Successfully', `Recorded Check-In at ${time} with GPS Location (Lat: 19.0760, Long: 72.8777).`);
+  const handleCheckIn = async () => {
+    try {
+      const rawMrId = await AsyncStorage.getItem('@mrId');
+      const mrId = rawMrId ? Number(rawMrId) : 1;
+      const res = await checkInAttendance(mrId, 19.0760, 72.8777);
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setIsCheckedIn(true);
+      setCheckInTime(time);
+      setCheckOutTime(null);
+      if (res?.data?.id || res?.id) {
+        setActiveAttendanceId(res?.data?.id || res?.id);
+      }
+      Alert.alert('🟢 Checked In Successfully', `Recorded Check-In at ${time} with GPS Location (Lat: 19.0760, Long: 72.8777).`);
+      loadStatus();
+    } catch (e: any) {
+      Alert.alert('Check-In', e?.response?.data?.message || e?.message || 'Check-In failed');
+    }
   };
 
-  const handleCheckOut = () => {
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setIsCheckedIn(false);
-    setCheckOutTime(time);
-    Alert.alert('🔴 Checked Out Successfully', `Recorded Check-Out at ${time}. Working hours today: 8h 45m.`);
+  const handleCheckOut = async () => {
+    try {
+      const storedId = await AsyncStorage.getItem('@attendanceId');
+      const idToCheckout = activeAttendanceId || (storedId ? Number(storedId) : 0);
+      await checkOutAttendance(idToCheckout, 19.0760, 72.8777);
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setIsCheckedIn(false);
+      setCheckOutTime(time);
+      Alert.alert('🔴 Checked Out Successfully', `Recorded Check-Out at ${time}.`);
+      loadStatus();
+    } catch (e: any) {
+      Alert.alert('Check-Out', e?.response?.data?.message || e?.message || 'Check-Out failed');
+    }
   };
 
   return (

@@ -20,6 +20,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api';
 import { getTargetPlanningData, getRSMList } from '../services/nsmStorageService';
 import { LineChart } from 'react-native-chart-kit';
+import { checkAttendanceStatus } from '../services/attendanceService';
 
 export const NSM_ROUTES = {
   DASHBOARD: 'NSMDashboard',
@@ -223,6 +224,45 @@ const NSMDashboardScreen = () => {
         );
       }
     } else {
+      const OPERATIONAL_ROUTES = [
+        NSM_ROUTES.SALES_OPERATIONS,
+        NSM_ROUTES.TARGET,
+        NSM_ROUTES.STATE,
+        NSM_ROUTES.RSM_SUPERVISION,
+        NSM_ROUTES.TEAM_PERFORMANCE,
+        NSM_ROUTES.TEAM_VISITS
+      ];
+
+      if (OPERATIONAL_ROUTES.includes(routeKey)) {
+        try {
+          const { isCheckedInToday, isCheckedOutToday } = await checkAttendanceStatus();
+          if (!isCheckedInToday) {
+            if (isCheckedOutToday) {
+              Alert.alert(
+                'Shift Completed',
+                'You have already checked out for today. Field operations are closed until your next shift.',
+                [
+                  { text: 'View Attendance', onPress: () => navigation.navigate(NSM_ROUTES.ATTENDANCE) },
+                  { text: 'OK', style: 'cancel' }
+                ]
+              );
+            } else {
+              Alert.alert(
+                'Check-In Required',
+                'You must Check-In to start your day before performing operational activities.',
+                [
+                  { text: 'Go to Check-In', onPress: () => navigation.navigate(NSM_ROUTES.ATTENDANCE) },
+                  { text: 'Cancel', style: 'cancel' }
+                ]
+              );
+            }
+            return;
+          }
+        } catch (e) {
+          console.log('Error verifying check-in status on navigation:', e);
+        }
+      }
+
       // Set a flag so when we come back, the menu re-opens automatically
       await AsyncStorage.setItem('@nsm_keep_menu_open', 'true');
       navigation.navigate(routeKey);
