@@ -198,7 +198,7 @@ export default function FollowUps() {
 
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!formData.leadId || !formData.type || !formData.date || !formData.nextFollowUpDate || !formData.notes) {
+    if (!formData.leadId || !formData.type || !formData.date) {
       alert('Please fill out all mandatory fields.');
       return;
     }
@@ -217,9 +217,9 @@ export default function FollowUps() {
         type: formData.type,
         method: formData.method || 'Phone Call',
         title: selectedLead.name,
-        remarks: formData.notes.trim(),
+        remarks: formData.notes ? formData.notes.trim() : '',
         followUpDate: formData.date,
-        nextFollowUpDate: formData.nextFollowUpDate,
+        nextFollowUpDate: formData.nextFollowUpDate || undefined,
       });
 
       const todayStr = new Date().toISOString().split('T')[0];
@@ -231,8 +231,8 @@ export default function FollowUps() {
         type: formData.type,
         method: formData.method || 'Phone Call',
         date: formData.date,
-        nextFollowUpDate: formData.nextFollowUpDate,
-        notes: formData.notes.trim(),
+        nextFollowUpDate: formData.nextFollowUpDate || '',
+        notes: formData.notes ? formData.notes.trim() : '',
         status: computedStatus,
       };
       setFollowUps((prev) => [newRecord, ...prev]);
@@ -269,9 +269,9 @@ export default function FollowUps() {
 
   const handleExport = () => {
     if (followUps.length === 0) return alert("No data to export!");
-    const headers = ['FollowUp ID', 'Lead ID', 'Contact Name', 'Purpose', 'Method', 'Due Date', 'Status', 'Completed By', 'Completed Date', 'Notes'];
+    const headers = ['FollowUp ID', 'Lead ID', 'Contact Name', 'Due Date', 'Status', 'Completed By', 'Completed Date', 'Notes'];
     const rows = followUps.map(f => [
-      f.id, f.leadId, `"${f.contactName}"`, `"${f.type}"`, f.method, f.date, f.status,
+      f.id, f.leadId, `"${f.contactName}"`, f.date, f.status,
       `"${f.completedBy || 'N/A'}"`, `"${f.completedDate || 'N/A'}"`, `"${f.notes || ''}"`
     ]);
     
@@ -287,9 +287,15 @@ export default function FollowUps() {
   const columns: Column[] = [
     { key: 'id', label: 'ID', render: (row) => <span className="font-medium text-[#163c78]">{row.id}</span> },
     { key: 'contactName', label: 'Contact Name' },
-    { key: 'type', label: 'Purpose' },
-    { key: 'method', label: 'Method' },
-    { key: 'date', label: 'Due Date' },
+    { 
+      key: 'date', 
+      label: 'Due Date',
+      render: (row) => {
+        if (!row.date) return <span>-</span>;
+        const d = new Date(row.date);
+        return <span>{!isNaN(d.getTime()) ? d.toLocaleDateString('en-GB') : row.date}</span>;
+      }
+    },
     { 
       key: 'status', 
       label: 'Status',
@@ -325,7 +331,6 @@ export default function FollowUps() {
     const s = search.toLowerCase();
     const matchSearch =
       (item.contactName || '').toLowerCase().includes(s) ||
-      (item.type || '').toLowerCase().includes(s) ||
       (item.id || '').toLowerCase().includes(s);
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;
@@ -372,7 +377,7 @@ export default function FollowUps() {
 
       <div className="flex-1 flex flex-col">
         <FilterBar>
-          <SearchInput value={search} onChange={setSearch} placeholder="Search contacts or purpose..." />
+          <SearchInput value={search} onChange={setSearch} placeholder="Search contacts..." />
           <div className="w-px h-6 bg-slate-200 mx-2 hidden sm:block" />
           <SelectFilter
             value={statusFilter}
@@ -490,10 +495,9 @@ export default function FollowUps() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Next Follow-up Date *</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Next Follow-up Date</label>
               <input
                 type="date"
-                required
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                 value={formData.nextFollowUpDate}
                 onChange={(e) => setFormData({ ...formData, nextFollowUpDate: e.target.value })}
@@ -501,10 +505,9 @@ export default function FollowUps() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Remarks *</label>
+              <label className="block text-sm font-medium text-slate-700 mb-1">Remarks</label>
               <textarea
                 rows={3}
-                required
                 className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-violet-500"
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
