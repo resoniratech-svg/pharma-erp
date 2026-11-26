@@ -115,6 +115,9 @@ const createMeetingRepo = async (data) => {
 
 const getAllMeetingsRepo = async () => {
   return prisma.meeting.findMany({
+    orderBy: {
+      id: "desc",
+    },
     include: {
       mr: true,
 
@@ -228,7 +231,9 @@ const getMeetingsByMrRepo = async (mrId) => {
     where: {
       mrId: Number(mrId),
     },
-
+    orderBy: {
+      id: "desc",
+    },
     include: {
       mr: true,
 
