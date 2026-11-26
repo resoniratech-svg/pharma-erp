@@ -597,21 +597,30 @@ export default function CrmMeetings() {
             const d = rawDateTime ? new Date(rawDateTime) : null;
             const isValidDate = d && !isNaN(d.getTime());
             
-            const dateStr = isValidDate ? d.toISOString().split('T')[0] : (m.date || '');
-            
-            const timeStr = isValidDate 
-              ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) 
-              : (m.time || '10:00 AM');
-            const rawTimeStr = isValidDate 
-              ? `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}` 
-              : (m.rawTime || '10:00');
+            const dateStr = isValidDate 
+              ? `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+              : (m.date || '');
 
-            // Extract lead tag if stored in description/agenda: e.g. [Lead: WQERE | ID: 123]
+            // Extract lead and exact time tags if stored in description/agenda
             const rawDesc = m.description || m.agenda || '';
-            const leadMatch = rawDesc.match(/\[Lead:\s*([^\]|]+)(?:\s*\|\s*ID:\s*([^\]]+))?\]/);
+            const leadMatch = rawDesc.match(/Lead:\s*([^\]|]+)/i);
+            const idMatch = rawDesc.match(/ID:\s*([^\]|]+)/i);
+            const timeMatch = rawDesc.match(/Time:\s*([0-9]{1,2}:[0-9]{2}\s*(?:AM|PM|am|pm)?)/i);
+            const rawTimeMatch = rawDesc.match(/RawTime:\s*([0-9]{1,2}:[0-9]{2})/i);
+            
             const extractedClient = leadMatch ? leadMatch[1].trim() : null;
-            const extractedLeadId = leadMatch && leadMatch[2] ? leadMatch[2].trim() : (m.leadId ? String(m.leadId) : '');
-            const cleanAgenda = leadMatch ? rawDesc.replace(/\[Lead:\s*[^\]]+\]\s*/, '').trim() : rawDesc;
+            const extractedLeadId = idMatch ? idMatch[1].trim() : (m.leadId ? String(m.leadId) : '');
+            const extractedTime = timeMatch ? timeMatch[1].trim() : null;
+            const extractedRawTime = rawTimeMatch ? rawTimeMatch[1].trim() : null;
+
+            const cleanAgenda = rawDesc.replace(/\[[^\]]*(?:Lead|Time|ID)[^\]]*\]\s*/gi, '').trim();
+
+            const timeStr = extractedTime || (isValidDate 
+              ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) 
+              : (m.time || '10:00 AM'));
+            const rawTimeStr = extractedRawTime || (isValidDate 
+              ? `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}` 
+              : (m.rawTime || '10:00'));
 
             const clientName = 
               extractedClient ||
@@ -797,11 +806,16 @@ export default function CrmMeetings() {
         }
       }
 
-      const meetingDateTimeISO = `${date}T${time || '10:00'}:00.000Z`;
+      // Parse local time properly without forced UTC offset
+      const localMeetingDate = new Date(`${date}T${time || '10:00'}:00`);
+      const meetingDateTimeISO = !isNaN(localMeetingDate.getTime()) 
+        ? localMeetingDate.toISOString() 
+        : `${date}T10:00:00.000Z`;
 
       // Save to DB via meetingService and update state with true DB record
       try {
-        const clientDescTag = selectedLead ? `[Lead: ${selectedLead.name} | ID: ${selectedLead.id || selectedLead.leadCode}] ` : '';
+        const leadPart = selectedLead ? `Lead: ${selectedLead.name} | ID: ${selectedLead.id || selectedLead.leadCode} | ` : '';
+        const clientDescTag = `[${leadPart}Time: ${displayTime} | RawTime: ${time}] `;
         const fullAgenda = `${clientDescTag}${newMeetingData.agenda}`.trim();
         const saved = await meetingService.addMeeting(mrIdToUse, {
           title: newMeetingData.title,
