@@ -44,11 +44,12 @@ interface FollowUp {
 }
 
 const generateFollowUpId = (history: FollowUp[]) => {
-  if (history.length === 0) return 'FU-0001';
+  if (!history || history.length === 0) return 'FU-0001';
   let maxId = 0;
   history.forEach(record => {
-    const numPart = parseInt(record.id?.split('-')[1] || '0', 10);
-    if (numPart > maxId) maxId = numPart;
+    const rawId = String(record.id || '');
+    const numPart = parseInt(rawId.includes('-') ? rawId.split('-')[1] : rawId, 10);
+    if (!isNaN(numPart) && numPart > maxId) maxId = numPart;
   });
   return `FU-${(maxId + 1).toString().padStart(4, '0')}`;
 };

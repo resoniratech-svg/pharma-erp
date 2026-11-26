@@ -442,22 +442,24 @@ import { employeeService } from '../../services/employeeService';
 import { mrService } from '../../services/mrService';
 
 const generateMeetingId = (history: CRMMeeting[]) => {
-  if (history.length === 0) return 'MT-0001';
+  if (!history || history.length === 0) return 'MT-0001';
   let maxId = 0;
   history.forEach(record => {
-    const numPart = parseInt(record.id?.split('-')[1] || '0', 10);
-    if (numPart > maxId) maxId = numPart;
+    const rawId = String(record.id || '');
+    const numPart = parseInt(rawId.includes('-') ? rawId.split('-')[1] : rawId, 10);
+    if (!isNaN(numPart) && numPart > maxId) maxId = numPart;
   });
   return `MT-${(maxId + 1).toString().padStart(4, '0')}`;
 };
 
 // ✅ ChatGPT Polish 3: Clean sequential Activity IDs (ACT-0001)
 const generateActivityId = (history: any[]) => {
-  if (history.length === 0) return 'ACT-0001';
+  if (!history || history.length === 0) return 'ACT-0001';
   let maxId = 0;
   history.forEach(record => {
-    const numPart = parseInt(record.id?.split('-')[1] || '0', 10);
-    if (numPart > maxId) maxId = numPart;
+    const rawId = String(record.id || '');
+    const numPart = parseInt(rawId.includes('-') ? rawId.split('-')[1] : rawId, 10);
+    if (!isNaN(numPart) && numPart > maxId) maxId = numPart;
   });
   return `ACT-${(maxId + 1).toString().padStart(4, '0')}`;
 };
@@ -581,7 +583,7 @@ export default function CrmMeetings() {
         const cached = meetingService.getAll();
         if (cached.length > 0) {
           setMeetings(cached.map((m) => ({
-            id: m.id,
+            id: String(m.id),
             leadId: '',
             title: m.title,
             meetingType: m.type || 'Doctor Group Meet',

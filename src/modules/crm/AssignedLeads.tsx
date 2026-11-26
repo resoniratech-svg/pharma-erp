@@ -19,12 +19,13 @@ import { employeeService } from '../../services/employeeService';
 import { Modal } from '../../components/ui/Modal';
 
 const generateLeadId = (currentLeads: Lead[]) => {
-  if (currentLeads.length === 0) return 'LD-0001';
+  if (!currentLeads || currentLeads.length === 0) return 'LD-0001';
   
   let maxId = 0;
   currentLeads.forEach(lead => {
-    const numPart = parseInt(lead.id.split('-')[1] || '0', 10);
-    if (numPart > maxId) maxId = numPart;
+    const rawId = String(lead.id || '');
+    const numPart = parseInt(rawId.includes('-') ? rawId.split('-')[1] : rawId, 10);
+    if (!isNaN(numPart) && numPart > maxId) maxId = numPart;
   });
   
   const nextNum = maxId + 1;
