@@ -165,8 +165,16 @@ const getAttendances =
 
 const getAttendanceById =
   async (req, res) => {
-
     try {
+      if (isNaN(Number(req.params.id))) {
+        if (req.params.id === 'status') {
+          return getAttendanceStatus(req, res);
+        }
+        return res.status(404).json({
+          success: false,
+          message: 'Invalid attendance ID'
+        });
+      }
 
       const result =
         await service.getAttendanceByIdService(
