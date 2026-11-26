@@ -57,7 +57,7 @@ export default function ASMManagement() {
 
   const generatedEmpCode = editingId 
     ? (asmData.find(a => a.id === editingId)?.employeeCode || '') 
-    : employeeService.generateNextEmployeeCode('Area Sales Manager');
+    : employeeService.generateNextEmployeeCode('Area Sales Manager', asmData);
 
   const loadData = async () => {
     try {

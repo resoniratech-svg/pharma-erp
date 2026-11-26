@@ -47,19 +47,26 @@ class EmployeeService {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(emps));
   }
 
-  generateNextEmployeeCode(designation: Designation): string {
+  generateNextEmployeeCode(designation: Designation, extraEmployees?: { employeeCode?: string }[]): string {
     const prefixMap: Record<Designation, string> = {
       'National Sales Head': 'EMP-NSM-',
       'Regional Sales Manager': 'EMP-RSM-',
       'Area Sales Manager': 'EMP-ASM-',
       'Medical Representative': 'EMP-MR-',
     };
-    const prefix = prefixMap[designation];
-    const emps = this.getLocalEmployees();
+    const prefix = prefixMap[designation] || 'EMP-';
+    const altPrefix = prefix.replace('EMP-', '').replace('-', '');
+    const emps = [...this.getLocalEmployees(), ...(extraEmployees || [])];
     let maxNum = 0;
     for (const emp of emps) {
-      if (emp.employeeCode.startsWith(prefix)) {
-        const numPart = parseInt(emp.employeeCode.replace(prefix, ''), 10);
+      const code = (emp.employeeCode || '').trim();
+      if (code.startsWith(prefix)) {
+        const numPart = parseInt(code.replace(prefix, ''), 10);
+        if (!isNaN(numPart) && numPart > maxNum) {
+          maxNum = numPart;
+        }
+      } else if (code.startsWith(altPrefix)) {
+        const numPart = parseInt(code.replace(altPrefix, ''), 10);
         if (!isNaN(numPart) && numPart > maxNum) {
           maxNum = numPart;
         }
@@ -81,8 +88,12 @@ class EmployeeService {
         
         this.healHierarchy(mappedData);
         
-        // Sync local cache with backend data to keep sync functions working
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(mappedData));
+        // Sync local cache with backend data (merging rather than overwriting completely)
+        const existing = this.getLocalEmployees();
+        const mergedMap = new Map<string | number, Employee>();
+        existing.forEach(e => mergedMap.set(e.id, e));
+        mappedData.forEach(e => mergedMap.set(e.id, e));
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(Array.from(mergedMap.values())));
         
         // Final filter if params existed (since healing might have changed reportsToId)
         let finalData = mappedData;

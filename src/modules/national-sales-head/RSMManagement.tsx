@@ -53,7 +53,7 @@ export default function RSMManagement() {
 
   const generatedEmpCode = editingId 
     ? (rsmData.find(r => r.id === editingId)?.employeeCode || '') 
-    : employeeService.generateNextEmployeeCode('Regional Sales Manager');
+    : employeeService.generateNextEmployeeCode('Regional Sales Manager', rsmData);
 
   useEffect(() => {
     loadRSMs();

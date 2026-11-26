@@ -52,7 +52,7 @@ export default function MRManagement() {
   // Use global generator for code
   const generatedEmpCode = selectedEmp 
     ? (selectedEmp.employeeCode || selectedEmp.id) 
-    : employeeService.generateNextEmployeeCode('Medical Representative');
+    : employeeService.generateNextEmployeeCode('Medical Representative', employees);
 
   const loadData = async () => {
     try {
