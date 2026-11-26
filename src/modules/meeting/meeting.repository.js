@@ -5,7 +5,11 @@ const createMeetingRepo = async (data) => {
     mrId,
     title,
     description,
+    agenda,
     meetingDate,
+    date,
+    time,
+    rawTime,
     location,
     doctorIds = [],
     chemistIds = [],
@@ -18,12 +22,24 @@ const createMeetingRepo = async (data) => {
   const parsedHospitalIds = hospitalIds.map(id => Number(id));
   const parsedStockistIds = stockistIds.map(id => Number(id));
 
+  let finalDate = meetingDate ? new Date(meetingDate) : null;
+  if (!finalDate || isNaN(finalDate.getTime())) {
+    if (date) {
+      finalDate = new Date(`${date}T${rawTime || time || '10:00'}:00`);
+    }
+  }
+  if (!finalDate || isNaN(finalDate.getTime())) {
+    finalDate = new Date();
+  }
+
+  const finalDesc = description || agenda || '';
+
   return prisma.meeting.create({
     data: {
       mrId,
       title,
-      description,
-      meetingDate: new Date(meetingDate),
+      description: finalDesc,
+      meetingDate: finalDate,
       location,
 
       meetingDoctors: {

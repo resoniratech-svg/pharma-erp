@@ -4,13 +4,16 @@ const service = require("./meeting.service");
 const createMeeting = async (req, res) => {
   try {
     let mrId = Number(req.body.mrId);
-    if (req.user && req.user.id) {
-      const mr = await prisma.mR.findUnique({
-        where: { userId: req.user.id },
-      });
-      if (mr) {
-        mrId = mr.id;
-      } else if (req.user.role === 'SUPER_ADMIN' || req.user.role === 'ADMIN' || req.user.role === 'AREA_SALES_MANAGER' || req.user.role === 'REGIONAL_SALES_MANAGER' || req.user.role === 'NATIONAL_SALES_MANAGER') {
+    if (!mrId || isNaN(mrId) || mrId <= 0) {
+      if (req.user && req.user.id) {
+        const mr = await prisma.mR.findUnique({
+          where: { userId: req.user.id },
+        });
+        if (mr) {
+          mrId = mr.id;
+        }
+      }
+      if (!mrId || isNaN(mrId) || mrId <= 0) {
         const firstMR = await prisma.mR.findFirst();
         if (firstMR) {
           mrId = firstMR.id;
