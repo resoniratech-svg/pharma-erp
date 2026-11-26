@@ -2,31 +2,55 @@ const repo = require("./employee.repository");
 const prisma = require("../../config/db");
 const bcrypt = require("bcrypt");
 
-const generateEmployeeCode = async (designation) => {
+const generateEmployeeCode = async (designation, preferredCode = null) => {
   let prefix = "EMP-";
-  if (designation === "National Sales Head") prefix = "EMP-NSM-";
-  else if (designation === "Regional Sales Manager") prefix = "RSM";
-  else if (designation === "Area Sales Manager") prefix = "ASM";
-  else if (designation === "Medical Representative") prefix = "EMP-MR-";
+  if (designation === "National Sales Head" || designation === "NATIONAL_SALES_HEAD") prefix = "EMP-NSM-";
+  else if (designation === "Regional Sales Manager" || designation === "REGIONAL_SALES_MANAGER") prefix = "EMP-RSM-";
+  else if (designation === "Area Sales Manager" || designation === "AREA_SALES_MANAGER") prefix = "EMP-ASM-";
+  else if (designation === "Medical Representative" || designation === "MEDICAL_REPRESENTATIVE") prefix = "EMP-MR-";
 
   const allEmployees = await repo.getEmployeesRepo();
-  const matching = allEmployees.filter((e) => e.employeeCode.startsWith(prefix));
-  
-  if (prefix === "RSM" || prefix === "ASM") {
-    const nextNum = matching.length + 1;
-    return `${prefix}${String(nextNum).padStart(3, "0")}`;
+  const existingCodes = new Set(allEmployees.map((e) => (e.employeeCode || "").toUpperCase().trim()));
+
+  if (preferredCode && preferredCode.trim() && !existingCodes.has(preferredCode.toUpperCase().trim())) {
+    return preferredCode.trim();
   }
 
-  const nextNum = matching.length + 1;
-  return `${prefix}${String(nextNum).padStart(3, "0")}`;
+  const altPrefix = prefix.replace("EMP-", "").replace("-", ""); // e.g. "RSM"
+  let maxNum = 0;
+  for (const emp of allEmployees) {
+    const code = (emp.employeeCode || "").trim();
+    if (code.startsWith(prefix)) {
+      const num = parseInt(code.replace(prefix, ""), 10);
+      if (!isNaN(num) && num > maxNum) maxNum = num;
+    } else if (code.startsWith(altPrefix)) {
+      const num = parseInt(code.replace(altPrefix, ""), 10);
+      if (!isNaN(num) && num > maxNum) maxNum = num;
+    }
+  }
+
+  let nextNum = maxNum + 1;
+  let candidate = `${prefix}${String(nextNum).padStart(3, "0")}`;
+  while (existingCodes.has(candidate.toUpperCase())) {
+    nextNum++;
+    candidate = `${prefix}${String(nextNum).padStart(3, "0")}`;
+  }
+
+  return candidate;
 };
 
 const createEmployeeService = async (data) => {
   const employeeName = data.name || data.employeeName || "Employee";
 
-  let employeeCode = data.employeeCode;
-  if (!employeeCode) {
-    employeeCode = await generateEmployeeCode(data.designation);
+  const employeeCode = await generateEmployeeCode(data.designation, data.employeeCode);
+
+  if (data.email) {
+    const existingEmp = await prisma.employee.findUnique({
+      where: { email: data.email }
+    });
+    if (existingEmp) {
+      throw new Error(`An employee with email "${data.email}" already exists.`);
+    }
   }
 
   // Handle password / user creation if provided
