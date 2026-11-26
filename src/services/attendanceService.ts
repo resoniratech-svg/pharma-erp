@@ -98,9 +98,15 @@ export const attendanceService = {
       console.warn("Failed to query live attendance status, checking local fallback:", e);
     }
 
-    // Local fallback check
+    // Robust live fallback: query live records via loadAttendance()
+    let recs = this.getAll();
+    if (!recs || recs.length === 0) {
+      try {
+        recs = await this.loadAttendance();
+      } catch (e) {}
+    }
+
     const todayStr = new Date().toISOString().split('T')[0];
-    const recs = this.getAll();
     const todayLog = recs.find(r => r.date === todayStr);
     const isCheckedIn = !!todayLog && (!todayLog.checkOutTime || todayLog.checkOutTime === '-');
     const isCheckedOut = !!todayLog && (!!todayLog.checkOutTime && todayLog.checkOutTime !== '-');
