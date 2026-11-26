@@ -18,7 +18,7 @@ const LeadPipelineTrackingScreen = () => {
       setLoading(true);
       // In a real scenario, this might be getLeads or getLeadsByMr based on role
       const data = await leadService.getLeads();
-      setLeads(data?.data || []);
+      setLeads(Array.isArray(data) ? data : (data?.data || []));
     } catch (error) {
       console.error('Error fetching leads:', error);
     } finally {

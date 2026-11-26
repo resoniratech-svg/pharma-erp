@@ -21,7 +21,7 @@ const LeadListScreen = () => {
     try {
       setLoading(true);
       const data = await leadService.getLeads();
-      let fetchedLeads = data?.data || [];
+      let fetchedLeads = Array.isArray(data) ? data : (data?.data || []);
       if (filterStatus) {
         if (filterStatus === 'WON') {
           fetchedLeads = fetchedLeads.filter((l: any) => l.status === 'WON' || l.status === 'CONVERTED');

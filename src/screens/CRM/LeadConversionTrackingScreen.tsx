@@ -17,7 +17,7 @@ const LeadConversionTrackingScreen = () => {
     try {
       setLoading(true);
       const data = await leadService.getLeads();
-      setLeads(data?.data || []);
+      setLeads(Array.isArray(data) ? data : (data?.data || []));
     } catch (error) {
       console.error('Error fetching leads:', error);
     } finally {
