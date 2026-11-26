@@ -41,6 +41,19 @@ export const meetingService = {
     return getLocalMeetings();
   },
 
+  async getLiveMeetings(): Promise<any[]> {
+    try {
+      const res = await apiRequest<{ success: boolean; data: any[] }>('/meetings');
+      if (res && res.success && Array.isArray(res.data)) {
+        saveLocalMeetings(res.data);
+        return res.data;
+      }
+    } catch (e) {
+      console.error('Failed to load live meetings:', e);
+    }
+    return getLocalMeetings();
+  },
+
   async loadMeetings(mrId: number): Promise<MRMeeting[]> {
     try {
       const res = await apiRequest<{ success: boolean; data: MRMeeting[] }>(`/meetings?mrId=${mrId}`);
@@ -54,11 +67,12 @@ export const meetingService = {
     return getLocalMeetings();
   },
 
-  async addMeeting(mrId: number, meeting: Partial<MRMeeting> & { doctorId?: number; chemistId?: number }): Promise<MRMeeting> {
+  async addMeeting(mrId: number, meeting: Partial<MRMeeting> & { doctorId?: number; chemistId?: number; meetingDate?: string }): Promise<MRMeeting> {
     try {
+      const meetingDate = meeting.meetingDate || (meeting.date ? `${meeting.date}T${meeting.rawTime || meeting.time || '10:00'}:00` : new Date().toISOString());
       const res = await apiRequest<{ success: boolean; data: MRMeeting }>('/meetings', {
         method: 'POST',
-        bodyData: { ...meeting, mrId }
+        bodyData: { ...meeting, meetingDate, mrId }
       });
       if (res.success && res.data) {
         const meetings = getLocalMeetings();

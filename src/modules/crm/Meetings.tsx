@@ -579,23 +579,53 @@ export default function CrmMeetings() {
           assignedTo: l.assignedTo || l.assignedMrName || (l.assignedMr ? l.assignedMr.name : '')
         })));
 
-        // Load meetings from DB
-        const cached = meetingService.getAll();
-        if (cached.length > 0) {
-          setMeetings(cached.map((m) => ({
-            id: String(m.id),
-            leadId: '',
-            title: m.title,
-            meetingType: m.type || 'Doctor Group Meet',
-            client: m.organizer,
-            participants: m.participants,
-            venue: m.location,
-            date: m.date,
-            time: m.time,
-            rawTime: m.rawTime,
-            status: m.status,
-            agenda: m.agenda,
-          })));
+        // Load meetings live from DB
+        const rawMeetings = await meetingService.getLiveMeetings();
+        if (rawMeetings.length > 0) {
+          setMeetings(rawMeetings.map((m: any) => {
+            const rawDateTime = m.meetingDate || m.date || m.createdAt || '';
+            const d = rawDateTime ? new Date(rawDateTime) : null;
+            const isValidDate = d && !isNaN(d.getTime());
+            
+            const dateStr = isValidDate ? d.toISOString().split('T')[0] : (m.date || '');
+            
+            const timeStr = isValidDate 
+              ? d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true }) 
+              : (m.time || '10:00 AM');
+            const rawTimeStr = isValidDate 
+              ? `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}` 
+              : (m.rawTime || '10:00');
+
+            const clientName = 
+              m.client || 
+              m.doctor?.name || 
+              m.chemist?.name || 
+              m.meetingDoctors?.[0]?.doctor?.name || 
+              m.meetingChemists?.[0]?.chemist?.name || 
+              m.mr?.name || 
+              m.organizer || 
+              'General Meeting';
+
+            let normStatus: 'Scheduled' | 'Completed' | 'Cancelled' = 'Scheduled';
+            const sUpper = String(m.status || '').toUpperCase();
+            if (sUpper === 'COMPLETED') normStatus = 'Completed';
+            else if (sUpper === 'CANCELLED') normStatus = 'Cancelled';
+
+            return {
+              id: String(m.id),
+              leadId: m.leadId ? String(m.leadId) : '',
+              title: m.title || 'Client Meeting',
+              meetingType: m.type || m.meetingType || 'Doctor Group Meet',
+              client: clientName,
+              participants: m.participants || m.doctor?.name || m.chemist?.name || clientName,
+              venue: m.location || m.venue || 'Corporate Office',
+              date: dateStr,
+              time: timeStr,
+              rawTime: rawTimeStr,
+              status: normStatus,
+              agenda: m.agenda || m.description || '',
+            };
+          }));
         }
       } catch (err) {
         console.error(err);
@@ -737,8 +767,6 @@ export default function CrmMeetings() {
     if (editMeetingId) {
       updatedMeetings = meetings.map(m => m.id === editMeetingId ? newMeetingData : m);
     } else {
-      updatedMeetings = [newMeetingData, ...meetings];
-      
       // Auto-resolve MR ID if lead has assigned MR name
       let mrIdToUse = Number(selectedLead.assignedMrId) || 0;
       const assignedEmp = selectedLead.assignedTo || selectedLead.assignedMrName;
@@ -751,16 +779,29 @@ export default function CrmMeetings() {
         }
       }
 
-      // Save to DB via meetingService
-      meetingService.addMeeting(mrIdToUse, {
-        title: newMeetingData.title,
-        agenda: newMeetingData.agenda,
-        date: newMeetingData.date,
-        time: newMeetingData.rawTime,
-        location: newMeetingData.venue,
-        participants: newMeetingData.participants,
-        type: newMeetingData.meetingType,
-      }).catch(console.error);
+      const meetingDateTimeISO = `${date}T${time || '10:00'}:00.000Z`;
+
+      // Save to DB via meetingService and update state with true DB record
+      try {
+        const saved = await meetingService.addMeeting(mrIdToUse, {
+          title: newMeetingData.title,
+          agenda: newMeetingData.agenda,
+          date: newMeetingData.date,
+          time: newMeetingData.rawTime,
+          rawTime: newMeetingData.rawTime,
+          meetingDate: meetingDateTimeISO,
+          location: newMeetingData.venue,
+          participants: newMeetingData.participants,
+          type: newMeetingData.meetingType,
+        });
+        if (saved && saved.id) {
+          newMeetingData.id = String(saved.id);
+        }
+      } catch (err) {
+        console.error('Failed to save meeting to DB:', err);
+      }
+
+      updatedMeetings = [newMeetingData, ...meetings];
     }
 
     setMeetings(updatedMeetings);
