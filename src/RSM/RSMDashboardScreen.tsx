@@ -18,6 +18,7 @@ import {
   ActivityIndicator
 } from 'react-native';
 import { getRSMDashboard } from '../services/dashboardService';
+import { checkAttendanceStatus } from '../services/attendanceService';
 
 const { width, height } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.50; // Keep 50% width exactly like NSM
@@ -136,6 +137,45 @@ const RSMDashboardScreen = () => {
         ]);
       }
     } else {
+      const OPERATIONAL_ROUTES = [
+        RSM_ROUTES.ASM_MANAGEMENT,
+        RSM_ROUTES.TARGET,
+        RSM_ROUTES.REGIONAL,
+        RSM_ROUTES.TEAM_PERFORMANCE,
+        RSM_ROUTES.TEAM_VISITS,
+        RSM_ROUTES.DISTRIBUTOR_MANAGEMENT
+      ];
+
+      if (OPERATIONAL_ROUTES.includes(routeKey)) {
+        try {
+          const { isCheckedInToday, isCheckedOutToday } = await checkAttendanceStatus();
+          if (!isCheckedInToday) {
+            if (isCheckedOutToday) {
+              Alert.alert(
+                'Shift Completed',
+                'You have already checked out for today. Field operations are closed until your next shift.',
+                [
+                  { text: 'View Attendance', onPress: () => navigation.navigate(RSM_ROUTES.ATTENDANCE) },
+                  { text: 'OK', style: 'cancel' }
+                ]
+              );
+            } else {
+              Alert.alert(
+                'Check-In Required',
+                'You must Check-In to start your day before performing operational activities.',
+                [
+                  { text: 'Go to Check-In', onPress: () => navigation.navigate(RSM_ROUTES.ATTENDANCE) },
+                  { text: 'Cancel', style: 'cancel' }
+                ]
+              );
+            }
+            return;
+          }
+        } catch (e) {
+          console.log('Error verifying check-in status on navigation:', e);
+        }
+      }
+
       await AsyncStorage.setItem('@rsm_keep_menu_open', 'true');
       if (keepSalesOpsOpen) {
         await AsyncStorage.setItem('@rsm_sales_ops_open', 'true');

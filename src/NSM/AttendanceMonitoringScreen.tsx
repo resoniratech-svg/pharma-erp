@@ -11,7 +11,7 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api';
-import { checkInAttendance, checkOutAttendance, checkAttendanceStatus } from '../services/attendanceService';
+import { checkInAttendance, checkOutAttendance, checkAttendanceStatus, getAttendanceLogs } from '../services/attendanceService';
 
 const NSMAttendanceMonitoringScreen = () => {
   const [activeTab, setActiveTab] = useState<'MyAttendance' | 'TeamAttendance'>('MyAttendance');
@@ -24,10 +24,8 @@ const NSMAttendanceMonitoringScreen = () => {
 
   // Self Attendance History
   const [attendanceHistory, setAttendanceHistory] = useState([
-    { id: '1', date: '01 Aug 2026', checkIn: '09:15 AM', checkOut: '06:30 PM', hours: '9h 15m', status: 'Present' },
-    { id: '2', date: '31 Jul 2026', checkIn: '09:05 AM', checkOut: '06:15 PM', hours: '9h 10m', status: 'Present' },
-    { id: '3', date: '30 Jul 2026', checkIn: '09:45 AM', checkOut: '06:45 PM', hours: '9h 00m', status: 'Late Check-In' },
-    { id: '4', date: '29 Jul 2026', checkIn: '09:10 AM', checkOut: '06:20 PM', hours: '9h 10m', status: 'Present' },
+    { id: '1', date: '01 Aug 2026', checkIn: '09:15 AM', checkOut: '06:30 PM', hours: '9h 15m', status: 'Completed' },
+    { id: '2', date: '31 Jul 2026', checkIn: '09:05 AM', checkOut: '06:15 PM', hours: '9h 10m', status: 'Completed' },
   ]);
 
   // Team Attendance Data with GPS Exception & Punch Indicators
@@ -42,6 +40,47 @@ const NSMAttendanceMonitoringScreen = () => {
         if (status.activeRecord.checkInTime) {
           setCheckInTime(new Date(status.activeRecord.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
         }
+        if (status.activeRecord.checkOutTime) {
+          setCheckOutTime(new Date(status.activeRecord.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        }
+      }
+
+      const logs = await getAttendanceLogs();
+      if (Array.isArray(logs) && logs.length > 0) {
+        const formatted = logs.map((log: any, idx: number) => {
+          const dateObj = new Date(log.attendanceDate || log.date || log.createdAt);
+          const dateStr = !isNaN(dateObj.getTime())
+            ? dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            : 'Today';
+          const inTime = log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
+          const outTime = log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (log.checkInTime ? 'In-Progress' : '--');
+          let hours = '--';
+          if (log.checkInTime && log.checkOutTime) {
+            const diffMs = new Date(log.checkOutTime).getTime() - new Date(log.checkInTime).getTime();
+            if (diffMs > 0) {
+              const h = Math.floor(diffMs / 3600000);
+              const m = Math.floor((diffMs % 3600000) / 60000);
+              hours = `${h}h ${m}m`;
+            }
+          } else if (log.checkInTime) {
+            const diffMs = Date.now() - new Date(log.checkInTime).getTime();
+            if (diffMs > 0) {
+              const h = Math.floor(diffMs / 3600000);
+              const m = Math.floor((diffMs % 3600000) / 60000);
+              hours = `${h}h ${m}m (Active)`;
+            }
+          }
+          const rowStatus = log.checkOutTime ? 'Completed' : (log.checkInTime ? 'Checked-In' : 'Present');
+          return {
+            id: String(log.id || idx),
+            date: dateStr,
+            checkIn: inTime,
+            checkOut: outTime,
+            hours,
+            status: rowStatus
+          };
+        });
+        setAttendanceHistory(formatted);
       }
     } catch (e) {
       console.log('Failed to check attendance status:', e);
@@ -189,8 +228,15 @@ const NSMAttendanceMonitoringScreen = () => {
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={styles.historyHours}>{item.hours}</Text>
-                    <Text style={[styles.historyStatus, item.status === 'Present' ? { color: '#059669' } : { color: '#DC2626' }]}>
-                      {item.status}
+                    <Text style={[
+                      styles.historyStatus,
+                      item.status === 'Checked-In'
+                        ? { color: '#059669', fontWeight: 'bold' }
+                        : item.status === 'Completed'
+                        ? { color: '#4F46E5', fontWeight: 'bold' }
+                        : { color: '#059669' }
+                    ]}>
+                      {item.status === 'Checked-In' ? '🟢 Checked-In' : item.status === 'Completed' ? '⚪ Checked-Out' : item.status}
                     </Text>
                   </View>
                 </View>

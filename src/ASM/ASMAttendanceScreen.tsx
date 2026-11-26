@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,7 +9,15 @@ import {
   Alert,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {
+  getASMTeamAttendance,
+  checkInAttendance,
+  checkOutAttendance,
+  checkAttendanceStatus,
+  getAttendanceLogs
+} from '../services/attendanceService';
 
 const ASMAttendanceScreen = () => {
   const navigation = useNavigation<any>();
@@ -19,19 +27,77 @@ const ASMAttendanceScreen = () => {
   const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [checkInTime, setCheckInTime] = useState<string | null>(null);
   const [checkOutTime, setCheckOutTime] = useState<string | null>(null);
+  const [activeAttendanceId, setActiveAttendanceId] = useState<number | null>(null);
 
   // Self Attendance History
-  const [attendanceHistory, setAttendanceHistory] = useState([
-    { id: '1', date: '01 Aug 2026', checkIn: '09:15 AM', checkOut: '06:30 PM', hours: '9h 15m', status: 'Present' },
-    { id: '2', date: '31 Jul 2026', checkIn: '09:05 AM', checkOut: '06:15 PM', hours: '9h 10m', status: 'Present' },
-    { id: '3', date: '30 Jul 2026', checkIn: '09:45 AM', checkOut: '06:45 PM', hours: '9h 00m', status: 'Late Check-In' },
-    { id: '4', date: '29 Jul 2026', checkIn: '09:10 AM', checkOut: '06:20 PM', hours: '9h 10m', status: 'Present' },
-  ]);
+  const [attendanceHistory, setAttendanceHistory] = useState<any[]>([]);
 
   const [teamAttendanceData, setTeamAttendanceData] = useState<any[]>([]);
   const [loadingTeam, setLoadingTeam] = useState(false);
 
-  React.useEffect(() => {
+  const loadSelfStatus = useCallback(async () => {
+    try {
+      const status = await checkAttendanceStatus();
+      setIsCheckedIn(status.isCheckedInToday);
+      if (status.activeRecord) {
+        setActiveAttendanceId(status.activeRecord.id);
+        if (status.activeRecord.checkInTime) {
+          setCheckInTime(new Date(status.activeRecord.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        }
+        if (status.activeRecord.checkOutTime) {
+          setCheckOutTime(new Date(status.activeRecord.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        }
+      }
+
+      const logs = await getAttendanceLogs();
+      if (Array.isArray(logs) && logs.length > 0) {
+        const formatted = logs.map((log: any, idx: number) => {
+          const dateObj = new Date(log.attendanceDate || log.date || log.createdAt);
+          const dateStr = !isNaN(dateObj.getTime())
+            ? dateObj.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+            : 'Today';
+          const inTime = log.checkInTime ? new Date(log.checkInTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '--';
+          const outTime = log.checkOutTime ? new Date(log.checkOutTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : (log.checkInTime ? 'In-Progress' : '--');
+          let hours = '--';
+          if (log.checkInTime && log.checkOutTime) {
+            const diffMs = new Date(log.checkOutTime).getTime() - new Date(log.checkInTime).getTime();
+            if (diffMs > 0) {
+              const h = Math.floor(diffMs / 3600000);
+              const m = Math.floor((diffMs % 3600000) / 60000);
+              hours = `${h}h ${m}m`;
+            }
+          } else if (log.checkInTime) {
+            const diffMs = Date.now() - new Date(log.checkInTime).getTime();
+            if (diffMs > 0) {
+              const h = Math.floor(diffMs / 3600000);
+              const m = Math.floor((diffMs % 3600000) / 60000);
+              hours = `${h}h ${m}m (Active)`;
+            }
+          }
+          const rowStatus = log.checkOutTime ? 'Completed' : (log.checkInTime ? 'Checked-In' : 'Present');
+          return {
+            id: String(log.id || idx),
+            date: dateStr,
+            checkIn: inTime,
+            checkOut: outTime,
+            hours,
+            status: rowStatus
+          };
+        });
+        setAttendanceHistory(formatted);
+      }
+    } catch (e) {
+      console.log('Failed to check ASM self attendance status:', e);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadSelfStatus();
+    }, [loadSelfStatus])
+  );
+
+  useEffect(() => {
     if (activeTab === 'TeamAttendance') {
       fetchTeamAttendance();
     }
@@ -40,7 +106,6 @@ const ASMAttendanceScreen = () => {
   const fetchTeamAttendance = async () => {
     try {
       setLoadingTeam(true);
-      const { getASMTeamAttendance } = require('../services/attendanceService');
       const data = await getASMTeamAttendance();
       if (data && data.length > 0) {
         setTeamAttendanceData(data.map((item: any) => {
@@ -74,35 +139,38 @@ const ASMAttendanceScreen = () => {
     }
   };
 
-    const handleCheckIn = () => {
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setIsCheckedIn(true);
-    setCheckInTime(time);
-    setCheckOutTime(null);
-    setAttendanceHistory(prev => [{
-      id: Math.random().toString(),
-      date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-      checkIn: time,
-      checkOut: '-',
-      hours: '-',
-      status: 'Present'
-    }, ...prev]);
-    Alert.alert('Checked In Successfully', `Recorded Check-In at ${time} with GPS Location.`);
+  const handleCheckIn = async () => {
+    try {
+      const rawMrId = await AsyncStorage.getItem('@mrId');
+      const mrId = rawMrId ? Number(rawMrId) : 1;
+      const res = await checkInAttendance(mrId, 19.0760, 72.8777);
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setIsCheckedIn(true);
+      setCheckInTime(time);
+      setCheckOutTime(null);
+      if (res?.data?.id || res?.id) {
+        setActiveAttendanceId(res?.data?.id || res?.id);
+      }
+      Alert.alert('🟢 Checked In Successfully', `Recorded Check-In at ${time} with GPS Location.`);
+      loadSelfStatus();
+    } catch (e: any) {
+      Alert.alert('Check-In', e?.response?.data?.message || e?.message || 'Check-In failed');
+    }
   };
 
-    const handleCheckOut = () => {
-    const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    setIsCheckedIn(false);
-    setCheckOutTime(time);
-    setAttendanceHistory(prev => {
-      const newHistory = [...prev];
-      if (newHistory.length > 0) {
-        newHistory[0].checkOut = time;
-        newHistory[0].hours = '8h 45m';
-      }
-      return newHistory;
-    });
-    Alert.alert('Checked Out Successfully', `Recorded Check-Out at ${time}.`);
+  const handleCheckOut = async () => {
+    try {
+      const storedId = await AsyncStorage.getItem('@attendanceId');
+      const idToCheckout = activeAttendanceId || (storedId ? Number(storedId) : 0);
+      await checkOutAttendance(idToCheckout, 19.0760, 72.8777);
+      const time = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      setIsCheckedIn(false);
+      setCheckOutTime(time);
+      Alert.alert('🔴 Checked Out Successfully', `Recorded Check-Out at ${time}.`);
+      loadSelfStatus();
+    } catch (e: any) {
+      Alert.alert('Check-Out', e?.response?.data?.message || e?.message || 'Check-Out failed');
+    }
   };
 
   return (
@@ -203,8 +271,15 @@ const ASMAttendanceScreen = () => {
                   </View>
                   <View style={{ alignItems: 'flex-end' }}>
                     <Text style={styles.historyHours}>{item.hours}</Text>
-                    <Text style={[styles.historyStatus, item.status === 'Present' ? { color: '#059669' } : { color: '#DC2626' }]}>
-                      {item.status}
+                    <Text style={[
+                      styles.historyStatus,
+                      item.status === 'Checked-In'
+                        ? { color: '#059669', fontWeight: 'bold' }
+                        : item.status === 'Completed'
+                        ? { color: '#4F46E5', fontWeight: 'bold' }
+                        : { color: '#059669' }
+                    ]}>
+                      {item.status === 'Checked-In' ? '🟢 Checked-In' : item.status === 'Completed' ? '⚪ Checked-Out' : item.status}
                     </Text>
                   </View>
                 </View>

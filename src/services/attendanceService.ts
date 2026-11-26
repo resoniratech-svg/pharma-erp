@@ -53,7 +53,16 @@ export const checkOutAttendance = async (
 export const getAttendanceLogs = async () => {
   const token = await AsyncStorage.getItem('@token');
   const mrId = await AsyncStorage.getItem('@mrId');
-  if (!mrId || mrId === 'null' || mrId === 'undefined') return [];
+  if (!mrId || mrId === 'null' || mrId === 'undefined') {
+    try {
+      const response = await api.get('/attendance', {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      return response.data.data || response.data || [];
+    } catch (e) {
+      return [];
+    }
+  }
   const response = await api.get(`/attendance/mr/${mrId}`, {
     headers: {
       Authorization: `Bearer ${token}`,
@@ -113,8 +122,11 @@ export const checkAttendanceStatus = async (): Promise<{
           if (d.activeRecord?.id) {
             await AsyncStorage.setItem('@attendanceId', String(d.activeRecord.id));
           }
-        } else if (d.isCheckedOut) {
+        } else {
           await AsyncStorage.setItem('@checked_in', 'false');
+          if (d.isCheckedOut) {
+            await AsyncStorage.removeItem('@attendanceId');
+          }
         }
         return {
           isCheckedInToday: !!d.isCheckedIn,
@@ -135,16 +147,18 @@ export const checkAttendanceStatus = async (): Promise<{
 
   let isCheckedInToday = false;
   let isCheckedOutToday = false;
+  let foundTodayLog: any = null;
 
   if (logsList && logsList.length > 0) {
     const todayLog = logsList.find((log: any) => {
-      const rawDate = log.date || log.checkIn || log.checkInTime;
+      const rawDate = log.date || log.checkIn || log.checkInTime || log.attendanceDate;
       if (!rawDate) return false;
       const logDateStr = getLocalDateStr(new Date(rawDate));
       return logDateStr === todayLocalStr;
     });
 
     if (todayLog) {
+      foundTodayLog = todayLog;
       const checkOut = todayLog.checkOut ?? todayLog.checkOutTime;
       // If checkOut contains a timestamp/value, duty is completed today
       if (checkOut && checkOut !== 'null' && checkOut !== 'NULL') {
@@ -162,5 +176,5 @@ export const checkAttendanceStatus = async (): Promise<{
     }
   }
 
-  return { isCheckedInToday, isCheckedOutToday };
+  return { isCheckedInToday, isCheckedOutToday, activeRecord: foundTodayLog };
 };

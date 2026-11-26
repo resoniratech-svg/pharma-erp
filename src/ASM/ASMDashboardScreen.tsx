@@ -17,6 +17,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { api } from '../services/api';
+import { checkAttendanceStatus } from '../services/attendanceService';
 
 const { width, height } = Dimensions.get('window');
 const DRAWER_WIDTH = width * 0.50; // Keep 50% width exactly like NSM/RSM
@@ -106,6 +107,44 @@ const ASMDashboardScreen = () => {
         );
       }
     } else {
+      const OPERATIONAL_ROUTES = [
+        ASM_ROUTES.MR_MANAGEMENT,
+        ASM_ROUTES.TARGET_ALLOCATION,
+        ASM_ROUTES.TARGET_ACHIEVEMENT,
+        ASM_ROUTES.DAILY_ACTIVITIES,
+        ASM_ROUTES.TOUR_PLANNING
+      ];
+
+      if (OPERATIONAL_ROUTES.includes(routeKey)) {
+        try {
+          const { isCheckedInToday, isCheckedOutToday } = await checkAttendanceStatus();
+          if (!isCheckedInToday) {
+            if (isCheckedOutToday) {
+              Alert.alert(
+                'Shift Completed',
+                'You have already checked out for today. Field operations are closed until your next shift.',
+                [
+                  { text: 'View Attendance', onPress: () => navigation.navigate(ASM_ROUTES.ATTENDANCE) },
+                  { text: 'OK', style: 'cancel' }
+                ]
+              );
+            } else {
+              Alert.alert(
+                'Check-In Required',
+                'You must Check-In to start your day before performing operational activities.',
+                [
+                  { text: 'Go to Check-In', onPress: () => navigation.navigate(ASM_ROUTES.ATTENDANCE) },
+                  { text: 'Cancel', style: 'cancel' }
+                ]
+              );
+            }
+            return;
+          }
+        } catch (e) {
+          console.log('Error verifying check-in status on navigation:', e);
+        }
+      }
+
       await AsyncStorage.setItem('@asm_keep_menu_open', 'true');
       if (keepSalesOpsOpen) {
         await AsyncStorage.setItem('@asm_sales_ops_open', 'true');
@@ -179,7 +218,7 @@ const ASMDashboardScreen = () => {
           {/* Header Icons */}
           <TouchableOpacity onPress={() => navigation.navigate(ASM_ROUTES.NOTIFICATIONS)} style={{ padding: 4, marginRight: 8, position: 'relative' }}>
             <Ionicons name="notifications-outline" size={22} color="#FFF" />
-            <View style={[styles.notifBadge, { position: 'absolute', top: 2, right: 2, backgroundColor: '#EF4444', width: 14, height: 14, borderRadius: 7, justifyContent: 'center', alignItems: 'center' }]}>
+            <View style={{ position: 'absolute', top: 2, right: 2, backgroundColor: '#EF4444', width: 14, height: 14, borderRadius: 7, justifyContent: 'center', alignItems: 'center' }}>
               <Text style={{ color: '#FFF', fontSize: 9, fontWeight: 'bold' }}>{unreadCount}</Text>
             </View>
           </TouchableOpacity>

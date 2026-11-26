@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused, useNavigation } from '@react-navigation/native';
 import React, { useEffect, useState } from 'react';
-import { Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { getAttendanceLogs } from '../../services/attendanceService';
+import { Alert, Image, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { getAttendanceLogs, checkAttendanceStatus } from '../../services/attendanceService';
 import { getChemistVisitsByMr } from '../../services/chemistService';
 import { getMrDashboardAnalytics } from '../../services/dashboardService';
 import { getDoctorVisitsByMr } from '../../services/doctorService';
@@ -705,6 +705,46 @@ const DashboardScreen = () => {
     }
   };
 
+  const handleDrawerNavigate = async (route: string) => {
+    setIsMenuOpen(false);
+    const OPERATIONAL_ROUTES = [
+      'DoctorVisit', 'ChemistVisit', 'BookOrder', 'DailyReport',
+      'TargetTracking', 'TourPlanning', 'CustomerDirectory',
+      'MyLeads', 'LeadCreation', 'LeadPipelineTracking', 'FollowUps',
+      'MeetingScheduler', 'ActivityTracking', 'GeoTaggedDoctorVisits', 'GeoTaggedChemistVisits'
+    ];
+    if (OPERATIONAL_ROUTES.includes(route)) {
+      try {
+        const { isCheckedInToday, isCheckedOutToday } = await checkAttendanceStatus();
+        if (!isCheckedInToday) {
+          if (isCheckedOutToday) {
+            Alert.alert(
+              'Shift Completed',
+              'You have already checked out for today. Field operations are closed until your next shift.',
+              [
+                { text: 'View Attendance', onPress: () => navigation.navigate('Attendance') },
+                { text: 'OK', style: 'cancel' }
+              ]
+            );
+          } else {
+            Alert.alert(
+              'Check-In Required',
+              'You must Check-In to start your day before performing operational activities.',
+              [
+                { text: 'Go to Check-In', onPress: () => navigation.navigate('Attendance') },
+                { text: 'Cancel', style: 'cancel' }
+              ]
+            );
+          }
+          return;
+        }
+      } catch (e) {
+        console.log('Error verifying check-in status on MR drawer navigation:', e);
+      }
+    }
+    navigation.navigate(route);
+  };
+
   return (
     <View style={{ flex: 1 }}>
       <ScrollView style={styles.container}>
@@ -998,7 +1038,7 @@ const DashboardScreen = () => {
                     { label: '🧭 Daily Movement Tracking', route: 'DailyMovementTracking' },
                     { label: '🤝 Meeting/Event Location Tracking', route: 'MeetingLocation' },
                   ].map((item, index) => (
-                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => { setIsMenuOpen(false); navigation.navigate(item.route); }}>
+                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => handleDrawerNavigate(item.route)}>
                       <Text style={styles.drawerSubItemText}>{item.label}</Text>
                     </TouchableOpacity>
                   ))}
@@ -1019,7 +1059,7 @@ const DashboardScreen = () => {
                     { label: 'Meeting Scheduling', route: 'MeetingScheduler' },
                     { label: 'Activity Tracking', route: 'ActivityTracking' },
                   ].map((item, index) => (
-                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => { setIsMenuOpen(false); navigation.navigate(item.route); }}>
+                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => handleDrawerNavigate(item.route)}>
                       <Text style={styles.drawerSubItemText}>{item.label}</Text>
                     </TouchableOpacity>
                   ))}
@@ -1041,7 +1081,7 @@ const DashboardScreen = () => {
                     { label: '👤 Tour Planning', route: 'TourPlanning' },
                     { label: '📞 Customer Directory', route: 'CustomerDirectory' },
                   ].map((item, index) => (
-                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => { setIsMenuOpen(false); navigation.navigate(item.route); }}>
+                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => handleDrawerNavigate(item.route)}>
                       <Text style={styles.drawerSubItemText}>{item.label}</Text>
                     </TouchableOpacity>
                   ))}
@@ -1082,7 +1122,7 @@ const DashboardScreen = () => {
                     { label: '📲 Activity Notifications', route: 'ActivityNotifications' },
                     { label: '📥 Notification Center', route: 'Notifications' },
                   ].map((item, index) => (
-                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => { setIsMenuOpen(false); navigation.navigate(item.route); }}>
+                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => handleDrawerNavigate(item.route)}>
                       <Text style={styles.drawerSubItemText}>{item.label}</Text>
                     </TouchableOpacity>
                   ))}
@@ -1102,7 +1142,7 @@ const DashboardScreen = () => {
                     { label: '📋 Daily Schedule Checklist', route: 'DailySchedule' },
                     { label: '💵 Expense Claims', route: 'ExpenseClaim' },
                   ].map((item, index) => (
-                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => { setIsMenuOpen(false); navigation.navigate(item.route); }}>
+                    <TouchableOpacity key={index} style={styles.drawerSubItem} onPress={() => handleDrawerNavigate(item.route)}>
                       <Text style={styles.drawerSubItemText}>{item.label}</Text>
                     </TouchableOpacity>
                   ))}
