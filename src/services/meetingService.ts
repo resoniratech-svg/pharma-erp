@@ -67,7 +67,7 @@ export const meetingService = {
     return getLocalMeetings();
   },
 
-  async addMeeting(mrId: number, meeting: Partial<MRMeeting> & { doctorId?: number; chemistId?: number; meetingDate?: string }): Promise<MRMeeting> {
+  async addMeeting(mrId: number, meeting: Partial<MRMeeting> & { doctorId?: number; chemistId?: number; meetingDate?: string; description?: string }): Promise<MRMeeting> {
     try {
       const meetingDate = meeting.meetingDate || (meeting.date ? `${meeting.date}T${meeting.rawTime || meeting.time || '10:00'}:00` : new Date().toISOString());
       const res = await apiRequest<{ success: boolean; data: MRMeeting }>('/meetings', {
@@ -76,7 +76,7 @@ export const meetingService = {
       });
       if (res.success && res.data) {
         const meetings = getLocalMeetings();
-        meetings.push(res.data);
+        meetings.unshift(res.data);
         saveLocalMeetings(meetings);
         return res.data;
       }

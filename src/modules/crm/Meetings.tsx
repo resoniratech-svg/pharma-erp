@@ -582,7 +582,17 @@ export default function CrmMeetings() {
         // Load meetings live from DB
         const rawMeetings = await meetingService.getLiveMeetings();
         if (rawMeetings.length > 0) {
-          setMeetings(rawMeetings.map((m: any) => {
+          // Sort descending by ID or creation date so newest meetings are always at the top
+          const sorted = [...rawMeetings].sort((a: any, b: any) => {
+            const idA = Number(a.id) || 0;
+            const idB = Number(b.id) || 0;
+            if (idB !== idA) return idB - idA;
+            const dateA = new Date(a.meetingDate || a.createdAt || 0).getTime();
+            const dateB = new Date(b.meetingDate || b.createdAt || 0).getTime();
+            return dateB - dateA;
+          });
+
+          setMeetings(sorted.map((m: any) => {
             const rawDateTime = m.meetingDate || m.date || m.createdAt || '';
             const d = rawDateTime ? new Date(rawDateTime) : null;
             const isValidDate = d && !isNaN(d.getTime());
@@ -596,7 +606,15 @@ export default function CrmMeetings() {
               ? `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}` 
               : (m.rawTime || '10:00');
 
+            // Extract lead tag if stored in description/agenda: e.g. [Lead: WQERE | ID: 123]
+            const rawDesc = m.description || m.agenda || '';
+            const leadMatch = rawDesc.match(/\[Lead:\s*([^\]|]+)(?:\s*\|\s*ID:\s*([^\]]+))?\]/);
+            const extractedClient = leadMatch ? leadMatch[1].trim() : null;
+            const extractedLeadId = leadMatch && leadMatch[2] ? leadMatch[2].trim() : (m.leadId ? String(m.leadId) : '');
+            const cleanAgenda = leadMatch ? rawDesc.replace(/\[Lead:\s*[^\]]+\]\s*/, '').trim() : rawDesc;
+
             const clientName = 
+              extractedClient ||
               m.client || 
               m.doctor?.name || 
               m.chemist?.name || 
@@ -613,7 +631,7 @@ export default function CrmMeetings() {
 
             return {
               id: String(m.id),
-              leadId: m.leadId ? String(m.leadId) : '',
+              leadId: extractedLeadId,
               title: m.title || 'Client Meeting',
               meetingType: m.type || m.meetingType || 'Doctor Group Meet',
               client: clientName,
@@ -623,7 +641,7 @@ export default function CrmMeetings() {
               time: timeStr,
               rawTime: rawTimeStr,
               status: normStatus,
-              agenda: m.agenda || m.description || '',
+              agenda: cleanAgenda,
             };
           }));
         }
@@ -783,9 +801,12 @@ export default function CrmMeetings() {
 
       // Save to DB via meetingService and update state with true DB record
       try {
+        const clientDescTag = selectedLead ? `[Lead: ${selectedLead.name} | ID: ${selectedLead.id || selectedLead.leadCode}] ` : '';
+        const fullAgenda = `${clientDescTag}${newMeetingData.agenda}`.trim();
         const saved = await meetingService.addMeeting(mrIdToUse, {
           title: newMeetingData.title,
-          agenda: newMeetingData.agenda,
+          agenda: fullAgenda,
+          description: fullAgenda,
           date: newMeetingData.date,
           time: newMeetingData.rawTime,
           rawTime: newMeetingData.rawTime,
