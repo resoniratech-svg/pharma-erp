@@ -135,7 +135,7 @@ const getRSMTargetSummary = async (req, res) => {
   try {
     const employeeId = req.query.employeeId || (req.user && req.user.employeeId);
     const fy = req.query.financialYear || "2026-27";
-    const result = await service.getRSMTargetSummaryService(employeeId, fy);
+    const result = await service.getRSMTargetSummaryService(employeeId, fy, req.user);
     res.status(200).json({
       success: true,
       data: result,
@@ -152,7 +152,7 @@ const getASMTargetSummary = async (req, res) => {
   try {
     const employeeId = req.query.employeeId || (req.user && req.user.employeeId);
     const fy = req.query.financialYear || "2026-27";
-    const result = await service.getASMTargetSummaryService(employeeId, fy);
+    const result = await service.getASMTargetSummaryService(employeeId, fy, req.user);
     res.status(200).json({
       success: true,
       data: result,

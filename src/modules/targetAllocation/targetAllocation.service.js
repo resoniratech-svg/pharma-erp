@@ -222,8 +222,13 @@ const getNationalTargetSummaryService = async (financialYear = "2026-27") => {
 };
 
 // Summary for Regional Sales Manager (RSM Overview)
-const getRSMTargetSummaryService = async (employeeId, financialYear = "2026-27") => {
+const getRSMTargetSummaryService = async (employeeId, financialYear = "2026-27", user = null) => {
   let resolvedEmpId = employeeId ? Number(employeeId) : null;
+
+  if (!resolvedEmpId && user && user.id) {
+    const emp = await employeeRepo.getEmployeeByUserIdRepo(user.id);
+    if (emp) resolvedEmpId = emp.id;
+  }
 
   if (!resolvedEmpId) {
     const allRSMs = await employeeRepo.getEmployeesRepo({
@@ -289,8 +294,13 @@ const getRSMTargetSummaryService = async (employeeId, financialYear = "2026-27")
 };
 
 // Summary for Area Sales Manager (ASM Overview)
-const getASMTargetSummaryService = async (employeeId, financialYear = "2026-27") => {
+const getASMTargetSummaryService = async (employeeId, financialYear = "2026-27", user = null) => {
   let resolvedEmpId = employeeId ? Number(employeeId) : null;
+
+  if (!resolvedEmpId && user && user.id) {
+    const emp = await employeeRepo.getEmployeeByUserIdRepo(user.id);
+    if (emp) resolvedEmpId = emp.id;
+  }
 
   if (!resolvedEmpId) {
     const allASMs = await employeeRepo.getEmployeesRepo({
