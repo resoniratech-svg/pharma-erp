@@ -617,10 +617,11 @@ export default function DistributorCreditNotes() {
         subtitle="Single unified console for all retailer returns, expiry claims, rate adjustments, and company credit notes"
         actions={
           <ActionButton
-            icon={Plus}
-            label="Create Credit Note"
+            icon={<Plus className="w-4 h-4" />}
             onClick={() => setShowCreateModal(true)}
-          />
+          >
+            Create Credit Note
+          </ActionButton>
         }
       />
 
@@ -630,7 +631,7 @@ export default function DistributorCreditNotes() {
           title="Total Credit Notes"
           value={formatCurrency(metrics.totalValue)}
           subtitle={`${metrics.totalCount} active notes in this tab`}
-          icon={Layers}
+          icon={<Layers className="w-6 h-6" />}
           colorClass="text-blue-600"
           bgClass="bg-blue-50"
         />
@@ -638,7 +639,7 @@ export default function DistributorCreditNotes() {
           title="Sales Returns (Salable)"
           value={formatCurrency(metrics.salesReturnVal)}
           subtitle="Stock returned to sellable inventory"
-          icon={ArrowDownLeft}
+          icon={<ArrowDownLeft className="w-6 h-6" />}
           colorClass="text-emerald-600"
           bgClass="bg-emerald-50"
         />
@@ -646,7 +647,7 @@ export default function DistributorCreditNotes() {
           title="Expiry & Breakage Returns"
           value={formatCurrency(metrics.expiryReturnVal)}
           subtitle="Quarantine / Disposed batches"
-          icon={AlertTriangle}
+          icon={<AlertTriangle className="w-6 h-6" />}
           colorClass="text-rose-600"
           bgClass="bg-rose-50"
         />
@@ -654,7 +655,7 @@ export default function DistributorCreditNotes() {
           title="Rate & Scheme Adjustments"
           value={formatCurrency(metrics.adjustmentsVal)}
           subtitle="Financial credits without stock impact"
-          icon={DollarSign}
+          icon={<DollarSign className="w-6 h-6" />}
           colorClass="text-purple-600"
           bgClass="bg-purple-50"
         />
