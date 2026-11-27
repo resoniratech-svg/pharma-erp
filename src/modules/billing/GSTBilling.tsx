@@ -1,6 +1,6 @@
 // Refactored GST Invoicing Module
 import { useState, useEffect } from 'react';
-import { Plus, Download, ReceiptText, Trash2, Ban, Edit } from 'lucide-react';
+import { Plus, Download, ReceiptText, Trash2, Ban, Edit, Search, UserPlus, X, ChevronRight, Check } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -23,45 +23,28 @@ import { NotificationService } from '../../services/notificationService';
 import { hasModulePermission } from '../../utils/permissionUtils';
 import { distributorMasterService } from '../../services/distributorMasterService';
 import { generateInvoicePdf } from '../../documents/generators/pdfGenerator';
+import { apiRequest } from '../../services/apiClient';
+import { INDIAN_STATES } from '../../constants/indianStates';
 
-// --- DYNAMIC DISTRIBUTOR & CRM INTEGRATION ---
-const distributorMasterList = JSON.parse(localStorage.getItem('pharma_erp_distributor_master') || '[]');
-const crmDistributors = JSON.parse(localStorage.getItem('crm_distributors') || '[]');
+export interface CustomerOption {
+  id: string;
+  code: string;
+  name: string;
+  type: string;
+  state: string;
+  creditDays: number;
+  mobile?: string;
+  gstin?: string;
+  address?: string;
+}
 
-const DEFAULT_CUSTOMERS = [
-  { id: 'CUST-001', name: 'MedPlus Store', type: 'Retailer', state: 'Telangana', creditDays: 30 },
-  { id: 'CUST-002', name: 'Apollo Pharmacy', type: 'Hospital Chain', state: 'Karnataka', creditDays: 45 },
-  { id: 'CUST-003', name: 'Wellness Medicos', type: 'Retailer', state: 'Maharashtra', creditDays: 15 },
-  { id: 'CUST-004', name: 'Care Hospitals', type: 'Institutional', state: 'Telangana', creditDays: 30 },
-  { id: 'B2C', name: 'Walk-in / Cash Customer (B2C)', type: 'Counter', state: 'Telangana', creditDays: 0 },
+const DEFAULT_CUSTOMERS: CustomerOption[] = [
+  { id: 'CUST-001', code: 'CUST-001', name: 'MedPlus Store', type: 'Retailer', state: 'Telangana', creditDays: 30, mobile: '9848012345' },
+  { id: 'CUST-002', code: 'CUST-002', name: 'Apollo Pharmacy', type: 'Hospital Chain', state: 'Karnataka', creditDays: 45, mobile: '9848054321' },
+  { id: 'CUST-003', code: 'CUST-003', name: 'Wellness Medicos', type: 'Retailer', state: 'Maharashtra', creditDays: 15, mobile: '9848098765' },
+  { id: 'CUST-004', code: 'CUST-004', name: 'Care Hospitals', type: 'Institutional', state: 'Telangana', creditDays: 30, mobile: '9848067890' },
+  { id: 'B2C', code: 'B2C', name: 'Walk-in / Cash Customer (B2C)', type: 'Counter', state: 'Telangana', creditDays: 0, mobile: '-' },
 ];
-
-const mappedDistributorMaster = distributorMasterList.map((d: any) => ({
-  id: d.id,
-  name: d.name,
-  type: 'Distributor',
-  state: d.state || 'Telangana',
-  creditDays: d.creditDays || 30
-}));
-
-const mappedCrmDistributors = crmDistributors.map((d: any) => ({ 
-  id: d.id, 
-  name: d.name, 
-  type: d.tier || 'Distributor',
-  state: d.state || (d.region === 'South' ? 'Karnataka' : 'Telangana'),
-  creditDays: d.creditDays || 30
-}));
-
-// Combine all sources dynamically without duplicates
-const combinedCustomersRaw = [...mappedDistributorMaster, ...mappedCrmDistributors];
-const uniqueCustomerNames = new Set<string>();
-const DYNAMIC_CUSTOMERS = combinedCustomersRaw.filter(c => {
-  if (!c.name || uniqueCustomerNames.has(c.name.toLowerCase())) return false;
-  uniqueCustomerNames.add(c.name.toLowerCase());
-  return true;
-});
-
-const CUSTOMERS = DYNAMIC_CUSTOMERS.length > 0 ? DYNAMIC_CUSTOMERS : DEFAULT_CUSTOMERS;
 
 interface ProductRecord {
   id: string;
@@ -93,6 +76,24 @@ export default function GSTBilling() {
   const [items, setItems] = useState<InvoiceItem[]>([]);
   const [schemesState, setSchemesState] = useState<any[]>([]);
 
+  // Customer Management & Search States
+  const [customers, setCustomers] = useState<CustomerOption[]>(DEFAULT_CUSTOMERS);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState('');
+  const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
+  const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
+  const [isSavingCustomer, setIsSavingCustomer] = useState(false);
+  const [newCustomerForm, setNewCustomerForm] = useState({
+    name: '',
+    type: 'Retailer',
+    state: 'Telangana',
+    mobile: '',
+    contactPerson: '',
+    gstNumber: '',
+    drugLicenseNumber: '',
+    address: '',
+    creditDays: 30
+  });
+
   // Organization Settings (Seller State)
   const companySettings = JSON.parse(localStorage.getItem('company_settings') || '{}');
   const sellerState = companySettings.state || 'Telangana';
@@ -107,6 +108,101 @@ export default function GSTBilling() {
                     hasModulePermission(activeRole, "Wholesale Billing", "Create") ||
                     hasModulePermission(activeRole, "Billing & Invoicing", "Create");
   const canOverrideGst = activeRole === 'Super Admin' || activeRole === 'Admin';
+
+  const loadCustomers = async () => {
+    const list: CustomerOption[] = [];
+
+    // 1. Fetch Retailers from Backend API
+    try {
+      const retRes = await apiRequest<{ success: boolean; data: any[] }>('/retailers');
+      if (retRes && retRes.success && Array.isArray(retRes.data)) {
+        retRes.data.forEach((r: any) => {
+          list.push({
+            id: String(r.id),
+            code: r.code || `RET-${String(r.id).padStart(3, '0')}`,
+            name: r.name,
+            type: 'Retailer',
+            state: r.state || (r.address && r.address.toLowerCase().includes('karnataka') ? 'Karnataka' : r.address && r.address.toLowerCase().includes('maharashtra') ? 'Maharashtra' : 'Telangana'),
+            creditDays: 30,
+            mobile: r.mobile || r.mobileNumber || '',
+            gstin: r.gstNumber || r.drugLicenseNumber || '',
+            address: r.address || ''
+          });
+        });
+      }
+    } catch (e) {
+      console.warn("Could not load retailers from API:", e);
+    }
+
+    // 2. Fetch Distributors from Backend API
+    try {
+      const distRes = await apiRequest<{ success: boolean; data: any[] }>('/distributors');
+      if (distRes && distRes.success && Array.isArray(distRes.data)) {
+        distRes.data.forEach((d: any) => {
+          list.push({
+            id: String(d.id),
+            code: d.code || `DIST-${String(d.id).padStart(3, '0')}`,
+            name: d.name,
+            type: 'Distributor',
+            state: d.state || 'Telangana',
+            creditDays: d.creditDays || 30,
+            mobile: d.mobile || d.mobileNumber || '',
+            gstin: d.companyPan || d.dlNumber || '',
+            address: d.address || ''
+          });
+        });
+      }
+    } catch (e) {
+      console.warn("Could not load distributors from API:", e);
+    }
+
+    // 3. Fallback / merge local distributor master if any
+    const localDist = JSON.parse(localStorage.getItem('pharma_erp_distributor_master') || '[]');
+    localDist.forEach((d: any) => {
+      if (d.name && !list.some(c => c.name.toLowerCase() === d.name.toLowerCase())) {
+        list.push({
+          id: String(d.id || `DIST-${Date.now()}`),
+          code: d.code || `DIST-${d.id}`,
+          name: d.name,
+          type: 'Distributor',
+          state: d.state || 'Telangana',
+          creditDays: d.creditDays || 30,
+          mobile: d.mobileNumber || '',
+          gstin: d.companyPan || ''
+        });
+      }
+    });
+
+    // 4. Always ensure Walk-in / Cash Customer (B2C) exists
+    list.push({
+      id: 'B2C',
+      code: 'B2C',
+      name: 'Walk-in / Cash Customer (B2C)',
+      type: 'Counter',
+      state: 'Telangana',
+      creditDays: 0,
+      mobile: '-'
+    });
+
+    // Fallback to DEFAULT_CUSTOMERS if list is empty or only B2C
+    if (list.length <= 1) {
+      DEFAULT_CUSTOMERS.forEach(dc => {
+        if (!list.some(c => c.name.toLowerCase() === dc.name.toLowerCase())) {
+          list.unshift(dc);
+        }
+      });
+    }
+
+    // Deduplicate by name
+    const uniqueMap = new Map<string, CustomerOption>();
+    list.forEach(item => {
+      if (!uniqueMap.has(item.name.toLowerCase())) {
+        uniqueMap.set(item.name.toLowerCase(), item);
+      }
+    });
+
+    setCustomers(Array.from(uniqueMap.values()));
+  };
 
   const loadDatabaseDetails = async () => {
     const savedInvoices = await billingService.loadInvoices();
@@ -158,6 +254,7 @@ export default function GSTBilling() {
 
   useEffect(() => {
     loadDatabaseDetails();
+    loadCustomers();
     distributorMasterService.fetchFromApi().catch(() => {});
     const fetchSchemes = async () => {
       try {
@@ -201,11 +298,123 @@ export default function GSTBilling() {
     }
   };
 
+  const handleSelectCustomer = (c: CustomerOption) => {
+    setCustomerId(c.id);
+    setBuyerState(c.state || 'Telangana');
+    setCustomerSearchQuery('');
+    setIsCustomerDropdownOpen(false);
+  };
+
   const handleCustomerChange = (id: string) => {
     setCustomerId(id);
-    const customer = CUSTOMERS.find((c: any) => c.id === id);
+    const customer = customers.find((c) => c.id === id);
     if (customer && customer.state) {
       setBuyerState(customer.state);
+    }
+  };
+
+  const filteredCustomers = customers.filter(c => {
+    if (!customerSearchQuery.trim()) return true;
+    const q = customerSearchQuery.toLowerCase();
+    return (
+      c.name.toLowerCase().includes(q) ||
+      (c.code && c.code.toLowerCase().includes(q)) ||
+      (c.mobile && c.mobile.includes(q)) ||
+      (c.state && c.state.toLowerCase().includes(q)) ||
+      (c.type && c.type.toLowerCase().includes(q))
+    );
+  });
+
+  const handleSaveQuickCustomer = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newCustomerForm.name.trim()) {
+      alert("Please enter a customer name!");
+      return;
+    }
+
+    setIsSavingCustomer(true);
+    try {
+      const generatedCode = `RET-${Date.now().toString().slice(-6)}`;
+      const payload = {
+        name: newCustomerForm.name.trim(),
+        code: generatedCode,
+        contactPerson: newCustomerForm.contactPerson || newCustomerForm.name.trim(),
+        mobile: newCustomerForm.mobile || '9999999999',
+        address: `${newCustomerForm.address || ''} ${newCustomerForm.state}`.trim(),
+        state: newCustomerForm.state,
+        drugLicenseNumber: newCustomerForm.drugLicenseNumber || '',
+        companyPan: newCustomerForm.gstNumber || '',
+        status: 'Active'
+      };
+
+      const response = await apiRequest<{ success: boolean; data: any }>('/retailers', {
+        method: 'POST',
+        bodyData: payload
+      });
+
+      const newId = response && response.data && response.data.id ? String(response.data.id) : `CUST-${Date.now()}`;
+      const newCust: CustomerOption = {
+        id: newId,
+        code: generatedCode,
+        name: newCustomerForm.name.trim(),
+        type: newCustomerForm.type,
+        state: newCustomerForm.state,
+        creditDays: Number(newCustomerForm.creditDays) || 30,
+        mobile: newCustomerForm.mobile,
+        gstin: newCustomerForm.gstNumber,
+        address: newCustomerForm.address
+      };
+
+      setCustomers(prev => [newCust, ...prev]);
+      setCustomerId(newCust.id);
+      setBuyerState(newCust.state);
+      setCustomerSearchQuery('');
+      setIsCustomerDropdownOpen(false);
+      setIsAddCustomerModalOpen(false);
+
+      setNewCustomerForm({
+        name: '',
+        type: 'Retailer',
+        state: 'Telangana',
+        mobile: '',
+        contactPerson: '',
+        gstNumber: '',
+        drugLicenseNumber: '',
+        address: '',
+        creditDays: 30
+      });
+
+      NotificationService.addNotification({
+        title: 'New Customer Registered',
+        message: `${newCust.name} (${newCust.type}) registered and selected for billing.`,
+        type: 'system',
+        priority: 'info',
+        module: 'Wholesale Billing'
+      });
+
+      alert(`✅ Customer "${newCust.name}" registered and selected for invoice!`);
+    } catch (err: any) {
+      console.error("Failed to save customer to API:", err);
+      const fallbackId = `CUST-${Date.now()}`;
+      const fallbackCust: CustomerOption = {
+        id: fallbackId,
+        code: `RET-${Date.now().toString().slice(-4)}`,
+        name: newCustomerForm.name.trim(),
+        type: newCustomerForm.type,
+        state: newCustomerForm.state,
+        creditDays: Number(newCustomerForm.creditDays) || 30,
+        mobile: newCustomerForm.mobile,
+        gstin: newCustomerForm.gstNumber,
+        address: newCustomerForm.address
+      };
+      setCustomers(prev => [fallbackCust, ...prev]);
+      setCustomerId(fallbackCust.id);
+      setBuyerState(fallbackCust.state);
+      setIsCustomerDropdownOpen(false);
+      setIsAddCustomerModalOpen(false);
+      alert(`✅ Customer "${fallbackCust.name}" added and selected!`);
+    } finally {
+      setIsSavingCustomer(false);
     }
   };
 
@@ -406,7 +615,7 @@ export default function GSTBilling() {
       return;
     }
 
-    const customer = CUSTOMERS.find((c: any)=> c.id === customerId);
+    const customer = customers.find((c) => c.id === customerId);
 
     if (editingInvoiceId) {
       const existingInv = invoices.find(inv => inv.id === editingInvoiceId);
@@ -477,6 +686,8 @@ export default function GSTBilling() {
       setIsDrawerOpen(false);
       setEditingInvoiceId(null);
       setCustomerId('');
+      setCustomerSearchQuery('');
+      setIsCustomerDropdownOpen(false);
       setItems([]);
       setInvoiceDate(new Date().toISOString().split('T')[0]);
       setPaymentMode('Credit');
@@ -591,6 +802,8 @@ export default function GSTBilling() {
 
     setIsDrawerOpen(false);
     setCustomerId('');
+    setCustomerSearchQuery('');
+    setIsCustomerDropdownOpen(false);
     setItems([]);
     setInvoiceDate(new Date().toISOString().split('T')[0]);
     setPaymentMode('Credit');
@@ -601,6 +814,8 @@ export default function GSTBilling() {
   const handleEditInvoice = (inv: GSTInvoice) => {
     setEditingInvoiceId(inv.id);
     setCustomerId(inv.customerId);
+    setCustomerSearchQuery('');
+    setIsCustomerDropdownOpen(false);
     setInvoiceDate(inv.date || new Date().toISOString().split('T')[0]);
     setPaymentMode(inv.paymentMode || 'Credit');
     setStatus((inv.status as any) || 'Unpaid');
@@ -608,7 +823,7 @@ export default function GSTBilling() {
       ...item,
       extraMargin: item.extraMargin !== undefined ? item.extraMargin : 0
     })));
-    const customer = CUSTOMERS.find((c: any) => c.id === inv.customerId);
+    const customer = customers.find((c) => c.id === inv.customerId);
     if (customer && customer.state) {
       setBuyerState(customer.state);
     }
@@ -788,7 +1003,7 @@ export default function GSTBilling() {
     return matchSearch && matchStatus;
   });
 
-  const selectedCustomer = CUSTOMERS.find((c: any) => c.id === customerId);
+  const selectedCustomer = customers.find((c) => c.id === customerId);
 
   if (!canView) {
     return (
@@ -813,6 +1028,8 @@ export default function GSTBilling() {
               <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => {
                 setEditingInvoiceId(null);
                 setCustomerId('');
+                setCustomerSearchQuery('');
+                setIsCustomerDropdownOpen(false);
                 setInvoiceDate(new Date().toISOString().split('T')[0]);
                 setPaymentMode('Credit');
                 setStatus('Unpaid');
@@ -841,20 +1058,132 @@ export default function GSTBilling() {
         onClose={() => {
           setIsDrawerOpen(false);
           setEditingInvoiceId(null);
+          setCustomerSearchQuery('');
+          setIsCustomerDropdownOpen(false);
         }} 
         title={editingInvoiceId ? "Edit GST Invoice" : "Generate GST Invoice"}
       >
         <form onSubmit={handleSubmit} className="space-y-6">
           
           <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Customer Selection *</label>
-              <select required className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-600 text-sm bg-white text-slate-900" value={customerId} onChange={(e) => handleCustomerChange(e.target.value)}>
-                <option value="">-- Select Customer --</option>
-                {CUSTOMERS.map((c:any) => <option key={c.id} value={c.id}>{c.name} ({c.type})</option>)}
-              </select>
+            <div className="col-span-2 sm:col-span-1 relative">
+              <div className="flex justify-between items-center mb-1">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  Customer Selection *
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setIsAddCustomerModalOpen(true)}
+                  className="text-[11px] font-semibold text-[#163c78] hover:text-[#0c1f3d] flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-750 px-2 py-0.5 rounded border border-indigo-200 transition-colors"
+                  title="Add New Customer"
+                >
+                  <UserPlus className="w-3.5 h-3.5" /> + New Customer
+                </button>
+              </div>
+
+              {selectedCustomer ? (
+                <div className="flex items-center justify-between p-2 bg-white border border-indigo-300 rounded-lg shadow-sm">
+                  <div className="flex flex-col min-w-0 pr-2">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-xs font-bold text-slate-900 truncate">{selectedCustomer.name}</span>
+                      <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded">
+                        {selectedCustomer.type}
+                      </span>
+                    </div>
+                    <span className="text-[10px] text-slate-500">
+                      {selectedCustomer.state} {selectedCustomer.mobile && selectedCustomer.mobile !== '-' ? `| Ph: ${selectedCustomer.mobile}` : ''}
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomerId('');
+                      setCustomerSearchQuery('');
+                      setIsCustomerDropdownOpen(true);
+                    }}
+                    className="text-slate-400 hover:text-rose-600 p-1 rounded-full hover:bg-slate-100 transition-colors shrink-0"
+                    title="Change Customer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              ) : (
+                <div className="relative">
+                  <div className="relative">
+                    <input
+                      type="text"
+                      className="w-full pl-8 pr-8 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900 placeholder:text-slate-400"
+                      placeholder="Search customer by name, code, phone..."
+                      value={customerSearchQuery}
+                      onChange={(e) => {
+                        setCustomerSearchQuery(e.target.value);
+                        setIsCustomerDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsCustomerDropdownOpen(true)}
+                    />
+                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
+                    {customerSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setCustomerSearchQuery('')}
+                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+
+                  {isCustomerDropdownOpen && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setIsCustomerDropdownOpen(false)} />
+                      <div className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100">
+                        {filteredCustomers.length > 0 ? (
+                          filteredCustomers.map((c) => (
+                            <div
+                              key={c.id}
+                              onClick={() => handleSelectCustomer(c)}
+                              className="p-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition-colors"
+                            >
+                              <div className="min-w-0 pr-2">
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs font-bold text-slate-800 truncate">{c.name}</span>
+                                  <span className="text-[9px] font-medium bg-slate-100 text-slate-600 px-1 py-0.2 rounded border border-slate-200 shrink-0">
+                                    {c.type}
+                                  </span>
+                                </div>
+                                <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5 truncate">
+                                  <span>{c.state}</span>
+                                  {c.mobile && c.mobile !== '-' && <span>• Ph: {c.mobile}</span>}
+                                  <span>• Terms: {c.creditDays}d</span>
+                                </div>
+                              </div>
+                              <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
+                            </div>
+                          ))
+                        ) : (
+                          <div className="p-3 text-center text-xs text-slate-500">
+                            No customers found matching "{customerSearchQuery}".
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setNewCustomerForm(prev => ({ ...prev, name: customerSearchQuery }));
+                                setIsCustomerDropdownOpen(false);
+                                setIsAddCustomerModalOpen(true);
+                              }}
+                              className="block mx-auto mt-2 text-indigo-600 font-bold hover:underline"
+                            >
+                              + Add "{customerSearchQuery}" as New Customer
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-            <div>
+
+            <div className="col-span-2 sm:col-span-1">
               <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Invoice Date *</label>
               <input 
                 type="date" 
@@ -888,8 +1217,9 @@ export default function GSTBilling() {
               </select>
             </div>
             {selectedCustomer && (
-              <div className="col-span-2 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 p-2 rounded-lg">
-                Customer Location: {selectedCustomer.state} | Credit Terms: 15 to 30 Days
+              <div className="col-span-2 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 p-2 rounded-lg flex justify-between items-center flex-wrap gap-1">
+                <span>Customer Location: <strong>{selectedCustomer.state}</strong> | Credit Terms: <strong>15 to 30 Days</strong></span>
+                <span className="text-[11px] text-slate-500">{selectedCustomer.type} {selectedCustomer.code ? `(${selectedCustomer.code})` : ''}</span>
               </div>
             )}
           </div>
@@ -927,9 +1257,37 @@ export default function GSTBilling() {
                       </select>
                     </div>
                     <div className="col-span-3">
-                      <div className="flex items-center gap-2">
-                        <input type="number" required min="1" max={item.stock || 1000} className="w-full px-2 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900" value={item.qty} onChange={(e) => updateLineItem(item.id, 'qty', parseInt(e.target.value) || 0)} placeholder="Qty" />
+                      <div className="flex justify-between items-center mb-0.5">
+                        <label className="text-[10px] font-bold text-slate-600 uppercase">Qty *</label>
+                        {item.productId && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
+                            item.stock > 10 
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                              : item.stock > 0 
+                                ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                                : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}>
+                            {item.stock > 0 ? `Stock: ${item.stock}` : 'Out of Stock'}
+                          </span>
+                        )}
                       </div>
+                      <input 
+                        type="number" 
+                        required 
+                        min="1" 
+                        max={item.stock || 1000} 
+                        className={`w-full px-2 py-1.5 border rounded focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900 font-mono ${
+                          item.qty > item.stock && item.stock > 0 ? 'border-rose-400 bg-rose-50' : 'border-slate-300'
+                        }`} 
+                        value={item.qty || ''} 
+                        onChange={(e) => updateLineItem(item.id, 'qty', parseInt(e.target.value) || 0)} 
+                        placeholder="Qty" 
+                      />
+                      {item.qty > item.stock && item.stock > 0 && (
+                        <span className="text-[9px] text-rose-600 font-semibold block mt-0.5">
+                          Exceeds available stock ({item.stock})
+                        </span>
+                      )}
                     </div>
                   </div>
 
@@ -989,6 +1347,9 @@ export default function GSTBilling() {
                   {item.productId && (
                     <div className="flex flex-wrap justify-between items-center text-xs text-slate-600 bg-slate-50 p-2 rounded mt-1 border border-slate-100 font-medium gap-1">
                       <span>Rate: {formatCurrency(item.ptr)}</span>
+                      <span className="font-semibold text-slate-700">
+                        Available: <strong className={item.stock > 10 ? 'text-emerald-700' : item.stock > 0 ? 'text-amber-700' : 'text-rose-700'}>{item.stock} Units</strong>
+                      </span>
                       {Number(item.extraMargin) > 0 && (
                         <span className="text-emerald-700 font-semibold">Margin: +{formatCurrency(Number(item.extraMargin))}</span>
                       )}
@@ -1058,6 +1419,171 @@ export default function GSTBilling() {
           </div>
         </form>
       </Drawer>
+
+      {/* Quick Add Customer Modal */}
+      {isAddCustomerModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+            <div className="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <UserPlus className="w-5 h-5 text-indigo-400" />
+                <h3 className="font-bold text-base">Quick Add New Customer</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsAddCustomerModalOpen(false)}
+                className="text-slate-400 hover:text-white p-1 rounded-lg"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveQuickCustomer} className="p-5 space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Party / Customer Name *
+                </label>
+                <input
+                  type="text"
+                  required
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-600 focus:outline-none"
+                  placeholder="e.g. Sri Balaji Medicals & General Stores"
+                  value={newCustomerForm.name}
+                  onChange={(e) => setNewCustomerForm(prev => ({ ...prev, name: e.target.value }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Customer Type *
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:ring-2 focus:ring-indigo-600"
+                    value={newCustomerForm.type}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, type: e.target.value }))}
+                  >
+                    <option value="Retailer">Retailer / Chemist</option>
+                    <option value="Distributor">Distributor / Stockist</option>
+                    <option value="Hospital Chain">Hospital / Clinic</option>
+                    <option value="Institutional">Institutional</option>
+                    <option value="Counter">Counter / Cash</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    State (Tax Location) *
+                  </label>
+                  <select
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 bg-white focus:ring-2 focus:ring-indigo-600"
+                    value={newCustomerForm.state}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, state: e.target.value }))}
+                  >
+                    {INDIAN_STATES.map((s) => (
+                      <option key={s.value} value={s.value}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Mobile Number *
+                  </label>
+                  <input
+                    type="tel"
+                    required
+                    maxLength={10}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-600 font-mono"
+                    placeholder="10-digit number"
+                    value={newCustomerForm.mobile}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, mobile: e.target.value.replace(/\D/g, '') }))}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Credit Terms (Days)
+                  </label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="180"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-600 font-mono"
+                    placeholder="30"
+                    value={newCustomerForm.creditDays}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, creditDays: parseInt(e.target.value) || 0 }))}
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    Drug License (DL No)
+                  </label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-600 uppercase"
+                    placeholder="e.g. 20B/TG/12345"
+                    value={newCustomerForm.drugLicenseNumber}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, drugLicenseNumber: e.target.value }))}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                    GSTIN / PAN
+                  </label>
+                  <input
+                    type="text"
+                    maxLength={15}
+                    className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-600 uppercase font-mono"
+                    placeholder="15-digit GSTIN"
+                    value={newCustomerForm.gstNumber}
+                    onChange={(e) => setNewCustomerForm(prev => ({ ...prev, gstNumber: e.target.value.toUpperCase() }))}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                  Shop Address / Location
+                </label>
+                <input
+                  type="text"
+                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-600"
+                  placeholder="Area, Street, City"
+                  value={newCustomerForm.address}
+                  onChange={(e) => setNewCustomerForm(prev => ({ ...prev, address: e.target.value }))}
+                />
+              </div>
+
+              <div className="pt-2 flex gap-3">
+                <button
+                  type="submit"
+                  disabled={isSavingCustomer}
+                  className="flex-1 bg-[#163c78] text-white px-4 py-2.5 rounded-xl font-bold hover:bg-[#112d59] transition-colors shadow-sm disabled:opacity-50"
+                >
+                  {isSavingCustomer ? 'Saving...' : 'Save & Select Customer'}
+                </button>
+                <button
+                  type="button"
+                  disabled={isSavingCustomer}
+                  onClick={() => setIsAddCustomerModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl font-semibold border border-slate-300 text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
