@@ -262,7 +262,7 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   
   doc.setFontSize(9);
   
-  const totQty = invoice.totalQuantity || invoice.items?.reduce((acc: number, item: any) => acc + (item.quantity || 0), 0) || 0;
+  const totQty = invoice.totalQuantity || invoice.items?.reduce((acc: number, item: any) => acc + (Number(item.qty || item.quantity) || 0), 0) || 0;
   
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...darkGray);
@@ -308,44 +308,83 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   const wordsSplit = doc.splitTextToSize(amountInWords, (pageWidth / 2) + 20);
   doc.text(wordsSplit, 15, finalY + 12);
 
-  // --- BANK DETAILS & DECLARATION & SIGNATURE ---
-  const bottomSectionY = finalY + 50 > pageHeight - 40 ? pageHeight - 40 : finalY + 50;
+  // --- BANK DETAILS, DISCLAIMER, DECLARATION & SIGNATURE ---
+  const summaryHeight = 44;
+  const summaryEndY = finalY + summaryHeight;
+  const wordsEndY = finalY + 12 + (wordsSplit.length * 4);
+  let bottomSectionY = Math.max(summaryEndY, wordsEndY) + 6;
 
-  // Bank
-  doc.setFontSize(9);
+  const totalRequiredHeight = 65;
+  if (bottomSectionY + totalRequiredHeight > pageHeight - 15) {
+    doc.addPage();
+    bottomSectionY = 20;
+  }
+
+  // Subtle separator line above footer section
+  doc.setDrawColor(226, 232, 240);
+  doc.setLineWidth(0.4);
+  doc.line(15, bottomSectionY - 2, pageWidth - 15, bottomSectionY - 2);
+
+  let curY = bottomSectionY + 4;
+
+  // 1. BANK DETAILS
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...primaryBlue);
-  doc.text('BANK DETAILS:', 15, bottomSectionY);
+  doc.text('BANK DETAILS:', 15, curY);
   
   doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
   doc.setTextColor(...black);
-  doc.text('Bank Name: HDFC Bank', 15, bottomSectionY + 6);
-  doc.text('Account No: 50200012345678', 15, bottomSectionY + 11);
-  doc.text('IFSC Code: HDFC0001234', 15, bottomSectionY + 16);
-  doc.text('Branch: Nariman Point, Mumbai', 15, bottomSectionY + 21);
-  doc.text('UPI: mjhealth@hdfcbank', 15, bottomSectionY + 26);
+  doc.text('Bank Name: HDFC Bank', 15, curY + 4.5);
+  doc.text('Account No: 50200012345678', 15, curY + 8.5);
+  doc.text('IFSC Code: HDFC0001234', 15, curY + 12.5);
+  doc.text('Branch: Nariman Point, Mumbai', 15, curY + 16.5);
+  doc.text('UPI: mjhealth@hdfcbank', 15, curY + 20.5);
 
-  // Declaration
+  // 2. DISCLAIMER (Under Bank Details)
+  curY += 26;
+  doc.setFontSize(8.5);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...primaryBlue);
-  doc.text('DECLARATION:', pageWidth / 2 - 20, bottomSectionY);
+  doc.text('DISCLAIMER / TERMS & CONDITIONS:', 15, curY);
+
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.setTextColor(...darkGray);
+  doc.text('1. Goods once sold will not be taken back or exchanged.', 15, curY + 4.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...black);
+  doc.text('2. The amount should be paid in 15 days only.', 15, curY + 8.5);
+  doc.setFont('helvetica', 'normal');
+  doc.setTextColor(...darkGray);
+  doc.text('3. All disputes are subject to Mumbai Jurisdiction.', 15, curY + 12.5);
+
+  // 3. DECLARATION (Under Disclaimer)
+  curY += 18;
+  doc.setFontSize(8.5);
+  doc.setFont('helvetica', 'bold');
+  doc.setTextColor(...primaryBlue);
+  doc.text('DECLARATION:', 15, curY);
   
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...darkGray);
   doc.setFontSize(8);
   const declaration = "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.";
-  const decSplit = doc.splitTextToSize(declaration, 60);
-  doc.text(decSplit, pageWidth / 2 - 20, bottomSectionY + 6);
+  const decSplit = doc.splitTextToSize(declaration, pageWidth - 30);
+  doc.text(decSplit, 15, curY + 4.5);
 
-  // Signature
+  // 4. SIGNATURE (After Declaration)
+  curY += 12;
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...black);
   doc.setFontSize(9);
-  doc.text('For MJ Healthcare', pageWidth - 15, bottomSectionY + 6, { align: 'right' });
+  doc.text(`For ${invoice.companyName || 'MJ Healthcare'}`, pageWidth - 15, curY, { align: 'right' });
   
   doc.setFont('helvetica', 'normal');
   doc.setTextColor(...darkGray);
-  doc.text('Authorized Signatory', pageWidth - 15, bottomSectionY + 26, { align: 'right' });
+  doc.setFontSize(8);
+  doc.text('Authorized Signatory', pageWidth - 15, curY + 12, { align: 'right' });
 
   // --- FOOTER ---
   doc.setFont('helvetica', 'italic');
