@@ -257,10 +257,10 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   const finalY = (doc as any).lastAutoTable.finalY + 5;
 
   // --- SUMMARY SECTION ---
-  const summaryX = pageWidth - 65;
+  const summaryX = pageWidth - 85;
   const valueX = pageWidth - 15;
   
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   
   const totQty = invoice.totalQuantity || invoice.items?.reduce((acc: number, item: any) => acc + (Number(item.qty || item.quantity) || 0), 0) || 0;
   
@@ -269,49 +269,51 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   doc.text('Total Quantity:', summaryX, finalY);
   doc.text(String(totQty), valueX, finalY, { align: 'right' });
 
-  doc.text('Total Taxable Amount:', summaryX, finalY + 6);
-  doc.text(formatCurrency(invoice.subTotal || invoice.totalTaxable || invoice.taxableAmount || invoice.subtotal || 0), valueX, finalY + 6, { align: 'right' });
+  doc.text('Total Taxable Amount:', summaryX, finalY + 5.5);
+  doc.text(formatCurrency(invoice.subTotal || invoice.totalTaxable || invoice.taxableAmount || invoice.subtotal || 0), valueX, finalY + 5.5, { align: 'right' });
 
   const cgst = invoice.cgstTotal || invoice.cgstAmount || (invoice.gstAmount ? invoice.gstAmount / 2 : 0);
   const sgst = invoice.sgstTotal || invoice.sgstAmount || (invoice.gstAmount ? invoice.gstAmount / 2 : 0);
   const igst = invoice.igstTotal || invoice.igstAmount || 0;
 
   doc.setFont('helvetica', 'normal');
-  doc.text('CGST:', summaryX, finalY + 12);
-  doc.text(formatCurrency(cgst), valueX, finalY + 12, { align: 'right' });
+  doc.text('CGST:', summaryX, finalY + 11);
+  doc.text(formatCurrency(cgst), valueX, finalY + 11, { align: 'right' });
   
-  doc.text('SGST:', summaryX, finalY + 18);
-  doc.text(formatCurrency(sgst), valueX, finalY + 18, { align: 'right' });
+  doc.text('SGST:', summaryX, finalY + 16.5);
+  doc.text(formatCurrency(sgst), valueX, finalY + 16.5, { align: 'right' });
   
-  doc.text('IGST:', summaryX, finalY + 24);
-  doc.text(formatCurrency(igst), valueX, finalY + 24, { align: 'right' });
+  doc.text('IGST:', summaryX, finalY + 22);
+  doc.text(formatCurrency(igst), valueX, finalY + 22, { align: 'right' });
 
-  doc.text('Round Off:', summaryX, finalY + 30);
-  doc.text(formatCurrency(invoice.roundOff || 0), valueX, finalY + 30, { align: 'right' });
+  doc.text('Round Off:', summaryX, finalY + 27.5);
+  doc.text(formatCurrency(invoice.roundOff || 0), valueX, finalY + 27.5, { align: 'right' });
 
+  // Grand Total Highlight Box
   doc.setFillColor(...lightGray);
-  doc.rect(summaryX - 5, finalY + 34, 70, 8, 'F');
+  doc.rect(summaryX - 3, finalY + 31.5, 73, 9, 'F');
   
-  doc.setFontSize(11);
+  doc.setFontSize(10);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(...primaryBlue);
-  doc.text('GRAND TOTAL (INR):', summaryX, finalY + 40);
-  doc.text(formatCurrency(invoice.grandTotal || invoice.netAmount || invoice.amount || 0), valueX, finalY + 40, { align: 'right' });
+  doc.text('GRAND TOTAL (INR):', summaryX, finalY + 37.5);
+  doc.text(formatCurrency(invoice.grandTotal || invoice.netAmount || invoice.amount || 0), valueX, finalY + 37.5, { align: 'right' });
 
   // --- AMOUNT IN WORDS ---
-  doc.setFontSize(9);
+  doc.setFontSize(8.5);
   doc.setTextColor(...black);
+  doc.setFont('helvetica', 'bold');
   doc.text('AMOUNT IN WORDS:', 15, finalY + 6);
   doc.setFont('helvetica', 'italic');
   doc.setTextColor(...darkGray);
   
-  const wordsSplit = doc.splitTextToSize(amountInWords, (pageWidth / 2) + 20);
-  doc.text(wordsSplit, 15, finalY + 12);
+  const wordsSplit = doc.splitTextToSize(amountInWords, (pageWidth / 2) - 15);
+  doc.text(wordsSplit, 15, finalY + 11);
 
   // --- BANK DETAILS, DISCLAIMER, DECLARATION & SIGNATURE ---
-  const summaryHeight = 44;
+  const summaryHeight = 42;
   const summaryEndY = finalY + summaryHeight;
-  const wordsEndY = finalY + 12 + (wordsSplit.length * 4);
+  const wordsEndY = finalY + 11 + (wordsSplit.length * 4);
   let bottomSectionY = Math.max(summaryEndY, wordsEndY) + 6;
 
   const totalRequiredHeight = 65;
