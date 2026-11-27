@@ -18,6 +18,7 @@ const getInvoicesRepo =
   async () => {
 
     return prisma.invoice.findMany({
+      orderBy: { id: 'desc' },
       include: {
         retailer: true,
         invoiceItems: {

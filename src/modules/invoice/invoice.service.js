@@ -48,7 +48,8 @@ const createInvoiceService = async (data) => {
     subTotal: Number(data.subTotal || 0),
     gstAmount: Number(data.gstAmount || 0),
     totalAmount: Number(data.totalAmount || data.grandTotal || 0),
-    status: data.status || 'PENDING'
+    status: data.status || 'PENDING',
+    jsonPayload: data.items ? { items: data.items, customerName: data.customerName, paymentMode: data.paymentMode } : undefined
   };
 
   return repository.createInvoiceRepo(payload);
