@@ -83,6 +83,7 @@ import Ledgers from '../../modules/distributors/Ledgers';
 import InvoiceDownload from '../../modules/distributors/InvoiceDownload';
 import DistributorSchemes from '../../modules/distributors/Schemes';
 import DispatchTracking from '../../modules/distributors/DispatchTracking';
+import DistributorCreditNotes from '../../modules/distributors/CreditNotes';
 
 // Retailers Module
 import RetailerMaster from '../../modules/retailers/RetailerMaster';
@@ -461,6 +462,7 @@ export const router = createBrowserRouter([
           { path: 'invoices', element: <InvoiceDownload /> },
           { path: 'schemes', element: <DistributorSchemes /> },
           { path: 'dispatch-tracking', element: <DispatchTracking /> },
+          { path: 'credit-notes', element: <DistributorCreditNotes /> },
         ],
       }
     ],

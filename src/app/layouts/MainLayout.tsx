@@ -143,6 +143,7 @@ const NavModules = {
       { label: 'Outstanding Tracking', path: '/workspace/distributors/outstanding' },
       { label: 'Ledger Access', path: '/workspace/distributors/ledgers' },
       { label: 'Invoice Download', path: '/workspace/distributors/invoices' },
+      { label: 'Credit Notes', path: '/workspace/distributors/credit-notes' },
       { label: 'Scheme Visibility', path: '/workspace/distributors/schemes' },
       { label: 'Order History', path: '/workspace/distributors/order-history' },
       { label: 'Dispatch Tracking', path: '/workspace/distributors/dispatch-tracking' },
