@@ -45,6 +45,49 @@ export default function CreditNotes() {
     retailerId: null
   });
 
+  // Custom Credit Note Types State
+  const DEFAULT_CN_TYPES = [
+    'Sales Return',
+    'Expiry Return',
+    'Damaged Goods/Breakage',
+    'Rate Difference',
+    'Discount Adjustment'
+  ];
+
+  const [customCnTypes, setCustomCnTypes] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('custom_cn_types');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [showAddTypeModal, setShowAddTypeModal] = useState(false);
+  const [newTypeName, setNewTypeName] = useState('');
+
+  const allCnTypes = useMemo(() => {
+    const list = [...DEFAULT_CN_TYPES];
+    customCnTypes.forEach(t => {
+      if (!list.includes(t)) list.push(t);
+    });
+    return list;
+  }, [customCnTypes]);
+
+  const handleSaveNewType = () => {
+    const trimmed = newTypeName.trim();
+    if (!trimmed) return;
+    if (!customCnTypes.includes(trimmed)) {
+      const updated = [...customCnTypes, trimmed];
+      setCustomCnTypes(updated);
+      localStorage.setItem('custom_cn_types', JSON.stringify(updated));
+    }
+    setFormCnType(trimmed);
+    setFormReason(trimmed);
+    setNewTypeName('');
+    setShowAddTypeModal(false);
+  };
+
   const loadCreditNotes = async () => {
     setLoading(true);
     try {
@@ -327,6 +370,15 @@ export default function CreditNotes() {
 
   const columns: Column<CreditNoteData>[] = [
     { key: 'cnNo', label: 'Credit Note No', render: (row) => <span className="font-semibold text-slate-900">{row.cnNo}</span> },
+    {
+      key: 'cnType',
+      label: 'Type',
+      render: (row) => (
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 border border-violet-200">
+          {row.cnType || 'Sales Return'}
+        </span>
+      )
+    },
     { key: 'customerName', label: 'Customer Name', render: (row) => <span className="font-medium text-violet-700">{row.customerName}</span> },
     { key: 'againstInvoiceNo', label: 'Against Invoice', render: (row) => <span className="font-mono text-xs text-slate-600">{row.againstInvoiceNo}</span> },
     { key: 'cnDate', label: 'Credit Note Date' },
@@ -351,7 +403,10 @@ export default function CreditNotes() {
   const visibleData = useMemo(() => {
     return data.filter(item => {
       const s = search.toLowerCase();
-      const matchSearch = item.cnNo.toLowerCase().includes(s) || item.customerName.toLowerCase().includes(s) || item.againstInvoiceNo.toLowerCase().includes(s);
+      const matchSearch = item.cnNo.toLowerCase().includes(s) || 
+                          item.customerName.toLowerCase().includes(s) || 
+                          item.againstInvoiceNo.toLowerCase().includes(s) ||
+                          (item.cnType && item.cnType.toLowerCase().includes(s));
       return matchSearch;
     });
   }, [data, search]);
@@ -563,13 +618,32 @@ export default function CreditNotes() {
                 <input type="text" disabled value={new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-')} className="w-full border border-slate-200 rounded-lg px-3 py-2 bg-slate-50 text-slate-500" />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm font-medium mb-1">Credit Note Type</label>
-                <select className="w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 bg-white" value={formCnType} onChange={e => setFormCnType(e.target.value)}>
-                  <option value="Sales Return">Sales Return</option>
-                  <option value="Expiry Return">Expiry Return</option>
-                  <option value="Damaged Goods">Damaged Goods/Breakage</option>
-                  <option value="Rate Difference">Rate Difference</option>
-                  <option value="Discount Adjustment">Discount Adjustment</option>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-slate-700">Credit Note Type</label>
+                  <button
+                    type="button"
+                    onClick={() => setShowAddTypeModal(true)}
+                    className="text-xs font-bold text-violet-700 hover:text-violet-900 flex items-center gap-1 bg-violet-50 hover:bg-violet-100 px-2 py-0.5 rounded border border-violet-200 transition-colors shadow-sm"
+                    title="Add new Credit Note Type manually"
+                  >
+                    <Plus className="w-3 h-3 text-violet-600" /> Add +
+                  </button>
+                </div>
+                <select 
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 bg-white text-slate-800 font-medium" 
+                  value={formCnType} 
+                  onChange={e => {
+                    if (e.target.value === '__ADD_NEW__') {
+                      setShowAddTypeModal(true);
+                    } else {
+                      setFormCnType(e.target.value);
+                    }
+                  }}
+                >
+                  {allCnTypes.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                  <option value="__ADD_NEW__" className="font-bold text-violet-700">+ Add New Type...</option>
                 </select>
               </div>
 
@@ -792,6 +866,63 @@ export default function CreditNotes() {
                 <ActionButton variant="secondary" onClick={() => { setShowCreateForm(false); resetForm(); }}>Cancel</ActionButton>
                 <ActionButton onClick={handleSubmit}>Submit Credit Note</ActionButton>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ADD CUSTOM CREDIT NOTE TYPE MODAL */}
+      {showAddTypeModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-md border border-slate-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-bold text-slate-900">Add Credit Note Type</h3>
+              <button
+                type="button"
+                onClick={() => { setShowAddTypeModal(false); setNewTypeName(''); }}
+                className="text-slate-400 hover:text-slate-600 text-lg font-bold p-1 rounded-lg hover:bg-slate-100 transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-xs text-slate-500 mb-4">
+              Enter a custom credit note type name (e.g. <strong>Shortage / Leakage</strong>, <strong>Special Rebate</strong>, <strong>Handling Damage</strong>). It will be saved and selected for this credit note.
+            </p>
+            <div className="mb-5">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-1.5">
+                Type Name <span className="text-rose-500">*</span>
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Shortage / Leakage"
+                value={newTypeName}
+                onChange={e => setNewTypeName(e.target.value)}
+                className="w-full border border-slate-300 rounded-xl px-3.5 py-2.5 text-sm text-slate-900 outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 shadow-sm"
+                autoFocus
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleSaveNewType();
+                  }
+                }}
+              />
+            </div>
+            <div className="flex justify-end gap-2.5">
+              <button
+                type="button"
+                onClick={() => { setShowAddTypeModal(false); setNewTypeName(''); }}
+                className="px-4 py-2 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveNewType}
+                disabled={!newTypeName.trim()}
+                className="px-4 py-2 text-xs font-bold text-white bg-violet-600 hover:bg-violet-700 disabled:opacity-50 rounded-xl transition-colors shadow-sm"
+              >
+                Save & Select
+              </button>
             </div>
           </div>
         </div>
