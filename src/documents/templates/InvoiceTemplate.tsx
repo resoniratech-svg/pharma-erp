@@ -93,11 +93,12 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   currentY += 6;
 
   // --- ROLE BASED RESOLUTION ---
-  let billToName = '';
+  let billToName = invoice.customerName || '';
   let billToCode = '';
-  let billToAddress = '';
-  let billToGst = '';
+  let billToAddress = invoice.customerAddress || invoice.address || '';
+  let billToGst = invoice.gstin || invoice.buyerGst || invoice.gstNumber || '';
   let billToDl = '';
+  const customerMobile = invoice.mobileNumber || invoice.customerMobile || invoice.mobile || '';
 
   const rName = invoice.retailer?.name || invoice.retailerName || invoice.retailer || '';
   const rCode = invoice.retailer?.code || invoice.retailerCode || '';
@@ -108,20 +109,22 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   const dAdd = 'Distributor Address On Record';
   const dGst = '27DISTGST1234Z';
 
-  if (role === ROLE_SUPER_ADMIN) {
-    // Admin bills the distributor
-    billToName = dName || 'Unknown Distributor';
-    billToCode = dCode;
-    billToAddress = dAdd;
-    billToGst = dGst;
-    billToDl = invoice.buyerDl || '20B/DIST/999';
-  } else {
-    // Distributor bills the retailer OR Retailer views their own bill
-    billToName = rName || 'Unknown Retailer';
-    billToCode = rCode;
-    billToAddress = rAdd;
-    billToGst = invoice.buyerGst || invoice.gstNumber || invoice.gstin || '27RETGST1234Z';
-    billToDl = invoice.buyerDl || '20B/RET/888';
+  if (!billToName) {
+    if (role === ROLE_SUPER_ADMIN) {
+      // Admin bills the distributor
+      billToName = dName || 'Unknown Distributor';
+      billToCode = dCode;
+      billToAddress = dAdd;
+      billToGst = billToGst || dGst;
+      billToDl = invoice.buyerDl || '20B/DIST/999';
+    } else {
+      // Distributor bills the retailer OR Retailer views their own bill
+      billToName = rName || 'Unknown Retailer';
+      billToCode = rCode;
+      billToAddress = rAdd;
+      billToGst = billToGst || '27RETGST1234Z';
+      billToDl = invoice.buyerDl || '20B/RET/888';
+    }
   }
 
   // --- BILL TO & TRANSPORT GRID ---
@@ -138,16 +141,33 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   // Left Column: Bill To
   doc.setFont('helvetica', 'bold');
   doc.text(billToName, 15, currentY);
-  doc.setFont('helvetica', 'normal');
-  doc.text(billToCode ? `Account Code: ${billToCode}` : '', 15, currentY + 5);
+  
+  let leftY = currentY + 5;
+  if (customerMobile) {
+    doc.setFont('helvetica', 'bold');
+    doc.text(`Mobile: ${customerMobile}`, 15, leftY);
+    leftY += 5;
+  }
+  if (billToCode) {
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Account Code: ${billToCode}`, 15, leftY);
+    leftY += 5;
+  }
   
   const splitAddress = doc.splitTextToSize(billToAddress || 'Address on record', (pageWidth / 2) - 25);
-  doc.text(splitAddress, 15, currentY + 10);
+  doc.setFont('helvetica', 'normal');
+  doc.text(splitAddress, 15, leftY);
   
   const addressHeight = splitAddress.length * 4;
-  doc.setFont('helvetica', 'bold');
-  doc.text(`GSTIN: ${billToGst}`, 15, currentY + 10 + addressHeight);
-  doc.text(`DL No: ${billToDl}`, 15, currentY + 15 + addressHeight);
+  if (billToGst) {
+    doc.setFont('helvetica', 'bold');
+    doc.text(`GSTIN: ${billToGst}`, 15, leftY + addressHeight);
+    leftY += 5;
+  }
+  if (billToDl) {
+    doc.setFont('helvetica', 'bold');
+    doc.text(`DL No: ${billToDl}`, 15, leftY + addressHeight);
+  }
 
   // Right Column: Transport
   const tX = pageWidth / 2;
@@ -194,7 +214,7 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
 
     return [
       (index + 1).toString(),
-      item.productName || item.description || '-',
+      item.productName ? `${item.productName}${extraMargin > 0 ? ` (+₹${extraMargin.toFixed(2)} Margin)` : ''}` : (item.description || '-'),
       item.batchNo || item.batchNumber || item.batch || '-',
       item.expiryDate || item.expiry || '-',
       item.hsnCode || item.hsn || '3004',

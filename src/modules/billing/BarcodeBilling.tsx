@@ -1,6 +1,6 @@
 // Refactored Barcode Checkout Module
-import { useState, useMemo, useEffect } from 'react';
-import { ScanBarcode, Plus, Trash2, Printer, StopCircle, UserCircle, CreditCard, ListRestart } from 'lucide-react';
+import { useState, useMemo, useEffect, useRef } from 'react';
+import { ScanBarcode, Plus, Trash2, Printer, StopCircle, UserCircle, CreditCard, ListRestart, CheckCircle, Download, FileText, Barcode } from 'lucide-react';
 import { PageHeader, ActionButton, Drawer } from './components/shared';
 import { jsPDF } from 'jspdf';
 import { applyInvoiceTemplate } from '../../documents/templates/InvoiceTemplate';
@@ -26,6 +26,7 @@ interface CartItem {
   qty: number;
   freeQty: number;
   rate: number;
+  extraMargin?: number;
   discountPct: number;
   gstPct: number;
   warehouseId: string;
@@ -74,12 +75,24 @@ export default function BarcodeBilling() {
   const [barcodeInput, setBarcodeInput] = useState('');
   const [cart, setCart] = useState<CartItem[]>([]);
   
+  // Database Catalogs
+  const [productsList, setProductsList] = useState<any[]>([]);
+  const [batchesList, setBatchesList] = useState<any[]>([]);
+  const [barcodesList, setBarcodesList] = useState<any[]>([]);
+
+  // Autocomplete Suggestions State
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const searchContainerRef = useRef<HTMLDivElement>(null);
+
   // CRM Integration State
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
 
-  // Customer Info
+  // Customer Info (Mandatory)
   const [customerName, setCustomerName] = useState('');
   const [mobileNumber, setMobileNumber] = useState('');
+  const [customerErrors, setCustomerErrors] = useState<{ name?: string; mobile?: string }>({});
   const [customerType, setCustomerType] = useState('Retail Customer');
   const [gstin, setGstin] = useState('');
   const [salesType, setSalesType] = useState('Cash');
@@ -89,6 +102,16 @@ export default function BarcodeBilling() {
   const [amountReceived, setAmountReceived] = useState('');
   const [referenceNumber, setReferenceNumber] = useState('');
   const [schemesState, setSchemesState] = useState<any[]>([]);
+
+  // Generated Invoice Feedback
+  const [lastGeneratedInvoice, setLastGeneratedInvoice] = useState<{
+    invoiceNo: string;
+    date: string;
+    customerName: string;
+    mobileNumber: string;
+    grandTotal: number;
+    itemsCount: number;
+  } | null>(null);
 
   // Held Bills State
   const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
@@ -102,6 +125,36 @@ export default function BarcodeBilling() {
   // Organization Settings (Seller State)
   const companySettings = JSON.parse(localStorage.getItem('company_settings') || '{}');
   const sellerState = companySettings.state || 'Telangana';
+
+  // Load catalogs on mount
+  useEffect(() => {
+    const loadCatalog = async () => {
+      try {
+        const [prods, bts, bcs] = await Promise.all([
+          productService.loadProducts().catch(() => productService.getProducts()),
+          batchService.loadBatches().catch(() => batchService.getAll()),
+          barcodeService.loadBarcodes().catch(() => barcodeService.getAll())
+        ]);
+        setProductsList(prods || []);
+        setBatchesList(bts || []);
+        setBarcodesList(bcs || []);
+      } catch (e) {
+        console.error("Failed to load catalog for Barcode Billing:", e);
+      }
+    };
+    loadCatalog();
+  }, []);
+
+  // Close suggestions when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (searchContainerRef.current && !searchContainerRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Load persistent held bills
   useEffect(() => {
@@ -132,7 +185,7 @@ export default function BarcodeBilling() {
     localStorage.setItem('pos_held_bills', JSON.stringify(heldBills));
   }, [heldBills]);
 
-  // Cart Calculations
+  // Cart Calculations (Including Extra Margin per unit)
   const calculations = useMemo(() => {
     let subtotal = 0;
     let totalDiscount = 0;
@@ -140,12 +193,13 @@ export default function BarcodeBilling() {
     let totalGstAmount = 0;
 
     cart.forEach(item => {
-      const gross = item.qty * item.rate;
-      const discount = gross * (item.discountPct / 100);
-      const taxable = gross - discount;
+      const baseGross = item.qty * item.rate;
+      const discount = baseGross * (item.discountPct / 100);
+      const marginTotal = item.qty * (Number(item.extraMargin) || 0);
+      const taxable = Math.max(0, baseGross - discount + marginTotal);
       const gst = taxable * (item.gstPct / 100);
       
-      subtotal += gross;
+      subtotal += (baseGross + marginTotal);
       totalDiscount += discount;
       totalTaxable += taxable;
       totalGstAmount += gst;
@@ -308,31 +362,44 @@ export default function BarcodeBilling() {
   };
 
   const buildInvoicePayload = () => {
-    const invoiceNo = billingService.getNextInvoiceNo();
+    const invoiceNo = lastGeneratedInvoice ? lastGeneratedInvoice.invoiceNo : billingService.getNextInvoiceNo();
     const isSameState = sellerState === 'Telangana'; // Simplified state matching
     
     return {
       id: Date.now().toString(),
       invoiceNo,
       customerId: selectedCustomerId || 'WALK-IN',
-      customerName: customerName || 'Retail Customer',
+      customerName: customerName.trim() || 'Retail Customer',
+      mobileNumber: mobileNumber.trim() || '',
+      customerMobile: mobileNumber.trim() || '',
+      gstin: gstin.trim() || '',
       date: new Date().toISOString().split('T')[0],
       dueDate: salesType === 'Credit' ? new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
       status: salesType === 'Credit' ? 'Unpaid' : 'Paid',
-      items: cart.map(c => ({
-        id: c.id,
-        productId: c.productId,
-        productCode: c.productCode,
-        productName: c.name,
-        batchNo: c.batch,
-        qty: c.qty,
-        freeQty: c.freeQty || 0,
-        ptr: c.rate,
-        discountPercent: c.discountPct,
-        gstPercent: c.gstPct,
-        total: (c.qty * c.rate) * (1 - c.discountPct/100) * (1 + c.gstPct/100),
-        stock: c.qty
-      })),
+      items: cart.map(c => {
+        const baseGross = (c.qty || 0) * (c.rate || 0);
+        const discount = (baseGross * (c.discountPct || 0)) / 100;
+        const marginTotal = (c.qty || 0) * (Number(c.extraMargin) || 0);
+        const taxable = Math.max(0, baseGross - discount + marginTotal);
+        const gst = (taxable * (c.gstPct || 0)) / 100;
+        const lineTotal = taxable + gst;
+
+        return {
+          id: c.id,
+          productId: c.productId,
+          productCode: c.productCode,
+          productName: c.name,
+          batchNo: c.batch,
+          qty: c.qty,
+          freeQty: c.freeQty || 0,
+          ptr: c.rate,
+          extraMargin: Number(c.extraMargin) || 0,
+          discountPercent: c.discountPct,
+          gstPercent: c.gstPct,
+          total: Number(lineTotal.toFixed(2)),
+          stock: c.qty
+        };
+      }),
       subTotal: calculations.totalTaxable,
       cgstTotal: isSameState ? calculations.cgst : 0,
       sgstTotal: isSameState ? calculations.sgst : 0,
@@ -353,14 +420,165 @@ export default function BarcodeBilling() {
     setPaymentMode('Cash');
     setAmountReceived('');
     setReferenceNumber('');
+    setLastGeneratedInvoice(null);
+    setCustomerErrors({});
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
+
+  const handleInputChange = (val: string) => {
+    const query = val.trim().toLowerCase();
+    if (!query) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    const matches: any[] = [];
+    const seenKeys = new Set<string>();
+
+    const prods = productsList.length > 0 ? productsList : productService.getProducts();
+    const bts = batchesList.length > 0 ? batchesList : batchService.getAll();
+    const bcs = barcodesList.length > 0 ? barcodesList : barcodeService.getAll();
+
+    // 1. Match products by name, code, barcode
+    prods.forEach(p => {
+      const codeMatch = p.code && p.code.toLowerCase().includes(query);
+      const nameMatch = p.name && p.name.toLowerCase().includes(query);
+      const barcodeMatch = p.barcode && p.barcode.toLowerCase().includes(query);
+
+      if (codeMatch || nameMatch || barcodeMatch) {
+        const pBatches = getProductBatches(p.code, p.name, p.id);
+        const bestBatch = pBatches[0];
+        const key = `${p.id}-${p.code}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          matches.push({
+            type: 'product',
+            product: p,
+            batch: bestBatch,
+            name: p.name,
+            code: p.code,
+            barcode: p.barcode || (bestBatch ? bestBatch.barcode : '') || '',
+            ptr: bestBatch ? bestBatch.ptr : (parseFloat(p.ptr) || 0),
+            mrp: bestBatch ? bestBatch.mrp : (parseFloat(p.mrp) || 0),
+            availableQty: bestBatch ? bestBatch.availableQty : 0,
+            expDate: bestBatch ? bestBatch.expDate : ''
+          });
+        }
+      }
+    });
+
+    // 2. Match barcodes catalog
+    bcs.forEach(b => {
+      if (b.status === 'Active' && b.barcode && b.barcode.toLowerCase().includes(query)) {
+        const p = prods.find(prod => prod.code === b.productCode || prod.id === b.productCode);
+        const key = `BC-${b.barcode}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          const pBatches = p ? getProductBatches(p.code, p.name, p.id) : [];
+          const bestBatch = pBatches[0];
+          matches.push({
+            type: 'barcode',
+            product: p || { id: b.id, code: b.productCode, name: b.productName, barcode: b.barcode, gst: '12' },
+            batch: bestBatch,
+            name: b.productName || (p ? p.name : 'Product'),
+            code: b.productCode,
+            barcode: b.barcode,
+            ptr: bestBatch ? bestBatch.ptr : (p ? parseFloat(p.ptr) || 0 : 0),
+            mrp: bestBatch ? bestBatch.mrp : (p ? parseFloat(p.mrp) || 0 : 0),
+            availableQty: bestBatch ? bestBatch.availableQty : 0,
+            expDate: bestBatch ? bestBatch.expDate : ''
+          });
+        }
+      }
+    });
+
+    // 3. Match batches
+    bts.forEach(bt => {
+      const bMatch = bt.batchNo && bt.batchNo.toLowerCase().includes(query);
+      const bProdMatch = bt.productName && bt.productName.toLowerCase().includes(query);
+      const bBarcodeMatch = bt.barcode && bt.barcode.toLowerCase().includes(query);
+      if (bMatch || bProdMatch || bBarcodeMatch) {
+        const key = `BT-${bt.productCode || bt.productId}-${bt.batchNo}`;
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          const p = prods.find(prod => prod.code === bt.productCode || prod.id === bt.productId);
+          matches.push({
+            type: 'batch',
+            product: p || { id: bt.productId, code: bt.productCode, name: bt.productName, barcode: bt.barcode, gst: '12' },
+            batch: bt,
+            name: bt.productName || (p ? p.name : 'Product'),
+            code: bt.productCode,
+            barcode: bt.barcode || (p ? p.barcode : '') || '',
+            ptr: Number(bt.ptr) || 0,
+            mrp: Number(bt.mrp) || 0,
+            availableQty: Number(bt.availableQty) || 0,
+            expDate: bt.expDate || ''
+          });
+        }
+      }
+    });
+
+    setSuggestions(matches.slice(0, 10));
+    setShowSuggestions(matches.length > 0);
+    setSelectedIndex(-1);
+  };
+
+  const handleSelectSuggestion = (sug: any) => {
+    const product = sug.product;
+    const availableBatches = getProductBatches(sug.code || product.code, sug.name || product.name, product.id);
+    const chosenBatch = sug.batch || availableBatches[0];
+
+    if (!chosenBatch) {
+      alert(`Product ${sug.name} is completely out of stock, expired, or locked!`);
+      return;
+    }
+
+    const existing = cart.find(item => item.productCode === (product.code || sug.code) && item.batch === chosenBatch.batchNo);
+    if (existing) {
+      if (existing.qty + 1 > chosenBatch.availableQty) {
+        alert(`Insufficient stock! Only ${chosenBatch.availableQty} units available in batch ${chosenBatch.batchNo}.`);
+        return;
+      }
+      const newQty = existing.qty + 1;
+      const promo = applyEligibleScheme(product.code || sug.code, newQty, existing.rate);
+      setCart(cart.map(item => item.id === existing.id 
+        ? { ...item, qty: newQty, discountPct: promo.discountPercent, freeQty: promo.freeQty } 
+        : item
+      ));
+    } else {
+      const rate = chosenBatch.ptr || parseFloat(product.ptr) || 0;
+      const promo = applyEligibleScheme(product.code || sug.code, 1, rate);
+      setCart([...cart, {
+        id: Math.random().toString(),
+        productId: product.id || String(sug.code),
+        productCode: product.code || sug.code,
+        barcode: sug.barcode || product.barcode || '',
+        name: sug.name || product.name,
+        batch: chosenBatch.batchNo,
+        expiry: chosenBatch.expDate,
+        qty: 1,
+        freeQty: promo.freeQty,
+        rate: rate,
+        extraMargin: 0,
+        discountPct: promo.discountPercent,
+        gstPct: parseFloat(product.gst) || 12,
+        warehouseId: chosenBatch.warehouseId || 'WH-001'
+      }]);
+    }
+
+    setBarcodeInput('');
+    setShowSuggestions(false);
+    setSuggestions([]);
   };
 
   const handleAddProduct = () => {
     if (!barcodeInput.trim()) return;
     const query = barcodeInput.toLowerCase().trim();
     
-    const barcodesList = barcodeService.getAll();
-    const matchedBarcode = barcodesList.find((b:any) => b.barcode.toLowerCase() === query && b.status === 'Active');
+    const barcodes = barcodesList.length > 0 ? barcodesList : barcodeService.getAll();
+    const matchedBarcode = barcodes.find((b:any) => b.barcode.toLowerCase() === query && b.status === 'Active');
     
     let resolvedProductCode = '';
     let barcodeString = '';
@@ -370,8 +588,8 @@ export default function BarcodeBilling() {
       resolvedProductCode = matchedBarcode.productCode;
       barcodeString = matchedBarcode.barcode;
     } else {
-      const productsList = productService.getProducts();
-      resolvedProduct = productsList.find((p: any) => 
+      const prods = productsList.length > 0 ? productsList : productService.getProducts();
+      resolvedProduct = prods.find((p: any) => 
         p.code.toLowerCase() === query || 
         p.name.toLowerCase().includes(query) ||
         (p.barcode && p.barcode.toLowerCase() === query)
@@ -381,7 +599,7 @@ export default function BarcodeBilling() {
         barcodeString = resolvedProduct.barcode || '';
       } else {
         // Direct Batch Lookup
-        const allBatches = batchService.getAll();
+        const allBatches = batchesList.length > 0 ? batchesList : batchService.getAll();
         const matchedBatch = allBatches.find(b => 
           (b.productName && b.productName.toLowerCase().includes(query)) ||
           (b.productCode && b.productCode.toLowerCase() === query) ||
@@ -409,8 +627,8 @@ export default function BarcodeBilling() {
       return;
     }
 
-    const productsList = productService.getProducts();
-    const product = resolvedProduct || productsList.find((p: any) => p.code === resolvedProductCode);
+    const prods = productsList.length > 0 ? productsList : productService.getProducts();
+    const product = resolvedProduct || prods.find((p: any) => p.code === resolvedProductCode);
     if (!product) {
       alert('Product does not exist in catalog.');
       return;
@@ -451,15 +669,44 @@ export default function BarcodeBilling() {
         qty: 1,
         freeQty: promo.freeQty,
         rate: rate,
+        extraMargin: 0,
         discountPct: promo.discountPercent,
         gstPct: parseFloat(product.gst) || 12,
         warehouseId: chosenBatch.warehouseId
       }]);
     }
     setBarcodeInput('');
+    setShowSuggestions(false);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (showSuggestions && suggestions.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev < suggestions.length - 1 ? prev + 1 : 0));
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setSelectedIndex(prev => (prev > 0 ? prev - 1 : suggestions.length - 1));
+        return;
+      }
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (selectedIndex >= 0 && suggestions[selectedIndex]) {
+          handleSelectSuggestion(suggestions[selectedIndex]);
+          return;
+        } else if (suggestions.length > 0) {
+          handleSelectSuggestion(suggestions[0]);
+          return;
+        }
+      }
+      if (e.key === 'Escape') {
+        setShowSuggestions(false);
+        return;
+      }
+    }
+
     if (e.key === 'Enter') {
       e.preventDefault();
       handleAddProduct();
@@ -469,7 +716,8 @@ export default function BarcodeBilling() {
   const updateCartItem = (id: string, field: keyof CartItem, value: any) => {
     setCart(cart.map(item => {
       if (item.id === id) {
-        let val = typeof value === 'number' ? Math.max(1, value) : value;
+        let val = typeof value === 'number' ? Math.max(0, value) : value;
+        if (field === 'qty') val = Math.max(1, typeof value === 'number' ? value : parseInt(value) || 1);
         
         if (field === 'qty') {
           const availableBatches = getProductBatches(item.productCode);
@@ -509,30 +757,42 @@ export default function BarcodeBilling() {
       alert("You do not have permission to create invoices.");
       return;
     }
-    if (cart.length === 0) return alert('Cart is empty.');
+    if (cart.length === 0) return alert('Cart is empty. Please add at least one product.');
 
-    // 1. Validate Credit Sales Info
+    // 1. Mandatory Customer Validation (Customer Name & 10-digit Mobile Number)
+    const trimmedName = customerName.trim();
+    const trimmedMobile = mobileNumber.trim();
+
+    const errors: { name?: string; mobile?: string } = {};
+    if (!trimmedName) {
+      errors.name = "Customer Name is mandatory.";
+    }
+    if (!trimmedMobile) {
+      errors.mobile = "Mobile Number is mandatory.";
+    } else if (trimmedMobile.length < 10) {
+      errors.mobile = "Mobile Number must be a valid 10-digit number.";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setCustomerErrors(errors);
+      alert(`⚠️ Mandatory Customer Details Required:\n${errors.name ? '• ' + errors.name + '\n' : ''}${errors.mobile ? '• ' + errors.mobile : ''}`);
+      return;
+    }
+    setCustomerErrors({});
+
+    // 2. Validate Credit Sales Info
     if (salesType === 'Credit') {
-      if (!customerName.trim()) {
-        alert('Customer Name is required for Credit sales.');
-        return;
-      }
-      if (!mobileNumber.trim()) {
-        alert('Mobile Number is required for Credit sales.');
-        return;
-      }
-      // Ensure GSTIN is present for business accounts
       if (customerType !== 'Retail Customer' && customerType !== 'Cash Sale' && !gstin.trim()) {
         alert('GSTIN is required for Credit sales to commercial accounts.');
         return;
       }
     }
 
-    // 2. Validate Received Amount for Cash/Card/UPI
+    // 3. Validate Received Amount for Cash/Card/UPI
     const netPayable = calculations.netAmount;
     const received = parseFloat(amountReceived) || 0;
-    if (salesType !== 'Credit' && received < netPayable) {
-      alert(`Amount Received (${formatCurrency(received)}) must be at least the Net Payable Amount (${formatCurrency(netPayable)}).`);
+    if (salesType !== 'Credit' && amountReceived && received < netPayable) {
+      alert(`Amount Received (${formatCurrency(received)}) is less than Net Payable (${formatCurrency(netPayable)}).`);
       return;
     }
     
@@ -610,8 +870,25 @@ export default function BarcodeBilling() {
       module: 'Wholesale Billing'
     });
 
+    // Set generated invoice status and preserve details on screen
+    setLastGeneratedInvoice({
+      invoiceNo: invoicePayload.invoiceNo,
+      date: invoicePayload.date,
+      customerName: invoicePayload.customerName,
+      mobileNumber: trimmedMobile,
+      grandTotal: invoicePayload.grandTotal,
+      itemsCount: cart.length
+    });
+
     alert(`✅ POS Invoice ${invoicePayload.invoiceNo} Saved & Synchronized Successfully!`);
-    resetForm();
+  };
+
+  const handleDownloadPdf = () => {
+    if (cart.length === 0) return alert('Cart is empty.');
+    const doc = new jsPDF();
+    const invoice = buildInvoicePayload();
+    applyInvoiceTemplate(doc, invoice as any, 'Retailer');
+    doc.save(`${invoice.invoiceNo || 'POS-Invoice'}.pdf`);
   };
 
   // --- Print Bill Handling ---
@@ -737,6 +1014,7 @@ export default function BarcodeBilling() {
             <ActionButton variant="secondary" onClick={handleHoldBill} icon={<StopCircle className="w-4 h-4" />}>Hold Bill</ActionButton>
             <ActionButton variant="secondary" onClick={handleClearCart} className="text-rose-600 hover:bg-rose-50 border-rose-200" icon={<Trash2 className="w-4 h-4" />}>Clear</ActionButton>
             <ActionButton variant="secondary" onClick={() => handlePrintPreview(false)} icon={<Printer className="w-4 h-4" />}>Print Bill</ActionButton>
+            <ActionButton variant="secondary" onClick={handleDownloadPdf} icon={<Download className="w-4 h-4" />}>Download PDF</ActionButton>
             <ActionButton onClick={handleGenerateInvoice}>Generate Invoice</ActionButton>
           </div>
         }
@@ -753,7 +1031,7 @@ export default function BarcodeBilling() {
             </h3>
             <div className="grid grid-cols-1 md:grid-cols-3 xl:grid-cols-5 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Select CRM Customer</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Select CRM Customer</label>
                 <select 
                   className="w-full text-sm bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 text-slate-900"
                   value={selectedCustomerId}
@@ -766,16 +1044,52 @@ export default function BarcodeBilling() {
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Customer Name</label>
-                <input type="text" placeholder="John Doe" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 text-slate-900" value={customerName} onChange={e => setCustomerName(e.target.value)} />
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Customer Name <span className="text-rose-500">*</span>
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="e.g. John Doe / Yashoda Hospital" 
+                  required
+                  className={`w-full text-sm border rounded-lg px-3 py-2 outline-none text-slate-900 transition-colors ${
+                    customerErrors.name ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/40' : 'border-slate-200 focus:border-violet-500'
+                  }`} 
+                  value={customerName} 
+                  onChange={e => {
+                    setCustomerName(e.target.value);
+                    if (customerErrors.name) setCustomerErrors({ ...customerErrors, name: undefined });
+                  }} 
+                />
+                {customerErrors.name && (
+                  <p className="text-[11px] text-rose-500 font-semibold mt-1">{customerErrors.name}</p>
+                )}
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 mb-1">Mobile Number</label>
-                <input type="text" placeholder="9876543210" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 text-slate-900" value={mobileNumber} onChange={e => setMobileNumber(e.target.value.replace(/\\D/g, '').slice(0, 10))} maxLength={10} />
+                <label className="block text-xs font-bold text-slate-700 mb-1">
+                  Mobile Number <span className="text-rose-500">*</span>
+                </label>
+                <input 
+                  type="text" 
+                  placeholder="10-digit mobile number" 
+                  required
+                  className={`w-full text-sm border rounded-lg px-3 py-2 outline-none text-slate-900 font-mono transition-colors ${
+                    customerErrors.mobile ? 'border-rose-500 ring-2 ring-rose-200 bg-rose-50/40' : 'border-slate-200 focus:border-violet-500'
+                  }`} 
+                  value={mobileNumber} 
+                  onChange={e => {
+                    const clean = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setMobileNumber(clean);
+                    if (customerErrors.mobile && clean.length === 10) setCustomerErrors({ ...customerErrors, mobile: undefined });
+                  }} 
+                  maxLength={10} 
+                />
+                {customerErrors.mobile && (
+                  <p className="text-[11px] text-rose-500 font-semibold mt-1">{customerErrors.mobile}</p>
+                )}
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">GSTIN (Optional)</label>
-                <input type="text" placeholder="27ABCDE1234F1Z5" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 uppercase text-slate-900" value={gstin} onChange={e => setGstin(e.target.value)} />
+                <input type="text" placeholder="27ABCDE1234F1Z5" className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 outline-none focus:border-violet-500 uppercase text-slate-900 font-mono" value={gstin} onChange={e => setGstin(e.target.value)} />
               </div>
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1">Sales Type</label>
@@ -788,20 +1102,128 @@ export default function BarcodeBilling() {
             </div>
           </div>
 
+          {/* Generated Invoice Success Banner */}
+          {lastGeneratedInvoice && (
+            <div className="bg-emerald-50 border border-emerald-300 rounded-2xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in fade-in slide-in-from-top-2 print:hidden">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-full bg-emerald-600 text-white flex items-center justify-center font-bold text-lg shrink-0">
+                  <CheckCircle className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-bold text-emerald-900 text-base">Invoice Generated Successfully!</span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-mono font-bold text-xs border border-emerald-300">
+                      {lastGeneratedInvoice.invoiceNo}
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-700 mt-0.5">
+                    Customer: <strong className="text-emerald-900">{lastGeneratedInvoice.customerName}</strong> (Ph: {lastGeneratedInvoice.mobileNumber}) • Amount: <strong>{formatCurrency(lastGeneratedInvoice.grandTotal)}</strong> ({lastGeneratedInvoice.itemsCount} items)
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => handlePrintPreview(false)}
+                  className="px-3.5 py-2 rounded-xl bg-white border border-emerald-300 text-emerald-800 hover:bg-emerald-100 text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                >
+                  <Printer className="w-3.5 h-3.5" />
+                  Print Bill
+                </button>
+                <button
+                  type="button"
+                  onClick={handleDownloadPdf}
+                  className="px-3.5 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-800 text-white text-xs font-bold flex items-center justify-center gap-1.5 transition-colors shadow-sm"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Download PDF
+                </button>
+                <button
+                  type="button"
+                  onClick={resetForm}
+                  className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition-colors"
+                >
+                  Start New Sale
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Barcode & Cart Section */}
           <div className="bg-white rounded-2xl border border-slate-200 shadow-sm flex flex-col flex-1 min-h-[400px] print:hidden">
-            <div className="p-4 border-b border-slate-200 bg-slate-50 rounded-t-2xl flex items-center gap-4">
+            <div className="p-4 border-b border-slate-200 bg-slate-50 rounded-t-2xl flex items-center gap-4 relative" ref={searchContainerRef}>
                <div className="relative flex-1">
                   <ScanBarcode className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#163c78]" />
                   <input
                     type="text"
                     value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
+                    onChange={(e) => {
+                      setBarcodeInput(e.target.value);
+                      handleInputChange(e.target.value);
+                    }}
+                    onFocus={() => {
+                      if (barcodeInput.trim()) setShowSuggestions(true);
+                    }}
                     onKeyDown={handleKeyDown}
-                    placeholder="Scan barcode or type product name/code... (e.g. '8901234567890')"
-                    className="w-full pl-10 pr-4 py-3 text-sm bg-white border border-violet-200 rounded-lg text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-violet-500/30 focus:border-violet-500 shadow-sm transition-all font-mono"
+                    placeholder="Scan barcode or type product name/code... (e.g. '8901234567890' or 'Amoxicillin')"
+                    className="w-full pl-10 pr-4 py-3 text-sm bg-white border border-slate-300 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[#163c78]/30 focus:border-[#163c78] shadow-sm transition-all"
                     autoFocus
                   />
+
+                  {/* Autocomplete Suggestions Dropdown with Product Name & Barcode */}
+                  {showSuggestions && suggestions.length > 0 && (
+                    <div className="absolute left-0 right-0 top-full mt-1.5 bg-white border border-slate-200 rounded-xl shadow-2xl max-h-80 overflow-y-auto z-50 divide-y divide-slate-100">
+                      <div className="px-3 py-1.5 bg-slate-50 border-b border-slate-200 flex justify-between items-center text-[11px] font-bold text-slate-500 uppercase tracking-wider">
+                        <span>Matching Products & Barcodes ({suggestions.length})</span>
+                        <span className="text-slate-400 font-normal">Click or press Enter to add</span>
+                      </div>
+                      {suggestions.map((sug, idx) => (
+                        <div
+                          key={`${sug.code}-${sug.barcode}-${idx}`}
+                          onClick={() => handleSelectSuggestion(sug)}
+                          className={`p-3 flex items-center justify-between cursor-pointer transition-colors ${
+                            idx === selectedIndex ? 'bg-[#163c78]/10' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-lg bg-[#163c78]/10 text-[#163c78] flex items-center justify-center shrink-0">
+                              <ScanBarcode className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="text-sm font-bold text-slate-900">{sug.name}</span>
+                                {sug.barcode && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-0.5 text-xs font-mono font-bold bg-violet-100 text-violet-800 rounded border border-violet-200">
+                                    <ScanBarcode className="w-3 h-3 text-violet-600" />
+                                    {sug.barcode}
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-xs text-slate-500 flex items-center gap-2 mt-0.5 flex-wrap">
+                                <span className="font-mono text-slate-600 bg-slate-100 px-1 rounded">{sug.code}</span>
+                                <span>•</span>
+                                <span>Batch: <strong className="text-slate-700">{sug.batch?.batchNo || 'Auto FEFO'}</strong></span>
+                                {sug.expDate && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Exp: {sug.expDate}</span>
+                                  </>
+                                )}
+                                <span>•</span>
+                                <span className={sug.availableQty > 10 ? 'text-emerald-700 font-bold' : sug.availableQty > 0 ? 'text-amber-700 font-bold' : 'text-rose-600 font-bold'}>
+                                  {sug.availableQty > 0 ? `${sug.availableQty} in stock` : 'Out of stock'}
+                                </span>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right shrink-0 ml-3">
+                            <div className="text-sm font-bold text-[#163c78]">{formatCurrency(sug.ptr)}</div>
+                            <div className="text-[10px] text-slate-400">PTR / Unit</div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                </div>
                <ActionButton onClick={handleAddProduct} icon={<Plus className="w-4 h-4"/>}>Add Item</ActionButton>
             </div>
@@ -814,13 +1236,14 @@ export default function BarcodeBilling() {
                     <p className="text-sm mt-1">Scan a barcode or search for a product to begin billing.</p>
                 </div>
               ) : (
-                <div className="w-full min-w-[800px]">
+                <div className="w-full min-w-[850px]">
                   <table className="w-full text-left border-collapse">
                     <thead className="bg-slate-50 sticky top-0 z-10">
                       <tr>
                         <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">Product Name</th>
                         <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">Batch & Exp</th>
                         <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-24">Qty</th>
+                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-28">Extra Margin</th>
                         <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-24">Free</th>
                         <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-28">Rate</th>
                         <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-24">Disc %</th>
@@ -831,35 +1254,85 @@ export default function BarcodeBilling() {
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {cart.map(item => {
-                        const gross = item.qty * item.rate;
-                        const disc = gross * (item.discountPct / 100);
-                        const taxable = gross - disc;
+                        const baseGross = item.qty * item.rate;
+                        const disc = baseGross * (item.discountPct / 100);
+                        const margin = item.qty * (Number(item.extraMargin) || 0);
+                        const taxable = Math.max(0, baseGross - disc + margin);
                         const lineTotal = taxable * (1 + item.gstPct / 100);
 
                         return (
                           <tr key={item.id} className="hover:bg-slate-50/50">
                             <td className="px-4 py-3">
                               <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-                              <p className="text-xs text-slate-500 font-mono">{item.barcode}</p>
+                              <div className="flex items-center gap-1.5 mt-0.5">
+                                <span className="text-xs font-mono font-medium text-slate-600">{item.productCode}</span>
+                                {item.barcode && (
+                                  <span className="text-[11px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded border border-slate-200">
+                                    {item.barcode}
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="px-4 py-3">
-                              <p className="text-sm text-slate-700">{item.batch}</p>
+                              <p className="text-sm font-medium text-slate-700">{item.batch}</p>
                               <p className="text-xs text-slate-500">{item.expiry}</p>
                             </td>
                             <td className="px-4 py-3">
-                              <input type="number" min="1" className="w-full text-sm border border-slate-200 rounded px-2 py-1 outline-none focus:border-violet-500 text-slate-900" value={item.qty} onChange={e => updateCartItem(item.id, 'qty', parseInt(e.target.value) || 0)} />
+                              <input 
+                                type="number" 
+                                min="1" 
+                                className="w-full text-sm border border-slate-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-violet-500 text-slate-900 font-medium" 
+                                value={item.qty} 
+                                onChange={e => updateCartItem(item.id, 'qty', parseInt(e.target.value) || 0)} 
+                              />
                             </td>
                             <td className="px-4 py-3">
-                              <input type="number" min="0" className="w-full text-sm border border-slate-200 rounded px-2 py-1 outline-none focus:border-violet-500 text-slate-900" value={item.freeQty} onChange={e => updateCartItem(item.id, 'freeQty', parseInt(e.target.value) || 0)} />
+                              <input 
+                                type="number" 
+                                min="0" 
+                                step="0.01" 
+                                placeholder="0.00" 
+                                className="w-full text-sm border border-slate-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-violet-500 text-slate-900 font-medium bg-white" 
+                                value={item.extraMargin !== undefined && item.extraMargin !== null ? item.extraMargin : ''} 
+                                onChange={e => updateCartItem(item.id, 'extraMargin', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)} 
+                              />
                             </td>
                             <td className="px-4 py-3">
-                              <input type="number" min="0" step="0.01" className="w-full text-sm border border-slate-200 rounded px-2 py-1 outline-none focus:border-violet-500 text-slate-900" value={item.rate} onChange={e => updateCartItem(item.id, 'rate', parseFloat(e.target.value) || 0)} />
+                              <input 
+                                type="number" 
+                                min="0" 
+                                className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-violet-500 text-slate-900" 
+                                value={item.freeQty} 
+                                onChange={e => updateCartItem(item.id, 'freeQty', parseInt(e.target.value) || 0)} 
+                              />
                             </td>
                             <td className="px-4 py-3">
-                              <input type="number" min="0" max="100" step="0.1" className="w-full text-sm border border-slate-200 rounded px-2 py-1 outline-none focus:border-violet-500 text-slate-900" value={item.discountPct} onChange={e => updateCartItem(item.id, 'discountPct', parseFloat(e.target.value) || 0)} />
+                              <input 
+                                type="number" 
+                                min="0" 
+                                step="0.01" 
+                                className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-violet-500 text-slate-900" 
+                                value={item.rate} 
+                                onChange={e => updateCartItem(item.id, 'rate', parseFloat(e.target.value) || 0)} 
+                              />
                             </td>
                             <td className="px-4 py-3">
-                              <select className="w-full text-sm border border-slate-200 rounded px-2 py-1 outline-none focus:border-violet-500 bg-transparent text-slate-900" value={item.gstPct} onChange={e => updateCartItem(item.id, 'gstPct', parseFloat(e.target.value) || 0)}>
+                              <input 
+                                type="number" 
+                                min="0" 
+                                max="100" 
+                                step="0.1" 
+                                className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-violet-500 text-slate-900" 
+                                value={item.discountPct} 
+                                onChange={e => updateCartItem(item.id, 'discountPct', parseFloat(e.target.value) || 0)} 
+                              />
+                            </td>
+                            <td className="px-4 py-3">
+                              <select 
+                                className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-violet-500 bg-transparent text-slate-900" 
+                                value={item.gstPct} 
+                                onChange={e => updateCartItem(item.id, 'gstPct', parseFloat(e.target.value) || 0)}
+                              >
                                 <option value="0">0%</option>
                                 <option value="5">5%</option>
                                 <option value="12">12%</option>
@@ -871,7 +1344,7 @@ export default function BarcodeBilling() {
                               {formatCurrency(lineTotal)}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <button onClick={() => removeCartItem(item.id)} className="text-slate-400 hover:text-rose-600 transition-colors">
+                              <button onClick={() => removeCartItem(item.id)} className="text-slate-400 hover:text-rose-600 transition-colors p-1 rounded hover:bg-rose-50">
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </td>
@@ -964,6 +1437,11 @@ export default function BarcodeBilling() {
              <div className="space-y-3">
                <ActionButton onClick={handleGenerateInvoice} className="w-full justify-center py-4 text-base shadow-md hover:shadow-lg transition-all bg-emerald-600 hover:bg-emerald-700">Complete & Invoice</ActionButton>
                <ActionButton variant="secondary" onClick={() => handlePrintPreview(true)} className="w-full justify-center border-violet-200 text-violet-700 bg-[#163c78]/10 hover:bg-violet-100">Print Bill without Saving</ActionButton>
+               {cart.length > 0 && (
+                 <ActionButton variant="secondary" onClick={handleDownloadPdf} className="w-full justify-center border-slate-300 text-slate-700 hover:bg-slate-100 flex items-center gap-2">
+                   <Download className="w-4 h-4" /> Download PDF Invoice
+                 </ActionButton>
+               )}
              </div>
           </div>
         </div>
