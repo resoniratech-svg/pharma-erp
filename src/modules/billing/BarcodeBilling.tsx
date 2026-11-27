@@ -193,11 +193,17 @@ export default function BarcodeBilling() {
     let totalGstAmount = 0;
 
     cart.forEach(item => {
-      const baseGross = item.qty * item.rate;
-      const discount = baseGross * (item.discountPct / 100);
-      const marginTotal = item.qty * (Number(item.extraMargin) || 0);
+      const itemQty = Number(item.qty) || 0;
+      const itemRate = Number(item.rate) || 0;
+      const itemMargin = Number(item.extraMargin) || 0;
+      const itemDisc = Number(item.discountPct) || 0;
+      const itemGst = Number(item.gstPct) || 0;
+
+      const baseGross = itemQty * itemRate;
+      const discount = baseGross * (itemDisc / 100);
+      const marginTotal = itemQty * itemMargin;
       const taxable = Math.max(0, baseGross - discount + marginTotal);
-      const gst = taxable * (item.gstPct / 100);
+      const gst = taxable * (itemGst / 100);
       
       subtotal += (baseGross + marginTotal);
       totalDiscount += discount;
@@ -717,9 +723,8 @@ export default function BarcodeBilling() {
     setCart(cart.map(item => {
       if (item.id === id) {
         let val = typeof value === 'number' ? Math.max(0, value) : value;
-        if (field === 'qty') val = Math.max(1, typeof value === 'number' ? value : parseInt(value) || 1);
-        
         if (field === 'qty') {
+          val = typeof value === 'number' ? Math.max(0, value) : (value === '' ? 0 : Math.max(0, parseInt(value, 10) || 0));
           const availableBatches = getProductBatches(item.productCode);
           const currentBatch = availableBatches.find(b => b.batchNo === item.batch);
           if (currentBatch && val > currentBatch.availableQty) {
@@ -758,6 +763,13 @@ export default function BarcodeBilling() {
       return;
     }
     if (cart.length === 0) return alert('Cart is empty. Please add at least one product.');
+
+    // Validate that all items have a valid quantity > 0
+    const zeroQtyItem = cart.find(item => (Number(item.qty) || 0) <= 0);
+    if (zeroQtyItem) {
+      alert(`Please enter a valid quantity greater than 0 for "${zeroQtyItem.name}".`);
+      return;
+    }
 
     // 1. Mandatory Customer Validation (Customer Name & 10-digit Mobile Number)
     const trimmedName = customerName.trim();
@@ -885,6 +897,11 @@ export default function BarcodeBilling() {
 
   const handleDownloadPdf = () => {
     if (cart.length === 0) return alert('Cart is empty.');
+    const zeroQtyItem = cart.find(item => (Number(item.qty) || 0) <= 0);
+    if (zeroQtyItem) {
+      alert(`Please enter a valid quantity greater than 0 for "${zeroQtyItem.name}".`);
+      return;
+    }
     const doc = new jsPDF();
     const invoice = buildInvoicePayload();
     applyInvoiceTemplate(doc, invoice as any, 'Retailer');
@@ -894,6 +911,11 @@ export default function BarcodeBilling() {
   // --- Print Bill Handling ---
   const handlePrintPreview = (temporary: boolean) => {
     if (cart.length === 0) return alert('Cart is empty.');
+    const zeroQtyItem = cart.find(item => (Number(item.qty) || 0) <= 0);
+    if (zeroQtyItem) {
+      alert(`Please enter a valid quantity greater than 0 for "${zeroQtyItem.name}".`);
+      return;
+    }
     setIsTemporaryPrint(temporary);
     
     const doc = new jsPDF();
@@ -1236,100 +1258,133 @@ export default function BarcodeBilling() {
                     <p className="text-sm mt-1">Scan a barcode or search for a product to begin billing.</p>
                 </div>
               ) : (
-                <div className="w-full min-w-[850px]">
+                <div className="w-full min-w-[1020px]">
                   <table className="w-full text-left border-collapse">
-                    <thead className="bg-slate-50 sticky top-0 z-10">
+                    <thead className="bg-slate-50 sticky top-0 z-10 border-b border-slate-200">
                       <tr>
-                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">Product Name</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200">Batch & Exp</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-24">Qty</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-28">Extra Margin</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-24">Free</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-28">Rate</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-24">Disc %</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-24">GST %</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 text-right w-32">Total</th>
-                        <th className="px-4 py-3 text-xs font-semibold text-slate-600 uppercase border-b border-slate-200 w-12"></th>
+                        <th className="px-3.5 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider min-w-[200px]">Product Name</th>
+                        <th className="px-3 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider min-w-[130px]">Batch & Exp</th>
+                        <th className="px-2 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider text-center w-24">Qty</th>
+                        <th className="px-2 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider text-center w-28">Extra Margin</th>
+                        <th className="px-2 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider text-center w-20">Free</th>
+                        <th className="px-2 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider text-right w-28">Rate (₹)</th>
+                        <th className="px-2 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider text-center w-20">Disc %</th>
+                        <th className="px-2 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider text-center w-24">GST %</th>
+                        <th className="px-3.5 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider text-right w-32 min-w-[110px]">Total</th>
+                        <th className="px-2 py-3 text-xs font-bold text-slate-600 uppercase tracking-wider text-center w-12"></th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-100">
                       {cart.map(item => {
-                        const baseGross = item.qty * item.rate;
-                        const disc = baseGross * (item.discountPct / 100);
-                        const margin = item.qty * (Number(item.extraMargin) || 0);
+                        const itemQty = Number(item.qty) || 0;
+                        const itemRate = Number(item.rate) || 0;
+                        const itemMargin = Number(item.extraMargin) || 0;
+                        const itemDisc = Number(item.discountPct) || 0;
+                        const itemGst = Number(item.gstPct) || 0;
+
+                        const baseGross = itemQty * itemRate;
+                        const disc = baseGross * (itemDisc / 100);
+                        const margin = itemQty * itemMargin;
                         const taxable = Math.max(0, baseGross - disc + margin);
-                        const lineTotal = taxable * (1 + item.gstPct / 100);
+                        const lineTotal = taxable * (1 + itemGst / 100);
 
                         return (
-                          <tr key={item.id} className="hover:bg-slate-50/50">
-                            <td className="px-4 py-3">
-                              <p className="text-sm font-semibold text-slate-900">{item.name}</p>
-                              <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-xs font-mono font-medium text-slate-600">{item.productCode}</span>
+                          <tr key={item.id} className="hover:bg-slate-50/70 transition-colors">
+                            <td className="px-3.5 py-3.5 min-w-[200px]">
+                              <p className="text-sm font-bold text-slate-900 leading-snug">{item.name}</p>
+                              <div className="flex items-center gap-1.5 mt-1 flex-wrap">
+                                <span className="text-xs font-mono font-medium text-slate-600 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200">{item.productCode}</span>
                                 {item.barcode && (
-                                  <span className="text-[11px] font-mono bg-slate-100 text-slate-600 px-1.5 py-0.2 rounded border border-slate-200">
+                                  <span className="text-[11px] font-mono bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded border border-violet-200 flex items-center gap-1">
+                                    <ScanBarcode className="w-3 h-3 text-violet-600" />
                                     {item.barcode}
                                   </span>
                                 )}
                               </div>
                             </td>
-                            <td className="px-4 py-3">
-                              <p className="text-sm font-medium text-slate-700">{item.batch}</p>
-                              <p className="text-xs text-slate-500">{item.expiry}</p>
+                            <td className="px-3 py-3.5 min-w-[130px]">
+                              <p className="text-sm font-semibold text-slate-800">{item.batch}</p>
+                              <p className="text-xs text-slate-500 font-mono mt-0.5">
+                                {item.expiry ? (item.expiry.includes('T') ? item.expiry.split('T')[0] : item.expiry) : 'N/A'}
+                              </p>
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-2 py-3.5 w-24">
                               <input 
                                 type="number" 
-                                min="1" 
-                                className="w-full text-sm border border-slate-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-violet-500 text-slate-900 font-medium" 
-                                value={item.qty} 
-                                onChange={e => updateCartItem(item.id, 'qty', parseInt(e.target.value) || 0)} 
+                                min="0" 
+                                placeholder="0"
+                                className="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-[#163c78]/25 focus:border-[#163c78] text-center font-bold text-slate-900 bg-white transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                                value={item.qty === 0 ? '' : item.qty} 
+                                onChange={e => {
+                                  const raw = e.target.value.trim();
+                                  const num = raw === '' ? 0 : parseInt(raw, 10);
+                                  updateCartItem(item.id, 'qty', isNaN(num) ? 0 : Math.max(0, num));
+                                }} 
                               />
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-2 py-3.5 w-28">
                               <input 
                                 type="number" 
                                 min="0" 
                                 step="0.01" 
                                 placeholder="0.00" 
-                                className="w-full text-sm border border-slate-300 rounded-lg px-2.5 py-1.5 outline-none focus:border-violet-500 text-slate-900 font-medium bg-white" 
-                                value={item.extraMargin !== undefined && item.extraMargin !== null ? item.extraMargin : ''} 
-                                onChange={e => updateCartItem(item.id, 'extraMargin', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)} 
+                                className="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-[#163c78]/25 focus:border-[#163c78] text-right font-medium text-slate-900 bg-white transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                                value={item.extraMargin === 0 || item.extraMargin === undefined ? '' : item.extraMargin} 
+                                onChange={e => {
+                                  const raw = e.target.value.trim();
+                                  const num = raw === '' ? 0 : parseFloat(raw);
+                                  updateCartItem(item.id, 'extraMargin', isNaN(num) ? 0 : Math.max(0, num));
+                                }} 
                               />
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-2 py-3.5 w-20">
                               <input 
                                 type="number" 
                                 min="0" 
-                                className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-violet-500 text-slate-900" 
-                                value={item.freeQty} 
-                                onChange={e => updateCartItem(item.id, 'freeQty', parseInt(e.target.value) || 0)} 
+                                placeholder="0"
+                                className="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-[#163c78]/25 focus:border-[#163c78] text-center font-medium text-slate-900 bg-white transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                                value={item.freeQty === 0 || item.freeQty === undefined ? '' : item.freeQty} 
+                                onChange={e => {
+                                  const raw = e.target.value.trim();
+                                  const num = raw === '' ? 0 : parseInt(raw, 10);
+                                  updateCartItem(item.id, 'freeQty', isNaN(num) ? 0 : Math.max(0, num));
+                                }} 
                               />
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-2 py-3.5 w-28">
                               <input 
                                 type="number" 
                                 min="0" 
                                 step="0.01" 
-                                className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-violet-500 text-slate-900" 
-                                value={item.rate} 
-                                onChange={e => updateCartItem(item.id, 'rate', parseFloat(e.target.value) || 0)} 
+                                placeholder="0.00"
+                                className="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-[#163c78]/25 focus:border-[#163c78] text-right font-semibold text-slate-900 bg-white transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                                value={item.rate === 0 || item.rate === undefined ? '' : item.rate} 
+                                onChange={e => {
+                                  const raw = e.target.value.trim();
+                                  const num = raw === '' ? 0 : parseFloat(raw);
+                                  updateCartItem(item.id, 'rate', isNaN(num) ? 0 : Math.max(0, num));
+                                }} 
                               />
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-2 py-3.5 w-20">
                               <input 
                                 type="number" 
                                 min="0" 
                                 max="100" 
                                 step="0.1" 
-                                className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-violet-500 text-slate-900" 
-                                value={item.discountPct} 
-                                onChange={e => updateCartItem(item.id, 'discountPct', parseFloat(e.target.value) || 0)} 
+                                placeholder="0"
+                                className="w-full text-sm border border-slate-300 rounded-lg px-2 py-2 outline-none focus:ring-2 focus:ring-[#163c78]/25 focus:border-[#163c78] text-center font-medium text-slate-900 bg-white transition-all shadow-sm [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none" 
+                                value={item.discountPct === 0 || item.discountPct === undefined ? '' : item.discountPct} 
+                                onChange={e => {
+                                  const raw = e.target.value.trim();
+                                  const num = raw === '' ? 0 : parseFloat(raw);
+                                  updateCartItem(item.id, 'discountPct', isNaN(num) ? 0 : Math.max(0, Math.min(100, num)));
+                                }} 
                               />
                             </td>
-                            <td className="px-4 py-3">
+                            <td className="px-2 py-3.5 w-24">
                               <select 
-                                className="w-full text-sm border border-slate-200 rounded-lg px-2 py-1.5 outline-none focus:border-violet-500 bg-transparent text-slate-900" 
+                                className="w-full text-sm border border-slate-300 rounded-lg px-1.5 py-2 outline-none focus:ring-2 focus:ring-[#163c78]/25 focus:border-[#163c78] bg-white text-slate-900 font-semibold text-center cursor-pointer shadow-sm transition-all" 
                                 value={item.gstPct} 
                                 onChange={e => updateCartItem(item.id, 'gstPct', parseFloat(e.target.value) || 0)}
                               >
@@ -1340,11 +1395,16 @@ export default function BarcodeBilling() {
                                 <option value="28">28%</option>
                               </select>
                             </td>
-                            <td className="px-4 py-3 text-right font-bold text-slate-800">
+                            <td className="px-3.5 py-3.5 text-right font-bold text-slate-900 whitespace-nowrap text-sm w-32 min-w-[110px]">
                               {formatCurrency(lineTotal)}
                             </td>
-                            <td className="px-4 py-3 text-center">
-                              <button onClick={() => removeCartItem(item.id)} className="text-slate-400 hover:text-rose-600 transition-colors p-1 rounded hover:bg-rose-50">
+                            <td className="px-2 py-3.5 text-center w-12">
+                              <button 
+                                type="button"
+                                title="Remove item"
+                                onClick={() => removeCartItem(item.id)} 
+                                className="text-slate-400 hover:text-rose-600 transition-colors p-1.5 rounded-lg hover:bg-rose-50"
+                              >
                                 <Trash2 className="w-4 h-4" />
                               </button>
                             </td>
