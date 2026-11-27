@@ -10,7 +10,6 @@ import {
   TableCard,
   DataTable,
   Badge,
-  Drawer,
 } from './components/shared';
 import { type Column } from './components/shared';
 import { productService } from '../../services/productService';
@@ -38,13 +37,15 @@ export interface CustomerOption {
   address?: string;
 }
 
-const DEFAULT_CUSTOMERS: CustomerOption[] = [
-  { id: 'CUST-001', code: 'CUST-001', name: 'MedPlus Store', type: 'Retailer', state: 'Telangana', creditDays: 30, mobile: '9848012345' },
-  { id: 'CUST-002', code: 'CUST-002', name: 'Apollo Pharmacy', type: 'Hospital Chain', state: 'Karnataka', creditDays: 45, mobile: '9848054321' },
-  { id: 'CUST-003', code: 'CUST-003', name: 'Wellness Medicos', type: 'Retailer', state: 'Maharashtra', creditDays: 15, mobile: '9848098765' },
-  { id: 'CUST-004', code: 'CUST-004', name: 'Care Hospitals', type: 'Institutional', state: 'Telangana', creditDays: 30, mobile: '9848067890' },
-  { id: 'B2C', code: 'B2C', name: 'Walk-in / Cash Customer (B2C)', type: 'Counter', state: 'Telangana', creditDays: 0, mobile: '-' },
-];
+const DEFAULT_COUNTER_CUSTOMER: CustomerOption = {
+  id: 'B2C',
+  code: 'B2C',
+  name: 'Walk-in / Cash Customer (B2C)',
+  type: 'Counter',
+  state: 'Telangana',
+  creditDays: 0,
+  mobile: '-'
+};
 
 interface ProductRecord {
   id: string;
@@ -77,7 +78,7 @@ export default function GSTBilling() {
   const [schemesState, setSchemesState] = useState<any[]>([]);
 
   // Customer Management & Search States
-  const [customers, setCustomers] = useState<CustomerOption[]>(DEFAULT_CUSTOMERS);
+  const [customers, setCustomers] = useState<CustomerOption[]>([DEFAULT_COUNTER_CUSTOMER]);
   const [customerSearchQuery, setCustomerSearchQuery] = useState('');
   const [isCustomerDropdownOpen, setIsCustomerDropdownOpen] = useState(false);
   const [isAddCustomerModalOpen, setIsAddCustomerModalOpen] = useState(false);
@@ -112,92 +113,162 @@ export default function GSTBilling() {
   const loadCustomers = async () => {
     const list: CustomerOption[] = [];
 
-    // 1. Fetch Retailers from Backend API
+    // 1. Fetch Hospitals from Backend API (/hospitals)
     try {
-      const retRes = await apiRequest<{ success: boolean; data: any[] }>('/retailers');
-      if (retRes && retRes.success && Array.isArray(retRes.data)) {
-        retRes.data.forEach((r: any) => {
-          list.push({
-            id: String(r.id),
-            code: r.code || `RET-${String(r.id).padStart(3, '0')}`,
-            name: r.name,
-            type: 'Retailer',
-            state: r.state || (r.address && r.address.toLowerCase().includes('karnataka') ? 'Karnataka' : r.address && r.address.toLowerCase().includes('maharashtra') ? 'Maharashtra' : 'Telangana'),
-            creditDays: 30,
-            mobile: r.mobile || r.mobileNumber || '',
-            gstin: r.gstNumber || r.drugLicenseNumber || '',
-            address: r.address || ''
-          });
+      const hospRes = await apiRequest<{ success: boolean; data: any[] }>('/hospitals');
+      if (hospRes && hospRes.success && Array.isArray(hospRes.data)) {
+        hospRes.data.forEach((h: any) => {
+          if (h.name) {
+            list.push({
+              id: `HOSP-${h.id}`,
+              code: h.code || `HOSP-${String(h.id).padStart(3, '0')}`,
+              name: h.name,
+              type: 'Hospital',
+              state: h.state || 'Telangana',
+              creditDays: 30,
+              mobile: h.mobile || '',
+              address: h.address || ''
+            });
+          }
         });
       }
     } catch (e) {
-      console.warn("Could not load retailers from API:", e);
+      console.warn("Could not load hospitals from API:", e);
     }
 
-    // 2. Fetch Distributors from Backend API
+    // 2. Fetch Distributors from Backend API (/distributors)
     try {
       const distRes = await apiRequest<{ success: boolean; data: any[] }>('/distributors');
       if (distRes && distRes.success && Array.isArray(distRes.data)) {
         distRes.data.forEach((d: any) => {
-          list.push({
-            id: String(d.id),
-            code: d.code || `DIST-${String(d.id).padStart(3, '0')}`,
-            name: d.name,
-            type: 'Distributor',
-            state: d.state || 'Telangana',
-            creditDays: d.creditDays || 30,
-            mobile: d.mobile || d.mobileNumber || '',
-            gstin: d.companyPan || d.dlNumber || '',
-            address: d.address || ''
-          });
+          if (d.name) {
+            list.push({
+              id: `DIST-${d.id}`,
+              code: d.code || `DIST-${String(d.id).padStart(3, '0')}`,
+              name: d.name,
+              type: 'Distributor',
+              state: d.state || 'Telangana',
+              creditDays: d.creditDays || 30,
+              mobile: d.mobile || d.mobileNumber || '',
+              gstin: d.companyPan || d.dlNumber || '',
+              address: d.address || ''
+            });
+          }
         });
       }
     } catch (e) {
       console.warn("Could not load distributors from API:", e);
     }
 
-    // 3. Fallback / merge local distributor master if any
-    const localDist = JSON.parse(localStorage.getItem('pharma_erp_distributor_master') || '[]');
-    localDist.forEach((d: any) => {
-      if (d.name && !list.some(c => c.name.toLowerCase() === d.name.toLowerCase())) {
-        list.push({
-          id: String(d.id || `DIST-${Date.now()}`),
-          code: d.code || `DIST-${d.id}`,
-          name: d.name,
-          type: 'Distributor',
-          state: d.state || 'Telangana',
-          creditDays: d.creditDays || 30,
-          mobile: d.mobileNumber || '',
-          gstin: d.companyPan || ''
+    // 3. Fetch Retailers from Backend API (/retailers)
+    try {
+      const retRes = await apiRequest<{ success: boolean; data: any[] }>('/retailers');
+      if (retRes && retRes.success && Array.isArray(retRes.data)) {
+        retRes.data.forEach((r: any) => {
+          if (r.name) {
+            list.push({
+              id: `RET-${r.id}`,
+              code: r.code || `RET-${String(r.id).padStart(3, '0')}`,
+              name: r.name,
+              type: 'Retailer',
+              state: r.state || (r.address && r.address.toLowerCase().includes('karnataka') ? 'Karnataka' : r.address && r.address.toLowerCase().includes('maharashtra') ? 'Maharashtra' : 'Telangana'),
+              creditDays: 30,
+              mobile: r.mobile || r.mobileNumber || '',
+              gstin: r.gstNumber || r.drugLicenseNumber || '',
+              address: r.address || ''
+            });
+          }
         });
       }
-    });
+    } catch (e) {
+      console.warn("Could not load retailers from API:", e);
+    }
 
-    // 4. Always ensure Walk-in / Cash Customer (B2C) exists
-    list.push({
-      id: 'B2C',
-      code: 'B2C',
-      name: 'Walk-in / Cash Customer (B2C)',
-      type: 'Counter',
-      state: 'Telangana',
-      creditDays: 0,
-      mobile: '-'
-    });
+    // 4. Fetch Chemists from Backend API (/chemists)
+    try {
+      const chemRes = await apiRequest<{ success: boolean; data: any[] }>('/chemists');
+      if (chemRes && chemRes.success && Array.isArray(chemRes.data)) {
+        chemRes.data.forEach((c: any) => {
+          if (c.name) {
+            list.push({
+              id: `CHM-${c.id}`,
+              code: c.chemistCode || `CHM-${String(c.id).padStart(3, '0')}`,
+              name: c.name,
+              type: 'Chemist',
+              state: c.state || (c.address && c.address.toLowerCase().includes('delhi') ? 'Delhi' : 'Telangana'),
+              creditDays: 30,
+              mobile: c.mobile || '',
+              gstin: c.gstNumber || c.drugLicenseNumber || '',
+              address: c.address || ''
+            });
+          }
+        });
+      }
+    } catch (e) {
+      console.warn("Could not load chemists from API:", e);
+    }
 
-    // Fallback to DEFAULT_CUSTOMERS if list is empty or only B2C
-    if (list.length <= 1) {
-      DEFAULT_CUSTOMERS.forEach(dc => {
-        if (!list.some(c => c.name.toLowerCase() === dc.name.toLowerCase())) {
-          list.unshift(dc);
+    // 5. Merge customers from existing billing invoices (e.g. Yashoda Hospital, gggg, etc.)
+    try {
+      const savedInvoices = billingService.getInvoices();
+      savedInvoices.forEach((inv, idx) => {
+        if (inv.customerName && !list.some(c => c.name.toLowerCase() === inv.customerName.toLowerCase())) {
+          list.push({
+            id: inv.customerId && inv.customerId !== '1' ? String(inv.customerId) : `INV-CUST-${idx}`,
+            code: `CUST-${inv.customerId || idx}`,
+            name: inv.customerName,
+            type: 'Customer',
+            state: 'Telangana',
+            creditDays: 30
+          });
         }
       });
+    } catch (e) {
+      console.warn("Could not load customers from invoices:", e);
     }
+
+    // 6. Merge custom customers added by user in this session / browser
+    try {
+      const customCusts = JSON.parse(localStorage.getItem('pharma_custom_customers') || '[]');
+      customCusts.forEach((c: any) => {
+        if (c.name && !list.some(item => item.name.toLowerCase() === c.name.toLowerCase())) {
+          list.push(c);
+        }
+      });
+    } catch (e) {
+      console.warn("Could not load custom customers:", e);
+    }
+
+    // 7. Fallback / merge local distributor master if any
+    try {
+      const localDist = JSON.parse(localStorage.getItem('pharma_erp_distributor_master') || '[]');
+      localDist.forEach((d: any) => {
+        if (d.name && !list.some(c => c.name.toLowerCase() === d.name.toLowerCase())) {
+          list.push({
+            id: String(d.id || `DIST-${Date.now()}`),
+            code: d.code || `DIST-${d.id}`,
+            name: d.name,
+            type: 'Distributor',
+            state: d.state || 'Telangana',
+            creditDays: d.creditDays || 30,
+            mobile: d.mobileNumber || '',
+            gstin: d.companyPan || ''
+          });
+        }
+      });
+    } catch (e) {
+      console.warn("Could not load local distributor master:", e);
+    }
+
+    // 8. Always ensure Walk-in / Cash Customer (B2C) exists
+    list.push(DEFAULT_COUNTER_CUSTOMER);
 
     // Deduplicate by name
     const uniqueMap = new Map<string, CustomerOption>();
     list.forEach(item => {
-      if (!uniqueMap.has(item.name.toLowerCase())) {
-        uniqueMap.set(item.name.toLowerCase(), item);
+      const key = item.name.trim().toLowerCase();
+      if (!uniqueMap.has(key)) {
+        uniqueMap.set(key, item);
       }
     });
 
@@ -365,6 +436,15 @@ export default function GSTBilling() {
         address: newCustomerForm.address
       };
 
+      // Persist to local custom customers
+      try {
+        const stored = JSON.parse(localStorage.getItem('pharma_custom_customers') || '[]');
+        stored.unshift(newCust);
+        localStorage.setItem('pharma_custom_customers', JSON.stringify(stored));
+      } catch (e) {
+        console.warn("Could not save to pharma_custom_customers:", e);
+      }
+
       setCustomers(prev => [newCust, ...prev]);
       setCustomerId(newCust.id);
       setBuyerState(newCust.state);
@@ -407,6 +487,13 @@ export default function GSTBilling() {
         gstin: newCustomerForm.gstNumber,
         address: newCustomerForm.address
       };
+      try {
+        const stored = JSON.parse(localStorage.getItem('pharma_custom_customers') || '[]');
+        stored.unshift(fallbackCust);
+        localStorage.setItem('pharma_custom_customers', JSON.stringify(stored));
+      } catch (e) {
+        console.warn("Could not save to pharma_custom_customers:", e);
+      }
       setCustomers(prev => [fallbackCust, ...prev]);
       setCustomerId(fallbackCust.id);
       setBuyerState(fallbackCust.state);
@@ -813,7 +900,30 @@ export default function GSTBilling() {
 
   const handleEditInvoice = (inv: GSTInvoice) => {
     setEditingInvoiceId(inv.id);
-    setCustomerId(inv.customerId);
+    
+    // Look up customer by ID or name
+    let matchedCustomer = customers.find((c) => 
+      c.id === inv.customerId || 
+      (c.name && inv.customerName && c.name.toLowerCase() === inv.customerName.toLowerCase())
+    );
+
+    if (!matchedCustomer && inv.customerName) {
+      matchedCustomer = {
+        id: inv.customerId || `CUST-${inv.id}`,
+        code: `CUST-${inv.customerId || inv.id}`,
+        name: inv.customerName,
+        type: 'Customer',
+        state: 'Telangana',
+        creditDays: 30
+      };
+      setCustomers(prev => [matchedCustomer!, ...prev]);
+    }
+
+    setCustomerId(matchedCustomer?.id || inv.customerId);
+    if (matchedCustomer?.state) {
+      setBuyerState(matchedCustomer.state);
+    }
+
     setCustomerSearchQuery('');
     setIsCustomerDropdownOpen(false);
     setInvoiceDate(inv.date || new Date().toISOString().split('T')[0]);
@@ -823,10 +933,6 @@ export default function GSTBilling() {
       ...item,
       extraMargin: item.extraMargin !== undefined ? item.extraMargin : 0
     })));
-    const customer = customers.find((c) => c.id === inv.customerId);
-    if (customer && customer.state) {
-      setBuyerState(customer.state);
-    }
     setIsDrawerOpen(true);
   };
 
@@ -1003,7 +1109,10 @@ export default function GSTBilling() {
     return matchSearch && matchStatus;
   });
 
-  const selectedCustomer = customers.find((c) => c.id === customerId);
+  const selectedCustomer = customers.find((c) => 
+    c.id === customerId || 
+    (editingInvoiceId && c.name && invoices.find(i => i.id === editingInvoiceId)?.customerName.toLowerCase() === c.name.toLowerCase())
+  );
 
   if (!canView) {
     return (
@@ -1053,376 +1162,474 @@ export default function GSTBilling() {
         <DataTable columns={columns} data={filteredData} emptyMessage="No invoices found." />
       </TableCard>
 
-      <Drawer 
-        open={isDrawerOpen} 
-        onClose={() => {
-          setIsDrawerOpen(false);
-          setEditingInvoiceId(null);
-          setCustomerSearchQuery('');
-          setIsCustomerDropdownOpen(false);
-        }} 
-        title={editingInvoiceId ? "Edit GST Invoice" : "Generate GST Invoice"}
-      >
-        <form onSubmit={handleSubmit} className="space-y-6">
-          
-          <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
-            <div className="col-span-2 sm:col-span-1 relative">
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
-                  Customer Selection *
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsAddCustomerModalOpen(true)}
-                  className="text-[11px] font-semibold text-[#163c78] hover:text-[#0c1f3d] flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-750 px-2 py-0.5 rounded border border-indigo-200 transition-colors"
-                  title="Add New Customer"
-                >
-                  <UserPlus className="w-3.5 h-3.5" /> + New Customer
-                </button>
-              </div>
-
-              {selectedCustomer ? (
-                <div className="flex items-center justify-between p-2 bg-white border border-indigo-300 rounded-lg shadow-sm">
-                  <div className="flex flex-col min-w-0 pr-2">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="text-xs font-bold text-slate-900 truncate">{selectedCustomer.name}</span>
-                      <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-800 px-1.5 py-0.2 rounded">
-                        {selectedCustomer.type}
-                      </span>
-                    </div>
-                    <span className="text-[10px] text-slate-500">
-                      {selectedCustomer.state} {selectedCustomer.mobile && selectedCustomer.mobile !== '-' ? `| Ph: ${selectedCustomer.mobile}` : ''}
-                    </span>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCustomerId('');
-                      setCustomerSearchQuery('');
-                      setIsCustomerDropdownOpen(true);
-                    }}
-                    className="text-slate-400 hover:text-rose-600 p-1 rounded-full hover:bg-slate-100 transition-colors shrink-0"
-                    title="Change Customer"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
+      {/* Centered Modal: Generate / Edit GST Invoice */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-slate-950/65 backdrop-blur-sm overflow-y-auto animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-4xl max-h-[92vh] flex flex-col overflow-hidden animate-in zoom-in-95 duration-200 my-auto">
+            {/* Modal Header */}
+            <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white flex-shrink-0 border-b border-slate-800">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-[#163c78] flex items-center justify-center border border-indigo-400/30">
+                  <ReceiptText className="w-5 h-5 text-indigo-300" />
                 </div>
-              ) : (
-                <div className="relative">
-                  <div className="relative">
-                    <input
-                      type="text"
-                      className="w-full pl-8 pr-8 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900 placeholder:text-slate-400"
-                      placeholder="Search customer by name, code, phone..."
-                      value={customerSearchQuery}
-                      onChange={(e) => {
-                        setCustomerSearchQuery(e.target.value);
-                        setIsCustomerDropdownOpen(true);
-                      }}
-                      onFocus={() => setIsCustomerDropdownOpen(true)}
-                    />
-                    <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" />
-                    {customerSearchQuery && (
+                <div>
+                  <h2 className="text-lg font-bold text-white tracking-tight">
+                    {editingInvoiceId ? "Edit GST Invoice" : "Generate GST Invoice"}
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    Create GST-compliant sales invoice with automatic batch stock allocation & tax calculation
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDrawerOpen(false);
+                  setEditingInvoiceId(null);
+                  setCustomerSearchQuery('');
+                  setIsCustomerDropdownOpen(false);
+                }}
+                className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                title="Close"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Modal Content */}
+            <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-6">
+              
+              {/* Customer & Invoice Top Card */}
+              <div className="bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-sm space-y-4">
+                <div className="grid grid-cols-12 gap-4">
+                  {/* Customer Selection */}
+                  <div className="col-span-12 md:col-span-6 relative">
+                    <div className="flex justify-between items-center mb-1.5">
+                      <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                        Customer Selection *
+                      </label>
                       <button
                         type="button"
-                        onClick={() => setCustomerSearchQuery('')}
-                        className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-600"
+                        onClick={() => setIsAddCustomerModalOpen(true)}
+                        className="text-xs font-semibold text-[#163c78] hover:text-[#0c1f3d] flex items-center gap-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-750 px-2.5 py-1 rounded-lg border border-indigo-200 transition-colors"
+                        title="Add New Customer"
                       >
-                        <X className="w-3.5 h-3.5" />
+                        <UserPlus className="w-3.5 h-3.5" /> + New Customer
                       </button>
+                    </div>
+
+                    {selectedCustomer ? (
+                      <div className="flex items-center justify-between p-3 bg-white border border-indigo-300 rounded-xl shadow-sm">
+                        <div className="flex flex-col min-w-0 pr-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-bold text-slate-900 truncate">{selectedCustomer.name}</span>
+                            <span className="text-[10px] font-semibold bg-indigo-100 text-indigo-800 px-2 py-0.5 rounded-full border border-indigo-200">
+                              {selectedCustomer.type}
+                            </span>
+                          </div>
+                          <span className="text-xs text-slate-500 mt-0.5">
+                            {selectedCustomer.state} {selectedCustomer.mobile && selectedCustomer.mobile !== '-' ? `• Ph: ${selectedCustomer.mobile}` : ''} • Credit Terms: 15 to 30 Days
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCustomerId('');
+                            setCustomerSearchQuery('');
+                            setIsCustomerDropdownOpen(true);
+                          }}
+                          className="text-slate-400 hover:text-rose-600 p-1.5 rounded-lg hover:bg-slate-100 transition-colors shrink-0"
+                          title="Change Customer"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="relative">
+                        <div className="relative">
+                          <input
+                            type="text"
+                            className="w-full pl-9 pr-9 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 text-xs sm:text-sm bg-white text-slate-900 placeholder:text-slate-400 shadow-sm"
+                            placeholder="Search customer by name, hospital, distributor, phone..."
+                            value={customerSearchQuery}
+                            onChange={(e) => {
+                              setCustomerSearchQuery(e.target.value);
+                              setIsCustomerDropdownOpen(true);
+                            }}
+                            onFocus={() => setIsCustomerDropdownOpen(true)}
+                          />
+                          <Search className="w-4 h-4 text-slate-400 absolute left-3 top-3" />
+                          {customerSearchQuery && (
+                            <button
+                              type="button"
+                              onClick={() => setCustomerSearchQuery('')}
+                              className="absolute right-3 top-3 text-slate-400 hover:text-slate-600"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+
+                        {isCustomerDropdownOpen && (
+                          <>
+                            <div className="fixed inset-0 z-40" onClick={() => setIsCustomerDropdownOpen(false)} />
+                            <div className="absolute z-50 left-0 right-0 mt-1 max-h-60 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-2xl divide-y divide-slate-100">
+                              {filteredCustomers.length > 0 ? (
+                                filteredCustomers.map((c) => (
+                                  <div
+                                    key={c.id}
+                                    onClick={() => handleSelectCustomer(c)}
+                                    className="p-3 hover:bg-indigo-50/70 cursor-pointer flex justify-between items-center transition-colors group"
+                                  >
+                                    <div className="min-w-0 pr-2">
+                                      <div className="flex items-center gap-2">
+                                        <span className="text-xs sm:text-sm font-bold text-slate-800 group-hover:text-indigo-900 truncate">{c.name}</span>
+                                        <span className="text-[10px] font-semibold bg-slate-100 text-slate-700 px-2 py-0.5 rounded border border-slate-200 shrink-0">
+                                          {c.type}
+                                        </span>
+                                      </div>
+                                      <div className="text-xs text-slate-500 flex items-center gap-2 mt-1 truncate">
+                                        <span>{c.state}</span>
+                                        {c.mobile && c.mobile !== '-' && <span>• Ph: {c.mobile}</span>}
+                                        {c.address && <span>• {c.address}</span>}
+                                      </div>
+                                    </div>
+                                    <ChevronRight className="w-4 h-4 text-slate-300 group-hover:text-indigo-600 shrink-0 transition-colors" />
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-4 text-center text-xs text-slate-500">
+                                  No customers found matching "{customerSearchQuery}".
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setNewCustomerForm(prev => ({ ...prev, name: customerSearchQuery }));
+                                      setIsCustomerDropdownOpen(false);
+                                      setIsAddCustomerModalOpen(true);
+                                    }}
+                                    className="block mx-auto mt-2 text-indigo-600 font-bold hover:underline"
+                                  >
+                                    + Add "{customerSearchQuery}" as New Customer
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     )}
                   </div>
 
-                  {isCustomerDropdownOpen && (
-                    <>
-                      <div className="fixed inset-0 z-40" onClick={() => setIsCustomerDropdownOpen(false)} />
-                      <div className="absolute z-50 left-0 right-0 mt-1 max-h-56 overflow-y-auto bg-white border border-slate-200 rounded-xl shadow-xl divide-y divide-slate-100">
-                        {filteredCustomers.length > 0 ? (
-                          filteredCustomers.map((c) => (
-                            <div
-                              key={c.id}
-                              onClick={() => handleSelectCustomer(c)}
-                              className="p-2 hover:bg-indigo-50 cursor-pointer flex justify-between items-center transition-colors"
-                            >
-                              <div className="min-w-0 pr-2">
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-xs font-bold text-slate-800 truncate">{c.name}</span>
-                                  <span className="text-[9px] font-medium bg-slate-100 text-slate-600 px-1 py-0.2 rounded border border-slate-200 shrink-0">
-                                    {c.type}
-                                  </span>
-                                </div>
-                                <div className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-0.5 truncate">
-                                  <span>{c.state}</span>
-                                  {c.mobile && c.mobile !== '-' && <span>• Ph: {c.mobile}</span>}
-                                  <span>• Terms: {c.creditDays}d</span>
-                                </div>
-                              </div>
-                              <ChevronRight className="w-3.5 h-3.5 text-slate-300 shrink-0" />
-                            </div>
-                          ))
-                        ) : (
-                          <div className="p-3 text-center text-xs text-slate-500">
-                            No customers found matching "{customerSearchQuery}".
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setNewCustomerForm(prev => ({ ...prev, name: customerSearchQuery }));
-                                setIsCustomerDropdownOpen(false);
-                                setIsAddCustomerModalOpen(true);
-                              }}
-                              className="block mx-auto mt-2 text-indigo-600 font-bold hover:underline"
-                            >
-                              + Add "{customerSearchQuery}" as New Customer
-                            </button>
+                  {/* Invoice Date */}
+                  <div className="col-span-12 sm:col-span-4 md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Invoice Date *</label>
+                    <input 
+                      type="date" 
+                      required 
+                      className="w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 text-xs sm:text-sm bg-white text-slate-900 shadow-sm" 
+                      value={invoiceDate} 
+                      onChange={(e) => setInvoiceDate(e.target.value)} 
+                      max={new Date().toISOString().split("T")[0]}
+                    />
+                  </div>
+
+                  {/* Seller State */}
+                  <div className="col-span-6 sm:col-span-4 md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Seller State *</label>
+                    <input type="text" readOnly className="w-full px-3 py-2.5 border border-slate-300 rounded-xl bg-slate-100 text-slate-500 text-xs sm:text-sm cursor-not-allowed shadow-sm font-medium" value={sellerState} />
+                  </div>
+
+                  {/* Buyer State */}
+                  <div className="col-span-6 sm:col-span-4 md:col-span-2">
+                    <label className="block text-xs font-bold text-slate-700 mb-1.5 uppercase tracking-wider">Buyer State *</label>
+                    <select 
+                      disabled={!(activeRole === 'Super Admin' || activeRole === 'Admin')}
+                      className={`w-full px-3 py-2.5 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 text-xs sm:text-sm text-slate-900 shadow-sm ${
+                        !(activeRole === 'Super Admin' || activeRole === 'Admin') ? 'bg-slate-100 text-slate-500 cursor-not-allowed font-medium' : 'bg-white'
+                      }`}
+                      value={buyerState} 
+                      onChange={(e) => setBuyerState(e.target.value)}
+                    >
+                      <option value="Telangana">Telangana</option>
+                      <option value="Andhra Pradesh">Andhra Pradesh</option>
+                      <option value="Karnataka">Karnataka</option>
+                      <option value="Maharashtra">Maharashtra</option>
+                      <option value="Tamil Nadu">Tamil Nadu</option>
+                      <option value="Delhi">Delhi</option>
+                    </select>
+                  </div>
+
+                  {/* Selected Customer Terms Strip */}
+                  {selectedCustomer && (
+                    <div className="col-span-12 text-xs font-medium text-indigo-700 bg-indigo-50/80 border border-indigo-100 p-2.5 rounded-xl flex justify-between items-center flex-wrap gap-2">
+                      <span>Customer Location: <strong>{selectedCustomer.state}</strong> | Credit Terms: <strong>15 to 30 Days</strong></span>
+                      <span className="text-[11px] text-slate-500 font-semibold">{selectedCustomer.type} {selectedCustomer.code ? `(${selectedCustomer.code})` : ''}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Product Details Section */}
+              <div className="space-y-3">
+                <div className="flex justify-between items-center">
+                  <label className="block text-sm font-bold text-slate-800 uppercase tracking-wide">
+                    Product Details ({items.length} {items.length === 1 ? 'item' : 'items'})
+                  </label>
+                  <button type="button" onClick={addLineItem} className="text-xs font-bold text-[#163c78] hover:text-[#0c1f3d] flex items-center gap-1.5 bg-indigo-50 hover:bg-indigo-100 px-3 py-1.5 rounded-lg border border-indigo-200 transition-colors">
+                    <Plus className="w-3.5 h-3.5" /> Add Product
+                  </button>
+                </div>
+                
+                <div className="space-y-4">
+                  {items.map((item, index) => (
+                    <div key={item.id} className="p-4 border border-slate-200 rounded-2xl bg-white shadow-sm flex flex-col gap-3 transition-all hover:border-slate-300">
+                      <div className="flex justify-between items-center pb-2 border-b border-slate-100">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                            Item #{index + 1}
+                          </span>
+                          {item.productName && (
+                            <span className="text-xs font-semibold text-indigo-950 truncate max-w-sm">
+                              {item.productName}
+                            </span>
+                          )}
+                        </div>
+                        <button 
+                          type="button" 
+                          onClick={() => removeLineItem(item.id)} 
+                          className="text-rose-500 hover:text-rose-700 p-1 rounded-lg hover:bg-rose-50 transition-colors"
+                          title="Remove Item"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+
+                      <div className="grid grid-cols-12 gap-3">
+                        <div className="col-span-12 md:col-span-5">
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                            Medicine / Product *
+                          </label>
+                          <select required className="w-full px-3 py-2 border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-600 text-xs sm:text-sm bg-white text-slate-900 shadow-sm" value={item.productId} onChange={(e) => updateLineItem(item.id, 'productId', e.target.value)}>
+                            <option value="">Select Medicine</option>
+                            {products.map(p => <option key={p.id} value={p.id}>{p.code} - {p.name}</option>)}
+                          </select>
+                        </div>
+
+                        <div className="col-span-12 md:col-span-4">
+                          <label className="block text-[11px] font-bold text-slate-700 uppercase mb-1">
+                            Batch No & Expiry *
+                          </label>
+                          <select required className="w-full px-3 py-2 border border-slate-300 rounded-xl bg-white text-xs sm:text-sm text-slate-900 shadow-sm focus:ring-2 focus:ring-indigo-600" value={item.batchNo} onChange={(e) => updateLineItem(item.id, 'batchNo', e.target.value)}>
+                            <option value="">Select Batch</option>
+                            {item.productId && (inventory[item.productId] || []).filter(b => b.stock > 0 && !isBatchExpired(b.expiry) && (b.status === 'Active' || b.status === 'Healthy' || !b.status)).map(b => (
+                              <option key={b.batchNo} value={b.batchNo}>
+                                {b.batchNo} (Exp: {b.expiry} | Stock: {b.stock} | PTR: {formatCurrency(b.ptr)})
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="col-span-12 md:col-span-3">
+                          <div className="flex justify-between items-center mb-1">
+                            <label className="text-[11px] font-bold text-slate-700 uppercase">Qty *</label>
+                            {item.productId && (
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded border ${
+                                item.stock > 10 
+                                  ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
+                                  : item.stock > 0 
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200' 
+                                    : 'bg-rose-50 text-rose-700 border-rose-200'
+                              }`}>
+                                {item.stock > 0 ? `Stock: ${item.stock}` : 'Out of Stock'}
+                              </span>
+                            )}
                           </div>
-                        )}
+                          <input 
+                            type="number" 
+                            required 
+                            min="1" 
+                            max={item.stock || 1000} 
+                            className={`w-full px-3 py-2 border rounded-xl focus:ring-2 focus:ring-indigo-600 text-xs sm:text-sm bg-white text-slate-900 font-mono shadow-sm ${
+                              item.qty > item.stock && item.stock > 0 ? 'border-rose-400 bg-rose-50' : 'border-slate-300'
+                            }`} 
+                            value={item.qty || ''} 
+                            onChange={(e) => updateLineItem(item.id, 'qty', parseInt(e.target.value) || 0)} 
+                            placeholder="Qty" 
+                          />
+                          {item.qty > item.stock && item.stock > 0 && (
+                            <span className="text-[10px] text-rose-600 font-semibold block mt-0.5">
+                              Exceeds available stock ({item.stock})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      {item.productId && (
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50/70 p-3 rounded-xl border border-slate-100">
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Item Discount %</label>
+                            <input 
+                              type="number" 
+                              min="0"
+                              max="100"
+                              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-600 text-xs text-slate-900 font-mono bg-white shadow-sm" 
+                              value={item.discountPercent} 
+                              onChange={(e) => updateLineItem(item.id, 'discountPercent', parseFloat(e.target.value) || 0)} 
+                              placeholder="0%" 
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">GST Rate %</label>
+                            <input 
+                              type="number" 
+                              min="0"
+                              max="100"
+                              disabled={!canOverrideGst}
+                              className={`w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-600 text-xs text-slate-900 font-mono shadow-sm ${
+                                !canOverrideGst ? 'bg-slate-100 opacity-70 cursor-not-allowed' : 'bg-white'
+                              }`}
+                              value={item.gstPercent} 
+                              onChange={(e) => updateLineItem(item.id, 'gstPercent', parseFloat(e.target.value) || 0)} 
+                              placeholder="GST %" 
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Extra Margin (₹)</label>
+                            <input 
+                              type="number" 
+                              min="0"
+                              step="0.01"
+                              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-indigo-600 text-xs bg-white text-slate-900 font-mono shadow-sm" 
+                              value={item.extraMargin !== undefined && item.extraMargin !== null ? item.extraMargin : ''} 
+                              onChange={(e) => updateLineItem(item.id, 'extraMargin', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)} 
+                              placeholder="0.00" 
+                            />
+                          </div>
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">Free Qty (Auto)</label>
+                            <input 
+                              type="text"
+                              readOnly
+                              className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg bg-slate-100 text-slate-500 text-xs cursor-not-allowed font-mono shadow-sm" 
+                              value={item.freeQty ? `+${item.freeQty}` : "0"} 
+                            />
+                          </div>
+                        </div>
+                      )}
+
+                      {item.productId && (
+                        <div className="flex flex-wrap justify-between items-center text-xs text-slate-600 bg-indigo-50/70 px-3.5 py-2.5 rounded-xl border border-indigo-100 font-medium gap-2">
+                          <span>Rate (PTR): <strong>{formatCurrency(item.ptr)}</strong></span>
+                          <span>Available: <strong className={item.stock > 10 ? 'text-emerald-700' : item.stock > 0 ? 'text-amber-700' : 'text-rose-700'}>{item.stock} Units</strong></span>
+                          {Number(item.extraMargin) > 0 && (
+                            <span className="text-emerald-700 font-semibold">Margin: +{formatCurrency(Number(item.extraMargin))}</span>
+                          )}
+                          <span>GST: {item.gstPercent}%</span>
+                          <span className="font-bold text-indigo-900 text-sm">Line Total: {formatCurrency(item.total)}</span>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                  {items.length === 0 && (
+                    <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-2xl text-slate-500 text-sm bg-slate-50/50">
+                      No products added. Click "Add Product" to begin building the invoice.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Tax & Payment Summary Box */}
+              <div className="bg-slate-900 rounded-2xl p-5 text-white space-y-4 shadow-xl border border-slate-800">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 pb-4 border-b border-slate-800">
+                  <div>
+                    <span className="text-xs font-semibold text-slate-400 block uppercase tracking-wider mb-1">Taxable Value</span>
+                    <span className="text-base font-bold text-white">{formatCurrency(subTotal)}</span>
+                  </div>
+                  {isSameState ? (
+                    <>
+                      <div>
+                        <span className="text-xs font-semibold text-slate-400 block uppercase tracking-wider mb-1">CGST</span>
+                        <span className="text-base font-semibold text-slate-300">{formatCurrency(cgstTotal)}</span>
+                      </div>
+                      <div>
+                        <span className="text-xs font-semibold text-slate-400 block uppercase tracking-wider mb-1">SGST</span>
+                        <span className="text-base font-semibold text-slate-300">{formatCurrency(sgstTotal)}</span>
                       </div>
                     </>
+                  ) : (
+                    <div className="col-span-2">
+                      <span className="text-xs font-semibold text-slate-400 block uppercase tracking-wider mb-1">IGST</span>
+                      <span className="text-base font-semibold text-slate-300">{formatCurrency(igstTotal)}</span>
+                    </div>
                   )}
-                </div>
-              )}
-            </div>
-
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Invoice Date *</label>
-              <input 
-                type="date" 
-                required 
-                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-600 text-sm bg-white text-slate-900" 
-                value={invoiceDate} 
-                onChange={(e) => setInvoiceDate(e.target.value)} 
-                max={new Date().toISOString().split("T")[0]}
-              />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Seller State *</label>
-              <input type="text" readOnly className="w-full px-3 py-2 border border-slate-300 rounded-lg bg-slate-100 text-slate-500 text-sm cursor-not-allowed" value={sellerState} />
-            </div>
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1 uppercase tracking-wider">Buyer State *</label>
-              <select 
-                disabled={!(activeRole === 'Super Admin' || activeRole === 'Admin')}
-                className={`w-full px-3 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-violet-600 text-sm text-slate-900 ${
-                  !(activeRole === 'Super Admin' || activeRole === 'Admin') ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : 'bg-white'
-                }`}
-                value={buyerState} 
-                onChange={(e) => setBuyerState(e.target.value)}
-              >
-                <option value="Telangana">Telangana</option>
-                <option value="Andhra Pradesh">Andhra Pradesh</option>
-                <option value="Karnataka">Karnataka</option>
-                <option value="Maharashtra">Maharashtra</option>
-                <option value="Tamil Nadu">Tamil Nadu</option>
-                <option value="Delhi">Delhi</option>
-              </select>
-            </div>
-            {selectedCustomer && (
-              <div className="col-span-2 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 p-2 rounded-lg flex justify-between items-center flex-wrap gap-1">
-                <span>Customer Location: <strong>{selectedCustomer.state}</strong> | Credit Terms: <strong>15 to 30 Days</strong></span>
-                <span className="text-[11px] text-slate-500">{selectedCustomer.type} {selectedCustomer.code ? `(${selectedCustomer.code})` : ''}</span>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="flex justify-between items-center mb-2">
-              <label className="block text-sm font-bold text-slate-800">Product Details</label>
-              <button type="button" onClick={addLineItem} className="text-xs font-semibold text-[#163c78] hover:text-[#0c1f3d] flex items-center gap-1">
-                <Plus className="w-3 h-3" /> Add Product
-              </button>
-            </div>
-            
-            <div className="space-y-3">
-              {items.map((item, index) => (
-                <div key={item.id} className="p-3 border border-slate-200 rounded-lg bg-white shadow-sm flex flex-col gap-2">
-                  <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-slate-500 uppercase">Item #{index + 1}</span>
-                    <button type="button" onClick={() => removeLineItem(item.id)} className="text-rose-500 hover:text-rose-700"><Trash2 className="w-4 h-4" /></button>
+                  <div className="text-right sm:text-left">
+                    <span className="text-xs font-semibold text-emerald-400 block uppercase tracking-wider mb-1">Grand Total</span>
+                    <span className="text-xl font-extrabold text-emerald-400">{formatCurrency(grandTotal)}</span>
                   </div>
-                  <div className="grid grid-cols-12 gap-2">
-                    <div className="col-span-4">
-                      <select required className="w-full px-2 py-1.5 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900" value={item.productId} onChange={(e) => updateLineItem(item.id, 'productId', e.target.value)}>
-                        <option value="">Select Medicine</option>
-                        {products.map(p => <option key={p.id} value={p.id}>{p.code} - {p.name}</option>)}
-                      </select>
-                    </div>
-                    <div className="col-span-5">
-                      <select required className="w-full px-2 py-1.5 border border-slate-300 rounded bg-white text-xs text-slate-900" value={item.batchNo} onChange={(e) => updateLineItem(item.id, 'batchNo', e.target.value)}>
-                        <option value="">Select Batch</option>
-                        {item.productId && (inventory[item.productId] || []).filter(b => b.stock > 0 && !isBatchExpired(b.expiry) && (b.status === 'Active' || b.status === 'Healthy' || !b.status)).map(b => (
-                          <option key={b.batchNo} value={b.batchNo}>
-                            Batch: {b.batchNo} | Exp: {b.expiry} | Stock: {b.stock} | PTR: {formatCurrency(b.ptr)} | MRP: {formatCurrency(b.mrp || b.ptr * 1.2)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div className="col-span-3">
-                      <div className="flex justify-between items-center mb-0.5">
-                        <label className="text-[10px] font-bold text-slate-600 uppercase">Qty *</label>
-                        {item.productId && (
-                          <span className={`text-[10px] font-bold px-1.5 py-0.2 rounded border ${
-                            item.stock > 10 
-                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200' 
-                              : item.stock > 0 
-                                ? 'bg-amber-50 text-amber-700 border-amber-200' 
-                                : 'bg-rose-50 text-rose-700 border-rose-200'
-                          }`}>
-                            {item.stock > 0 ? `Stock: ${item.stock}` : 'Out of Stock'}
-                          </span>
-                        )}
-                      </div>
-                      <input 
-                        type="number" 
-                        required 
-                        min="1" 
-                        max={item.stock || 1000} 
-                        className={`w-full px-2 py-1.5 border rounded focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900 font-mono ${
-                          item.qty > item.stock && item.stock > 0 ? 'border-rose-400 bg-rose-50' : 'border-slate-300'
-                        }`} 
-                        value={item.qty || ''} 
-                        onChange={(e) => updateLineItem(item.id, 'qty', parseInt(e.target.value) || 0)} 
-                        placeholder="Qty" 
-                      />
-                      {item.qty > item.stock && item.stock > 0 && (
-                        <span className="text-[9px] text-rose-600 font-semibold block mt-0.5">
-                          Exceeds available stock ({item.stock})
-                        </span>
-                      )}
-                    </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-1">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
+                      Payment Mode
+                    </label>
+                    <select 
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
+                      value={paymentMode} 
+                      onChange={(e) => handlePaymentModeChange(e.target.value)}
+                    >
+                      <option value="Credit">Credit Billing</option>
+                      <option value="Cash">Cash</option>
+                      <option value="UPI">UPI</option>
+                      <option value="Bank">Bank Transfer</option>
+                    </select>
                   </div>
-
-                  {item.productId && (
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Item Discount %</label>
-                        <input 
-                          type="number" 
-                          min="0"
-                          max="100"
-                          className="w-full px-2 py-1 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900 font-mono" 
-                          value={item.discountPercent} 
-                          onChange={(e) => updateLineItem(item.id, 'discountPercent', parseFloat(e.target.value) || 0)} 
-                          placeholder="Disc %" 
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">GST Rate %</label>
-                        <input 
-                          type="number" 
-                          min="0"
-                          max="100"
-                          disabled={!canOverrideGst}
-                          className={`w-full px-2 py-1 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs text-slate-900 font-mono ${
-                            !canOverrideGst ? 'bg-slate-50 opacity-70 cursor-not-allowed' : 'bg-white'
-                          }`}
-                          value={item.gstPercent} 
-                          onChange={(e) => updateLineItem(item.id, 'gstPercent', parseFloat(e.target.value) || 0)} 
-                          placeholder="GST %" 
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Extra Margin (₹)</label>
-                        <input 
-                          type="number" 
-                          min="0"
-                          step="0.01"
-                          className="w-full px-2 py-1 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900 font-mono" 
-                          value={item.extraMargin !== undefined && item.extraMargin !== null ? item.extraMargin : ''} 
-                          onChange={(e) => updateLineItem(item.id, 'extraMargin', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)} 
-                          placeholder="0.00" 
-                        />
-                      </div>
-                      <div>
-                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Free Qty (Auto)</label>
-                        <input 
-                          type="text"
-                          readOnly
-                          className="w-full px-2 py-1 border border-slate-300 rounded bg-slate-50 text-slate-500 text-xs cursor-not-allowed font-mono" 
-                          value={item.freeQty ? `+${item.freeQty}` : "0"} 
-                        />
-                      </div>
-                    </div>
-                  )}
-
-                  {item.productId && (
-                    <div className="flex flex-wrap justify-between items-center text-xs text-slate-600 bg-slate-50 p-2 rounded mt-1 border border-slate-100 font-medium gap-1">
-                      <span>Rate: {formatCurrency(item.ptr)}</span>
-                      <span className="font-semibold text-slate-700">
-                        Available: <strong className={item.stock > 10 ? 'text-emerald-700' : item.stock > 0 ? 'text-amber-700' : 'text-rose-700'}>{item.stock} Units</strong>
-                      </span>
-                      {Number(item.extraMargin) > 0 && (
-                        <span className="text-emerald-700 font-semibold">Margin: +{formatCurrency(Number(item.extraMargin))}</span>
-                      )}
-                      <span>GST: {item.gstPercent}%</span>
-                      <span className="font-bold text-violet-700">Total: {formatCurrency(item.total)}</span>
-                    </div>
-                  )}
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-400 mb-1.5 uppercase tracking-wider">
+                      Payment Status
+                    </label>
+                    <select 
+                      className="w-full bg-slate-800 border border-slate-700 rounded-xl px-3 py-2.5 text-sm text-white focus:ring-2 focus:ring-indigo-500 focus:outline-none" 
+                      value={status} 
+                      onChange={(e) => setStatus(e.target.value as any)}
+                    >
+                      <option value="Unpaid">Unpaid</option>
+                      <option value="Paid">Paid</option>
+                      <option value="Draft">Save as Draft</option>
+                    </select>
+                  </div>
                 </div>
-              ))}
-              {items.length === 0 && (
-                <div className="text-center py-6 border-2 border-dashed border-slate-200 rounded-lg text-slate-500 text-sm">
-                  No products added. Click "Add Product" to begin.
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="bg-slate-900 rounded-xl p-4 text-white space-y-3 shadow-lg">
-            <div className="flex justify-between text-sm text-slate-300">
-              <span>Taxable Value:</span>
-              <span>{formatCurrency(subTotal)}</span>
-            </div>
-            {isSameState ? (
-              <>
-                <div className="flex justify-between text-sm text-slate-400">
-                  <span>CGST:</span>
-                  <span>{formatCurrency(cgstTotal)}</span>
-                </div>
-                <div className="flex justify-between text-sm text-slate-400 border-b border-slate-700 pb-3">
-                  <span>SGST:</span>
-                  <span>{formatCurrency(sgstTotal)}</span>
-                </div>
-              </>
-            ) : (
-              <div className="flex justify-between text-sm text-slate-400 border-b border-slate-700 pb-3">
-                <span>IGST:</span>
-                <span>{formatCurrency(igstTotal)}</span>
               </div>
-            )}
-            <div className="flex justify-between text-lg font-bold text-emerald-400">
-              <span>Grand Total:</span>
-              <span>{formatCurrency(grandTotal)}</span>
-            </div>
-            
-            <div className="grid grid-cols-2 gap-3 pt-3">
-              <select className="bg-slate-800 border-slate-700 rounded text-sm text-white focus:ring-violet-500" value={paymentMode} onChange={(e) => handlePaymentModeChange(e.target.value)}>
-                <option value="Credit">Credit Billing</option>
-                <option value="Cash">Cash</option>
-                <option value="UPI">UPI</option>
-                <option value="Bank">Bank Transfer</option>
-              </select>
-              <select className="bg-slate-800 border-slate-700 rounded text-sm text-white focus:ring-violet-500" value={status} onChange={(e) => setStatus(e.target.value as any)}>
-                <option value="Unpaid">Unpaid</option>
-                <option value="Paid">Paid</option>
-                <option value="Draft">Save as Draft</option>
-              </select>
-            </div>
-          </div>
 
-          <div className="pt-2 flex gap-3">
-            <button type="submit" className="flex-1 bg-[#163c78] text-white px-4 py-3 rounded-xl font-bold hover:bg-[#112d59] transition-colors shadow-sm">
-              {editingInvoiceId ? 'Update GST Invoice' : 'Generate GST Invoice'}
-            </button>
-            <button type="button" onClick={() => { setIsDrawerOpen(false); setEditingInvoiceId(null); }} className="flex-1 bg-white border border-slate-300 text-slate-700 px-4 py-3 rounded-xl font-bold hover:bg-slate-50 transition-colors">
-              Cancel
-            </button>
+              {/* Action Buttons */}
+              <div className="pt-2 flex flex-col sm:flex-row gap-3">
+                <button 
+                  type="submit" 
+                  className="flex-1 bg-[#163c78] text-white px-6 py-3.5 rounded-xl font-bold hover:bg-[#112d59] transition-all shadow-md hover:shadow-lg text-sm sm:text-base text-center"
+                >
+                  {editingInvoiceId ? 'Update GST Invoice' : 'Generate GST Invoice'}
+                </button>
+                <button 
+                  type="button" 
+                  onClick={() => { 
+                    setIsDrawerOpen(false); 
+                    setEditingInvoiceId(null); 
+                    setCustomerSearchQuery('');
+                    setIsCustomerDropdownOpen(false);
+                  }} 
+                  className="sm:w-36 bg-white border border-slate-300 text-slate-700 px-6 py-3.5 rounded-xl font-bold hover:bg-slate-50 transition-colors text-sm sm:text-base text-center"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
           </div>
-        </form>
-      </Drawer>
+        </div>
+      )}
 
       {/* Quick Add Customer Modal */}
       {isAddCustomerModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-60 flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
           <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 w-full max-w-md overflow-hidden animate-in fade-in zoom-in-95 duration-200">
             <div className="bg-slate-900 text-white px-5 py-4 flex justify-between items-center">
               <div className="flex items-center gap-2">
