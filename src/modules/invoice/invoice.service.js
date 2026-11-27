@@ -73,13 +73,26 @@ const getInvoiceByIdService =
 
 const updateInvoiceService =
   async (id, data) => {
+    const payload = {};
+    if (data.status) payload.status = data.status;
+    if (data.subTotal !== undefined) payload.subTotal = Number(data.subTotal);
+    if (data.gstAmount !== undefined) payload.gstAmount = Number(data.gstAmount);
+    if (data.totalAmount !== undefined) payload.totalAmount = Number(data.totalAmount);
+    if (data.retailerId) payload.retailerId = Number(data.retailerId);
+
+    if (data.items || data.customerName || data.paymentMode || data.jsonPayload) {
+      payload.jsonPayload = data.jsonPayload || {
+        items: data.items,
+        customerName: data.customerName,
+        paymentMode: data.paymentMode
+      };
+    }
 
     return repository
       .updateInvoiceRepo(
         id,
-        data
+        payload
       );
-
   };
 
 const deleteInvoiceService =
