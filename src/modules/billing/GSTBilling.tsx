@@ -929,10 +929,44 @@ export default function GSTBilling() {
     setInvoiceDate(inv.date || new Date().toISOString().split('T')[0]);
     setPaymentMode(inv.paymentMode || 'Credit');
     setStatus((inv.status as any) || 'Unpaid');
-    setItems((inv.items || []).map(item => ({
+
+    // Pre-populate items
+    let itemsToSet = (inv.items || []).map(item => ({
       ...item,
       extraMargin: item.extraMargin !== undefined ? item.extraMargin : 0
-    })));
+    }));
+
+    // If items are empty (e.g. legacy/backend invoice without line items), reconstruct from previous taxable & total
+    if (itemsToSet.length === 0 && (Number(inv.subTotal) > 0 || Number(inv.grandTotal) > 0)) {
+      const subTotalVal = Number(inv.subTotal) || (Number(inv.grandTotal) / 1.12);
+      const grandTotalVal = Number(inv.grandTotal) || (subTotalVal * 1.12);
+      const gstVal = Math.max(0, grandTotalVal - subTotalVal);
+      const calcGst = subTotalVal > 0 ? Math.round((gstVal / subTotalVal) * 100) : 12;
+
+      // Match an available product or first product in database
+      const firstProduct = products.length > 0 ? products[0] : null;
+      const productInventory = firstProduct ? (inventory[firstProduct.id] || []) : [];
+      const firstBatch = productInventory.find(b => b.stock > 0) || productInventory[0];
+
+      itemsToSet = [{
+        id: `EDIT-ITEM-${Date.now()}`,
+        productId: firstProduct ? firstProduct.id : '',
+        productCode: firstProduct ? firstProduct.code : 'PRD-MED',
+        productName: firstProduct ? firstProduct.name : 'Pharmaceutical Supplies (Preserved Order)',
+        batchNo: firstBatch ? firstBatch.batchNo : 'BAT-000001',
+        qty: 1,
+        freeQty: 0,
+        ptr: Number(subTotalVal.toFixed(2)),
+        mrp: firstBatch ? firstBatch.mrp : Number((subTotalVal * 1.2).toFixed(2)),
+        discountPercent: 0,
+        gstPercent: calcGst || 12,
+        extraMargin: 0,
+        total: Number(grandTotalVal.toFixed(2)),
+        stock: firstBatch ? firstBatch.stock : 100
+      }];
+    }
+
+    setItems(itemsToSet);
     setIsDrawerOpen(true);
   };
 
@@ -1103,7 +1137,20 @@ export default function GSTBilling() {
     }
   ];
 
-  const filteredData = invoices.filter((item) => {
+  // Sort invoices so newest invoices appear at the very top
+  const sortedInvoices = [...invoices].sort((a, b) => {
+    const timeA = new Date(a.date).getTime() || 0;
+    const timeB = new Date(b.date).getTime() || 0;
+    if (timeB !== timeA) return timeB - timeA;
+
+    const numA = parseInt(a.id, 10);
+    const numB = parseInt(b.id, 10);
+    if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
+
+    return (b.invoiceNo || b.id).localeCompare(a.invoiceNo || a.id);
+  });
+
+  const filteredData = sortedInvoices.filter((item) => {
     const matchSearch = item.invoiceNo.toLowerCase().includes(search.toLowerCase()) || item.customerName.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter ? item.status === statusFilter : true;
     return matchSearch && matchStatus;

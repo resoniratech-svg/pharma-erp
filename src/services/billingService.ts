@@ -56,25 +56,113 @@ export const billingService = {
   },
 
   async loadInvoices(): Promise<GSTInvoice[]> {
+    const localInvoices = this.getInvoices();
+    const localMap = new Map<string, GSTInvoice>();
+    localInvoices.forEach(inv => {
+      if (inv.invoiceNo) localMap.set(inv.invoiceNo, inv);
+      if (inv.id) localMap.set(inv.id, inv);
+    });
+
     try {
       const response = await apiRequest<{ success: boolean; data: any[] }>('/invoices');
       if (response && response.success && Array.isArray(response.data)) {
-        const mappedInvoices: GSTInvoice[] = response.data.map((inv: any) => ({
-          id: String(inv.id),
-          invoiceNo: inv.invoiceNumber || inv.invoiceNo || `GST-${inv.id}`,
-          customerId: String(inv.retailerId || inv.customerId || '1'),
-          customerName: inv.retailer ? inv.retailer.name : (inv.customerName || 'Walk-in Customer'),
-          date: inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
-          dueDate: inv.dueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]),
-          items: inv.items || [],
-          subTotal: Number(inv.subTotal || 0),
-          cgstTotal: Number(inv.cgstTotal || (inv.gstAmount ? inv.gstAmount / 2 : 0)),
-          sgstTotal: Number(inv.sgstTotal || (inv.gstAmount ? inv.gstAmount / 2 : 0)),
-          igstTotal: Number(inv.igstTotal || 0),
-          grandTotal: Number(inv.totalAmount || inv.grandTotal || 0),
-          paymentMode: inv.paymentMode || 'Cash',
-          status: inv.status || 'PAID'
-        }));
+        const mappedInvoices: GSTInvoice[] = response.data.map((inv: any) => {
+          const invKey = inv.invoiceNumber || inv.invoiceNo || `GST-${inv.id}`;
+          const localMatch = localMap.get(invKey) || localMap.get(String(inv.id));
+
+          // 1. Resolve items: priority to localMatch.items if they exist and are non-empty
+          let resolvedItems: InvoiceItem[] = [];
+          if (localMatch && Array.isArray(localMatch.items) && localMatch.items.length > 0) {
+            resolvedItems = localMatch.items;
+          } else if (inv.jsonPayload && Array.isArray(inv.jsonPayload.items) && inv.jsonPayload.items.length > 0) {
+            resolvedItems = inv.jsonPayload.items;
+          } else if (Array.isArray(inv.invoiceItems) && inv.invoiceItems.length > 0) {
+            resolvedItems = inv.invoiceItems.map((it: any, idx: number) => {
+              const prod = it.product || {};
+              return {
+                id: String(it.id || idx + 1),
+                productId: String(it.productId || prod.id || ''),
+                productCode: it.productCode || prod.code || `PRD-${it.productId || idx}`,
+                productName: it.productName || prod.name || 'Medicine Product',
+                batchNo: it.batchNo || it.batchNumber || 'BAT-000001',
+                qty: Number(it.quantity !== undefined ? it.quantity : (it.qty !== undefined ? it.qty : 1)),
+                freeQty: Number(it.freeQty || 0),
+                ptr: Number(it.rate !== undefined ? it.rate : (it.ptr !== undefined ? it.ptr : 0)),
+                mrp: Number(it.mrp || prod.mrp || 0),
+                discountPercent: Number(it.discountPercent || it.discount || 0),
+                gstPercent: Number(it.gst !== undefined ? it.gst : (it.gstPercent !== undefined ? it.gstPercent : 12)),
+                extraMargin: Number(it.extraMargin || 0),
+                total: Number(it.amount !== undefined ? it.amount : (it.total !== undefined ? it.total : 0)),
+                stock: Number(it.stock || 100),
+                barcode: it.barcode || prod.barcode || '',
+                hsnCode: it.hsnCode || prod.hsnCode || ''
+              };
+            });
+          } else if (Array.isArray(inv.items) && inv.items.length > 0) {
+            resolvedItems = inv.items;
+          }
+
+          // If still no items, but invoice has taxable/subTotal > 0, reconstruct line item so edit is never empty!
+          const subTotalVal = Number(inv.subTotal || (localMatch ? localMatch.subTotal : 0));
+          const totalVal = Number(inv.totalAmount || inv.grandTotal || (localMatch ? localMatch.grandTotal : 0));
+          if (resolvedItems.length === 0 && (subTotalVal > 0 || totalVal > 0)) {
+            const effectiveSub = subTotalVal > 0 ? subTotalVal : (totalVal / 1.12);
+            const effectiveGstAmt = Math.max(0, totalVal - effectiveSub);
+            const calcGst = effectiveSub > 0 ? Math.round((effectiveGstAmt / effectiveSub) * 100) : 12;
+
+            resolvedItems = [{
+              id: `ITEM-${inv.id || Date.now()}-1`,
+              productId: '',
+              productCode: 'PRD-MED',
+              productName: 'Pharmaceutical Supplies (Preserved Order)',
+              batchNo: 'BAT-000001',
+              qty: 1,
+              freeQty: 0,
+              ptr: Number(effectiveSub.toFixed(2)),
+              mrp: Number((effectiveSub * 1.2).toFixed(2)),
+              discountPercent: 0,
+              gstPercent: calcGst || 12,
+              extraMargin: 0,
+              total: Number(totalVal.toFixed(2)),
+              stock: 100
+            }];
+          }
+
+          return {
+            id: String(inv.id),
+            invoiceNo: invKey,
+            customerId: String(inv.retailerId || (localMatch ? localMatch.customerId : '1')),
+            customerName: inv.retailer ? inv.retailer.name : (localMatch ? localMatch.customerName : (inv.customerName || 'Walk-in Customer')),
+            date: inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : (localMatch?.date || new Date().toISOString().split('T')[0]),
+            dueDate: inv.dueDate || (localMatch?.dueDate || (inv.createdAt ? new Date(inv.createdAt).toISOString().split('T')[0] : new Date().toISOString().split('T')[0])),
+            items: resolvedItems,
+            subTotal: subTotalVal,
+            cgstTotal: Number(inv.cgstTotal || (inv.gstAmount ? inv.gstAmount / 2 : (localMatch ? localMatch.cgstTotal : 0))),
+            sgstTotal: Number(inv.sgstTotal || (inv.gstAmount ? inv.gstAmount / 2 : (localMatch ? localMatch.sgstTotal : 0))),
+            igstTotal: Number(inv.igstTotal || (localMatch ? localMatch.igstTotal : 0)),
+            grandTotal: totalVal,
+            paymentMode: inv.paymentMode || (localMatch ? localMatch.paymentMode : 'Credit'),
+            status: inv.status || (localMatch ? localMatch.status : 'PAID')
+          };
+        });
+
+        // Retain any local invoices not yet on the server
+        localInvoices.forEach(loc => {
+          if (!mappedInvoices.some(m => m.invoiceNo === loc.invoiceNo || m.id === loc.id)) {
+            mappedInvoices.push(loc);
+          }
+        });
+
+        // Sort descending: newest invoices ALWAYS on top!
+        mappedInvoices.sort((a, b) => {
+          const timeA = new Date(a.date).getTime() || 0;
+          const timeB = new Date(b.date).getTime() || 0;
+          if (timeB !== timeA) return timeB - timeA;
+          const numA = parseInt(a.id, 10);
+          const numB = parseInt(b.id, 10);
+          if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
+          return (b.invoiceNo || b.id).localeCompare(a.invoiceNo || a.id);
+        });
 
         localStorage.setItem(INVOICE_KEY, JSON.stringify(mappedInvoices));
         return mappedInvoices;
@@ -82,7 +170,18 @@ export const billingService = {
     } catch (e) {
       console.error('Failed to load invoices from backend API:', e);
     }
-    return this.getInvoices();
+
+    const fallbackLocal = this.getInvoices();
+    fallbackLocal.sort((a, b) => {
+      const timeA = new Date(a.date).getTime() || 0;
+      const timeB = new Date(b.date).getTime() || 0;
+      if (timeB !== timeA) return timeB - timeA;
+      const numA = parseInt(a.id, 10);
+      const numB = parseInt(b.id, 10);
+      if (!isNaN(numA) && !isNaN(numB)) return numB - numA;
+      return (b.invoiceNo || b.id).localeCompare(a.invoiceNo || a.id);
+    });
+    return fallbackLocal;
   },
 
   saveInvoice(invoice: GSTInvoice) {
@@ -109,6 +208,9 @@ export const billingService = {
         gstAmount: (invoice.cgstTotal || 0) + (invoice.sgstTotal || 0) + (invoice.igstTotal || 0),
         totalAmount: invoice.grandTotal || 0,
         status: invoice.status || 'PENDING',
+        customerName: invoice.customerName,
+        paymentMode: invoice.paymentMode,
+        items: invoice.items
       },
     }).catch(err => {
       console.warn("Backend API sync warning for invoice:", invoice.invoiceNo, err.message);
