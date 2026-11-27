@@ -1,6 +1,6 @@
 // Refactored GST Invoicing Module
 import { useState, useEffect } from 'react';
-import { Plus, Download, ReceiptText, Trash2, Ban } from 'lucide-react';
+import { Plus, Download, ReceiptText, Trash2, Ban, Edit } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -85,6 +85,7 @@ export default function GSTBilling() {
   const [products, setProducts] = useState<ProductRecord[]>([]);
   
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [editingInvoiceId, setEditingInvoiceId] = useState<string | null>(null);
   const [customerId, setCustomerId] = useState('');
   const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().split('T')[0]);
   const [paymentMode, setPaymentMode] = useState('Credit');
@@ -209,7 +210,7 @@ export default function GSTBilling() {
   };
 
   const addLineItem = () => {
-    setItems([...items, { id: Date.now().toString(), productId: '', productCode: '', productName: '', batchNo: '', qty: 1, freeQty: 0, ptr: 0, discountPercent: 0, gstPercent: 0, total: 0, stock: 0 }]);
+    setItems([...items, { id: Date.now().toString(), productId: '', productCode: '', productName: '', batchNo: '', qty: 1, freeQty: 0, ptr: 0, discountPercent: 0, gstPercent: 0, extraMargin: 0, total: 0, stock: 0 }]);
   };
 
   const removeLineItem = (id: string) => {
@@ -343,10 +344,15 @@ export default function GSTBilling() {
           updatedItem.freeQty = promo.freeQty;
         }
 
+        if (field === 'extraMargin') {
+          updatedItem.extraMargin = Math.max(0, parseFloat(value) || 0);
+        }
+
         // Re-calculate line item total
         const baseAmt = (updatedItem.qty || 0) * (updatedItem.ptr || 0);
         const discAmt = (baseAmt * (updatedItem.discountPercent || 0)) / 100;
-        const taxable = Math.max(0, baseAmt - discAmt);
+        const marginTotal = (updatedItem.qty || 0) * (Number(updatedItem.extraMargin) || 0);
+        const taxable = Math.max(0, baseAmt - discAmt + marginTotal);
         const gst = (taxable * (updatedItem.gstPercent || 0)) / 100;
         updatedItem.total = taxable + gst;
 
@@ -356,8 +362,18 @@ export default function GSTBilling() {
     }));
   };
 
-  const subTotal = items.reduce((sum, item) => sum + (item.qty * item.ptr * (1 - item.discountPercent / 100)), 0);
-  const totalGst = items.reduce((sum, item) => sum + (((item.qty * item.ptr * (1 - item.discountPercent / 100)) * item.gstPercent) / 100), 0);
+  const subTotal = items.reduce((sum, item) => {
+    const base = (item.qty || 0) * (item.ptr || 0) * (1 - (item.discountPercent || 0) / 100);
+    const margin = (item.qty || 0) * (Number(item.extraMargin) || 0);
+    return sum + Math.max(0, base + margin);
+  }, 0);
+
+  const totalGst = items.reduce((sum, item) => {
+    const base = (item.qty || 0) * (item.ptr || 0) * (1 - (item.discountPercent || 0) / 100);
+    const margin = (item.qty || 0) * (Number(item.extraMargin) || 0);
+    const taxable = Math.max(0, base + margin);
+    return sum + (taxable * (item.gstPercent || 0)) / 100;
+  }, 0);
   
   // Dynamic Tax Determination Logic (same state vs different state)
   const isSameState = sellerState === buyerState;
@@ -391,6 +407,84 @@ export default function GSTBilling() {
     }
 
     const customer = CUSTOMERS.find((c: any)=> c.id === customerId);
+
+    if (editingInvoiceId) {
+      const existingInv = invoices.find(inv => inv.id === editingInvoiceId);
+      const creditDays = customer?.creditDays || 30;
+      const dueDate = paymentMode === 'Credit' ? calculateDueDate(invoiceDate, creditDays) : invoiceDate;
+
+      const updatedInvoice: GSTInvoice = {
+        id: editingInvoiceId,
+        invoiceNo: existingInv?.invoiceNo || `GST-${editingInvoiceId}`,
+        customerId,
+        customerName: customer?.name || existingInv?.customerName || 'Unknown',
+        date: invoiceDate,
+        dueDate,
+        items,
+        subTotal,
+        cgstTotal,
+        sgstTotal,
+        igstTotal,
+        grandTotal,
+        paymentMode,
+        status,
+      };
+
+      billingService.updateInvoice(editingInvoiceId, updatedInvoice);
+
+      // Synchronize finance outstandings
+      const outstandings = JSON.parse(localStorage.getItem('finance_outstanding') || '[]');
+      const outIdx = outstandings.findIndex((o: any) => o.invoiceNo === updatedInvoice.invoiceNo);
+      if (outIdx !== -1) {
+        if (status === 'Paid') {
+          outstandings[outIdx].status = 'Paid';
+          outstandings[outIdx].amount = 0;
+        } else {
+          outstandings[outIdx].status = 'Pending';
+          outstandings[outIdx].amount = grandTotal;
+          outstandings[outIdx].dueDate = dueDate;
+        }
+        localStorage.setItem('finance_outstanding', JSON.stringify(outstandings));
+      } else if (paymentMode === 'Credit' && status === 'Unpaid') {
+        billingService.saveOutstanding({
+          id: `OUT-${Date.now()}`,
+          invoiceNo: updatedInvoice.invoiceNo,
+          customerName: updatedInvoice.customerName,
+          invoiceDate,
+          dueDate,
+          amount: grandTotal,
+          status: 'Pending'
+        });
+      }
+
+      activityLogService.addLog({
+        userId: currentUser?.id,
+        userName: currentUser?.fullName,
+        action: `Updated GST Invoice ${updatedInvoice.invoiceNo} for ${customer?.name} - Status: ${status}, Value: ${formatCurrency(grandTotal)}`,
+        module: "Wholesale Billing",
+      });
+
+      NotificationService.addNotification({
+        title: 'Sales Invoice Updated',
+        message: `Invoice ${updatedInvoice.invoiceNo} updated successfully (Status: ${status}).`,
+        type: 'system',
+        priority: 'info',
+        module: 'Wholesale Billing'
+      });
+
+      setInvoices(invoices.map(inv => inv.id === editingInvoiceId ? updatedInvoice : inv));
+
+      setIsDrawerOpen(false);
+      setEditingInvoiceId(null);
+      setCustomerId('');
+      setItems([]);
+      setInvoiceDate(new Date().toISOString().split('T')[0]);
+      setPaymentMode('Credit');
+      setStatus('Unpaid');
+      alert(`✅ GST Invoice ${updatedInvoice.invoiceNo} Updated Successfully!`);
+      return;
+    }
+
     const invoiceNo = billingService.getNextInvoiceNo();
     const creditDays = customer?.creditDays || 30;
     const dueDate = paymentMode === 'Credit' ? calculateDueDate(invoiceDate, creditDays) : invoiceDate;
@@ -502,6 +596,23 @@ export default function GSTBilling() {
     setPaymentMode('Credit');
     setStatus('Unpaid');
     alert('✅ GST Invoice Generated & Modules Synchronized Successfully!');
+  };
+
+  const handleEditInvoice = (inv: GSTInvoice) => {
+    setEditingInvoiceId(inv.id);
+    setCustomerId(inv.customerId);
+    setInvoiceDate(inv.date || new Date().toISOString().split('T')[0]);
+    setPaymentMode(inv.paymentMode || 'Credit');
+    setStatus((inv.status as any) || 'Unpaid');
+    setItems((inv.items || []).map(item => ({
+      ...item,
+      extraMargin: item.extraMargin !== undefined ? item.extraMargin : 0
+    })));
+    const customer = CUSTOMERS.find((c: any) => c.id === inv.customerId);
+    if (customer && customer.state) {
+      setBuyerState(customer.state);
+    }
+    setIsDrawerOpen(true);
   };
 
   // --- REVERSAL & INVOICE CANCELLATION WORKFLOW ---
@@ -649,13 +760,22 @@ export default function GSTBilling() {
             <ReceiptText className="w-4 h-4" />
           </button>
           {row.status !== 'Cancelled' && (
-            <button 
-              onClick={() => handleCancelInvoice(row.invoiceNo)} 
-              className="text-rose-600 hover:text-rose-750 p-1"
-              title="Cancel & Reverse Invoice"
-            >
-              <Ban className="w-4 h-4" />
-            </button>
+            <>
+              <button 
+                onClick={() => handleEditInvoice(row)} 
+                className="text-indigo-600 hover:text-indigo-800 p-1"
+                title="Edit Invoice & Payment Status"
+              >
+                <Edit className="w-4 h-4" />
+              </button>
+              <button 
+                onClick={() => handleCancelInvoice(row.invoiceNo)} 
+                className="text-rose-600 hover:text-rose-750 p-1"
+                title="Cancel & Reverse Invoice"
+              >
+                <Ban className="w-4 h-4" />
+              </button>
+            </>
           )}
         </div>
       )
@@ -690,7 +810,15 @@ export default function GSTBilling() {
           <>
             <ActionButton variant="secondary" icon={<Download className="w-4 h-4" />} onClick={handleExport}>Export Register</ActionButton>
             {canCreate && (
-              <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => { setIsDrawerOpen(true); setItems([]); }}>
+              <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => {
+                setEditingInvoiceId(null);
+                setCustomerId('');
+                setInvoiceDate(new Date().toISOString().split('T')[0]);
+                setPaymentMode('Credit');
+                setStatus('Unpaid');
+                setItems([]);
+                setIsDrawerOpen(true);
+              }}>
                 New Invoice
               </ActionButton>
             )}
@@ -708,7 +836,14 @@ export default function GSTBilling() {
         <DataTable columns={columns} data={filteredData} emptyMessage="No invoices found." />
       </TableCard>
 
-      <Drawer open={isDrawerOpen} onClose={() => setIsDrawerOpen(false)} title="Generate GST Invoice">
+      <Drawer 
+        open={isDrawerOpen} 
+        onClose={() => {
+          setIsDrawerOpen(false);
+          setEditingInvoiceId(null);
+        }} 
+        title={editingInvoiceId ? "Edit GST Invoice" : "Generate GST Invoice"}
+      >
         <form onSubmit={handleSubmit} className="space-y-6">
           
           <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-xl border border-slate-100">
@@ -754,7 +889,7 @@ export default function GSTBilling() {
             </div>
             {selectedCustomer && (
               <div className="col-span-2 text-xs font-medium text-indigo-700 bg-indigo-50 border border-indigo-100 p-2 rounded-lg">
-                Customer Location: {selectedCustomer.state} | Credit Terms: {selectedCustomer.creditDays} Days
+                Customer Location: {selectedCustomer.state} | Credit Terms: 15 to 30 Days
               </div>
             )}
           </div>
@@ -799,8 +934,8 @@ export default function GSTBilling() {
                   </div>
 
                   {item.productId && (
-                    <div className="grid grid-cols-3 gap-2 mt-1">
-                      <div className="col-span-1">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mt-1">
+                      <div>
                         <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Item Discount %</label>
                         <input 
                           type="number" 
@@ -812,7 +947,7 @@ export default function GSTBilling() {
                           placeholder="Disc %" 
                         />
                       </div>
-                      <div className="col-span-1">
+                      <div>
                         <label className="block text-[10px] font-bold text-slate-500 mb-0.5">GST Rate %</label>
                         <input 
                           type="number" 
@@ -827,7 +962,19 @@ export default function GSTBilling() {
                           placeholder="GST %" 
                         />
                       </div>
-                      <div className="col-span-1">
+                      <div>
+                        <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Extra Margin (₹)</label>
+                        <input 
+                          type="number" 
+                          min="0"
+                          step="0.01"
+                          className="w-full px-2 py-1 border border-slate-300 rounded focus:ring-2 focus:ring-violet-600 text-xs bg-white text-slate-900 font-mono" 
+                          value={item.extraMargin !== undefined && item.extraMargin !== null ? item.extraMargin : ''} 
+                          onChange={(e) => updateLineItem(item.id, 'extraMargin', e.target.value === '' ? 0 : parseFloat(e.target.value) || 0)} 
+                          placeholder="0.00" 
+                        />
+                      </div>
+                      <div>
                         <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Free Qty (Auto)</label>
                         <input 
                           type="text"
@@ -840,8 +987,11 @@ export default function GSTBilling() {
                   )}
 
                   {item.productId && (
-                    <div className="flex justify-between text-xs text-slate-600 bg-slate-50 p-2 rounded mt-1 border border-slate-100 font-medium">
+                    <div className="flex flex-wrap justify-between items-center text-xs text-slate-600 bg-slate-50 p-2 rounded mt-1 border border-slate-100 font-medium gap-1">
                       <span>Rate: {formatCurrency(item.ptr)}</span>
+                      {Number(item.extraMargin) > 0 && (
+                        <span className="text-emerald-700 font-semibold">Margin: +{formatCurrency(Number(item.extraMargin))}</span>
+                      )}
                       <span>GST: {item.gstPercent}%</span>
                       <span className="font-bold text-violet-700">Total: {formatCurrency(item.total)}</span>
                     </div>
@@ -890,7 +1040,7 @@ export default function GSTBilling() {
                 <option value="UPI">UPI</option>
                 <option value="Bank">Bank Transfer</option>
               </select>
-              <select disabled className="bg-slate-800 border-slate-700 rounded text-sm text-white opacity-70 cursor-not-allowed" value={status} onChange={(e) => setStatus(e.target.value as any)}>
+              <select className="bg-slate-800 border-slate-700 rounded text-sm text-white focus:ring-violet-500" value={status} onChange={(e) => setStatus(e.target.value as any)}>
                 <option value="Unpaid">Unpaid</option>
                 <option value="Paid">Paid</option>
                 <option value="Draft">Save as Draft</option>
@@ -900,9 +1050,9 @@ export default function GSTBilling() {
 
           <div className="pt-2 flex gap-3">
             <button type="submit" className="flex-1 bg-[#163c78] text-white px-4 py-3 rounded-xl font-bold hover:bg-[#112d59] transition-colors shadow-sm">
-              Generate GST Invoice
+              {editingInvoiceId ? 'Update GST Invoice' : 'Generate GST Invoice'}
             </button>
-            <button type="button" onClick={() => setIsDrawerOpen(false)} className="flex-1 bg-white border border-slate-300 text-slate-700 px-4 py-3 rounded-xl font-bold hover:bg-slate-50 transition-colors">
+            <button type="button" onClick={() => { setIsDrawerOpen(false); setEditingInvoiceId(null); }} className="flex-1 bg-white border border-slate-300 text-slate-700 px-4 py-3 rounded-xl font-bold hover:bg-slate-50 transition-colors">
               Cancel
             </button>
           </div>

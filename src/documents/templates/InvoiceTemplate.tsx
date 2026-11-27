@@ -82,7 +82,7 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   doc.setFont('helvetica', 'bold');
   doc.text('Terms:', pageWidth - 70, currentY + 35);
   doc.setFont('helvetica', 'normal');
-  doc.text(invoice.paymentTerms || '30 Days Credit', pageWidth - 15, currentY + 35, { align: 'right' });
+  doc.text(invoice.paymentTerms || '15 to 30 Days Credit', pageWidth - 15, currentY + 35, { align: 'right' });
 
   // Divider
   currentY += 40;
@@ -179,21 +179,35 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   currentY += 25 + addressHeight;
 
   // --- PRODUCT TABLE ---
-  const tableData = invoice.items?.map((item: any, index: number) => [
-    (index + 1).toString(),
-    item.productName || item.description || '-',
-    item.batchNumber || item.batch || '-',
-    item.expiryDate || item.expiry || '-',
-    item.hsnCode || item.hsn || '3004',
-    `${item.gstPct || item.gst || 0}%`,
-    item.quantity?.toString() || '0',
-    item.freeQuantity?.toString() || '0',
-    formatCurrency(item.unitPrice || item.ptr || item.rate || 0),
-    `${item.discountPct || item.discount || 0}%`,
-    formatCurrency(item.taxableAmount || item.subtotal || item.lineAmount || 0),
-    formatCurrency(item.gstAmount || item.taxAmount || 0),
-    formatCurrency(item.netAmount || item.amount || item.lineAmount || 0)
-  ]) || [];
+  const tableData = invoice.items?.map((item: any, index: number) => {
+    const qty = Number(item.qty || item.quantity || 0);
+    const ptr = Number(item.ptr || item.unitPrice || item.rate || 0);
+    const discPct = Number(item.discountPercent || item.discountPct || item.discount || 0);
+    const gstPct = Number(item.gstPercent || item.gstPct || item.gst || 0);
+    const extraMargin = Number(item.extraMargin || 0);
+
+    const baseAmt = qty * ptr * (1 - discPct / 100);
+    const marginAmt = qty * extraMargin;
+    const taxableAmt = item.taxableAmount !== undefined ? item.taxableAmount : (baseAmt + marginAmt);
+    const gstAmt = item.gstAmount !== undefined ? item.gstAmount : (taxableAmt * gstPct / 100);
+    const netAmt = item.total !== undefined ? item.total : (item.netAmount || (taxableAmt + gstAmt));
+
+    return [
+      (index + 1).toString(),
+      item.productName || item.description || '-',
+      item.batchNo || item.batchNumber || item.batch || '-',
+      item.expiryDate || item.expiry || '-',
+      item.hsnCode || item.hsn || '3004',
+      `${gstPct}%`,
+      qty.toString(),
+      (item.freeQty !== undefined ? item.freeQty : item.freeQuantity || 0).toString(),
+      formatCurrency(ptr + (extraMargin > 0 ? extraMargin : 0)),
+      `${discPct}%`,
+      formatCurrency(taxableAmt),
+      formatCurrency(gstAmt),
+      formatCurrency(netAmt)
+    ];
+  }) || [];
 
   autoTable(doc, {
     startY: currentY,
@@ -236,11 +250,11 @@ export const applyInvoiceTemplate = (doc: jsPDF, invoice: any, role: string) => 
   doc.text(String(totQty), valueX, finalY, { align: 'right' });
 
   doc.text('Total Taxable Amount:', summaryX, finalY + 6);
-  doc.text(formatCurrency(invoice.totalTaxable || invoice.taxableAmount || invoice.subtotal || 0), valueX, finalY + 6, { align: 'right' });
+  doc.text(formatCurrency(invoice.subTotal || invoice.totalTaxable || invoice.taxableAmount || invoice.subtotal || 0), valueX, finalY + 6, { align: 'right' });
 
-  const cgst = invoice.cgstAmount || (invoice.gstAmount ? invoice.gstAmount / 2 : 0);
-  const sgst = invoice.sgstAmount || (invoice.gstAmount ? invoice.gstAmount / 2 : 0);
-  const igst = invoice.igstAmount || 0;
+  const cgst = invoice.cgstTotal || invoice.cgstAmount || (invoice.gstAmount ? invoice.gstAmount / 2 : 0);
+  const sgst = invoice.sgstTotal || invoice.sgstAmount || (invoice.gstAmount ? invoice.gstAmount / 2 : 0);
+  const igst = invoice.igstTotal || invoice.igstAmount || 0;
 
   doc.setFont('helvetica', 'normal');
   doc.text('CGST:', summaryX, finalY + 12);

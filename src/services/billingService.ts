@@ -13,6 +13,7 @@ export interface InvoiceItem {
   mrp?: number;
   discountPercent: number;
   gstPercent: number;
+  extraMargin?: number;
   total: number;
   stock: number;
   barcode?: string;
@@ -112,6 +113,42 @@ export const billingService = {
     }).catch(err => {
       console.warn("Backend API sync warning for invoice:", invoice.invoiceNo, err.message);
     });
+  },
+
+  updateInvoice(id: string, updatedFields: Partial<GSTInvoice>) {
+    const invoices = this.getInvoices();
+    const existingIndex = invoices.findIndex((inv) => inv.id === id);
+    if (existingIndex >= 0) {
+      invoices[existingIndex] = { ...invoices[existingIndex], ...updatedFields };
+      localStorage.setItem(INVOICE_KEY, JSON.stringify(invoices));
+    }
+
+    const numId = parseInt(id, 10);
+    if (!isNaN(numId) && numId > 0) {
+      const payload: any = {};
+      if (updatedFields.status) payload.status = updatedFields.status;
+      if (updatedFields.paymentMode) payload.paymentMode = updatedFields.paymentMode;
+      if (updatedFields.grandTotal !== undefined) payload.totalAmount = updatedFields.grandTotal;
+      if (updatedFields.subTotal !== undefined) payload.subTotal = updatedFields.subTotal;
+      if (updatedFields.cgstTotal !== undefined || updatedFields.sgstTotal !== undefined || updatedFields.igstTotal !== undefined) {
+        payload.gstAmount = (updatedFields.cgstTotal || 0) + (updatedFields.sgstTotal || 0) + (updatedFields.igstTotal || 0);
+      }
+      apiRequest(`/invoices/${numId}`, {
+        method: 'PUT',
+        bodyData: payload,
+      }).catch(err => {
+        console.warn("Backend API sync warning on update invoice:", id, err.message);
+      });
+    }
+  },
+
+  cancelInvoice(invoiceNo: string) {
+    const invoices = this.getInvoices();
+    const target = invoices.find(inv => inv.invoiceNo === invoiceNo);
+    if (target) {
+      target.status = 'Cancelled';
+      localStorage.setItem(INVOICE_KEY, JSON.stringify(invoices));
+    }
   },
 
   saveAllInvoices(invoices: GSTInvoice[]) {
