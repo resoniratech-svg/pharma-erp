@@ -10,12 +10,11 @@ import {
 import { type Column, type BadgeVariant } from './components/shared';
 import { jsPDF } from 'jspdf';
 import { applyCreditNoteTemplate, type CreditNotePdfData } from '../../documents/templates/CreditNoteTemplate';
-import { billingService } from '../../services/billingService';
 import { productService } from '../../services/productService';
 import { retailerMasterService } from '../../services/retailerMasterService';
 
-const formatCurrency = (amount: number) =>
-  `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const formatCurrency = (amount: number = 0) =>
+  `₹ ${(Number(amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 export interface DistributorCreditNote {
   id: string;
@@ -277,11 +276,20 @@ export default function DistributorCreditNotes() {
   const [catalogList, setCatalogList] = useState<any[]>([]);
 
   useEffect(() => {
-    // Load retailers
-    const rList = retailerMasterService.getAll();
-    if (rList && rList.length > 0) {
-      setRetailersList(rList);
-    } else {
+    // Load retailers safely
+    try {
+      const rList = retailerMasterService.getAll();
+      if (rList && rList.length > 0) {
+        setRetailersList(rList);
+      } else {
+        setRetailersList([
+          { name: 'Apollo Pharmacy - Banjara Hills', code: 'RET-0012' },
+          { name: 'MedPlus Health Services - Secunderabad', code: 'RET-0045' },
+          { name: 'Sri Balaji Medicals', code: 'RET-0088' },
+          { name: 'Care Pharmacy & Surgicals', code: 'RET-0102' }
+        ]);
+      }
+    } catch {
       setRetailersList([
         { name: 'Apollo Pharmacy - Banjara Hills', code: 'RET-0012' },
         { name: 'MedPlus Health Services - Secunderabad', code: 'RET-0045' },
@@ -290,10 +298,24 @@ export default function DistributorCreditNotes() {
       ]);
     }
 
-    // Load products
-    productService.getProducts().then(res => {
-      if (res && res.length > 0) setCatalogList(res);
-    }).catch(() => {});
+    // Load products safely (getProducts is synchronous, loadProducts is async)
+    try {
+      const currentProducts = productService.getProducts();
+      if (Array.isArray(currentProducts) && currentProducts.length > 0) {
+        setCatalogList(currentProducts);
+      }
+      if (typeof productService.loadProducts === 'function') {
+        productService.loadProducts().then(res => {
+          if (Array.isArray(res) && res.length > 0) {
+            setCatalogList(res);
+          }
+        }).catch(err => {
+          console.warn('Async product load fallback:', err);
+        });
+      }
+    } catch (err) {
+      console.warn('Error reading product catalog:', err);
+    }
   }, []);
 
   const handleSaveData = (newData: DistributorCreditNote[]) => {
@@ -816,7 +838,7 @@ export default function DistributorCreditNotes() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {viewRecord.items.map((it, idx) => (
+                    {(viewRecord.items || []).map((it, idx) => (
                       <tr key={idx} className="hover:bg-slate-50/50">
                         <td className="p-2.5">
                           <span className="font-medium text-slate-900 block">{it.productName}</span>
