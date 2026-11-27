@@ -1,5 +1,5 @@
 import { useState, useMemo, useEffect } from 'react';
-import { Plus, Download, Filter, Eye, DollarSign } from 'lucide-react';
+import { Plus, Download, Filter, Eye, DollarSign, RefreshCw } from 'lucide-react';
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
   TableCard, DataTable, Badge, Drawer, DrawerField
@@ -371,11 +371,11 @@ export default function CreditNotes() {
   const columns: Column<CreditNoteData>[] = [
     { key: 'cnNo', label: 'Credit Note No', render: (row) => <span className="font-semibold text-slate-900">{row.cnNo}</span> },
     {
-      key: 'cnType',
-      label: 'Type',
+      key: 'reason',
+      label: 'Reason',
       render: (row) => (
         <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800 border border-violet-200">
-          {row.cnType || 'Sales Return'}
+          {row.reason || row.cnType || 'Sales Return'}
         </span>
       )
     },
@@ -543,9 +543,17 @@ export default function CreditNotes() {
         title="Credit Notes"
         subtitle="Manage credit notes issued against sales returns, price differences, or discounts."
         actions={
-          <>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadCreditNotes}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              title="Refresh from Database"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh DB
+            </button>
             <ActionButton icon={<Plus className="w-4 h-4" />} onClick={() => { resetForm(); setShowCreateForm(true); }}>Create Credit Note</ActionButton>
-          </>
+          </div>
         }
       />
 

@@ -133,6 +133,7 @@ function mapToUi(cn: any): CreditNoteData {
 
 export const creditNoteService = {
   async getCreditNotes(filters: { status?: string; section?: string } = {}): Promise<CreditNoteData[]> {
+    let records: CreditNoteData[] = [];
     try {
       const params = new URLSearchParams();
       if (filters.status) params.append('status', filters.status);
@@ -140,12 +141,30 @@ export const creditNoteService = {
       
       const response = await apiRequest<{ success: boolean; data: any[] }>(`/credit-notes?${params.toString()}`);
       if (response && response.success && Array.isArray(response.data)) {
-        return response.data.map(mapToUi);
+        records = response.data.map(mapToUi);
       }
     } catch (err) {
       console.warn("Credit note backend fetch error:", err);
     }
-    return [];
+
+    // Merge with any locally created records so they appear immediately in both Distributor & Super Admin
+    try {
+      const localRaw = localStorage.getItem("pharma_erp_credit_notes");
+      if (localRaw) {
+        const localList: CreditNoteData[] = JSON.parse(localRaw);
+        const existingIds = new Set(records.map(r => r.id));
+        const existingNos = new Set(records.map(r => r.cnNo));
+        for (const loc of localList) {
+          if (!existingIds.has(loc.id) && !existingNos.has(loc.cnNo)) {
+            records.unshift(loc);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Local credit note read warning:", e);
+    }
+
+    return records;
   },
 
   async getCreditNoteById(id: string): Promise<CreditNoteData> {
@@ -224,11 +243,32 @@ export const creditNoteService = {
 
   // Helper to query available invoices for the create form
   async getInvoices(): Promise<any[]> {
-    const response = await apiRequest<{ success: boolean; data: any[] }>('/invoices');
-    if (response.success && Array.isArray(response.data)) {
-      return response.data;
+    let invoices: any[] = [];
+    try {
+      const response = await apiRequest<{ success: boolean; data: any[] }>('/invoices');
+      if (response && response.success && Array.isArray(response.data)) {
+        invoices = response.data;
+      }
+    } catch (err) {
+      console.warn("Failed to fetch invoices from API:", err);
     }
-    return [];
+
+    // Also merge with locally generated invoices from localStorage (GSTBilling & BarcodeBilling)
+    try {
+      const localGst = localStorage.getItem('pharma_erp_gst_invoices');
+      if (localGst) {
+        const list = JSON.parse(localGst);
+        const existingNumbers = new Set(invoices.map(i => i.invoiceNumber || i.invoiceNo));
+        for (const inv of list) {
+          const num = inv.invoiceNumber || inv.invoiceNo;
+          if (num && !existingNumbers.has(num)) {
+            invoices.unshift(inv);
+          }
+        }
+      }
+    } catch (e) {}
+
+    return invoices;
   },
 
   // Helper to fetch details of a specific invoice

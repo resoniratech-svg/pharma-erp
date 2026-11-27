@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
   Plus, Download, Eye, DollarSign, RefreshCw, CheckCircle2,
-  AlertTriangle, Archive, FileText, ChevronRight, Layers, ArrowDownLeft, ArrowUpRight
+  AlertTriangle, Layers, ArrowDownLeft, ArrowUpRight, Loader2
 } from 'lucide-react';
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
@@ -12,6 +12,7 @@ import { jsPDF } from 'jspdf';
 import { applyCreditNoteTemplate, type CreditNotePdfData } from '../../documents/templates/CreditNoteTemplate';
 import { productService } from '../../services/productService';
 import { retailerMasterService } from '../../services/retailerMasterService';
+import { creditNoteService, type CreditNoteData, type CreditNoteInput } from '../../services/creditNoteService';
 
 const formatCurrency = (amount: number = 0) =>
   `₹ ${(Number(amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -211,26 +212,88 @@ const INITIAL_MOCK_NOTES: DistributorCreditNote[] = [
   }
 ];
 
-export default function DistributorCreditNotes() {
-  const [data, setData] = useState<DistributorCreditNote[]>(() => {
-    try {
-      const saved = localStorage.getItem('distributor_credit_notes');
-      return saved ? JSON.parse(saved) : INITIAL_MOCK_NOTES;
-    } catch {
-      return INITIAL_MOCK_NOTES;
-    }
-  });
+function mapServiceNoteToDistributorNote(cn: CreditNoteData): DistributorCreditNote {
+  const isReceived = cn.customerType === 'Distributor' || 
+                     (cn.customerName && (
+                       cn.customerName.toLowerCase().includes('corporate') || 
+                       cn.customerName.toLowerCase().includes('company') ||
+                       cn.customerName.toLowerCase().includes('admin') ||
+                       cn.customerName.toLowerCase().includes('mj health')
+                     ));
+  
+  const direction: 'ISSUED_TO_RETAILER' | 'RECEIVED_FROM_COMPANY' = isReceived ? 'RECEIVED_FROM_COMPANY' : 'ISSUED_TO_RETAILER';
 
+  let disposition: 'SALABLE' | 'QUARANTINE_DUMP' | 'FINANCIAL_ONLY' = 'SALABLE';
+  const reasonStr = cn.reason || cn.cnType || 'Sales Return';
+  if (reasonStr === 'Expiry Return' || reasonStr === 'Damaged Goods/Breakage') {
+    disposition = 'QUARANTINE_DUMP';
+  } else if (reasonStr === 'Rate Difference' || reasonStr === 'Discount Adjustment') {
+    disposition = 'FINANCIAL_ONLY';
+  }
+
+  const items = (cn.items || []).map((it, idx) => ({
+    id: it.id || idx + 1,
+    productName: it.product?.name || 'Pharmaceutical Supplies',
+    productCode: it.product?.code || 'PRD-GEN',
+    batchNumber: it.batch?.batchNumber || 'BAT-01',
+    expiryDate: '12/2027',
+    quantity: it.quantity || 1,
+    rate: it.rate || 0,
+    gstPercent: it.gstPercent || 12,
+    totalAmount: it.totalAmount || ((it.quantity || 1) * (it.rate || 0) * 1.12)
+  }));
+
+  return {
+    id: String(cn.id),
+    cnNo: cn.cnNo,
+    cnDate: cn.cnDate,
+    direction,
+    customerName: cn.customerName || (direction === 'ISSUED_TO_RETAILER' ? 'Retailer Customer' : 'MJ Healthcare Corporate'),
+    customerType: cn.customerType || (direction === 'ISSUED_TO_RETAILER' ? 'Retailer' : 'Manufacturer'),
+    retailerCode: cn.retailerId ? `RET-00${cn.retailerId}` : undefined,
+    againstInvoiceNo: cn.againstInvoiceNo || 'N/A',
+    invoiceDate: cn.invoiceDate || cn.cnDate,
+    reason: reasonStr,
+    taxableAmount: Number(cn.taxableAmount || 0),
+    gstAmount: Number(cn.gstAmount || 0),
+    totalAmount: Number(cn.totalAmount || 0),
+    status: (cn.status === 'PAID' ? 'SETTLED' : cn.status) as any,
+    remarks: cn.remarks || undefined,
+    disposition,
+    items: items.length > 0 ? items : [
+      {
+        id: 1,
+        productName: 'Pharmaceutical Supplies (Preserved Batch)',
+        productCode: 'PRD-GEN',
+        batchNumber: 'BAT-GEN',
+        expiryDate: '12/2027',
+        quantity: 1,
+        rate: Number(cn.taxableAmount || cn.totalAmount || 100),
+        gstPercent: 12,
+        totalAmount: Number(cn.totalAmount || 112)
+      }
+    ]
+  };
+}
+
+export default function DistributorCreditNotes() {
+  const [data, setData] = useState<DistributorCreditNote[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'ISSUED_TO_RETAILER' | 'RECEIVED_FROM_COMPANY'>('ISSUED_TO_RETAILER');
   const [search, setSearch] = useState('');
   const [reasonFilter, setReasonFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+
+  // Available real invoices
+  const [invoices, setInvoices] = useState<any[]>([]);
+  const [retailersList, setRetailersList] = useState<any[]>([]);
 
   // Drawers & Modals
   const [viewRecord, setViewRecord] = useState<DistributorCreditNote | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddReasonModal, setShowAddReasonModal] = useState(false);
   const [newReasonInput, setNewReasonInput] = useState('');
+  const [submitting, setSubmitting] = useState(false);
 
   // Custom reasons state
   const [customReasons, setCustomReasons] = useState<string[]>(() => {
@@ -258,7 +321,7 @@ export default function DistributorCreditNotes() {
   const [formReason, setFormReason] = useState('Sales Return');
   const [formRemarks, setFormRemarks] = useState('');
 
-  // Line item in form
+  // Line items in form
   const [formItems, setFormItems] = useState([
     {
       productName: '',
@@ -271,11 +334,40 @@ export default function DistributorCreditNotes() {
     }
   ]);
 
-  // Available Retailers & Invoices for autocomplete
-  const [retailersList, setRetailersList] = useState<any[]>([]);
-  const [catalogList, setCatalogList] = useState<any[]>([]);
+  // Load real data from DB
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const dbNotes = await creditNoteService.getCreditNotes();
+      if (dbNotes && dbNotes.length > 0) {
+        const mapped = dbNotes.map(mapServiceNoteToDistributorNote);
+        setData(mapped);
+      } else {
+        // Fallback to local storage or initial notes
+        const saved = localStorage.getItem('distributor_credit_notes');
+        setData(saved ? JSON.parse(saved) : INITIAL_MOCK_NOTES);
+      }
+    } catch (err) {
+      console.warn('Failed to load credit notes from DB, using fallback:', err);
+      const saved = localStorage.getItem('distributor_credit_notes');
+      setData(saved ? JSON.parse(saved) : INITIAL_MOCK_NOTES);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
+    loadData();
+
+    // Load available invoices for form
+    creditNoteService.getInvoices().then(invs => {
+      if (Array.isArray(invs) && invs.length > 0) {
+        setInvoices(invs);
+      }
+    }).catch(err => {
+      console.warn('Failed to load invoices:', err);
+    });
+
     // Load retailers safely
     try {
       const rList = retailerMasterService.getAll();
@@ -297,31 +389,7 @@ export default function DistributorCreditNotes() {
         { name: 'Care Pharmacy & Surgicals', code: 'RET-0102' }
       ]);
     }
-
-    // Load products safely (getProducts is synchronous, loadProducts is async)
-    try {
-      const currentProducts = productService.getProducts();
-      if (Array.isArray(currentProducts) && currentProducts.length > 0) {
-        setCatalogList(currentProducts);
-      }
-      if (typeof productService.loadProducts === 'function') {
-        productService.loadProducts().then(res => {
-          if (Array.isArray(res) && res.length > 0) {
-            setCatalogList(res);
-          }
-        }).catch(err => {
-          console.warn('Async product load fallback:', err);
-        });
-      }
-    } catch (err) {
-      console.warn('Error reading product catalog:', err);
-    }
   }, []);
-
-  const handleSaveData = (newData: DistributorCreditNote[]) => {
-    setData(newData);
-    localStorage.setItem('distributor_credit_notes', JSON.stringify(newData));
-  };
 
   const handleSaveNewReason = () => {
     const trimmed = newReasonInput.trim();
@@ -334,6 +402,36 @@ export default function DistributorCreditNotes() {
     setFormReason(trimmed);
     setNewReasonInput('');
     setShowAddReasonModal(false);
+  };
+
+  // When distributor selects an invoice from dropdown
+  const handleSelectInvoice = (selectedInvNo: string) => {
+    setFormInvoiceNo(selectedInvNo);
+    if (!selectedInvNo) return;
+
+    const found = invoices.find(i => (i.invoiceNumber || i.invoiceNo) === selectedInvNo);
+    if (found) {
+      const customerName = found.customerName || (found.retailer ? found.retailer.name : '') || found.buyerName || '';
+      if (customerName) setFormParty(customerName);
+      
+      const invDate = found.invoiceDate || found.date || '27-Nov-2026';
+      setFormInvoiceDate(invDate);
+
+      // Pre-fill items if available
+      const rawItems = found.items || found.invoiceItems;
+      if (Array.isArray(rawItems) && rawItems.length > 0) {
+        const mappedItems = rawItems.map((it: any) => ({
+          productName: it.productName || it.product?.name || it.medicineName || 'Pharmaceutical Product',
+          productCode: it.productCode || it.product?.code || 'PRD-01',
+          batchNumber: it.batchNumber || it.batch?.batchNumber || it.batchNo || 'BAT-01',
+          expiryDate: it.expiryDate || it.batch?.expiryDate || '12/2027',
+          quantity: it.quantity || 1,
+          rate: Number(it.rate || it.unitRate || it.ptr || 100),
+          gstPercent: Number(it.gstPercent || it.gstRate || 12)
+        }));
+        setFormItems(mappedItems);
+      }
+    }
   };
 
   // KPI Calculations
@@ -375,90 +473,115 @@ export default function DistributorCreditNotes() {
     });
   }, [data, activeTab, reasonFilter, statusFilter, search]);
 
-  const handleCreateSubmit = (e: React.FormEvent) => {
+  const handleCreateSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formParty) {
-      alert('Please select a customer/party');
+      alert('Please select or enter a customer / party');
       return;
     }
 
-    let calculatedTaxable = 0;
-    let calculatedGst = 0;
-    const processedItems = formItems.map((item, idx) => {
-      const lineTaxable = (item.quantity || 0) * (item.rate || 0);
-      const lineGst = (lineTaxable * (item.gstPercent || 12)) / 100;
-      calculatedTaxable += lineTaxable;
-      calculatedGst += lineGst;
-      return {
-        id: idx + 1,
-        productName: item.productName || 'General Pharmaceutical Product',
-        productCode: item.productCode || 'PRD-GEN',
-        batchNumber: item.batchNumber || 'BAT-2026-01',
-        expiryDate: item.expiryDate || '12/2027',
-        quantity: Number(item.quantity) || 1,
-        rate: Number(item.rate) || 0,
-        gstPercent: Number(item.gstPercent) || 12,
-        totalAmount: lineTaxable + lineGst
+    setSubmitting(true);
+    try {
+      let calculatedTaxable = 0;
+      let calculatedGst = 0;
+      const processedItems = formItems.map((item, idx) => {
+        const lineTaxable = (item.quantity || 0) * (item.rate || 0);
+        const lineGst = (lineTaxable * (item.gstPercent || 12)) / 100;
+        calculatedTaxable += lineTaxable;
+        calculatedGst += lineGst;
+        return {
+          id: idx + 1,
+          productName: item.productName || 'General Pharmaceutical Product',
+          productCode: item.productCode || 'PRD-GEN',
+          batchNumber: item.batchNumber || 'BAT-2026-01',
+          expiryDate: item.expiryDate || '12/2027',
+          quantity: Number(item.quantity) || 1,
+          rate: Number(item.rate) || 0,
+          gstPercent: Number(item.gstPercent) || 12,
+          totalAmount: lineTaxable + lineGst
+        };
+      });
+
+      const netTotal = calculatedTaxable + calculatedGst;
+
+      let dispositionType: 'SALABLE' | 'QUARANTINE_DUMP' | 'FINANCIAL_ONLY' = 'SALABLE';
+      if (formReason === 'Expiry Return' || formReason === 'Damaged Goods/Breakage') {
+        dispositionType = 'QUARANTINE_DUMP';
+      } else if (formReason === 'Rate Difference' || formReason === 'Discount Adjustment') {
+        dispositionType = 'FINANCIAL_ONLY';
+      }
+
+      // Build API payload for database insertion
+      const payload: CreditNoteInput = {
+        cnType: formReason,
+        reason: formReason,
+        customerName: formParty,
+        againstInvoiceNo: formInvoiceNo || `INV-202611-${Math.floor(1000 + Math.random() * 9000)}`,
+        againstInvoiceId: formInvoiceNo || undefined,
+        taxableAmount: calculatedTaxable,
+        gstAmount: calculatedGst,
+        totalAmount: netTotal,
+        remarks: formRemarks || `Against Invoice: ${formInvoiceNo || 'N/A'}`,
+        items: processedItems.map(p => ({
+          productId: 1,
+          batchId: 1,
+          quantity: p.quantity,
+          rate: p.rate,
+          gstPercent: p.gstPercent,
+          disposition: dispositionType
+        }))
       };
-    });
 
-    const netTotal = calculatedTaxable + calculatedGst;
-    const generatedNo = `CN-DIST-2026-000${data.length + 1}`;
+      // Call live DB API via service
+      await creditNoteService.createCreditNote(payload);
 
-    let dispositionType: 'SALABLE' | 'QUARANTINE_DUMP' | 'FINANCIAL_ONLY' = 'SALABLE';
-    if (formReason === 'Expiry Return' || formReason === 'Damaged Goods/Breakage') {
-      dispositionType = 'QUARANTINE_DUMP';
-    } else if (formReason === 'Rate Difference' || formReason === 'Discount Adjustment') {
-      dispositionType = 'FINANCIAL_ONLY';
+      // Refresh DB data
+      await loadData();
+      setShowCreateModal(false);
+
+      // Reset Form
+      setFormParty('');
+      setFormInvoiceNo('');
+      setFormRemarks('');
+      setFormItems([{
+        productName: '',
+        productCode: '',
+        batchNumber: '',
+        expiryDate: '',
+        quantity: 1,
+        rate: 100,
+        gstPercent: 12
+      }]);
+
+      alert('Credit Note created successfully and saved to Database!');
+    } catch (err: any) {
+      console.error('Failed to create credit note:', err);
+      alert('Failed to save Credit Note: ' + (err.message || 'Server error'));
+    } finally {
+      setSubmitting(false);
     }
-
-    const newRecord: DistributorCreditNote = {
-      id: `cn-dist-${Date.now()}`,
-      cnNo: generatedNo,
-      cnDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
-      direction: activeTab,
-      customerName: formParty,
-      customerType: formPartyType,
-      againstInvoiceNo: formInvoiceNo || `INV-202611-${Math.floor(1000 + Math.random() * 9000)}`,
-      invoiceDate: formInvoiceDate,
-      reason: formReason,
-      taxableAmount: calculatedTaxable,
-      gstAmount: calculatedGst,
-      totalAmount: netTotal,
-      status: 'APPROVED',
-      remarks: formRemarks,
-      disposition: dispositionType,
-      items: processedItems
-    };
-
-    const updated = [newRecord, ...data];
-    handleSaveData(updated);
-    setShowCreateModal(false);
-
-    // Reset Form
-    setFormParty('');
-    setFormInvoiceNo('');
-    setFormRemarks('');
-    setFormItems([{
-      productName: '',
-      productCode: '',
-      batchNumber: '',
-      expiryDate: '',
-      quantity: 1,
-      rate: 100,
-      gstPercent: 12
-    }]);
   };
 
-  const handleSettle = (id: string, e: React.MouseEvent) => {
+  const handleSettle = async (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    const updated = data.map(item => {
-      if (item.id === id) {
-        return { ...item, status: 'SETTLED' as const };
+    try {
+      const note = data.find(d => d.id === id);
+      if (note) {
+        await creditNoteService.settleCreditNote(id, note.totalAmount, 'Settled via Distributor Portal');
       }
-      return item;
-    });
-    handleSaveData(updated);
+      await loadData();
+      alert('Credit Note settled successfully in Ledger!');
+    } catch (err: any) {
+      console.warn('Settlement error:', err);
+      // Fallback local update
+      const updated = data.map(item => {
+        if (item.id === id) {
+          return { ...item, status: 'SETTLED' as const };
+        }
+        return item;
+      });
+      setData(updated);
+    }
   };
 
   const downloadPDF = (record: DistributorCreditNote, e?: React.MouseEvent) => {
@@ -638,12 +761,22 @@ export default function DistributorCreditNotes() {
         title="Distributor Credit Notes & Returns"
         subtitle="Single unified console for all retailer returns, expiry claims, rate adjustments, and company credit notes"
         actions={
-          <ActionButton
-            icon={<Plus className="w-4 h-4" />}
-            onClick={() => setShowCreateModal(true)}
-          >
-            Create Credit Note
-          </ActionButton>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 rounded-lg hover:bg-slate-50 transition-colors"
+              title="Refresh from Database"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} /> Refresh DB
+            </button>
+            <ActionButton
+              icon={<Plus className="w-4 h-4" />}
+              onClick={() => setShowCreateModal(true)}
+            >
+              Create Credit Note
+            </ActionButton>
+          </div>
         }
       />
 
@@ -762,12 +895,19 @@ export default function DistributorCreditNotes() {
 
       {/* Table Card */}
       <TableCard>
-        <DataTable
-          columns={columns}
-          data={filteredData}
-          onRowClick={(row) => setViewRecord(row)}
-          emptyMessage="No Credit Notes found matching the selected filters"
-        />
+        {loading ? (
+          <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
+            <Loader2 className="w-6 h-6 animate-spin text-[#163c78]" />
+            <span className="text-sm font-medium">Loading Credit Notes from Database...</span>
+          </div>
+        ) : (
+          <DataTable
+            columns={columns}
+            data={filteredData}
+            onRowClick={(row) => setViewRecord(row)}
+            emptyMessage="No Credit Notes found matching the selected filters"
+          />
+        )}
       </TableCard>
 
       {/* View Drawer */}
@@ -903,6 +1043,30 @@ export default function DistributorCreditNotes() {
             </div>
 
             <form onSubmit={handleCreateSubmit} className="p-6 space-y-5">
+              {/* Reference Invoice Selection */}
+              <div className="bg-blue-50/60 p-4 rounded-xl border border-blue-100 space-y-3">
+                <label className="block text-xs font-bold text-[#163c78] uppercase tracking-wide">
+                  Select Original Invoice (Auto-Fills Details)
+                </label>
+                <select
+                  value={formInvoiceNo}
+                  onChange={(e) => handleSelectInvoice(e.target.value)}
+                  className="w-full text-sm border border-blue-200 rounded-lg p-2.5 bg-white font-mono text-slate-800"
+                >
+                  <option value="">-- Choose Existing Billed Invoice (or enter manually below) --</option>
+                  {invoices.map((inv, i) => {
+                    const num = inv.invoiceNumber || inv.invoiceNo || `INV-${inv.id}`;
+                    const cust = inv.customerName || (inv.retailer ? inv.retailer.name : '') || inv.buyerName || 'Walk-in';
+                    const amt = inv.grandTotal || inv.totalAmount || inv.netPayable || 0;
+                    return (
+                      <option key={i} value={num}>
+                        {num} - {cust} ({formatCurrency(amt)})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
               {/* Party & Invoice Info */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
@@ -910,19 +1074,16 @@ export default function DistributorCreditNotes() {
                     {activeTab === 'ISSUED_TO_RETAILER' ? 'Retailer / Customer *' : 'Company / Entity *'}
                   </label>
                   {activeTab === 'ISSUED_TO_RETAILER' ? (
-                    <select
-                      value={formParty}
-                      onChange={(e) => setFormParty(e.target.value)}
-                      required
-                      className="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]"
-                    >
-                      <option value="">-- Select Retailer --</option>
-                      {retailersList.map((r, i) => (
-                        <option key={i} value={r.name}>
-                          {r.name} ({r.code || 'CHEM'})
-                        </option>
-                      ))}
-                    </select>
+                    <div className="space-y-1">
+                      <input
+                        type="text"
+                        value={formParty}
+                        onChange={(e) => setFormParty(e.target.value)}
+                        placeholder="Select from above or type chemist name..."
+                        required
+                        className="w-full text-sm border border-slate-300 rounded-lg p-2.5 focus:ring-2 focus:ring-[#163c78] focus:border-[#163c78]"
+                      />
+                    </div>
                   ) : (
                     <input
                       type="text"
@@ -1172,15 +1333,18 @@ export default function DistributorCreditNotes() {
                 <button
                   type="button"
                   onClick={() => setShowCreateModal(false)}
+                  disabled={submitting}
                   className="px-4 py-2 rounded-lg border border-slate-300 text-slate-700 text-xs font-semibold hover:bg-slate-50 transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-lg bg-[#163c78] hover:bg-[#112d5a] text-white text-xs font-semibold shadow-sm transition-colors"
+                  disabled={submitting}
+                  className="px-5 py-2 rounded-lg bg-[#163c78] hover:bg-[#112d5a] text-white text-xs font-semibold shadow-sm transition-colors flex items-center gap-1.5"
                 >
-                  Generate Credit Note
+                  {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {submitting ? 'Saving to Database...' : 'Generate Credit Note'}
                 </button>
               </div>
             </form>
