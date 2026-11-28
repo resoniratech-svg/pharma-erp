@@ -15,6 +15,9 @@ export interface CreditNotePdfData {
   status: string;
   creditAmount: number;
   gstAdjustment: number;
+  originalAmount?: number;
+  amountSettled?: number;
+  remarks?: string;
 }
 
 export const applyCreditNoteTemplate = (doc: jsPDF, record: CreditNotePdfData) => {
@@ -40,9 +43,9 @@ export const applyCreditNoteTemplate = (doc: jsPDF, record: CreditNotePdfData) =
   doc.text(`Original Invoice No: ${record.againstInvoiceNo}`, 14, currentY + 10);
   doc.text(`Original Invoice Date: ${record.invoiceDate}`, 14, currentY + 15);
   
-  doc.text(`Type: ${record.cnType}`, 140, currentY);
-  doc.text(`Reason: ${record.reason}`, 140, currentY + 5);
-  doc.text(`Status: ${record.status.toUpperCase()}`, 140, currentY + 10);
+  doc.text(`Type: ${record.cnType}`, 130, currentY);
+  doc.text(`Reason: ${record.reason}`, 130, currentY + 5);
+  doc.text(`Status: ${record.status.toUpperCase()}`, 130, currentY + 10);
   
   currentY += 25;
   doc.line(14, currentY, 196, currentY);
@@ -52,27 +55,57 @@ export const applyCreditNoteTemplate = (doc: jsPDF, record: CreditNotePdfData) =
   doc.setFont('helvetica', 'bold');
   doc.text('Financial Summary', 14, currentY);
   
+  const isSettled = record.status.toUpperCase() === 'SETTLED' || record.status.toUpperCase() === 'PAID';
+  const finalSettled = record.amountSettled && record.amountSettled > 0 ? record.amountSettled : record.creditAmount;
+  const originalClaim = record.originalAmount && record.originalAmount > 0 
+    ? record.originalAmount 
+    : Math.max(record.creditAmount, finalSettled);
+  const deductionLoss = Math.max(0, originalClaim - finalSettled);
+
   currentY += 10;
   doc.setFont('helvetica', 'normal');
-  doc.text('Taxable Amount:', 14, currentY);
-  doc.text(`Rs. ${record.creditAmount.toFixed(2)}`, 60, currentY);
+
+  if (isSettled && (deductionLoss > 0.01 || record.amountSettled)) {
+    const recoveryPct = originalClaim > 0 ? Math.round((finalSettled / originalClaim) * 100) : 100;
+    
+    doc.text('Original Billed Total:', 14, currentY);
+    doc.text(`Rs. ${originalClaim.toFixed(2)}`, 85, currentY);
+    
+    currentY += 8;
+    doc.text('Recovery Policy Applied:', 14, currentY);
+    doc.text(`${recoveryPct}% Approved Credit`, 85, currentY);
+    
+    currentY += 8;
+    doc.text('Policy Deduction / Scrap Loss:', 14, currentY);
+    doc.text(`- Rs. ${deductionLoss.toFixed(2)}`, 85, currentY);
+    
+    currentY += 10;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Final Approved Credit (Settled):', 14, currentY);
+    doc.text(`Rs. ${finalSettled.toFixed(2)}`, 85, currentY);
+  } else {
+    doc.text('Taxable Amount:', 14, currentY);
+    doc.text(`Rs. ${record.creditAmount.toFixed(2)}`, 85, currentY);
+    
+    currentY += 8;
+    doc.text('GST Adjustment / Reversal:', 14, currentY);
+    doc.text(`Rs. ${record.gstAdjustment.toFixed(2)}`, 85, currentY);
+    
+    currentY += 10;
+    doc.setFont('helvetica', 'bold');
+    doc.text('Total Credit Amount:', 14, currentY);
+    doc.text(`Rs. ${finalSettled.toFixed(2)}`, 85, currentY);
+  }
   
   currentY += 10;
-  doc.text('GST Reversal:', 14, currentY);
-  doc.text(`Rs. ${record.gstAdjustment.toFixed(2)}`, 60, currentY);
-  
-  currentY += 10;
-  doc.setFont('helvetica', 'bold');
-  doc.text('Total Credit Amount:', 14, currentY);
-  doc.text(`Rs. ${(record.creditAmount + record.gstAdjustment).toFixed(2)}`, 60, currentY);
-  
-  currentY += 10;
+  doc.setDrawColor(200);
   doc.line(14, currentY, 196, currentY);
   
   // Remarks
   currentY += 10;
   doc.setFont('helvetica', 'normal');
-  doc.text(`Remarks: ${record.reason} processing - Authorized adjustment`, 14, currentY);
+  const remarksText = record.remarks || `${record.reason} processing - Authorized adjustment`;
+  doc.text(`Remarks: ${remarksText}`, 14, currentY);
   
   applySignatureBlock(doc, currentY + 15);
   applyDocumentFooter(doc);

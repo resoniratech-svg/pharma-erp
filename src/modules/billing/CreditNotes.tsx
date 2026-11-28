@@ -364,7 +364,8 @@ export default function CreditNotes() {
   const downloadPDF = (record: CreditNoteData, e?: React.MouseEvent) => {
     e?.stopPropagation();
     const doc = new jsPDF();
-    // Convert backend data format to match PDF template requirements
+    const isSettled = record.status === 'PAID';
+    const finalCredit = isSettled && record.amountSettled && record.amountSettled > 0 ? record.amountSettled : record.totalAmount;
     const pdfData = {
       id: record.id,
       cnNo: record.cnNo,
@@ -375,9 +376,12 @@ export default function CreditNotes() {
       invoiceDate: record.invoiceDate,
       cnType: record.cnType,
       reason: record.reason,
-      creditAmount: record.taxableAmount,
+      creditAmount: finalCredit,
       gstAdjustment: record.gstAmount,
-      status: record.status as any
+      status: record.status as any,
+      originalAmount: record.totalAmount,
+      amountSettled: record.amountSettled,
+      remarks: record.remarks || undefined
     };
     applyCreditNoteTemplate(doc, pdfData);
     doc.save(`${record.cnNo.replace(/\//g, '-')}.pdf`);
@@ -397,7 +401,24 @@ export default function CreditNotes() {
     { key: 'customerName', label: 'Customer Name', render: (row) => <span className="font-medium text-violet-700">{row.customerName}</span> },
     { key: 'againstInvoiceNo', label: 'Against Invoice', render: (row) => <span className="font-mono text-xs text-slate-600">{row.againstInvoiceNo}</span> },
     { key: 'cnDate', label: 'Credit Note Date' },
-    { key: 'creditAmount', label: 'Credit Amount', render: (row) => <span className="font-bold text-slate-800">{formatCurrency(row.totalAmount)}</span> },
+    {
+      key: 'creditAmount',
+      label: 'Credit Amount',
+      render: (row) => {
+        const isSettled = row.status === 'PAID' && row.amountSettled !== undefined && row.amountSettled > 0;
+        const displayAmount = isSettled ? row.amountSettled! : row.totalAmount;
+        return (
+          <div>
+            <span className="font-bold text-slate-800">{formatCurrency(displayAmount)}</span>
+            {isSettled && row.amountSettled! < row.totalAmount && (
+              <span className="block text-[11px] font-semibold text-emerald-600">
+                Settled (Orig: {formatCurrency(row.totalAmount)})
+              </span>
+            )}
+          </div>
+        );
+      }
+    },
     { key: 'status', label: 'Status', render: (row) => <Badge variant={getStatusVariant(row.status)}>{row.status.replace('_', ' ')}</Badge> },
     {
       key: 'actions',

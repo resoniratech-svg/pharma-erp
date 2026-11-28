@@ -33,6 +33,8 @@ export interface DistributorCreditNote {
   taxableAmount: number;
   gstAmount: number;
   totalAmount: number;
+  amountSettled?: number;
+  originalAmount?: number;
   status: 'PENDING' | 'APPROVED' | 'SETTLED';
   remarks?: string;
   disposition: 'SALABLE' | 'QUARANTINE_DUMP' | 'FINANCIAL_ONLY';
@@ -290,6 +292,8 @@ function mapServiceNoteToDistributorNote(cn: CreditNoteData): DistributorCreditN
     taxableAmount: Number(cn.taxableAmount || 0),
     gstAmount: Number(cn.gstAmount || 0),
     totalAmount: Number(cn.totalAmount || 0),
+    amountSettled: Number(cn.amountSettled !== undefined && cn.amountSettled !== null ? cn.amountSettled : ((resolvedStatus === 'SETTLED') ? cn.totalAmount : 0)),
+    originalAmount: Number(cn.totalAmount || 0),
     status: resolvedStatus,
     remarks: cn.remarks || undefined,
     disposition,
@@ -720,6 +724,7 @@ export default function DistributorCreditNotes() {
     setData(prev => prev.map(item => (String(item.id) === String(id) || item.cnNo === cnNo || String(item.cnNo) === String(cnNo)) ? {
       ...item,
       status: 'SETTLED' as const,
+      amountSettled: settlementAmount,
       totalAmount: settlementAmount,
       remarks: `${item.remarks ? item.remarks + ' | ' : ''}${settlementRemarks}`
     } : item));
@@ -728,6 +733,7 @@ export default function DistributorCreditNotes() {
       setViewRecord(prev => prev ? {
         ...prev,
         status: 'SETTLED',
+        amountSettled: settlementAmount,
         totalAmount: settlementAmount,
         remarks: `${prev.remarks ? prev.remarks + ' | ' : ''}${settlementRemarks}`
       } : null);
@@ -762,6 +768,8 @@ export default function DistributorCreditNotes() {
     if (e) e.stopPropagation();
     try {
       const doc = new jsPDF();
+      const isSettled = record.status === 'SETTLED';
+      const finalCredit = isSettled && record.amountSettled && record.amountSettled > 0 ? record.amountSettled : record.totalAmount;
       const pdfData: CreditNotePdfData = {
         cnNo: record.cnNo,
         cnDate: record.cnDate,
@@ -772,11 +780,14 @@ export default function DistributorCreditNotes() {
         cnType: record.reason,
         reason: record.reason,
         status: record.status,
-        creditAmount: record.totalAmount,
-        gstAdjustment: record.gstAmount
+        creditAmount: finalCredit,
+        gstAdjustment: record.gstAmount,
+        originalAmount: record.originalAmount || record.totalAmount,
+        amountSettled: record.amountSettled,
+        remarks: record.remarks
       };
       applyCreditNoteTemplate(doc, pdfData);
-      doc.save(`${record.cnNo}.pdf`);
+      doc.save(`${record.cnNo.replace(/\//g, '-')}.pdf`);
     } catch (err) {
       console.error('Failed to generate PDF:', err);
       alert('Unable to generate Credit Note PDF');
@@ -879,12 +890,26 @@ export default function DistributorCreditNotes() {
     {
       key: 'totalAmount',
       label: 'Credit Amount',
-      render: (row) => (
-        <div>
-          <span className="font-bold text-slate-900 block">{formatCurrency(row.totalAmount)}</span>
-          <span className="text-[11px] text-slate-500">Taxable: {formatCurrency(row.taxableAmount)}</span>
-        </div>
-      )
+      render: (row) => {
+        const isSettled = row.status === 'SETTLED' && row.amountSettled !== undefined && row.amountSettled > 0;
+        const displayAmount = isSettled ? row.amountSettled! : row.totalAmount;
+        return (
+          <div>
+            <span className="font-bold text-slate-900 block">{formatCurrency(displayAmount)}</span>
+            {isSettled && row.originalAmount && row.amountSettled! < row.originalAmount ? (
+              <span className="block text-[11px] font-semibold text-emerald-600">
+                Settled (Orig: {formatCurrency(row.originalAmount)})
+              </span>
+            ) : isSettled && row.amountSettled! < row.totalAmount ? (
+              <span className="block text-[11px] font-semibold text-emerald-600">
+                Settled (Orig: {formatCurrency(row.totalAmount)})
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-500">Taxable: {formatCurrency(row.taxableAmount)}</span>
+            )}
+          </div>
+        );
+      }
     },
     {
       key: 'status',

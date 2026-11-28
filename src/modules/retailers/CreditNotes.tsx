@@ -29,6 +29,8 @@ export interface RetailerCreditNote {
   taxableAmount: number;
   gstAmount: number;
   totalAmount: number;
+  amountSettled?: number;
+  originalAmount?: number;
   status: 'PENDING' | 'APPROVED' | 'SETTLED';
   remarks?: string;
   disposition: 'SALABLE' | 'QUARANTINE_DUMP' | 'FINANCIAL_ONLY';
@@ -177,13 +179,15 @@ function mapServiceNoteToRetailerNote(cn: CreditNoteData): RetailerCreditNote {
     totalAmount: it.totalAmount || ((it.quantity || 1) * (it.rate || 0) * 1.12)
   }));
 
+  const isSettled = cn.status === 'PAID' || cn.status === 'SETTLED' || (cn.amountSettled !== undefined && cn.amountSettled !== null && cn.amountSettled > 0);
+  const resolvedStatus: 'PENDING' | 'APPROVED' | 'SETTLED' = isSettled ? 'SETTLED' : (cn.status as any) || 'PENDING';
+
   const submittedSet = getSubmittedClaimIds();
   const isClaim = 
     submittedSet.has(String(cn.id)) ||
     submittedSet.has(String(cn.cnNo)) ||
     (cn as any).direction === 'MY_CLAIM' ||
-    cn.status === 'PENDING' || 
-    cn.status === 'SUBMITTED' || 
+    (!isSettled && (cn.status === 'PENDING' || cn.status === 'SUBMITTED')) || 
     cn.remarks?.toLowerCase().includes('claim') || 
     cn.remarks?.toLowerCase().includes('retailer') ||
     cn.remarks?.toLowerCase().includes('trying to create') ||
@@ -203,7 +207,9 @@ function mapServiceNoteToRetailerNote(cn: CreditNoteData): RetailerCreditNote {
     taxableAmount: Number(cn.taxableAmount || 0),
     gstAmount: Number(cn.gstAmount || 0),
     totalAmount: Number(cn.totalAmount || 0),
-    status: (cn.status === 'PAID' ? 'SETTLED' : cn.status) as any,
+    amountSettled: Number(cn.amountSettled !== undefined && cn.amountSettled !== null ? cn.amountSettled : (isSettled ? cn.totalAmount : 0)),
+    originalAmount: Number(cn.totalAmount || 0),
+    status: resolvedStatus,
     direction: isClaim ? 'MY_CLAIM' : 'RECEIVED',
     remarks: cn.remarks || undefined,
     disposition,
@@ -602,6 +608,8 @@ export default function RetailerCreditNotes() {
     if (e) e.stopPropagation();
     try {
       const doc = new jsPDF();
+      const isSettled = record.status === 'SETTLED';
+      const finalCredit = isSettled && record.amountSettled && record.amountSettled > 0 ? record.amountSettled : record.totalAmount;
       const pdfData: CreditNotePdfData = {
         cnNo: record.cnNo,
         cnDate: record.cnDate,
@@ -612,11 +620,14 @@ export default function RetailerCreditNotes() {
         cnType: record.reason,
         reason: record.reason,
         status: record.status,
-        creditAmount: record.totalAmount,
-        gstAdjustment: record.gstAmount
+        creditAmount: finalCredit,
+        gstAdjustment: record.gstAmount,
+        originalAmount: record.originalAmount || record.totalAmount,
+        amountSettled: record.amountSettled,
+        remarks: record.remarks
       };
       applyCreditNoteTemplate(doc, pdfData);
-      doc.save(`${record.cnNo}.pdf`);
+      doc.save(`${record.cnNo.replace(/\//g, '-')}.pdf`);
     } catch (err) {
       console.error('Failed to generate PDF:', err);
       alert('Unable to generate Credit Note PDF');
@@ -719,12 +730,26 @@ export default function RetailerCreditNotes() {
     {
       key: 'totalAmount',
       label: 'Credit Amount',
-      render: (row) => (
-        <div>
-          <span className="font-bold text-slate-900 block">{formatCurrency(row.totalAmount)}</span>
-          <span className="text-[11px] text-slate-500">Taxable: {formatCurrency(row.taxableAmount)}</span>
-        </div>
-      )
+      render: (row) => {
+        const isSettled = row.status === 'SETTLED' && row.amountSettled !== undefined && row.amountSettled > 0;
+        const displayAmount = isSettled ? row.amountSettled! : row.totalAmount;
+        return (
+          <div>
+            <span className="font-bold text-slate-900 block">{formatCurrency(displayAmount)}</span>
+            {isSettled && row.originalAmount && row.amountSettled! < row.originalAmount ? (
+              <span className="block text-[11px] font-semibold text-emerald-600">
+                Settled (Orig: {formatCurrency(row.originalAmount)})
+              </span>
+            ) : isSettled && row.amountSettled! < row.totalAmount ? (
+              <span className="block text-[11px] font-semibold text-emerald-600">
+                Settled (Orig: {formatCurrency(row.totalAmount)})
+              </span>
+            ) : (
+              <span className="text-[11px] text-slate-500">Taxable: {formatCurrency(row.taxableAmount)}</span>
+            )}
+          </div>
+        );
+      }
     },
     {
       key: 'status',

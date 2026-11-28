@@ -121,7 +121,7 @@ function mapToUi(cn: any): CreditNoteData {
     taxableAmount: Number(cn.taxableAmount || 0),
     gstAmount: Number(cn.gstAmount || 0),
     totalAmount: Number(cn.totalAmount || 0),
-    amountSettled: Number(cn.amountSettled || cn.totalAmount || 0),
+    amountSettled: Number(cn.amountSettled !== undefined && cn.amountSettled !== null ? cn.amountSettled : ((cn.status === 'PAID' || cn.status === 'SETTLED') ? (cn.totalAmount || 0) : 0)),
     customerName,
     customerType,
     againstInvoiceNo: againstInvNo,
