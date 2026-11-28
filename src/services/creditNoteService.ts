@@ -216,8 +216,8 @@ export const creditNoteService = {
         taxableAmount: input.taxableAmount || 0,
         gstAmount: input.gstAmount || 0,
         totalAmount: input.totalAmount || 0,
-        amountSettled: input.totalAmount || 0,
-        status: 'PAID',
+        amountSettled: (input.status === 'PAID' || input.status === 'SETTLED') ? (input.totalAmount || 0) : 0,
+        status: (input.status as any) || 'PENDING',
         items: []
       };
       // Read existing local records safely

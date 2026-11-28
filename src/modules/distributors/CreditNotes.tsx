@@ -213,6 +213,15 @@ const INITIAL_MOCK_NOTES: DistributorCreditNote[] = [
   }
 ];
 
+function getDistributorSettledIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem('distributor_settled_cn_ids');
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
 function mapServiceNoteToDistributorNote(cn: CreditNoteData): DistributorCreditNote {
   const isReceived = cn.customerType === 'Distributor' || 
                      (cn.customerName && (
@@ -244,6 +253,22 @@ function mapServiceNoteToDistributorNote(cn: CreditNoteData): DistributorCreditN
     totalAmount: it.totalAmount || ((it.quantity || 1) * (it.rate || 0) * 1.12)
   }));
 
+  const manuallySettledSet = getDistributorSettledIds();
+
+  // If it's a retailer claim or newly submitted claim that hasn't been settled yet:
+  const isRetailerClaim = cn.customerName === 'My Retail Chemist Pharmacy' || 
+                          cn.remarks?.toLowerCase().includes('claim') ||
+                          cn.remarks?.toLowerCase().includes('trying to create');
+
+  let resolvedStatus: 'PENDING' | 'APPROVED' | 'SETTLED' = 'SETTLED';
+  if (manuallySettledSet.has(String(cn.id)) || manuallySettledSet.has(String(cn.cnNo))) {
+    resolvedStatus = 'SETTLED';
+  } else if (cn.status === 'PENDING' || cn.status === 'SUBMITTED' || isRetailerClaim) {
+    resolvedStatus = 'PENDING';
+  } else {
+    resolvedStatus = (cn.status === 'PAID' ? 'SETTLED' : (cn.status as any)) || 'PENDING';
+  }
+
   return {
     id: String(cn.id),
     cnNo: cn.cnNo,
@@ -258,7 +283,7 @@ function mapServiceNoteToDistributorNote(cn: CreditNoteData): DistributorCreditN
     taxableAmount: Number(cn.taxableAmount || 0),
     gstAmount: Number(cn.gstAmount || 0),
     totalAmount: Number(cn.totalAmount || 0),
-    status: (cn.status === 'PAID' ? 'SETTLED' : cn.status) as any,
+    status: resolvedStatus,
     remarks: cn.remarks || undefined,
     disposition,
     items: items.length > 0 ? items : [
@@ -671,10 +696,20 @@ export default function DistributorCreditNotes() {
     try {
       const note = data.find(d => d.id === id);
       if (note) {
+        // Record as manually settled in local registry
+        try {
+          const currentSettled: string[] = JSON.parse(localStorage.getItem('distributor_settled_cn_ids') || '[]');
+          currentSettled.push(String(id), String(note.cnNo));
+          localStorage.setItem('distributor_settled_cn_ids', JSON.stringify(currentSettled));
+        } catch (e) {}
+
         await creditNoteService.settleCreditNote(id, note.totalAmount, 'Settled via Distributor Portal');
       }
+
+      // Update state immediately
+      setData(prev => prev.map(item => item.id === id ? { ...item, status: 'SETTLED' as const } : item));
+      alert('Credit Note accepted & settled successfully in Ledger!');
       await loadData();
-      alert('Credit Note settled successfully in Ledger!');
     } catch (err: any) {
       console.warn('Settlement error:', err);
       // Fallback local update

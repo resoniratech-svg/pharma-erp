@@ -520,6 +520,7 @@ export default function RetailerCreditNotes() {
       const payload: CreditNoteInput = {
         cnType: formReason,
         reason: formReason,
+        status: 'PENDING',
         customerName: 'My Retail Chemist Pharmacy',
         againstInvoiceNo: formInvoiceNo || `INV-RET-${Math.floor(1000 + Math.random() * 9000)}`,
         againstInvoiceId: formInvoiceNo || undefined,
