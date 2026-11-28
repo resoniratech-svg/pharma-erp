@@ -74,8 +74,18 @@ export default function CentralLogin() {
         localStorage.setItem('centralAuthSession', JSON.stringify(authPayload));
         if (userRecord.roleId === 'RETAILER') {
           navigate('/workspace/retailers/catalog');
+        } else if (userRecord.roleId === 'NATIONAL_SALES_HEAD') {
+          navigate('/workspace/national-sales-head');
+        } else if (userRecord.roleId === 'REGIONAL_SALES_MANAGER') {
+          navigate('/workspace/regional-sales-manager');
+        } else if (userRecord.roleId === 'AREA_SALES_MANAGER') {
+          navigate('/workspace/area-sales-manager');
+        } else if (userRecord.roleId === 'MEDICAL_REPRESENTATIVE') {
+          navigate('/workspace/medical-representative');
+        } else if (userRecord.roleId === 'DISTRIBUTOR') {
+          navigate('/workspace/distributors/orders');
         } else {
-          navigate('/workspace');
+          navigate('/workspace/dashboard');
         }
       }, 500);
 
@@ -105,19 +115,19 @@ export default function CentralLogin() {
         {/* Login Form */}
         <form className="space-y-6" onSubmit={handleSubmit}>
           
-          {/* Email Address */}
+          {/* Email / Username / Code */}
           <div>
             <label className="block text-sm font-semibold text-slate-700 mb-2">
-              Email Address
+              Email, Username or Employee Code
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <Mail className="h-5 w-5 text-slate-400" />
               </div>
               <input
-                type="email"
+                type="text"
                 className="block w-full pl-10 pr-3 py-2.5 border border-slate-300 rounded-lg focus:ring-2 focus:ring-[#163c78]/20 focus:border-[#163c78] sm:text-sm transition-colors"
-                placeholder="superadmin@pharmaerp.com"
+                placeholder="email@company.com or username"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required

@@ -28,6 +28,11 @@ export interface UserRecord {
   avatarUrl?: string;
   profileImage?: string;
   linkedDistributorCode?: string;
+  gstNumber?: string;
+  address?: string;
+  licenseNumber?: string;
+  upiId?: string;
+  upiQrScanner?: string;
 }
 
 export class AuthService {
@@ -92,7 +97,9 @@ export class AuthService {
       if (!u) return false;
       const matchEmail = u.email && String(u.email).trim().toLowerCase() === cleanInput;
       const matchUsername = u.username && String(u.username).trim().toLowerCase() === cleanInput;
-      const matchId = u.id && String(u.id).trim().toLowerCase() === cleanInput;
+      const matchId = (u.id && String(u.id).trim().toLowerCase() === cleanInput) ||
+                      (u.empId && String(u.empId).trim().toLowerCase() === cleanInput) ||
+                      (u.employeeCode && String(u.employeeCode).trim().toLowerCase() === cleanInput);
       const matchPass = u.password && String(u.password).trim() === cleanPassword;
       return (matchEmail || matchUsername || matchId) && matchPass;
     });
@@ -190,6 +197,20 @@ export class AuthService {
 
     const mappedRoleId = this.mapRoleToId(user.role);
 
+    // Enrich user with extended metadata
+    const userMetaMap: Record<string, any> = {};
+    try {
+      const storedMeta = localStorage.getItem('pharma_users_extended_meta');
+      if (storedMeta) Object.assign(userMetaMap, JSON.parse(storedMeta));
+    } catch (_) {}
+    const userMeta = userMetaMap[user.email?.toLowerCase()] || userMetaMap[String(user.id)] || {};
+    user.employeeCode = userMeta.empId || user.employeeCode || user.empId || String(user.id);
+    user.gstNumber = userMeta.gstNumber || user.gstNumber || '';
+    user.address = userMeta.address || user.address || '';
+    user.licenseNumber = userMeta.licenseNumber || user.licenseNumber || '';
+    user.upiId = userMeta.upiId || user.upiId || '';
+    user.upiQrScanner = userMeta.upiQrScanner || user.upiQrScanner || '';
+
     // Update last login
     const now = new Date();
     user.lastLogin = now.toLocaleString('en-US', {
@@ -221,6 +242,15 @@ export class AuthService {
 
       const { token, user, mr, employee } = response.data;
 
+      // Load extended meta (GST, Address, License, UPI, Scanner QR, User/Employee Code)
+      const userMetaMap: Record<string, any> = {};
+      try {
+        const storedMeta = localStorage.getItem('pharma_users_extended_meta');
+        if (storedMeta) Object.assign(userMetaMap, JSON.parse(storedMeta));
+      } catch (_) {}
+
+      const userMeta = userMetaMap[user.email?.toLowerCase()] || userMetaMap[String(user.id)] || {};
+
       // Map backend user to frontend UserRecord format
       const mappedRole = user.role === 'ADMIN' ? 'COMPANY_ADMIN' : user.role;
       const userRecord: UserRecord = {
@@ -228,11 +258,16 @@ export class AuthService {
         fullName: user.name,
         email: user.email,
         roleId: mappedRole,
-        mobile: '',
-        employeeCode: employee ? employee.employeeCode : (mr ? mr.mrCode : ((user as any).linkedRetailerCode || '')),
+        mobile: user.mobile || userMeta.mobile || '',
+        employeeCode: userMeta.empId || (employee ? employee.employeeCode : (mr ? mr.mrCode : ((user as any).linkedRetailerCode || (user as any).linkedDistributorCode || ''))),
         linkedDistributorCode: (user as any).linkedDistributorCode || '',
         department: employee ? 'Sales Hierarchy' : (mr ? 'Sales & Marketing' : 'Management'),
         password: password, // Keep the entered password for compatibility with settings
+        gstNumber: userMeta.gstNumber || '',
+        address: userMeta.address || '',
+        licenseNumber: userMeta.licenseNumber || '',
+        upiId: userMeta.upiId || '',
+        upiQrScanner: userMeta.upiQrScanner || ''
       };
 
       localStorage.setItem('authToken', token);
@@ -255,6 +290,42 @@ export class AuthService {
 
       return userRecord;
     } catch (err: any) {
+      // Fallback: check local users if backend call fails
+      try {
+        const localRes = await this.localLogin(email, password);
+        if (localRes?.user) {
+          const u = localRes.user;
+          const userMetaMap: Record<string, any> = {};
+          try {
+            const storedMeta = localStorage.getItem('pharma_users_extended_meta');
+            if (storedMeta) Object.assign(userMetaMap, JSON.parse(storedMeta));
+          } catch (_) {}
+          const userMeta = userMetaMap[u.email?.toLowerCase()] || userMetaMap[String(u.id)] || {};
+
+          const fallbackRecord: UserRecord = {
+            id: String(u.id),
+            fullName: u.name || u.fullName,
+            email: u.email,
+            roleId: localRes.mappedRoleId || u.role,
+            mobile: u.mobile || userMeta.mobile || '',
+            employeeCode: userMeta.empId || u.employeeCode || u.empId || String(u.id),
+            linkedDistributorCode: u.linkedDistributorCode || '',
+            department: u.department || 'Management',
+            password: password,
+            gstNumber: userMeta.gstNumber || u.gstNumber || '',
+            address: userMeta.address || u.address || '',
+            licenseNumber: userMeta.licenseNumber || u.licenseNumber || '',
+            upiId: userMeta.upiId || u.upiId || '',
+            upiQrScanner: userMeta.upiQrScanner || u.upiQrScanner || ''
+          };
+
+          localStorage.setItem('authToken', 'local_token_' + Date.now());
+          localStorage.setItem('authUser', JSON.stringify(fallbackRecord));
+          localStorage.setItem('activeRole', fallbackRecord.roleId);
+          localStorage.setItem('userId', String(fallbackRecord.id));
+          return fallbackRecord;
+        }
+      } catch (_) {}
       throw err;
     }
   }
@@ -286,22 +357,32 @@ export class AuthService {
     const currentUser = this.getCurrentUser();
     if (!currentUser) return null;
 
-    const response = await apiRequest<{ success: boolean; data: any; message: string }>('/auth/profile', {
-      method: 'PUT',
-      bodyData: updatedData,
-    });
+    let responseData: any = null;
+    try {
+      const response = await apiRequest<{ success: boolean; data: any; message: string }>('/auth/profile', {
+        method: 'PUT',
+        bodyData: updatedData,
+      });
 
-    if (!response.success) {
-      throw new Error(response.message || 'Failed to update profile');
+      if (response && response.success) {
+        responseData = response.data;
+      }
+    } catch (e) {
+      console.warn("Backend profile update fallback to local:", e);
     }
 
-    const updatedUser = {
+    const updatedUser: UserRecord = {
       ...currentUser,
-      fullName: response.data?.name || updatedData.name || currentUser.fullName,
-      email: response.data?.email || updatedData.email || currentUser.email,
-      mobile: response.data?.mobile || updatedData.mobile || currentUser.mobile,
-      profileImage: response.data?.profileImage || updatedData.profileImage || currentUser.profileImage,
+      fullName: responseData?.name || updatedData.name || currentUser.fullName,
+      email: responseData?.email || updatedData.email || currentUser.email,
+      mobile: responseData?.mobile || updatedData.mobile || currentUser.mobile,
+      profileImage: responseData?.profileImage || updatedData.profileImage || currentUser.profileImage,
       password: updatedData.newPassword || currentUser.password,
+      gstNumber: updatedData.gstNumber !== undefined ? updatedData.gstNumber : currentUser.gstNumber,
+      licenseNumber: updatedData.licenseNumber !== undefined ? updatedData.licenseNumber : currentUser.licenseNumber,
+      address: updatedData.address !== undefined ? updatedData.address : currentUser.address,
+      upiId: updatedData.upiId !== undefined ? updatedData.upiId : currentUser.upiId,
+      upiQrScanner: updatedData.upiQrScanner !== undefined ? updatedData.upiQrScanner : currentUser.upiQrScanner,
     };
 
     localStorage.setItem('authUser', JSON.stringify(updatedUser));

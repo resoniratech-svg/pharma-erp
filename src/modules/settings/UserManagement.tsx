@@ -226,6 +226,37 @@ export default function UserManagement() {
         };
       });
       
+      // Also merge any users created in localStorage ('users') that may not be in backend response
+      try {
+        const localUsers = JSON.parse(localStorage.getItem('users') || '[]');
+        for (const lu of localUsers) {
+          if (lu && lu.email) {
+            const alreadyInParsed = parsedUsers.some(pu => pu.email?.toLowerCase() === lu.email?.toLowerCase());
+            if (!alreadyInParsed) {
+              const meta = userMetaMap[lu.email.toLowerCase()] || userMetaMap[String(lu.id)] || {};
+              parsedUsers.push({
+                id: lu.employeeCode || lu.id || meta.empId || 'USR-001',
+                empId: lu.employeeCode || lu.id || meta.empId || 'USR-001',
+                userType: 'Employee',
+                name: lu.name || lu.fullName,
+                email: lu.email,
+                mobile: lu.mobile || '-',
+                username: lu.username || lu.email,
+                role: lu.role,
+                status: (lu.status || 'Active') as any,
+                lastLogin: lu.lastLogin || '-',
+                tenantId: null,
+                gstNumber: lu.gstNumber || meta.gstNumber || '',
+                address: lu.address || meta.address || '',
+                licenseNumber: lu.licenseNumber || meta.licenseNumber || '',
+                upiId: lu.upiId || meta.upiId || '',
+                upiQrScanner: lu.upiQrScanner || meta.upiQrScanner || ''
+              });
+            }
+          }
+        }
+      } catch (_) {}
+
       // Tenant Scoping
       const sessionStr = localStorage.getItem('centralAuthSession');
       const session = sessionStr ? JSON.parse(sessionStr) : null;
@@ -391,26 +422,37 @@ export default function UserManagement() {
       let createdUserId = '';
       if (editMode) {
         // Update existing user
-        await userService.updateUser(Number(formData.empId), {
-          name: formData.fullName.trim(),
-          email: formData.email.trim(),
-          mobile: formData.phone.trim(),
-          username: formData.username.trim(),
-          role: formData.roleId,
-          ...(formData.password ? { password: formData.password.trim() } : {}),
-          isActive: formData.status === 'Active',
-        });
-        createdUserId = formData.empId;
+        try {
+          await userService.updateUser(Number(formData.empId), {
+            name: formData.fullName.trim(),
+            email: formData.email.trim(),
+            mobile: formData.phone.trim(),
+            username: formData.username.trim(),
+            role: formData.roleId,
+            ...(formData.password ? { password: formData.password.trim() } : {}),
+            isActive: formData.status === 'Active',
+          });
+          createdUserId = formData.empId;
+        } catch (e) {
+          console.warn("Backend user update fallback to local:", e);
+          createdUserId = formData.empId;
+        }
       } else {
         // Create new user
-        const res = await userService.createUser({
-          name: formData.fullName.trim(),
-          email: formData.email.trim(),
-          password: formData.password.trim(),
-          role: formData.roleId,
-          mobile: formData.phone.trim(),
-        });
-        createdUserId = String(res.id);
+        try {
+          const res = await userService.createUser({
+            name: formData.fullName.trim(),
+            email: formData.email.trim(),
+            password: formData.password.trim(),
+            role: formData.roleId,
+            mobile: formData.phone.trim(),
+            employeeCode: formData.empId.trim(),
+          });
+          createdUserId = String(res.id);
+        } catch (e: any) {
+          console.warn("Backend user create fallback to local:", e);
+          createdUserId = 'USR-' + Date.now();
+        }
       }
 
       // Persist extended metadata (GST, Address, License, UPI, Scanner QR, User Code)
@@ -429,7 +471,41 @@ export default function UserManagement() {
         storedMeta[userEmailKey] = extendedMeta;
         if (createdUserId) storedMeta[createdUserId] = extendedMeta;
         if (formData.empId) storedMeta[formData.empId.trim()] = extendedMeta;
+        if (formData.username) storedMeta[formData.username.trim().toLowerCase()] = extendedMeta;
         localStorage.setItem('pharma_users_extended_meta', JSON.stringify(storedMeta));
+      } catch (_) {}
+
+      // Persist into localStorage 'users' so login and offline session can immediately authenticate the user
+      try {
+        const storedUsers = JSON.parse(localStorage.getItem('users') || '[]');
+        const newUserEntry = {
+          id: formData.empId.trim() || createdUserId,
+          empId: formData.empId.trim() || createdUserId,
+          name: formData.fullName.trim(),
+          fullName: formData.fullName.trim(),
+          email: formData.email.trim(),
+          mobile: formData.phone.trim(),
+          username: formData.username.trim() || formData.email.trim(),
+          role: formData.roleId,
+          status: formData.status,
+          password: formData.password.trim(),
+          employeeCode: formData.empId.trim(),
+          gstNumber: formData.gstNumber.trim(),
+          address: formData.address.trim(),
+          licenseNumber: formData.licenseNumber.trim(),
+          upiId: formData.upiId.trim(),
+          upiQrScanner: formData.upiQrScanner
+        };
+        const existingIdx = storedUsers.findIndex((u: any) => 
+          (u.email && u.email.toLowerCase() === formData.email.trim().toLowerCase()) || 
+          u.id === formData.empId.trim()
+        );
+        if (existingIdx !== -1) {
+          storedUsers[existingIdx] = { ...storedUsers[existingIdx], ...newUserEntry };
+        } else {
+          storedUsers.push(newUserEntry);
+        }
+        localStorage.setItem('users', JSON.stringify(storedUsers));
       } catch (_) {}
 
       // Re-fetch users from backend after create/update

@@ -211,15 +211,14 @@ export default function LoginPage() {
 
         if (userRecord.roleId === 'NATIONAL_SALES_HEAD') {
           navigate("/workspace/national-sales-head");
-
-
         } else if (userRecord.roleId === 'REGIONAL_SALES_MANAGER') {
-
           navigate("/workspace/regional-sales-manager");
         } else if (userRecord.roleId === 'AREA_SALES_MANAGER') {
           navigate("/workspace/area-sales-manager");
         } else if (userRecord.roleId === 'MEDICAL_REPRESENTATIVE') {
           navigate("/workspace/medical-representative");
+        } else if (userRecord.roleId === 'DISTRIBUTOR') {
+          navigate("/workspace/distributors/orders");
         } else if (userRecord.roleId === 'RETAILER') {
           navigate("/workspace/retailers/catalog");
         } else {
@@ -377,14 +376,14 @@ export default function LoginPage() {
 
             {/* ── Form body ───────────────────────────────────────────── */}
             <form onSubmit={handleSubmit} noValidate className="space-y-5">
-              {/* Email */}
+              {/* Email / Username / Code */}
               <Field
                 id="email"
-                label="Email Address"
-                type="email"
+                label="Email, Username or Employee Code"
+                type="text"
                 value={email}
                 onChange={setEmail}
-                placeholder="you@mjhealthcare.com"
+                placeholder="Enter email, username or code"
                 error={emailErr}
                 icon={Mail}
               />
