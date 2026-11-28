@@ -596,21 +596,25 @@ export default function DistributorCreditNotes() {
 
   // KPI Calculations
   const metrics = useMemo(() => {
-    const currentList = data.filter(d => d.direction === activeTab);
+    const isMatch = (d: DistributorCreditNote) => activeTab === 'ISSUED_TO_RETAILER'
+      ? (d.direction === 'ISSUED_TO_RETAILER' || d.customerType === 'Retailer' || (!d.customerName.toLowerCase().includes('corporate') && !d.customerName.toLowerCase().includes('company')))
+      : (d.direction === 'RECEIVED_FROM_COMPANY' || d.status === 'SETTLED' || d.status === 'APPROVED' || (d.amountSettled !== undefined && d.amountSettled > 0));
+
+    const currentList = data.filter(isMatch);
     const totalCount = currentList.length;
-    const totalValue = currentList.reduce((acc, curr) => acc + curr.totalAmount, 0);
+    const totalValue = currentList.reduce((acc, curr) => acc + (curr.amountSettled && curr.amountSettled > 0 ? curr.amountSettled : curr.totalAmount), 0);
 
     const salesReturnVal = currentList
       .filter(d => d.reason === 'Sales Return')
-      .reduce((acc, curr) => acc + curr.totalAmount, 0);
+      .reduce((acc, curr) => acc + (curr.amountSettled && curr.amountSettled > 0 ? curr.amountSettled : curr.totalAmount), 0);
 
     const expiryReturnVal = currentList
       .filter(d => d.reason === 'Expiry Return' || d.reason === 'Damaged Goods/Breakage')
-      .reduce((acc, curr) => acc + curr.totalAmount, 0);
+      .reduce((acc, curr) => acc + (curr.amountSettled && curr.amountSettled > 0 ? curr.amountSettled : curr.totalAmount), 0);
 
     const adjustmentsVal = currentList
       .filter(d => d.reason === 'Rate Difference' || d.reason === 'Discount Adjustment')
-      .reduce((acc, curr) => acc + curr.totalAmount, 0);
+      .reduce((acc, curr) => acc + (curr.amountSettled && curr.amountSettled > 0 ? curr.amountSettled : curr.totalAmount), 0);
 
     return { totalCount, totalValue, salesReturnVal, expiryReturnVal, adjustmentsVal };
   }, [data, activeTab]);
@@ -618,7 +622,10 @@ export default function DistributorCreditNotes() {
   // Filtered List
   const filteredData = useMemo(() => {
     return data.filter(item => {
-      if (item.direction !== activeTab) return false;
+      const matchesTab = activeTab === 'ISSUED_TO_RETAILER'
+        ? (item.direction === 'ISSUED_TO_RETAILER' || item.customerType === 'Retailer' || (!item.customerName.toLowerCase().includes('corporate') && !item.customerName.toLowerCase().includes('company')))
+        : (item.direction === 'RECEIVED_FROM_COMPANY' || item.status === 'SETTLED' || item.status === 'APPROVED' || (item.amountSettled !== undefined && item.amountSettled > 0));
+      if (!matchesTab) return false;
       if (reasonFilter && item.reason !== reasonFilter) return false;
       if (statusFilter && item.status !== statusFilter) return false;
       if (search) {
@@ -893,13 +900,30 @@ export default function DistributorCreditNotes() {
     },
     {
       key: 'customerName',
-      label: activeTab === 'ISSUED_TO_RETAILER' ? 'Retailer / Customer' : 'Issuing Authority / Company',
-      render: (row) => (
-        <div>
-          <span className="font-medium text-slate-800 block">{row.customerName}</span>
-          {row.retailerCode && <span className="text-xs text-slate-400 font-mono">{row.retailerCode}</span>}
-        </div>
-      )
+      label: activeTab === 'ISSUED_TO_RETAILER' ? 'Retailer / Customer' : 'Approved By / Beneficiary',
+      render: (row) => {
+        if (activeTab === 'RECEIVED_FROM_COMPANY') {
+          return (
+            <div>
+              <span className="font-semibold text-slate-800 block flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block"></span>
+                {row.customerName.toLowerCase().includes('corporate') || row.customerName.toLowerCase().includes('company')
+                  ? row.customerName
+                  : 'MJ Healthcare Super Admin'}
+              </span>
+              <span className="text-xs text-slate-500">
+                Party: <span className="font-medium text-slate-700">{row.customerName}</span> {row.retailerCode ? `(${row.retailerCode})` : ''}
+              </span>
+            </div>
+          );
+        }
+        return (
+          <div>
+            <span className="font-medium text-slate-800 block">{row.customerName}</span>
+            {row.retailerCode && <span className="text-xs text-slate-400 font-mono">{row.retailerCode}</span>}
+          </div>
+        );
+      }
     },
     {
       key: 'againstInvoiceNo',
@@ -963,23 +987,25 @@ export default function DistributorCreditNotes() {
           >
             <Download className="w-4 h-4" />
           </button>
-          {row.status !== 'SETTLED' ? (
-            <button
-              onClick={(e) => openSettleModal(row, e)}
-              className="text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors border border-emerald-200"
-              title="Settle against Ledger dues"
-            >
-              <DollarSign className="w-3.5 h-3.5" /> Settle
-            </button>
-          ) : (!row.amountSettled || row.amountSettled >= row.totalAmount) ? (
-            <button
-              onClick={(e) => openSettleModal(row, e)}
-              className="text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors border border-blue-200"
-              title="Adjust / Re-settle return percentage"
-            >
-              <DollarSign className="w-3.5 h-3.5" /> Adjust
-            </button>
-          ) : null}
+          {activeTab === 'ISSUED_TO_RETAILER' && (
+            row.status !== 'SETTLED' ? (
+              <button
+                onClick={(e) => openSettleModal(row, e)}
+                className="text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors border border-emerald-200"
+                title="Settle against Ledger dues"
+              >
+                <DollarSign className="w-3.5 h-3.5" /> Settle
+              </button>
+            ) : (!row.amountSettled || row.amountSettled >= row.totalAmount) ? (
+              <button
+                onClick={(e) => openSettleModal(row, e)}
+                className="text-blue-600 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors border border-blue-200"
+                title="Adjust / Re-settle return percentage"
+              >
+                <DollarSign className="w-3.5 h-3.5" /> Adjust
+              </button>
+            ) : null
+          )}
         </div>
       )
     }
@@ -1061,7 +1087,7 @@ export default function DistributorCreditNotes() {
             <ArrowDownLeft className="w-4 h-4" />
             Issued to Retailers / Chemists
             <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full ml-1 font-mono">
-              {data.filter(d => d.direction === 'ISSUED_TO_RETAILER').length}
+              {data.filter(d => d.direction === 'ISSUED_TO_RETAILER' || d.customerType === 'Retailer' || (!d.customerName.toLowerCase().includes('corporate') && !d.customerName.toLowerCase().includes('company'))).length}
             </span>
           </button>
           <button
@@ -1074,8 +1100,8 @@ export default function DistributorCreditNotes() {
           >
             <ArrowUpRight className="w-4 h-4" />
             Received from Company / Super Admin
-            <span className="bg-slate-100 text-slate-600 text-xs px-2 py-0.5 rounded-full ml-1 font-mono">
-              {data.filter(d => d.direction === 'RECEIVED_FROM_COMPANY').length}
+            <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 text-xs px-2 py-0.5 rounded-full ml-1 font-mono font-bold">
+              {data.filter(d => d.direction === 'RECEIVED_FROM_COMPANY' || d.status === 'SETTLED' || d.status === 'APPROVED' || (d.amountSettled !== undefined && d.amountSettled > 0)).length}
             </span>
           </button>
         </div>
@@ -1184,7 +1210,7 @@ export default function DistributorCreditNotes() {
                   )
                 }
               />
-              <DrawerField label="Net Credit Amount" value={<span className="text-lg font-bold text-slate-900">{formatCurrency(viewRecord.totalAmount)}</span>} />
+              <DrawerField label="Net Credit Amount" value={<span className="text-lg font-bold text-slate-900">{formatCurrency(viewRecord.amountSettled && viewRecord.amountSettled > 0 ? viewRecord.amountSettled : viewRecord.totalAmount)}</span>} />
             </div>
 
             {viewRecord.remarks && (
