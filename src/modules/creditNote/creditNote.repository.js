@@ -276,7 +276,6 @@ class CreditNoteRepository {
       return updatedCn;
     });
   }
-  }
 }
 
 module.exports = new CreditNoteRepository();
