@@ -683,6 +683,7 @@ export default function DistributorCreditNotes() {
         cnType: formReason,
         reason: formReason,
         customerName: formParty,
+        distributorId: 1,
         againstInvoiceNo: formInvoiceNo || `INV-202611-${Math.floor(1000 + Math.random() * 9000)}`,
         againstInvoiceId: formInvoiceNo || undefined,
         taxableAmount: calculatedTaxable,

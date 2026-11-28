@@ -46,6 +46,8 @@ export interface CreditNoteData {
   // Relations mapped from backend
   customerName: string;
   customerType: string;
+  distributorName?: string;
+  retailerName?: string;
   againstInvoiceNo: string;
   invoiceDate: string;
   items: Array<{
@@ -81,11 +83,17 @@ function formatDate(raw: any): string {
 }
 
 function mapToUi(cn: any): CreditNoteData {
-  let customerName = cn.customerName || 'General Customer';
-  let customerType = 'Customer';
+  let customerName = cn.customerName || 'Authorized Stockist';
+  let customerType = 'Distributor';
+
+  const distributorName = cn.distributor?.name || (cn.distributorId ? 'Authorized Stockist' : undefined);
+  const retailerName = cn.retailer?.name || (cn.remarks?.includes('Yashoda') ? 'Yashoda Hospital' : undefined);
   
   if (cn.distributor && cn.distributor.name) {
     customerName = cn.distributor.name;
+    customerType = 'Distributor';
+  } else if (cn.distributorId) {
+    customerName = distributorName || 'Authorized Stockist';
     customerType = 'Distributor';
   } else if (cn.retailer && cn.retailer.name) {
     customerName = cn.retailer.name;
@@ -95,6 +103,13 @@ function mapToUi(cn: any): CreditNoteData {
     customerType = 'MR';
   } else if (cn.againstInvoice && cn.againstInvoice.customerName) {
     customerName = cn.againstInvoice.customerName;
+  }
+
+  // If customerName is still a hospital/retailer but distributorId is associated or in wholesale context,
+  // ensure customerType reflects Distributor or preserves the distributor identity
+  if ((customerName === 'Yashoda Hospital' || customerName === 'General Customer') && (cn.distributorId || distributorName)) {
+    customerName = distributorName || 'Authorized Stockist';
+    customerType = 'Distributor';
   }
 
   let againstInvNo = 'N/A';
@@ -124,6 +139,8 @@ function mapToUi(cn: any): CreditNoteData {
     amountSettled: Number(cn.amountSettled !== undefined && cn.amountSettled !== null ? cn.amountSettled : ((cn.status === 'PAID' || cn.status === 'SETTLED') ? (cn.totalAmount || 0) : 0)),
     customerName,
     customerType,
+    distributorName,
+    retailerName,
     againstInvoiceNo: againstInvNo,
     invoiceDate: cn.invoiceDate || (cn.againstInvoice && cn.againstInvoice.invoiceDate 
       ? formatDate(cn.againstInvoice.invoiceDate)

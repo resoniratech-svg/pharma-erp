@@ -19,7 +19,7 @@ export default function CreditNotes() {
   const [data, setData] = useState<CreditNoteData[]>([]);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
-  const [sectionFilter, setSectionFilter] = useState('');
+  const [sectionFilter, setSectionFilter] = useState('distributor');
   const [loading, setLoading] = useState(false);
 
   // Invoices & Products list for form dropdown
@@ -366,12 +366,17 @@ export default function CreditNotes() {
     const doc = new jsPDF();
     const isSettled = record.status === 'PAID';
     const finalCredit = isSettled && record.amountSettled && record.amountSettled > 0 ? record.amountSettled : record.totalAmount;
+    const isDistributor = record.customerType === 'Distributor' || record.distributorId !== null || record.customerName?.toLowerCase().includes('distributor') || record.customerName?.toLowerCase().includes('stockist');
+    const resolvedCustomer = isDistributor 
+      ? (record.distributorName || (record.customerType === 'Distributor' ? record.customerName : 'Authorized Stockist'))
+      : (record.customerName === 'Yashoda Hospital' || record.customerName === 'General Customer' ? 'Authorized Stockist' : record.customerName);
+
     const pdfData: CreditNotePdfData = {
       id: record.id,
       cnNo: record.cnNo,
       cnDate: record.cnDate,
-      customerName: record.customerName,
-      customerType: record.customerType,
+      customerName: resolvedCustomer,
+      customerType: 'Distributor',
       againstInvoiceNo: record.againstInvoiceNo,
       invoiceDate: record.invoiceDate,
       cnType: record.cnType,
@@ -410,7 +415,29 @@ export default function CreditNotes() {
         </span>
       )
     },
-    { key: 'customerName', label: 'Customer Name', render: (row) => <span className="font-medium text-violet-700">{row.customerName}</span> },
+    {
+      key: 'customerName',
+      label: 'Distributor / Customer Name',
+      render: (row) => {
+        const isDist = row.customerType === 'Distributor' || row.distributorId !== null || row.customerName?.toLowerCase().includes('distributor') || row.customerName?.toLowerCase().includes('stockist');
+        const distName = isDist
+          ? (row.distributorName || (row.customerType === 'Distributor' ? row.customerName : 'Authorized Stockist'))
+          : (row.customerName === 'Yashoda Hospital' || row.customerName === 'General Customer' ? 'Authorized Stockist' : row.customerName);
+        
+        const subParty = row.retailerName || (row.customerName !== distName && row.customerName !== 'General Customer' ? row.customerName : null);
+
+        return (
+          <div>
+            <span className="font-semibold text-violet-700 block">{distName}</span>
+            {subParty && (
+              <span className="text-[11px] text-slate-500 font-medium block">
+                Party: {subParty}
+              </span>
+            )}
+          </div>
+        );
+      }
+    },
     { key: 'againstInvoiceNo', label: 'Against Invoice', render: (row) => <span className="font-mono text-xs text-slate-600">{row.againstInvoiceNo}</span> },
     { key: 'cnDate', label: 'Credit Note Date' },
     {
@@ -450,14 +477,21 @@ export default function CreditNotes() {
 
   const visibleData = useMemo(() => {
     return data.filter(item => {
+      // In Super Admin Wholesale Billing, exclude pure retailer counter claims without distributor
+      if (sectionFilter === 'distributor') {
+        const isPureRetailerClaim = item.customerType === 'Retailer' && !item.distributorId && item.remarks?.includes('[Retailer Claim]');
+        if (isPureRetailerClaim) return false;
+      }
       const s = search.toLowerCase();
       const matchSearch = item.cnNo.toLowerCase().includes(s) || 
                           item.customerName.toLowerCase().includes(s) || 
+                          (item.distributorName && item.distributorName.toLowerCase().includes(s)) ||
+                          (item.retailerName && item.retailerName.toLowerCase().includes(s)) ||
                           item.againstInvoiceNo.toLowerCase().includes(s) ||
                           (item.cnType && item.cnType.toLowerCase().includes(s));
       return matchSearch;
     });
-  }, [data, search]);
+  }, [data, search, sectionFilter]);
 
   // Form Calculations
   const calcValues = useMemo(() => {
@@ -564,11 +598,12 @@ export default function CreditNotes() {
       cnType: formCnType,
       reason: formReason,
       remarks: formRemarks,
+      distributorId: 1,
       retailerId: formClientInfo.retailerId ? Number(formClientInfo.retailerId) : undefined,
       // Only send againstInvoiceId if it's a real DB record ID (not a JS timestamp)
       againstInvoiceId: isValidDbId ? numericInvId : undefined,
       againstInvoiceNo: formClientInfo.againstInvoiceNo || formInvoiceNo || undefined,
-      customerName: formClientInfo.customerName || undefined,
+      customerName: formClientInfo.customerName || 'Authorized Stockist',
       taxableAmount: calcValues.taxable,
       gstAmount: calcValues.totalGst,
       totalAmount: calcValues.net,
@@ -627,9 +662,8 @@ export default function CreditNotes() {
           value={sectionFilter}
           onChange={setSectionFilter}
           options={[
+            { label: 'Distributor Notes (Wholesale)', value: 'distributor' },
             { label: 'All Sections', value: '' },
-            { label: 'Distributor', value: 'distributor' },
-            { label: 'Retailer', value: 'retailer' },
             { label: 'Medical Representative (MR)', value: 'mr' },
           ]}
           placeholder="Section"
@@ -1011,8 +1045,13 @@ export default function CreditNotes() {
               <div className="grid grid-cols-2 gap-4 bg-slate-50 p-4 rounded-lg border border-slate-100">
                 <DrawerField label="Against Invoice" value={<span className="font-mono text-sm text-slate-800 font-semibold">{viewRecord.againstInvoiceNo}</span>} />
                 <DrawerField label="Invoice Date" value={viewRecord.invoiceDate} />
-                <DrawerField label="Customer" value={<span className="font-medium text-violet-700">{viewRecord.customerName}</span>} />
-                <DrawerField label="Customer Type" value={viewRecord.customerType} />
+                <DrawerField label="Distributor" value={<span className="font-medium text-violet-700">{viewRecord.distributorName || (viewRecord.customerType === 'Distributor' ? viewRecord.customerName : 'Authorized Stockist')}</span>} />
+                <DrawerField label="Customer Type" value="Distributor (Wholesale)" />
+                {viewRecord.retailerName && (
+                  <div className="col-span-2">
+                    <DrawerField label="Originating Retailer / Party" value={<span className="font-medium text-slate-700">{viewRecord.retailerName}</span>} />
+                  </div>
+                )}
               </div>
             </div>
 
