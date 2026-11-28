@@ -111,17 +111,8 @@ class CreditNoteRepository {
         throw new Error("Credit Note not found");
       }
 
-      const newAmountSettled = cn.amountSettled + settlementAmount;
-      if (newAmountSettled > cn.totalAmount + 0.01) {
-        throw new Error(`Settlement amount exceeds total Credit Note value. Total: ${cn.totalAmount}, Settled: ${cn.amountSettled}, Applied: ${settlementAmount}`);
-      }
-
-      let newStatus = "PENDING";
-      if (newAmountSettled >= cn.totalAmount - 0.01) {
-        newStatus = "PAID";
-      } else if (newAmountSettled > 0) {
-        newStatus = "PARTIALLY_PAID";
-      }
+      const newAmountSettled = settlementAmount;
+      let newStatus = "PAID"; // Applying percentage settlement finalizes the credit note
 
       // 2. Perform Stock Adjustments (if physical return and this is the first settlement)
       if (cn.amountSettled === 0 && cn.items && cn.items.length > 0) {
@@ -247,8 +238,9 @@ class CreditNoteRepository {
         data: {
           amountSettled: newAmountSettled,
           status: newStatus,
+          remarks: remarks ? `${cn.remarks ? cn.remarks + ' | ' : ''}${remarks}` : cn.remarks,
           approvedByUserId: approvedByUserId || undefined,
-          approvedAt: approvedByUserId ? new Date() : undefined
+          approvedAt: new Date()
         },
         include: {
           items: {
