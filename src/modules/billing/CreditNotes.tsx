@@ -339,14 +339,14 @@ export default function CreditNotes() {
 
     try {
       await creditNoteService.settleCreditNote(id, settlementAmount, settlementRemarks);
-      setData(prev => prev.map(item => (item.id === id || item.cnNo === cnNo) ? {
+      setData(prev => prev.map(item => (String(item.id) === String(id) || item.cnNo === cnNo || String(item.cnNo) === String(cnNo)) ? {
         ...item,
         status: 'PAID' as const,
         amountSettled: settlementAmount,
         remarks: `${item.remarks ? item.remarks + ' | ' : ''}${settlementRemarks}`
       } : item));
 
-      if (viewRecord && (viewRecord.id === id || viewRecord.cnNo === cnNo)) {
+      if (viewRecord && (String(viewRecord.id) === String(id) || viewRecord.cnNo === cnNo || String(viewRecord.cnNo) === String(cnNo))) {
         setViewRecord(prev => prev ? {
           ...prev,
           status: 'PAID',

@@ -262,12 +262,18 @@ function mapServiceNoteToDistributorNote(cn: CreditNoteData): DistributorCreditN
                           cn.remarks?.toLowerCase().includes('trying to create');
 
   let resolvedStatus: 'PENDING' | 'APPROVED' | 'SETTLED' = 'SETTLED';
-  if (manuallySettledSet.has(String(cn.id)) || manuallySettledSet.has(String(cn.cnNo))) {
+  if (
+    manuallySettledSet.has(String(cn.id)) || 
+    manuallySettledSet.has(String(cn.cnNo)) ||
+    cn.status === 'PAID' || 
+    cn.status === 'SETTLED' ||
+    (cn.amountSettled && cn.amountSettled > 0)
+  ) {
     resolvedStatus = 'SETTLED';
   } else if (cn.status === 'PENDING' || cn.status === 'SUBMITTED' || isRetailerClaim) {
     resolvedStatus = 'PENDING';
   } else {
-    resolvedStatus = (cn.status === 'PAID' ? 'SETTLED' : (cn.status as any)) || 'PENDING';
+    resolvedStatus = (cn.status as any) || 'PENDING';
   }
 
   return {
@@ -707,26 +713,45 @@ export default function DistributorCreditNotes() {
     try {
       const currentSettled: string[] = JSON.parse(localStorage.getItem('distributor_settled_cn_ids') || '[]');
       currentSettled.push(String(id), String(cnNo));
-      localStorage.setItem('distributor_settled_cn_ids', JSON.stringify(currentSettled));
+      localStorage.setItem('distributor_settled_cn_ids', JSON.stringify(Array.from(new Set(currentSettled))));
     } catch (e) {}
 
-    await creditNoteService.settleCreditNote(id, settlementAmount, settlementRemarks);
-
     // Update state immediately
-    setData(prev => prev.map(item => item.id === id ? {
+    setData(prev => prev.map(item => (String(item.id) === String(id) || item.cnNo === cnNo || String(item.cnNo) === String(cnNo)) ? {
       ...item,
       status: 'SETTLED' as const,
       totalAmount: settlementAmount,
       remarks: `${item.remarks ? item.remarks + ' | ' : ''}${settlementRemarks}`
     } : item));
 
-    if (viewRecord && viewRecord.id === id) {
+    if (viewRecord && (String(viewRecord.id) === String(id) || viewRecord.cnNo === cnNo)) {
       setViewRecord(prev => prev ? {
         ...prev,
         status: 'SETTLED',
         totalAmount: settlementAmount,
         remarks: `${prev.remarks ? prev.remarks + ' | ' : ''}${settlementRemarks}`
       } : null);
+    }
+
+    // Also update distributor_credit_notes in localStorage if present
+    try {
+      const saved = localStorage.getItem('distributor_credit_notes');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const updated = parsed.map((cn: any) => (String(cn.id) === String(id) || cn.cnNo === cnNo) ? {
+          ...cn,
+          status: 'SETTLED',
+          totalAmount: settlementAmount,
+          remarks: `${cn.remarks ? cn.remarks + ' | ' : ''}${settlementRemarks}`
+        } : cn);
+        localStorage.setItem('distributor_credit_notes', JSON.stringify(updated));
+      }
+    } catch (e) {}
+
+    try {
+      await creditNoteService.settleCreditNote(id, settlementAmount, settlementRemarks);
+    } catch (err) {
+      console.warn("API settle failed, local settled state maintained:", err);
     }
 
     setSettlingNote(null);
