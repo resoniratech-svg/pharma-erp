@@ -146,11 +146,11 @@ class CreditNoteService {
       distributorId: distributorId,
       mrId: data.mrId && !isNaN(parseInt(data.mrId, 10)) ? parseInt(data.mrId, 10) : null,
       againstInvoiceId: invoice ? invoice.id : null,
-      status: "PAID",
+      status: data.status || "PENDING",
       taxableAmount: finalSubTotal,
       gstAmount: finalGstAmount,
       totalAmount: finalTotalAmount,
-      amountSettled: finalTotalAmount,
+      amountSettled: (data.status === 'PAID' || data.status === 'SETTLED') ? finalTotalAmount : 0,
       items: formattedItems
     };
 
