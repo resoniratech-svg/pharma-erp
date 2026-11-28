@@ -8,6 +8,11 @@ export interface UserRole {
   role: string;
   status: 'Active' | 'Inactive' | 'Locked';
   lastLogin: string;
+  gstNumber?: string;
+  address?: string;
+  licenseNumber?: string;
+  upiId?: string;
+  upiQrScanner?: string;
   createdBy?: string;
   createdDate?: string;
   modifiedBy?: string;

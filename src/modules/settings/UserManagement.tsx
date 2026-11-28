@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef } from 'react';
-import { Users, Shield, Lock, Search, ChevronDown, Plus, Ban, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { Users, Shield, Lock, Search, ChevronDown, Plus, Ban, Eye, EyeOff, CheckCircle, Upload } from 'lucide-react';
 import {
   PageHeader,
   FilterBar,
@@ -181,30 +181,50 @@ export default function UserManagement() {
     email: '',
     phone: '',
     username: '',
-    roleId: '',
+    roleId: 'NATIONAL_SALES_HEAD',
     password: '',
     confirmPassword: '',
-    status: 'Active'
+    status: 'Active',
+    gstNumber: '',
+    address: '',
+    licenseNumber: '',
+    upiId: '',
+    upiQrScanner: ''
   });
 
   const fetchUsers = async () => {
     try {
       const backendUsers = await userService.getUsers();
       
+      // Load extended metadata (GST, Address, License, UPI, Scanner QR)
+      const userMetaMap: Record<string, any> = {};
+      try {
+        const storedMeta = localStorage.getItem('pharma_users_extended_meta');
+        if (storedMeta) Object.assign(userMetaMap, JSON.parse(storedMeta));
+      } catch (_) {}
+
       // Map to UserRole expected format
-      let parsedUsers: any[] = backendUsers.map(bu => ({
-        id: String(bu.id),
-        empId: String(bu.id), // Fallback, could map to employeeCode if returned
-        userType: 'Employee',
-        name: bu.name,
-        email: bu.email,
-        mobile: bu.mobile || '-',
-        username: bu.email,
-        role: bu.role,
-        status: bu.isActive ? 'Active' : 'Inactive',
-        lastLogin: '-',
-        tenantId: null // or parse from bu if available
-      }));
+      let parsedUsers: any[] = backendUsers.map(bu => {
+        const meta = userMetaMap[String(bu.id)] || userMetaMap[bu.email.toLowerCase()] || {};
+        return {
+          id: meta.empId || String(bu.id),
+          empId: meta.empId || String(bu.id),
+          userType: 'Employee',
+          name: bu.name,
+          email: bu.email,
+          mobile: bu.mobile || '-',
+          username: bu.email,
+          role: bu.role,
+          status: (bu.isActive ? 'Active' : 'Inactive') as any,
+          lastLogin: '-',
+          tenantId: null,
+          gstNumber: meta.gstNumber || '',
+          address: meta.address || '',
+          licenseNumber: meta.licenseNumber || '',
+          upiId: meta.upiId || '',
+          upiQrScanner: meta.upiQrScanner || ''
+        };
+      });
       
       // Tenant Scoping
       const sessionStr = localStorage.getItem('centralAuthSession');
@@ -284,118 +304,57 @@ export default function UserManagement() {
     });
   };
 
-  const handleRoleSelection = (roleName: string) => {
-    const derivedType = getCategoryFromRole(roleName);
-    setUserType(derivedType);
-    setSelectedMasterId('');
-    setMasterMetaData({ code: '', name: '', designationOrContact: '', status: '' });
-    setFormErrors({});
+  const generateUserCode = (role: string) => {
+    let prefix = 'EMP';
+    const norm = (role || '').toUpperCase();
+    if (norm.includes('RETAIL')) prefix = 'RET';
+    else if (norm.includes('DISTRIBUT') || norm.includes('STOCKIST')) prefix = 'DST';
+    else if (norm.includes('MEDICAL') || norm.includes('MR')) prefix = 'MR';
+    else if (norm.includes('AREA') || norm.includes('ASM')) prefix = 'ASM';
+    else if (norm.includes('REGION') || norm.includes('RSM')) prefix = 'RSM';
+    else if (norm.includes('NATIONAL') || norm.includes('HEAD') || norm.includes('NSH') || norm.includes('NSM')) prefix = 'NSH';
+    else if (norm.includes('ADMIN')) prefix = 'ADM';
+    else if (norm.includes('WAREHOUSE')) prefix = 'WH';
+    else if (norm.includes('ACCOUNT')) prefix = 'ACC';
 
-    if (derivedType === 'Standalone User') {
-      let maxId = 0;
-      users.forEach(u => {
-        if (u.id.startsWith('EMP') || u.id.startsWith('USR')) {
-          const num = parseInt(u.id.replace(/\D/g, ''), 10);
-          if (!isNaN(num) && num > maxId) maxId = num;
-        }
-      });
-      const nextId = `USR${(maxId + 1).toString().padStart(3, '0')}`;
-      setFormData(prev => ({
-        ...prev,
-        empId: nextId,
-        fullName: '',
-        email: '',
-        phone: '',
-        username: '',
-        roleId: roleName,
-        password: '',
-        confirmPassword: '',
-        status: 'Active'
-      }));
-    } else {
-      setFormData(prev => ({
-        ...prev,
-        empId: '',
-        fullName: '',
-        email: '',
-        phone: '',
-        username: '',
-        roleId: roleName,
-        password: '',
-        confirmPassword: '',
-        status: 'Active'
-      }));
-    }
+    let maxNum = 0;
+    users.forEach(u => {
+      const idStr = String(u.id || (u as any).empId || '');
+      if (idStr.toUpperCase().includes(prefix)) {
+        const num = parseInt(idStr.replace(/\D/g, ''), 10);
+        if (!isNaN(num) && num > maxNum) maxNum = num;
+      }
+    });
+    return `${prefix}-${(maxNum + 1).toString().padStart(3, '0')}`;
   };
 
-  const handleMasterSelection = (masterId: string) => {
-    setSelectedMasterId(masterId);
+  const handleRoleSelection = (roleName: string) => {
+    const nextCode = generateUserCode(roleName);
     setFormErrors({});
+    setFormData(prev => ({
+      ...prev,
+      empId: nextCode,
+      roleId: roleName,
+    }));
+  };
 
-    if (userType === 'Employee') {
-      const emp = employeesData.find(e => e.id === masterId);
-      if (emp) {
-        setMasterMetaData({
-          code: emp.employeeCode,
-          name: emp.employeeName,
-          designationOrContact: emp.designation,
-          status: emp.status
-        });
-        setFormData(prev => ({
-          ...prev,
-          empId: emp.employeeCode,
-          fullName: emp.employeeName,
-          username: emp.employeeCode.toLowerCase().replace(/[^a-z0-9]/g, ''),
-          roleId: prev.roleId || emp.designation,
-        }));
-      }
-    } else if (userType === 'Distributor') {
-      const dist = distributorMasterService.getAll().find(d => d.id === masterId);
-      if (dist) {
-        setMasterMetaData({
-          code: dist.code,
-          name: dist.name,
-          designationOrContact: dist.contactPerson || dist.name,
-          status: dist.status
-        });
-        setFormData(prev => ({
-          ...prev,
-          empId: dist.code,
-          fullName: dist.name,
-          email: dist.emailAddress || '',
-          phone: dist.mobileNumber && dist.mobileNumber !== '-' ? dist.mobileNumber : '',
-          username: dist.code.toLowerCase().replace(/[^a-z0-9]/g, ''),
-          roleId: prev.roleId || 'Distributor',
-        }));
-      }
-    } else if (userType === 'Retailer') {
-      const ret = retailerMasterService.getAll().find(r => r.id === masterId);
-      if (ret) {
-        setMasterMetaData({
-          code: ret.code,
-          name: ret.name,
-          designationOrContact: ret.contactPerson || ret.name,
-          status: ret.status
-        });
-        setFormData(prev => ({
-          ...prev,
-          empId: ret.code,
-          fullName: ret.name,
-          email: ret.emailAddress || '',
-          phone: ret.mobileNumber || '',
-          username: ret.code.toLowerCase().replace(/[^a-z0-9]/g, ''),
-          roleId: prev.roleId || 'Retailer',
-        }));
-      }
+  const handleScannerUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert("File size should not exceed 5MB.");
+      return;
     }
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const result = event.target?.result as string;
+      setFormData(prev => ({ ...prev, upiQrScanner: result }));
+    };
+    reader.readAsDataURL(file);
   };
 
   const handleCreateUser = async () => {
     const errors: { [key: string]: string } = {};
-
-    if (!editMode && userType !== 'Standalone User' && !selectedMasterId) {
-      errors.selectedMasterId = `Please select an ${userType}`;
-    }
 
     if (!formData.empId.trim()) errors.empId = "Employee/User Code is required";
     if (!formData.fullName.trim()) errors.fullName = "Full Name is required";
@@ -425,20 +384,11 @@ export default function UserManagement() {
 
     if (formData.phone && !/^\d{10}$/.test(formData.phone)) errors.phone = "Phone must be 10 digits";
 
-    // Duplicate active login prevention for linked master records
-    if (!editMode && userType !== 'Standalone User' && selectedMasterId) {
-      const activeAccountExists = users.some(
-        u => (u.id === formData.empId || (u as any).empId === formData.empId) && u.status === 'Active'
-      );
-      if (activeAccountExists) {
-        errors.selectedMasterId = `An active user account already exists for this ${userType}`;
-      }
-    }
-
     setFormErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
     try {
+      let createdUserId = '';
       if (editMode) {
         // Update existing user
         await userService.updateUser(Number(formData.empId), {
@@ -450,25 +400,58 @@ export default function UserManagement() {
           ...(formData.password ? { password: formData.password.trim() } : {}),
           isActive: formData.status === 'Active',
         });
+        createdUserId = formData.empId;
       } else {
         // Create new user
-        await userService.createUser({
+        const res = await userService.createUser({
           name: formData.fullName.trim(),
           email: formData.email.trim(),
           password: formData.password.trim(),
           role: formData.roleId,
           mobile: formData.phone.trim(),
         });
+        createdUserId = String(res.id);
       }
+
+      // Persist extended metadata (GST, Address, License, UPI, Scanner QR, User Code)
+      const extendedMeta = {
+        empId: formData.empId.trim(),
+        gstNumber: formData.gstNumber.trim(),
+        address: formData.address.trim(),
+        licenseNumber: formData.licenseNumber.trim(),
+        upiId: formData.upiId.trim(),
+        upiQrScanner: formData.upiQrScanner
+      };
+
+      try {
+        const storedMeta = JSON.parse(localStorage.getItem('pharma_users_extended_meta') || '{}');
+        const userEmailKey = formData.email.trim().toLowerCase();
+        storedMeta[userEmailKey] = extendedMeta;
+        if (createdUserId) storedMeta[createdUserId] = extendedMeta;
+        if (formData.empId) storedMeta[formData.empId.trim()] = extendedMeta;
+        localStorage.setItem('pharma_users_extended_meta', JSON.stringify(storedMeta));
+      } catch (_) {}
 
       // Re-fetch users from backend after create/update
       await fetchUsers();
 
+      const defaultRole = 'NATIONAL_SALES_HEAD';
       setFormData({
-        empId: '', fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
+        empId: generateUserCode(defaultRole),
+        fullName: '',
+        email: '',
+        phone: '',
+        username: '',
+        roleId: defaultRole,
+        password: '',
+        confirmPassword: '',
+        status: 'Active',
+        gstNumber: '',
+        address: '',
+        licenseNumber: '',
+        upiId: '',
+        upiQrScanner: ''
       });
-      setSelectedMasterId('');
-      setMasterMetaData({ code: '', name: '', designationOrContact: '', status: '' });
       setShowRoleModal(false);
     } catch (err: any) {
       alert(`Failed to save user: ${err.message}`);
@@ -610,12 +593,22 @@ export default function UserManagement() {
               onClick={() => {
                 setEditMode(false);
                 setFormErrors({});
-                const defaultRole = 'RETAILER';
-                setUserType('Retailer');
-                setSelectedMasterId('');
-                setMasterMetaData({ code: '', name: '', designationOrContact: '', status: '' });
+                const defaultRole = 'NATIONAL_SALES_HEAD';
                 setFormData({
-                  empId: '', fullName: '', email: '', phone: '', username: '', roleId: defaultRole, password: '', confirmPassword: '', status: 'Active'
+                  empId: generateUserCode(defaultRole),
+                  fullName: '',
+                  email: '',
+                  phone: '',
+                  username: '',
+                  roleId: defaultRole,
+                  password: '',
+                  confirmPassword: '',
+                  status: 'Active',
+                  gstNumber: '',
+                  address: '',
+                  licenseNumber: '',
+                  upiId: '',
+                  upiQrScanner: ''
                 });
                 setShowRoleModal(true);
               }}
@@ -755,90 +748,24 @@ export default function UserManagement() {
                 </div>
               )}
 
-              {/* SEARCHABLE MASTER SELECTION DROPDOWNS */}
-              {!editMode && userType === 'Standalone User' && (
-                <div className="md:col-span-2 p-3 bg-violet-50/60 rounded-lg border border-violet-100 flex items-center gap-2 text-xs text-violet-800 font-medium">
-                  <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0" />
-                  Standalone System User — Enter user account credentials manually below.
-                </div>
-              )}
-              {!editMode && userType === 'Employee' && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    Employee <span className="text-rose-500">*</span>
-                  </label>
-                  <SearchableDropdown
-                    options={getAvailableEmployees().map(e => ({
-                      label: `${e.employeeName} (${e.employeeCode})`,
-                      value: e.id,
-                      subtitle: `${e.designation} | ${e.area || e.zone}`
-                    }))}
-                    value={selectedMasterId}
-                    onChange={handleMasterSelection}
-                    placeholder="Search and select Active Employee..."
-                  />
-                  {formErrors.selectedMasterId && (
-                    <p className="text-rose-500 text-xs mt-1">{formErrors.selectedMasterId}</p>
-                  )}
-                </div>
-              )}
-
-              {!editMode && userType === 'Distributor' && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    Distributor <span className="text-rose-500">*</span>
-                  </label>
-                  <SearchableDropdown
-                    options={getAvailableDistributors().map(d => ({
-                      label: `${d.name} (${d.code})`,
-                      value: d.id,
-                      subtitle: `Contact: ${d.contactPerson || 'N/A'} | ${d.mobileNumber || ''}`
-                    }))}
-                    value={selectedMasterId}
-                    onChange={handleMasterSelection}
-                    placeholder="Search and select Active Distributor..."
-                  />
-                  {formErrors.selectedMasterId && (
-                    <p className="text-rose-500 text-xs mt-1">{formErrors.selectedMasterId}</p>
-                  )}
-                </div>
-              )}
-
-              {!editMode && userType === 'Retailer' && (
-                <div className="md:col-span-2">
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    Retailer <span className="text-rose-500">*</span>
-                  </label>
-                  <SearchableDropdown
-                    options={getAvailableRetailers().map(r => ({
-                      label: `${r.name} (${r.code})`,
-                      value: r.id,
-                      subtitle: `Contact: ${r.contactPerson || 'N/A'} | ${r.mobileNumber || ''}`
-                    }))}
-                    value={selectedMasterId}
-                    onChange={handleMasterSelection}
-                    placeholder="Search and select Active Retailer..."
-                  />
-                  {formErrors.selectedMasterId && (
-                    <p className="text-rose-500 text-xs mt-1">{formErrors.selectedMasterId}</p>
-                  )}
-                </div>
-              )}
-
+              {/* ACCOUNT DETAILS */}
               <div className="md:col-span-2 mt-2">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Account Details</h3>
               </div>
 
               <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  {userType === 'Employee' ? 'Employee Code' : userType === 'Distributor' ? 'Distributor Code' : userType === 'Retailer' ? 'Retailer Code' : 'Employee/User Code'} <span className="text-rose-500">*</span>
-                </label>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label className="block text-sm font-semibold text-slate-700">
+                    Employee / User Code <span className="text-rose-500">*</span>
+                  </label>
+                  <span className="text-[11px] font-semibold text-violet-600 bg-violet-50 px-2 py-0.5 rounded">Auto-Generated</span>
+                </div>
                 <input
                   type="text"
                   value={formData.empId}
                   readOnly={true}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors text-slate-600 cursor-not-allowed"
-                  placeholder="Auto-populated Code"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm font-mono font-semibold focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors text-slate-700 cursor-not-allowed"
+                  placeholder="Auto-generated Code"
                 />
                 {formErrors.empId && <p className="text-rose-500 text-xs mt-1">{formErrors.empId}</p>}
               </div>
@@ -849,30 +776,21 @@ export default function UserManagement() {
                 </label>
                 <input
                   type="text"
-                  readOnly={!editMode && userType !== 'Standalone User'}
                   value={formData.fullName}
-                  onChange={(e) => setFormData({...formData, fullName: e.target.value})}
-                  className={`w-full px-3 py-2.5 border ${formErrors.fullName ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors ${
-                    !editMode && userType !== 'Standalone User' ? 'bg-slate-50 text-slate-600 cursor-not-allowed font-medium' : 'bg-white text-slate-900'
-                  }`}
-                  placeholder="Full Name"
+                  onChange={(e) => {
+                    const newName = e.target.value;
+                    const suggestedUsername = newName.toLowerCase().replace(/[^a-z0-9]/g, '');
+                    setFormData(prev => ({
+                      ...prev,
+                      fullName: newName,
+                      username: !prev.username || prev.username === prev.fullName.toLowerCase().replace(/[^a-z0-9]/g, '') ? suggestedUsername : prev.username
+                    }));
+                  }}
+                  className={`w-full px-3 py-2.5 bg-white border ${formErrors.fullName ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
+                  placeholder="Enter Full Name"
                 />
                 {formErrors.fullName && <p className="text-rose-500 text-xs mt-1">{formErrors.fullName}</p>}
               </div>
-
-              {masterMetaData.designationOrContact && (
-                <div>
-                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                    {userType === 'Employee' ? 'Designation' : 'Contact Person'}
-                  </label>
-                  <input
-                    type="text"
-                    readOnly={true}
-                    value={masterMetaData.designationOrContact}
-                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-lg text-sm text-slate-600 font-medium cursor-not-allowed focus:outline-none"
-                  />
-                </div>
-              )}
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">
@@ -895,7 +813,7 @@ export default function UserManagement() {
                 <input
                   type="tel"
                   value={formData.phone}
-                  onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/\\D/g, '').slice(0, 10)})}
+                  onChange={(e) => setFormData({...formData, phone: e.target.value.replace(/\D/g, '').slice(0, 10)})}
                   maxLength={10}
                   className={`w-full px-3 py-2.5 bg-white border ${formErrors.phone ? 'border-rose-500' : 'border-slate-200'} rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors`}
                   placeholder="10-digit mobile number"
@@ -903,6 +821,110 @@ export default function UserManagement() {
                 {formErrors.phone && <p className="text-rose-500 text-xs mt-1">{formErrors.phone}</p>}
               </div>
 
+              {/* REGULATORY, ADDRESS & PAYMENT DETAILS */}
+              <div className="md:col-span-2 mt-2">
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Business, Address & Payment Details</h3>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  GST Number (GSTIN)
+                </label>
+                <input
+                  type="text"
+                  maxLength={15}
+                  value={formData.gstNumber}
+                  onChange={(e) => setFormData({ ...formData, gstNumber: e.target.value.toUpperCase() })}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm uppercase font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors"
+                  placeholder="e.g. 36ABCDE1234F1Z5"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  License Number (Drug / Trade)
+                </label>
+                <input
+                  type="text"
+                  value={formData.licenseNumber}
+                  onChange={(e) => setFormData({ ...formData, licenseNumber: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors"
+                  placeholder="e.g. DL-20B/21B-XXXXX"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Full Address
+                </label>
+                <textarea
+                  rows={2}
+                  value={formData.address}
+                  onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors resize-none"
+                  placeholder="Enter street address, locality, city, state, pin code..."
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  UPI Details (VPA ID)
+                </label>
+                <input
+                  type="text"
+                  value={formData.upiId}
+                  onChange={(e) => setFormData({ ...formData, upiId: e.target.value })}
+                  className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm font-mono text-slate-900 focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors"
+                  placeholder="e.g. username@okhdfcbank"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                  Upload Scanner (UPI QR Code)
+                </label>
+                {formData.upiQrScanner ? (
+                  <div className="relative border border-slate-200 rounded-lg p-2 bg-slate-50 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <img
+                        src={formData.upiQrScanner}
+                        alt="QR Scanner"
+                        className="w-11 h-11 object-contain rounded border border-slate-200 bg-white"
+                      />
+                      <div>
+                        <span className="text-xs font-semibold text-slate-800 block">QR Scanner Attached</span>
+                        <span className="text-[11px] text-emerald-600 font-medium">Ready</span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, upiQrScanner: '' })}
+                      className="text-xs text-rose-500 hover:text-rose-700 font-semibold px-2.5 py-1 bg-white hover:bg-rose-50 border border-rose-200 rounded transition-colors"
+                    >
+                      Remove ✕
+                    </button>
+                  </div>
+                ) : (
+                  <div className="relative">
+                    <input
+                      type="file"
+                      id="qr-scanner-upload"
+                      accept="image/png, image/jpeg, image/jpg, image/webp"
+                      onChange={handleScannerUpload}
+                      className="hidden"
+                    />
+                    <label
+                      htmlFor="qr-scanner-upload"
+                      className="w-full border-2 border-dashed border-slate-300 hover:border-violet-500 rounded-lg p-2.5 flex items-center justify-center gap-2 cursor-pointer bg-slate-50 hover:bg-violet-50/50 transition-colors text-xs font-semibold text-slate-600 hover:text-violet-700"
+                    >
+                      <Upload className="w-4 h-4 text-violet-600" />
+                      Click to Upload Scanner / QR Image
+                    </label>
+                  </div>
+                )}
+              </div>
+
+              {/* SYSTEM ACCESS */}
               <div className="md:col-span-2 mt-2">
                 <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">System Access</h3>
               </div>
@@ -1023,18 +1045,42 @@ export default function UserManagement() {
       >
         {selectedUser && (
           <div className="flex flex-col h-full">
-            <div className="space-y-4 flex-1">
-              <DrawerField label="Employee / User ID" value={selectedUser.id} />
-              <DrawerField label="Full Name" value={selectedUser.name} />
+            <div className="space-y-4 flex-1 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden">
+              <DrawerField label="Employee / User ID" value={<span className="font-mono font-semibold text-slate-900">{selectedUser.id}</span>} />
+              <DrawerField label="Full Name" value={<span className="font-semibold text-slate-900">{selectedUser.name}</span>} />
               <DrawerField label="Email Address" value={selectedUser.email} />
-              <DrawerField label="Mobile Number" value={selectedUser.mobile} />
-              <DrawerField label="Assigned Role" value={selectedUser.role} />
-              <DrawerField label="Account Status" value={selectedUser.status} />
+              <DrawerField label="Mobile Number" value={selectedUser.mobile || '-'} />
+              <DrawerField label="Assigned Role" value={<Badge variant="purple">{formatRoleName(selectedUser.role)}</Badge>} />
+              <DrawerField label="Account Status" value={<Badge variant={selectedUser.status === 'Active' ? 'success' : 'danger'}>{selectedUser.status}</Badge>} />
+              
+              {selectedUser.gstNumber && (
+                <DrawerField label="GST Number (GSTIN)" value={<span className="font-mono font-bold text-slate-800">{selectedUser.gstNumber}</span>} />
+              )}
+              {selectedUser.licenseNumber && (
+                <DrawerField label="License Number" value={<span className="font-mono font-semibold text-slate-800">{selectedUser.licenseNumber}</span>} />
+              )}
+              {selectedUser.address && (
+                <DrawerField label="Full Address" value={<span className="text-slate-700 leading-relaxed">{selectedUser.address}</span>} />
+              )}
+              {selectedUser.upiId && (
+                <DrawerField label="UPI ID" value={<span className="font-mono font-bold text-violet-700">{selectedUser.upiId}</span>} />
+              )}
+              {selectedUser.upiQrScanner && (
+                <div className="pt-2">
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider block mb-2">UPI QR Scanner</span>
+                  <div className="p-2 border border-slate-200 rounded-xl bg-slate-50 inline-block shadow-sm">
+                    <img 
+                      src={selectedUser.upiQrScanner} 
+                      alt="UPI QR Scanner" 
+                      className="max-w-[160px] max-h-[160px] object-contain rounded-lg bg-white" 
+                    />
+                  </div>
+                </div>
+              )}
+
               <DrawerField label="Last Login" value={selectedUser.lastLogin} />
-              <DrawerField label="Created By" value={selectedUser.createdBy} />
-              <DrawerField label="Created Date" value={selectedUser.createdDate} />
-              <DrawerField label="Modified By" value={selectedUser.modifiedBy} />
-              <DrawerField label="Modified Date" value={selectedUser.modifiedDate} />
+              <DrawerField label="Created By" value={selectedUser.createdBy || 'System'} />
+              <DrawerField label="Created Date" value={selectedUser.createdDate || '-'} />
             </div>
 
             <div className="pt-6 mt-6 border-t border-slate-100 flex justify-end gap-3 pb-4">
@@ -1047,12 +1093,17 @@ export default function UserManagement() {
                   empId: selectedUser.id,
                   fullName: selectedUser.name,
                   email: selectedUser.email,
-                  phone: selectedUser.mobile || '',
+                  phone: selectedUser.mobile && selectedUser.mobile !== '-' ? selectedUser.mobile : '',
                   username: selectedUser.username || '',
                   roleId: selectedUser.role,
                   password: '',
                   confirmPassword: '',
-                  status: selectedUser.status
+                  status: selectedUser.status,
+                  gstNumber: selectedUser.gstNumber || '',
+                  address: selectedUser.address || '',
+                  licenseNumber: selectedUser.licenseNumber || '',
+                  upiId: selectedUser.upiId || '',
+                  upiQrScanner: selectedUser.upiQrScanner || ''
                 });
                 setEditMode(true);
                 setShowViewDrawer(false);

@@ -11,6 +11,12 @@ export interface BackendUserRecord {
   profileImage: string | null;
   linkedDistributorCode: string | null;
   linkedRetailerCode: string | null;
+  gstNumber?: string | null;
+  address?: string | null;
+  licenseNumber?: string | null;
+  upiId?: string | null;
+  upiQrScanner?: string | null;
+  employeeCode?: string | null;
 }
 
 export const userService = {
