@@ -20,12 +20,18 @@ const registerUser = async (data) => {
     10
   );
 
+  let assignedRole = data.role || "ADMIN";
+  if (assignedRole === "COMPANY_ADMIN") assignedRole = "ADMIN";
+
   const user = await prisma.user.create({
     data: {
       name: data.name,
       email: data.email,
       password: hashedPassword,
-      role: data.role || "ADMIN",
+      role: assignedRole,
+      mobile: data.mobile || null,
+      linkedDistributorCode: assignedRole === "DISTRIBUTOR" ? (data.employeeCode || null) : null,
+      linkedRetailerCode: assignedRole === "RETAILER" ? (data.employeeCode || null) : null,
     },
   });
 
@@ -36,7 +42,7 @@ const registerUser = async (data) => {
         userId: user.id,
         name: user.name,
         email: user.email,
-        mrCode: `MR-${user.id}`, // Generate a basic code, can be updated later
+        mrCode: data.employeeCode || `MR-${user.id}`, // Generate a basic code, can be updated later
         territory: "General",
         mobile: data.mobile || "",
         status: "Active"
@@ -54,7 +60,7 @@ const registerUser = async (data) => {
         userId: user.id,
         name: user.name,
         email: user.email,
-        employeeCode: `${prefix}-00${user.id}`,
+        employeeCode: data.employeeCode || `${prefix}-00${user.id}`,
         designation: user.role,
         mobile: data.mobile || "",
         territory: data.state || "",
@@ -84,6 +90,10 @@ const loginUser = async (
         { linkedRetailerCode: cleanInput.toUpperCase() },
         { linkedDistributorCode: cleanInput },
         { linkedDistributorCode: cleanInput.toUpperCase() },
+        { employee: { employeeCode: cleanInput } },
+        { employee: { employeeCode: cleanInput.toUpperCase() } },
+        { mr: { mrCode: cleanInput } },
+        { mr: { mrCode: cleanInput.toUpperCase() } },
       ],
     },
     include: {
@@ -153,6 +163,7 @@ const loginUser = async (
       name: user.name,
       email: user.email,
       role: user.role,
+      mobile: user.mobile || "",
       linkedDistributorCode: user.linkedDistributorCode,
       linkedRetailerCode: user.linkedRetailerCode,
       employeeId: user.employee ? user.employee.id : null,
