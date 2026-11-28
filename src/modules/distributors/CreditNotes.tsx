@@ -14,6 +14,7 @@ import { productService } from '../../services/productService';
 import { retailerMasterService } from '../../services/retailerMasterService';
 import { creditNoteService, type CreditNoteData, type CreditNoteInput } from '../../services/creditNoteService';
 import { ProductSearchDropdown, type CatalogProduct } from '../../shared/components/ProductSearchDropdown';
+import { CreditNoteSettlementModal } from '../../shared/components/CreditNoteSettlementModal';
 
 const formatCurrency = (amount: number = 0) =>
   `₹ ${(Number(amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -320,6 +321,7 @@ export default function DistributorCreditNotes() {
   const [viewRecord, setViewRecord] = useState<DistributorCreditNote | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showAddReasonModal, setShowAddReasonModal] = useState(false);
+  const [settlingNote, setSettlingNote] = useState<DistributorCreditNote | null>(null);
   const [newReasonInput, setNewReasonInput] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -691,36 +693,44 @@ export default function DistributorCreditNotes() {
     }
   };
 
-  const handleSettle = async (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const openSettleModal = (record: DistributorCreditNote, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSettlingNote(record);
+  };
+
+  const handleConfirmSettle = async (settlementAmount: number, percentage: number, settlementRemarks: string) => {
+    if (!settlingNote) return;
+    const id = settlingNote.id;
+    const cnNo = settlingNote.cnNo;
+
+    // Record as manually settled in local registry
     try {
-      const note = data.find(d => d.id === id);
-      if (note) {
-        // Record as manually settled in local registry
-        try {
-          const currentSettled: string[] = JSON.parse(localStorage.getItem('distributor_settled_cn_ids') || '[]');
-          currentSettled.push(String(id), String(note.cnNo));
-          localStorage.setItem('distributor_settled_cn_ids', JSON.stringify(currentSettled));
-        } catch (e) {}
+      const currentSettled: string[] = JSON.parse(localStorage.getItem('distributor_settled_cn_ids') || '[]');
+      currentSettled.push(String(id), String(cnNo));
+      localStorage.setItem('distributor_settled_cn_ids', JSON.stringify(currentSettled));
+    } catch (e) {}
 
-        await creditNoteService.settleCreditNote(id, note.totalAmount, 'Settled via Distributor Portal');
-      }
+    await creditNoteService.settleCreditNote(id, settlementAmount, settlementRemarks);
 
-      // Update state immediately
-      setData(prev => prev.map(item => item.id === id ? { ...item, status: 'SETTLED' as const } : item));
-      alert('Credit Note accepted & settled successfully in Ledger!');
-      await loadData();
-    } catch (err: any) {
-      console.warn('Settlement error:', err);
-      // Fallback local update
-      const updated = data.map(item => {
-        if (item.id === id) {
-          return { ...item, status: 'SETTLED' as const };
-        }
-        return item;
-      });
-      setData(updated);
+    // Update state immediately
+    setData(prev => prev.map(item => item.id === id ? {
+      ...item,
+      status: 'SETTLED' as const,
+      totalAmount: settlementAmount,
+      remarks: `${item.remarks ? item.remarks + ' | ' : ''}${settlementRemarks}`
+    } : item));
+
+    if (viewRecord && viewRecord.id === id) {
+      setViewRecord(prev => prev ? {
+        ...prev,
+        status: 'SETTLED',
+        totalAmount: settlementAmount,
+        remarks: `${prev.remarks ? prev.remarks + ' | ' : ''}${settlementRemarks}`
+      } : null);
     }
+
+    setSettlingNote(null);
+    await loadData();
   };
 
   const downloadPDF = (record: DistributorCreditNote, e?: React.MouseEvent) => {
@@ -881,7 +891,7 @@ export default function DistributorCreditNotes() {
           </button>
           {row.status !== 'SETTLED' && (
             <button
-              onClick={(e) => handleSettle(row.id, e)}
+              onClick={(e) => openSettleModal(row, e)}
               className="text-emerald-600 hover:text-emerald-700 bg-emerald-50 hover:bg-emerald-100 px-2.5 py-1 rounded text-xs font-semibold flex items-center gap-1 transition-colors border border-emerald-200"
               title="Settle against Ledger dues"
             >
@@ -1146,10 +1156,7 @@ export default function DistributorCreditNotes() {
               </button>
               {viewRecord.status !== 'SETTLED' && (
                 <button
-                  onClick={(e) => {
-                    handleSettle(viewRecord.id, e);
-                    setViewRecord({ ...viewRecord, status: 'SETTLED' });
-                  }}
+                  onClick={(e) => openSettleModal(viewRecord, e)}
                   className="flex-1 flex items-center justify-center gap-2 py-2 px-4 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-colors"
                 >
                   <DollarSign className="w-4 h-4" /> Settle In Ledger
@@ -1580,6 +1587,16 @@ export default function DistributorCreditNotes() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Settle & Percentage Calculation Modal */}
+      {settlingNote && (
+        <CreditNoteSettlementModal
+          isOpen={!!settlingNote}
+          onClose={() => setSettlingNote(null)}
+          note={settlingNote}
+          onConfirmSettle={handleConfirmSettle}
+        />
       )}
     </div>
   );

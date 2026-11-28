@@ -11,6 +11,7 @@ import { creditNoteService, type CreditNoteData, type CNStatus } from '../../ser
 
 import { billingService } from '../../services/billingService';
 import { productService } from '../../services/productService';
+import { CreditNoteSettlementModal } from '../../shared/components/CreditNoteSettlementModal';
 
 const formatCurrency = (amount: number) => `₹ ${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -24,6 +25,9 @@ export default function CreditNotes() {
   // Invoices & Products list for form dropdown
   const [invoices, setInvoices] = useState<any[]>([]);
   const [catalogProducts, setCatalogProducts] = useState<any[]>([]);
+
+  // Settlement Modal State
+  const [settlingNote, setSettlingNote] = useState<CreditNoteData | null>(null);
 
   // Drawer States
   const [viewRecord, setViewRecord] = useState<CreditNoteData | null>(null);
@@ -323,26 +327,37 @@ export default function CreditNotes() {
     }
   };
 
-  const handleSettle = async (id: string, e?: React.MouseEvent) => {
-    e?.stopPropagation();
-    const amountStr = window.prompt("Enter payment/adjustment amount to settle:");
-    if (!amountStr) return;
-    const amount = parseFloat(amountStr);
-    if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid positive number.");
-      return;
-    }
-    const remarks = window.prompt("Enter settlement remarks:") || undefined;
+  const openSettleModal = (record: CreditNoteData, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSettlingNote(record);
+  };
+
+  const handleConfirmSettle = async (settlementAmount: number, percentage: number, settlementRemarks: string) => {
+    if (!settlingNote) return;
+    const id = settlingNote.id;
+    const cnNo = settlingNote.cnNo;
 
     try {
-      const updated = await creditNoteService.settleCreditNote(id, amount, remarks);
-      alert("Settlement recorded successfully!");
-      if (viewRecord && viewRecord.id === id) {
-        setViewRecord(updated);
+      await creditNoteService.settleCreditNote(id, settlementAmount, settlementRemarks);
+      setData(prev => prev.map(item => (item.id === id || item.cnNo === cnNo) ? {
+        ...item,
+        status: 'PAID' as const,
+        amountSettled: settlementAmount,
+        remarks: `${item.remarks ? item.remarks + ' | ' : ''}${settlementRemarks}`
+      } : item));
+
+      if (viewRecord && (viewRecord.id === id || viewRecord.cnNo === cnNo)) {
+        setViewRecord(prev => prev ? {
+          ...prev,
+          status: 'PAID',
+          amountSettled: settlementAmount,
+          remarks: `${prev.remarks ? prev.remarks + ' | ' : ''}${settlementRemarks}`
+        } : null);
       }
-      loadCreditNotes();
+      setSettlingNote(null);
+      await loadCreditNotes();
     } catch (err: any) {
-      alert("Failed to settle credit note: " + err.message);
+      alert("Failed to settle credit note: " + (err.message || String(err)));
     }
   };
 
@@ -393,7 +408,7 @@ export default function CreditNotes() {
           <button onClick={(e) => downloadPDF(row, e)} className="text-slate-400 hover:text-[#163c78] p-1" title="Download PDF"><Download className="w-4 h-4" /></button>
           
           {row.status !== 'PAID' && (
-            <button onClick={(e) => handleSettle(row.id, e)} className="text-emerald-600 hover:text-emerald-700 p-1 font-semibold flex items-center gap-1 text-xs" title="Settle/Adjust"><DollarSign className="w-3.5 h-3.5" /> Settle</button>
+            <button onClick={(e) => openSettleModal(row, e)} className="text-emerald-600 hover:text-emerald-700 p-1 font-semibold flex items-center gap-1 text-xs" title="Settle/Adjust"><DollarSign className="w-3.5 h-3.5" /> Settle</button>
           )}
         </div>
       )
@@ -944,7 +959,7 @@ export default function CreditNotes() {
                <ActionButton icon={<Download className="w-4 h-4"/>} onClick={() => downloadPDF(viewRecord)}>Download PDF</ActionButton>
                
                {viewRecord.status !== 'PAID' && (
-                 <ActionButton className="bg-emerald-600 hover:bg-emerald-700" icon={<DollarSign className="w-4 h-4"/>} onClick={(e) => handleSettle(viewRecord.id, e)}>Settle Credit</ActionButton>
+                 <ActionButton className="bg-emerald-600 hover:bg-emerald-700" icon={<DollarSign className="w-4 h-4"/>} onClick={(e) => openSettleModal(viewRecord, e)}>Settle Credit</ActionButton>
                )}
             </div>
 
@@ -991,6 +1006,16 @@ export default function CreditNotes() {
           </div>
         )}
       </Drawer>
+
+      {/* SETTLEMENT WITH PERCENTAGE CALCULATION MODAL */}
+      {settlingNote && (
+        <CreditNoteSettlementModal
+          isOpen={!!settlingNote}
+          onClose={() => setSettlingNote(null)}
+          note={settlingNote}
+          onConfirmSettle={handleConfirmSettle}
+        />
+      )}
 
     </div>
   );
