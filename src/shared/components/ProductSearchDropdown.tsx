@@ -65,8 +65,11 @@ export function ProductSearchDropdown({
   const filteredProducts = useMemo(() => {
     if (!catalog || catalog.length === 0) return [];
     const query = (value || '').trim().toLowerCase();
-    if (!query) {
-      // Show all items (limited to 60 for performance)
+    
+    // If empty query, or if an item is already selected and its name matches exactly,
+    // show all catalog/invoice items so user can easily browse alternatives
+    const isExactMatch = catalog.some(p => p.name.toLowerCase() === query);
+    if (!query || (isInvoiceScoped && isExactMatch)) {
       return catalog.slice(0, 60);
     }
     return catalog.filter((p) => {
@@ -78,7 +81,7 @@ export function ProductSearchDropdown({
       const matchCat = p.category && p.category.toLowerCase().includes(query);
       return matchName || matchCode || matchBatch || matchGen || matchBrand || matchCat;
     }).slice(0, 60);
-  }, [catalog, value]);
+  }, [catalog, value, isInvoiceScoped]);
 
   const handleSelect = (p: CatalogProduct) => {
     const rateVal = Number(p.ptr || p.rate || p.mrp || 100);
@@ -142,7 +145,7 @@ export function ProductSearchDropdown({
                 <Search className="w-3 h-3 text-slate-400" />
               )}
               {isInvoiceScoped
-                ? `Medicines on Invoice ${invoiceNo ? `(${invoiceNo})` : ''} - ${filteredProducts.length} items`
+                ? `Medicines on Invoice ${invoiceNo ? `(${invoiceNo})` : ''} - ${filteredProducts.length} ${filteredProducts.length === 1 ? 'item' : 'items'}`
                 : value
                 ? `Matching Results (${filteredProducts.length})`
                 : `Available Catalog Medicines (${filteredProducts.length})`}

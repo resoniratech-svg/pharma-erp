@@ -1,4 +1,5 @@
 import { apiRequest } from './apiClient';
+import { billingService } from './billingService';
 
 export type CNStatus = 'PENDING' | 'PARTIALLY_PAID' | 'PAID';
 
@@ -244,25 +245,69 @@ export const creditNoteService = {
   // Helper to query available invoices for the create form
   async getInvoices(): Promise<any[]> {
     let invoices: any[] = [];
+
+    // Priority 1: Use billingService.loadInvoices() which resolves DB records, jsonPayload, invoiceItems, and localStorage
     try {
-      const response = await apiRequest<{ success: boolean; data: any[] }>('/invoices');
-      if (response && response.success && Array.isArray(response.data)) {
-        invoices = response.data;
+      const billingInvoices = await billingService.loadInvoices();
+      if (Array.isArray(billingInvoices) && billingInvoices.length > 0) {
+        invoices = billingInvoices.map((inv: any) => ({
+          ...inv,
+          invoiceNumber: inv.invoiceNo || inv.invoiceNumber,
+          customerName: inv.customerName || (inv.retailer ? inv.retailer.name : 'Customer'),
+          items: inv.items || []
+        }));
       }
     } catch (err) {
-      console.warn("Failed to fetch invoices from API:", err);
+      console.warn("billingService.loadInvoices() error:", err);
+    }
+
+    // Fallback: direct /invoices API if billingService returned empty
+    if (invoices.length === 0) {
+      try {
+        const response = await apiRequest<{ success: boolean; data: any[] }>('/invoices');
+        if (response && response.success && Array.isArray(response.data)) {
+          invoices = response.data.map((inv: any) => {
+            let items: any[] = [];
+            // Parse jsonPayload if available
+            let payloadObj = inv.jsonPayload;
+            if (typeof payloadObj === 'string') {
+              try { payloadObj = JSON.parse(payloadObj); } catch(e) {}
+            }
+            if (payloadObj && Array.isArray(payloadObj.items) && payloadObj.items.length > 0) {
+              items = payloadObj.items;
+            } else if (Array.isArray(inv.invoiceItems) && inv.invoiceItems.length > 0) {
+              items = inv.invoiceItems;
+            } else if (Array.isArray(inv.items) && inv.items.length > 0) {
+              items = inv.items;
+            }
+
+            return {
+              ...inv,
+              invoiceNumber: inv.invoiceNumber || inv.invoiceNo,
+              customerName: inv.customerName || (inv.retailer ? inv.retailer.name : 'Customer'),
+              items
+            };
+          });
+        }
+      } catch (err) {
+        console.warn("Failed to fetch invoices from API:", err);
+      }
     }
 
     // Also merge with locally generated invoices from localStorage (GSTBilling & BarcodeBilling)
     try {
-      const localGst = localStorage.getItem('pharma_erp_gst_invoices');
+      const localGst = localStorage.getItem('pharma_erp_gst_invoices') || localStorage.getItem('billing_gst_invoices');
       if (localGst) {
         const list = JSON.parse(localGst);
         const existingNumbers = new Set(invoices.map(i => i.invoiceNumber || i.invoiceNo));
         for (const inv of list) {
           const num = inv.invoiceNumber || inv.invoiceNo;
           if (num && !existingNumbers.has(num)) {
-            invoices.unshift(inv);
+            invoices.unshift({
+              ...inv,
+              invoiceNumber: num,
+              items: inv.items || []
+            });
           }
         }
       }
