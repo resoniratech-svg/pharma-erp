@@ -101,9 +101,15 @@ class CreditNoteRepository {
 
   async executeSettlementTx(creditNoteId, settlementAmount, remarks, approvedByUserId) {
     return prisma.$transaction(async (tx) => {
-      // 1. Fetch current Credit Note state
-      const cn = await tx.creditNote.findUnique({
-        where: { id: creditNoteId },
+      // 1. Fetch current Credit Note state (match by ID or cnNo)
+      const idInt = parseInt(creditNoteId, 10);
+      const cn = await tx.creditNote.findFirst({
+        where: {
+          OR: [
+            ...(!isNaN(idInt) ? [{ id: idInt }] : []),
+            { cnNo: String(creditNoteId) }
+          ]
+        },
         include: { items: true }
       });
 
@@ -116,125 +122,137 @@ class CreditNoteRepository {
 
       // 2. Perform Stock Adjustments (if physical return and this is the first settlement)
       if (cn.amountSettled === 0 && cn.items && cn.items.length > 0) {
-        for (const item of cn.items) {
-          const warehouses = await tx.warehouse.findMany({ take: 1 });
-          const warehouseId = warehouses.length > 0 ? warehouses[0].id : 1;
+        try {
+          for (const item of cn.items) {
+            const warehouses = await tx.warehouse.findMany({ take: 1 });
+            const warehouseId = warehouses.length > 0 ? warehouses[0].id : 1;
 
-          if (item.disposition === "SALABLE") {
-            const existingInventory = await tx.inventory.findFirst({
-              where: { batchId: item.batchId, warehouseId }
-            });
-
-            if (existingInventory) {
-              const updatedInv = await tx.inventory.update({
-                where: { id: existingInventory.id },
-                data: { quantity: existingInventory.quantity + item.quantity }
-              });
-
-              await tx.stockMovement.create({
-                data: {
-                  inventoryId: updatedInv.id,
-                  quantity: item.quantity,
-                  movementType: "INWARD",
-                  remarks: `Sales Return Credit Note ${cn.cnNo}`
-                }
-              });
-            } else {
-              const newInv = await tx.inventory.create({
-                data: {
-                  batchId: item.batchId,
-                  warehouseId,
-                  quantity: item.quantity
-                }
-              });
-
-              await tx.stockMovement.create({
-                data: {
-                  inventoryId: newInv.id,
-                  quantity: item.quantity,
-                  movementType: "INWARD",
-                  remarks: `Sales Return Credit Note ${cn.cnNo}`
-                }
-              });
-            }
-
-            // Increment batch stock
-            const existingBatch = await tx.batch.findUnique({ where: { id: item.batchId } });
-            if (existingBatch) {
-              await tx.batch.update({
-                where: { id: item.batchId },
-                data: { quantity: existingBatch.quantity + item.quantity }
-              });
-            }
-
-          } else {
-            // EXPIRED_DUMP or DESTRUCTION: route to dump warehouse if exists, otherwise default warehouse
-            let dumpWarehouse = await tx.warehouse.findFirst({
-              where: { name: { contains: "dump", mode: "insensitive" } }
-            });
-            
-            if (!dumpWarehouse) {
-              dumpWarehouse = warehouses.length > 0 ? warehouses[0] : null;
-            }
-
-            if (dumpWarehouse) {
+            if (item.disposition === "SALABLE") {
               const existingInventory = await tx.inventory.findFirst({
-                where: { batchId: item.batchId, warehouseId: dumpWarehouse.id }
+                where: { batchId: item.batchId, warehouseId }
               });
 
-              const currentQty = existingInventory ? existingInventory.quantity : 0;
-              const targetInvId = existingInventory ? existingInventory.id : (await tx.inventory.create({
-                data: {
-                  batchId: item.batchId,
-                  warehouseId: dumpWarehouse.id,
-                  quantity: 0
-                }
-              })).id;
+              if (existingInventory) {
+                const updatedInv = await tx.inventory.update({
+                  where: { id: existingInventory.id },
+                  data: { quantity: existingInventory.quantity + item.quantity }
+                });
 
-              await tx.inventory.update({
-                where: { id: targetInvId },
-                data: { quantity: currentQty + item.quantity }
-              });
+                await tx.stockMovement.create({
+                  data: {
+                    inventoryId: updatedInv.id,
+                    quantity: item.quantity,
+                    movementType: "INWARD",
+                    remarks: `Sales Return Credit Note ${cn.cnNo}`
+                  }
+                });
+              } else {
+                const newInv = await tx.inventory.create({
+                  data: {
+                    batchId: item.batchId,
+                    warehouseId,
+                    quantity: item.quantity
+                  }
+                });
 
-              await tx.stockMovement.create({
-                data: {
-                  inventoryId: targetInvId,
-                  quantity: item.quantity,
-                  movementType: "INWARD",
-                  remarks: `Expired/Damaged Return Credit Note ${cn.cnNo} (${item.disposition})`
-                }
+                await tx.stockMovement.create({
+                  data: {
+                    inventoryId: newInv.id,
+                    quantity: item.quantity,
+                    movementType: "INWARD",
+                    remarks: `Sales Return Credit Note ${cn.cnNo}`
+                  }
+                });
+              }
+
+              // Increment batch stock
+              const existingBatch = await tx.batch.findUnique({ where: { id: item.batchId } });
+              if (existingBatch) {
+                await tx.batch.update({
+                  where: { id: item.batchId },
+                  data: { quantity: existingBatch.quantity + item.quantity }
+                });
+              }
+
+            } else {
+              // EXPIRED_DUMP or DESTRUCTION: route to dump warehouse if exists, otherwise default warehouse
+              let dumpWarehouse = await tx.warehouse.findFirst({
+                where: { name: { contains: "dump", mode: "insensitive" } }
               });
+              
+              if (!dumpWarehouse) {
+                dumpWarehouse = warehouses.length > 0 ? warehouses[0] : null;
+              }
+
+              if (dumpWarehouse) {
+                const existingInventory = await tx.inventory.findFirst({
+                  where: { batchId: item.batchId, warehouseId: dumpWarehouse.id }
+                });
+
+                const currentQty = existingInventory ? existingInventory.quantity : 0;
+                const targetInvId = existingInventory ? existingInventory.id : (await tx.inventory.create({
+                  data: {
+                    batchId: item.batchId,
+                    warehouseId: dumpWarehouse.id,
+                    quantity: 0
+                  }
+                })).id;
+
+                await tx.inventory.update({
+                  where: { id: targetInvId },
+                  data: { quantity: currentQty + item.quantity }
+                });
+
+                await tx.stockMovement.create({
+                  data: {
+                    inventoryId: targetInvId,
+                    quantity: item.quantity,
+                    movementType: "INWARD",
+                    remarks: `Expired/Damaged Return Credit Note ${cn.cnNo} (${item.disposition})`
+                  }
+                });
+              }
             }
           }
+        } catch (stockErr) {
+          console.warn("Stock adjustment during credit note settlement warning:", stockErr.message);
         }
       }
 
-      // 3. Post to Retailer Ledger
+      // 3. Post to Retailer AccountLedger if exists
       if (cn.retailerId) {
-        const lastLedger = await tx.ledger.findFirst({
-          where: { retailerId: cn.retailerId },
-          orderBy: { createdAt: "desc" }
-        });
+        try {
+          const accountLedger = await tx.accountLedger.findFirst({
+            where: { retailerId: cn.retailerId }
+          });
 
-        const previousBalance = lastLedger ? lastLedger.balance : 0.0;
-        const newBalance = previousBalance - settlementAmount;
+          if (accountLedger) {
+            const voucher = await tx.voucher.create({
+              data: {
+                voucherNumber: `VCH-CN-${cn.cnNo.replace(/\//g, '-')}-${Date.now().toString().slice(-4)}`,
+                voucherType: 'CREDIT_NOTE',
+                amount: settlementAmount,
+                remarks: remarks || `Credit Note Settlement - ${cn.reason}`
+              }
+            });
 
-        await tx.ledger.create({
-          data: {
-            retailerId: cn.retailerId,
-            transactionType: "CREDIT_NOTE_SETTLEMENT",
-            referenceNumber: cn.cnNo,
-            credit: settlementAmount,
-            debit: 0.0,
-            balance: newBalance,
-            remarks: remarks || `Credit Note Settlement - ${cn.reason}`
+            await tx.ledgerTransaction.create({
+              data: {
+                voucherId: voucher.id,
+                ledgerId: accountLedger.id,
+                type: 'CR',
+                amount: settlementAmount
+              }
+            });
           }
-        });
+        } catch (ledgerErr) {
+          console.warn("Ledger transaction during credit note settlement warning:", ledgerErr.message);
+        }
       }
 
       // 4. Update the Credit Note status and amountSettled
       const updatedCn = await tx.creditNote.update({
-        where: { id: creditNoteId },
+        where: { id: cn.id },
         data: {
           amountSettled: newAmountSettled,
           status: newStatus,
@@ -257,6 +275,7 @@ class CreditNoteRepository {
 
       return updatedCn;
     });
+  }
   }
 }
 

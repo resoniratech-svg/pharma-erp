@@ -176,7 +176,7 @@ class CreditNoteService {
     }
 
     return repository.executeSettlementTx(
-      parseInt(id, 10),
+      id,
       amt,
       remarks,
       approvedByUserId
