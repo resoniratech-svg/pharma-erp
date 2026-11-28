@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import {
   Plus, Download, Eye, DollarSign, RefreshCw, CheckCircle2,
-  AlertTriangle, Layers, ArrowDownLeft, ArrowUpRight, Loader2
+  AlertTriangle, Layers, ArrowDownLeft, ArrowUpRight, Loader2, FileText
 } from 'lucide-react';
 import {
   PageHeader, FilterBar, SearchInput, SelectFilter, ActionButton,
@@ -13,7 +13,7 @@ import { applyCreditNoteTemplate, type CreditNotePdfData } from '../../documents
 import { productService } from '../../services/productService';
 import { retailerMasterService } from '../../services/retailerMasterService';
 import { creditNoteService, type CreditNoteData, type CreditNoteInput } from '../../services/creditNoteService';
-import { ProductSearchDropdown } from '../../shared/components/ProductSearchDropdown';
+import { ProductSearchDropdown, type CatalogProduct } from '../../shared/components/ProductSearchDropdown';
 
 const formatCurrency = (amount: number = 0) =>
   `₹ ${(Number(amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -289,6 +289,7 @@ export default function DistributorCreditNotes() {
   const [invoices, setInvoices] = useState<any[]>([]);
   const [retailersList, setRetailersList] = useState<any[]>([]);
   const [catalogList, setCatalogList] = useState<any[]>([]);
+  const [selectedInvoiceItems, setSelectedInvoiceItems] = useState<CatalogProduct[]>([]);
 
   // Drawers & Modals
   const [viewRecord, setViewRecord] = useState<DistributorCreditNote | null>(null);
@@ -324,7 +325,16 @@ export default function DistributorCreditNotes() {
   const [formRemarks, setFormRemarks] = useState('');
 
   // Line items in form
-  const [formItems, setFormItems] = useState([
+  const [formItems, setFormItems] = useState<Array<{
+    productName: string;
+    productCode: string;
+    batchNumber: string;
+    expiryDate: string;
+    quantity: number;
+    rate: number;
+    gstPercent: number;
+    maxQuantity?: number;
+  }>>([
     {
       productName: '',
       productCode: '',
@@ -426,7 +436,10 @@ export default function DistributorCreditNotes() {
   // When distributor selects an invoice from dropdown
   const handleSelectInvoice = (selectedInvNo: string) => {
     setFormInvoiceNo(selectedInvNo);
-    if (!selectedInvNo) return;
+    if (!selectedInvNo) {
+      setSelectedInvoiceItems([]);
+      return;
+    }
 
     const found = invoices.find(i => (i.invoiceNumber || i.invoiceNo) === selectedInvNo);
     if (found) {
@@ -436,20 +449,39 @@ export default function DistributorCreditNotes() {
       const invDate = found.invoiceDate || found.date || '27-Nov-2026';
       setFormInvoiceDate(invDate);
 
-      // Pre-fill items if available
-      const rawItems = found.items || found.invoiceItems;
+      // Extract items from invoice and scope dropdown strictly to this invoice's products
+      const rawItems = found.items || found.invoiceItems || [];
       if (Array.isArray(rawItems) && rawItems.length > 0) {
-        const mappedItems = rawItems.map((it: any) => ({
-          productName: it.productName || it.product?.name || it.medicineName || 'Pharmaceutical Product',
-          productCode: it.productCode || it.product?.code || 'PRD-01',
+        const scopedItems: CatalogProduct[] = rawItems.map((it: any, i: number) => ({
+          id: it.id || i + 1,
+          name: it.productName || it.product?.name || it.medicineName || 'Pharmaceutical Product',
+          code: it.productCode || it.product?.code || 'PRD-01',
           batchNumber: it.batchNumber || it.batch?.batchNumber || it.batchNo || 'BAT-01',
           expiryDate: it.expiryDate || it.batch?.expiryDate || '12/2027',
-          quantity: it.quantity || 1,
           rate: Number(it.rate || it.unitRate || it.ptr || 100),
-          gstPercent: Number(it.gstPercent || it.gstRate || 12)
+          gstPercent: Number(it.gstPercent || it.gstRate || 12),
+          billedQty: Number(it.quantity || it.qty || 1)
         }));
-        setFormItems(mappedItems);
+
+        setSelectedInvoiceItems(scopedItems);
+
+        // Pre-fill first item from the invoice
+        const first = scopedItems[0];
+        setFormItems([{
+          productName: first.name,
+          productCode: first.code || 'PRD-01',
+          batchNumber: first.batchNumber || 'BAT-01',
+          expiryDate: first.expiryDate || '12/2027',
+          quantity: 1,
+          rate: first.rate || 100,
+          gstPercent: first.gstPercent || 12,
+          maxQuantity: first.billedQty
+        }]);
+      } else {
+        setSelectedInvoiceItems([]);
       }
+    } else {
+      setSelectedInvoiceItems([]);
     }
   };
 
@@ -562,6 +594,7 @@ export default function DistributorCreditNotes() {
       setFormParty('');
       setFormInvoiceNo('');
       setFormRemarks('');
+      setSelectedInvoiceItems([]);
       setFormItems([{
         productName: '',
         productCode: '',
@@ -1218,12 +1251,22 @@ export default function DistributorCreditNotes() {
                   </button>
                 </div>
 
+                {selectedInvoiceItems.length > 0 && (
+                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-2.5 text-xs text-amber-900 flex items-center justify-between">
+                    <span className="flex items-center gap-2 font-medium">
+                      <FileText className="w-4 h-4 text-amber-600 shrink-0" />
+                      Only showing products billed on Invoice <strong>{formInvoiceNo}</strong> ({selectedInvoiceItems.length} items available)
+                    </span>
+                    <span className="text-[11px] text-amber-700">Original rates & batches pre-filled</span>
+                  </div>
+                )}
+
                 {formItems.map((item, idx) => (
                   <div key={idx} className="p-3 border border-slate-200 rounded-lg space-y-3 bg-white">
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                       <div className="md:col-span-2">
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Product / Medicine Name * (Search or Pick from Dropdown)
+                          Product / Medicine Name * {selectedInvoiceItems.length > 0 ? '(From Invoice)' : '(Search Catalog)'}
                         </label>
                         <ProductSearchDropdown
                           value={item.productName}
@@ -1236,12 +1279,17 @@ export default function DistributorCreditNotes() {
                             const updated = [...formItems];
                             updated[idx].productName = p.name;
                             updated[idx].productCode = p.code;
+                            if (p.batchNumber) updated[idx].batchNumber = p.batchNumber;
+                            if (p.expiryDate) updated[idx].expiryDate = p.expiryDate;
                             updated[idx].rate = p.rate;
                             updated[idx].gstPercent = p.gstPercent;
+                            updated[idx].maxQuantity = p.billedQty;
                             setFormItems(updated);
                           }}
-                          catalog={catalogList}
-                          placeholder="Type or click arrow to see all medicines..."
+                          catalog={selectedInvoiceItems.length > 0 ? selectedInvoiceItems : catalogList}
+                          isInvoiceScoped={selectedInvoiceItems.length > 0}
+                          invoiceNo={formInvoiceNo}
+                          placeholder={selectedInvoiceItems.length > 0 ? "Select medicine from invoice..." : "Type or click arrow to see all medicines..."}
                           required
                         />
                       </div>
@@ -1283,15 +1331,21 @@ export default function DistributorCreditNotes() {
                     <div className="grid grid-cols-3 gap-3">
                       <div>
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Return Quantity *
+                          Return Quantity * {item.maxQuantity ? <span className="text-blue-600 font-normal">(Max: {item.maxQuantity})</span> : ''}
                         </label>
                         <input
                           type="number"
                           min="1"
+                          max={item.maxQuantity}
                           value={item.quantity}
                           onChange={(e) => {
+                            const val = Number(e.target.value);
+                            if (item.maxQuantity && val > item.maxQuantity) {
+                              alert(`Cannot return more than billed quantity (${item.maxQuantity} units)`);
+                              return;
+                            }
                             const updated = [...formItems];
-                            updated[idx].quantity = Number(e.target.value);
+                            updated[idx].quantity = val;
                             setFormItems(updated);
                           }}
                           required
@@ -1336,6 +1390,21 @@ export default function DistributorCreditNotes() {
                         </select>
                       </div>
                     </div>
+
+                    {formItems.length > 1 && (
+                      <div className="flex justify-end pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = formItems.filter((_, i) => i !== idx);
+                            setFormItems(updated);
+                          }}
+                          className="text-[11px] text-rose-600 hover:text-rose-800 font-medium hover:underline"
+                        >
+                          ✕ Remove this item
+                        </button>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
