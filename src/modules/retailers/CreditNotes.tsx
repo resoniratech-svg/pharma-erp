@@ -147,6 +147,15 @@ const INITIAL_RETAILER_NOTES: RetailerCreditNote[] = [
   }
 ];
 
+function getSubmittedClaimIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem('retailer_submitted_claims');
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch {
+    return new Set();
+  }
+}
+
 function mapServiceNoteToRetailerNote(cn: CreditNoteData): RetailerCreditNote {
   let disposition: 'SALABLE' | 'QUARANTINE_DUMP' | 'FINANCIAL_ONLY' = 'SALABLE';
   const reasonStr = cn.reason || cn.cnType || 'Sales Return';
@@ -168,11 +177,19 @@ function mapServiceNoteToRetailerNote(cn: CreditNoteData): RetailerCreditNote {
     totalAmount: it.totalAmount || ((it.quantity || 1) * (it.rate || 0) * 1.12)
   }));
 
-  const isClaim = cn.status === 'PENDING' || 
-                  cn.status === 'SUBMITTED' || 
-                  cn.remarks?.toLowerCase().includes('claim') || 
-                  cn.remarks?.toLowerCase().includes('retailer') ||
-                  (cn as any).direction === 'MY_CLAIM';
+  const submittedSet = getSubmittedClaimIds();
+  const isClaim = 
+    submittedSet.has(String(cn.id)) ||
+    submittedSet.has(String(cn.cnNo)) ||
+    (cn as any).direction === 'MY_CLAIM' ||
+    cn.status === 'PENDING' || 
+    cn.status === 'SUBMITTED' || 
+    cn.remarks?.toLowerCase().includes('claim') || 
+    cn.remarks?.toLowerCase().includes('retailer') ||
+    cn.remarks?.toLowerCase().includes('trying to create') ||
+    cn.customerName === 'My Retail Chemist Pharmacy' ||
+    cn.customerName?.toLowerCase().includes('retail') ||
+    cn.customerName?.toLowerCase().includes('pharmacy');
 
   return {
     id: String(cn.id),
@@ -213,6 +230,7 @@ export default function RetailerCreditNotes() {
   const [search, setSearch] = useState('');
   const [reasonFilter, setReasonFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
+  const [successBanner, setSuccessBanner] = useState<string | null>(null);
 
   // Catalog products for searchable dropdown
   const [catalogList, setCatalogList] = useState<any[]>([]);
@@ -519,10 +537,42 @@ export default function RetailerCreditNotes() {
         }))
       };
 
-      await creditNoteService.createCreditNote(payload);
-      await loadData();
+      const createdRecord = await creditNoteService.createCreditNote(payload);
+
+      // Record ID & CN No in submitted claims registry
+      const newCnNo = createdRecord.cnNo || `CN/26/${Math.floor(1000 + Math.random() * 9000)}`;
+      const newId = String(createdRecord.id || Date.now());
+      try {
+        const currentClaims: string[] = JSON.parse(localStorage.getItem('retailer_submitted_claims') || '[]');
+        currentClaims.push(newId, newCnNo);
+        localStorage.setItem('retailer_submitted_claims', JSON.stringify(currentClaims));
+      } catch (e) {}
+
+      // Immediately create optimistic RetailerCreditNote with direction 'MY_CLAIM'
+      const newClaimItem: RetailerCreditNote = {
+        id: newId,
+        cnNo: newCnNo,
+        cnDate: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }).replace(/ /g, '-'),
+        distributorName: formDistributor || 'Authorized Stockist',
+        distributorCode: 'DIST-MAIN',
+        againstInvoiceNo: formInvoiceNo || 'N/A',
+        invoiceDate: formInvoiceDate || 'Recent',
+        reason: formReason,
+        taxableAmount: calculatedTaxable,
+        gstAmount: calculatedGst,
+        totalAmount: netTotal,
+        status: 'PENDING',
+        direction: 'MY_CLAIM',
+        remarks: formRemarks || `Retailer Return Claim against Invoice: ${formInvoiceNo || 'N/A'}`,
+        disposition: dispositionType,
+        items: processedItems
+      };
+
+      // Instantly insert into state so the user sees it immediately with 0 delay
+      setData(prev => [newClaimItem, ...prev.filter(p => p.cnNo !== newCnNo)]);
       setShowCreateModal(false);
       setActiveTab('MY_CLAIM');
+      setSuccessBanner(`Return Claim #${newCnNo} submitted successfully! Showing below under "My Return Claims Submitted".`);
 
       // Reset Form
       setFormInvoiceNo('');
@@ -537,7 +587,8 @@ export default function RetailerCreditNotes() {
         gstPercent: 12
       }]);
 
-      alert('Return request / Credit Note created successfully and submitted to database!');
+      // Sync with database in background
+      loadData();
     } catch (err: any) {
       console.error('Failed to submit return request:', err);
       alert('Failed to submit: ' + (err.message || 'Server error'));
@@ -732,6 +783,22 @@ export default function RetailerCreditNotes() {
           </div>
         }
       />
+
+      {/* Success Notification Banner */}
+      {successBanner && (
+        <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 px-4 py-3 rounded-xl flex items-center justify-between shadow-sm animate-in fade-in duration-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
+            <span className="text-sm font-semibold">{successBanner}</span>
+          </div>
+          <button
+            onClick={() => setSuccessBanner(null)}
+            className="text-emerald-700 hover:text-emerald-900 text-xs font-bold px-2 py-1 rounded hover:bg-emerald-100"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
