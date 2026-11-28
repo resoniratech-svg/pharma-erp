@@ -168,7 +168,11 @@ function mapServiceNoteToRetailerNote(cn: CreditNoteData): RetailerCreditNote {
     totalAmount: it.totalAmount || ((it.quantity || 1) * (it.rate || 0) * 1.12)
   }));
 
-  const isClaim = cn.status === 'PENDING' || cn.remarks?.toLowerCase().includes('claim');
+  const isClaim = cn.status === 'PENDING' || 
+                  cn.status === 'SUBMITTED' || 
+                  cn.remarks?.toLowerCase().includes('claim') || 
+                  cn.remarks?.toLowerCase().includes('retailer') ||
+                  (cn as any).direction === 'MY_CLAIM';
 
   return {
     id: String(cn.id),
@@ -504,7 +508,7 @@ export default function RetailerCreditNotes() {
         taxableAmount: calculatedTaxable,
         gstAmount: calculatedGst,
         totalAmount: netTotal,
-        remarks: formRemarks || `Retailer Return Claim against Invoice: ${formInvoiceNo || 'N/A'}`,
+        remarks: formRemarks ? `[Retailer Claim] ${formRemarks}` : `Retailer Return Claim against Invoice: ${formInvoiceNo || 'N/A'}`,
         items: processedItems.map(p => ({
           productId: 1,
           batchId: 1,
@@ -518,6 +522,7 @@ export default function RetailerCreditNotes() {
       await creditNoteService.createCreditNote(payload);
       await loadData();
       setShowCreateModal(false);
+      setActiveTab('MY_CLAIM');
 
       // Reset Form
       setFormInvoiceNo('');
