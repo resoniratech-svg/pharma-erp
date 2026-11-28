@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Filter, Download, Trash2 } from 'lucide-react';
+import { Plus, Filter, Download, Trash2, Package, ExternalLink, AlertTriangle } from 'lucide-react';
+import { Link } from 'react-router';
 import {
   PageHeader,
   FilterBar,
@@ -13,7 +14,8 @@ import {
   Badge,
 } from './components/shared';
 import { type Column } from './types';
-import { compositionService } from "../../services/compositionService";
+import { compositionService, type LinkedProductSummary } from "../../services/compositionService";
+import { productService } from "../../services/productService";
 import activityLogService from "../../services/activityLogService";
 
 interface Composition {
@@ -25,12 +27,11 @@ interface Composition {
   schedule: string;
   description: string;
   associatedProducts: number;
+  linkedProducts?: LinkedProductSummary[];
   status: 'Active' | 'Inactive';
   createdBy: string;
   createdDate: string;
 }
-
-
 
 const formatDate = (dateString?: string) => {
   if (!dateString) return "N/A";
@@ -44,14 +45,58 @@ const formatDate = (dateString?: string) => {
 
 export default function CompositionManagement() {
   const [data, setData] = useState<Composition[]>([]);
-
   const [loading, setLoading] = useState(false);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      const compositions = await compositionService.getAll();
-      setData(compositions);
+      const [compositions, products] = await Promise.all([
+        compositionService.getAll(),
+        productService.loadProducts().catch(() => productService.getProducts()),
+      ]);
+
+      // Reconcile and calculate real-time linked products
+      const enriched: Composition[] = compositions.map((comp) => {
+        const cName = (comp.genericName || '').trim().toLowerCase();
+
+        // Match against active products
+        const matchedProducts = products.filter((p: any) => {
+          const pComp = (p.composition || '').trim().toLowerCase();
+          const pGen = (p.genericName || '').trim().toLowerCase();
+          const pName = (p.name || '').trim().toLowerCase();
+          return (
+            (pComp && pComp === cName) ||
+            (pGen && pGen === cName) ||
+            (cName.length > 3 && (pComp.includes(cName) || pGen.includes(cName) || pName.includes(cName)))
+          );
+        });
+
+        const matchedList: LinkedProductSummary[] = matchedProducts.map((p: any) => ({
+          id: String(p.id),
+          name: p.name,
+          code: p.code,
+          brandName: p.brandName,
+          mrp: p.mrp,
+          status: p.status,
+        }));
+
+        // Merge with any products returned directly from backend API
+        const backendList = comp.linkedProducts || [];
+        const combinedMap = new Map<string, LinkedProductSummary>();
+        [...backendList, ...matchedList].forEach((p) => {
+          if (p && p.name) combinedMap.set(p.name.toLowerCase() + '_' + (p.code || ''), p);
+        });
+        const finalProducts = Array.from(combinedMap.values());
+        const finalCount = Math.max(comp.associatedProducts || 0, finalProducts.length);
+
+        return {
+          ...comp,
+          associatedProducts: finalCount,
+          linkedProducts: finalProducts,
+        };
+      });
+
+      setData(enriched);
     } catch (err) {
       console.error('Failed to load compositions', err);
     } finally {
@@ -101,7 +146,27 @@ export default function CompositionManagement() {
         return <Badge variant={variant}>{row.schedule}</Badge>;
       },
     },
-    { key: 'associatedProducts', label: 'Linked Products', render: (row) => <span className="text-[#163c78] font-medium">{row.associatedProducts} Products</span> },
+    {
+      key: 'associatedProducts',
+      label: 'Linked Products',
+      render: (row) => (
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            setSelectedComp(row);
+          }}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold transition-all ${
+            row.associatedProducts > 0
+              ? 'bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 shadow-xs'
+              : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+          }`}
+          title="Click to view linked commercial products"
+        >
+          <Package className="w-3.5 h-3.5" />
+          <span>{row.associatedProducts} {row.associatedProducts === 1 ? 'Product' : 'Products'}</span>
+        </button>
+      ),
+    },
     {
       key: 'status',
       label: 'Status',
@@ -391,7 +456,65 @@ export default function CompositionManagement() {
               }
             />
             <DrawerField label="Description" value={selectedComp.description || "N/A"} />
-            <DrawerField label="Linked Products" value={`${selectedComp.associatedProducts} Active Products`} />
+            
+            {/* LINKED PRODUCTS SECTION */}
+            <div className="pt-4 border-t border-slate-100 mt-4">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Package className="w-4 h-4 text-indigo-600" />
+                  <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider">
+                    Linked Products ({selectedComp.associatedProducts})
+                  </h4>
+                </div>
+                <Link
+                  to="/workspace/products/master"
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 flex items-center gap-1"
+                >
+                  <span>Product Master</span>
+                  <ExternalLink className="w-3 h-3" />
+                </Link>
+              </div>
+
+              {selectedComp.linkedProducts && selectedComp.linkedProducts.length > 0 ? (
+                <div className="space-y-2 max-h-60 overflow-y-auto pr-1 [&::-webkit-scrollbar]:hidden">
+                  {selectedComp.linkedProducts.map((prod) => (
+                    <div 
+                      key={prod.id} 
+                      className="p-3 border border-slate-200 rounded-lg bg-slate-50 hover:bg-slate-100/80 transition-colors flex items-center justify-between gap-3 text-xs"
+                    >
+                      <div>
+                        <div className="font-semibold text-slate-900">{prod.name}</div>
+                        <div className="text-[11px] text-slate-500 flex items-center gap-2 mt-0.5 font-mono">
+                          <span>{prod.code}</span>
+                          {prod.brandName && (
+                            <>
+                              <span>•</span>
+                              <span>Brand: {prod.brandName}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-right flex flex-col items-end gap-1">
+                        {prod.mrp ? (
+                          <span className="font-semibold text-slate-800">₹{prod.mrp}</span>
+                        ) : null}
+                        <Badge variant={prod.status === 'Active' || !prod.status ? 'success' : 'neutral'}>
+                          {prod.status || 'Active'}
+                        </Badge>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="p-4 border border-dashed border-slate-200 rounded-xl bg-slate-50 text-center text-xs text-slate-500">
+                  <p className="font-medium text-slate-700 mb-1">No products linked to this composition yet.</p>
+                  <p className="text-[11px] leading-relaxed">
+                    To link products, select &quot;{selectedComp.genericName}&quot; in the Composition dropdown when creating or editing in Product Master.
+                  </p>
+                </div>
+              )}
+            </div>
+
             <DrawerField
               label="Status"
               value={
@@ -425,22 +548,36 @@ export default function CompositionManagement() {
               <Trash2 className="w-6 h-6 text-rose-600" />
             </div>
             <h3 className="text-lg font-bold text-slate-900 mb-2">Delete Composition</h3>
-            <p className="text-sm text-slate-500 mb-6">
-              Are you sure you want to delete this composition? This action cannot be undone.
-            </p>
+            
+            {itemToDelete.associatedProducts > 0 ? (
+              <div className="mb-5 p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-left text-xs text-amber-900 flex items-start gap-2.5">
+                <AlertTriangle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
+                <div>
+                  <span className="font-bold block text-amber-900 mb-0.5">Active Products Linked ({itemToDelete.associatedProducts})</span>
+                  This composition is formulated in {itemToDelete.associatedProducts} active commercial product(s). To protect catalog integrity, deletion is prevented. You may edit its status to &quot;Inactive&quot; instead.
+                </div>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-500 mb-6">
+                Are you sure you want to delete <span className="font-semibold text-slate-800">&quot;{itemToDelete.genericName}&quot;</span>? This action cannot be undone.
+              </p>
+            )}
+
             <div className="flex justify-center gap-3">
               <button
                 onClick={() => setItemToDelete(null)}
                 className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors"
               >
-                Cancel
+                {itemToDelete.associatedProducts > 0 ? "Understood / Close" : "Cancel"}
               </button>
-              <button
-                onClick={handleDelete}
-                className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 transition-colors"
-              >
-                Delete
-              </button>
+              {itemToDelete.associatedProducts === 0 && (
+                <button
+                  onClick={handleDelete}
+                  className="flex-1 px-4 py-2 rounded-lg text-sm font-medium text-white bg-rose-600 hover:bg-rose-700 transition-colors"
+                >
+                  Delete
+                </button>
+              )}
             </div>
           </div>
         </div>

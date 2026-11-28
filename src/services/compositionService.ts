@@ -1,5 +1,14 @@
 import { apiRequest } from './apiClient';
 
+export interface LinkedProductSummary {
+  id: string;
+  name: string;
+  code: string;
+  brandName?: string;
+  mrp?: string | number;
+  status?: string;
+}
+
 export interface CompositionRecord {
   id: string;
   genericName: string;
@@ -9,12 +18,22 @@ export interface CompositionRecord {
   schedule: string;
   description: string;
   associatedProducts: number;
+  linkedProducts?: LinkedProductSummary[];
   status: 'Active' | 'Inactive';
   createdBy: string;
   createdDate: string;
 }
 
 function mapToUi(c: any): CompositionRecord {
+  const productsList = Array.isArray(c.products) ? c.products.map((p: any) => ({
+    id: String(p.id),
+    name: p.name || '',
+    code: p.code || '',
+    brandName: p.brandName || '',
+    mrp: p.mrp !== undefined ? p.mrp : '',
+    status: p.status || 'Active',
+  })) : [];
+
   return {
     id: String(c.id),
     genericName: c.genericName || '',
@@ -23,7 +42,8 @@ function mapToUi(c: any): CompositionRecord {
     therapeuticClass: c.therapeuticClass || '',
     schedule: c.schedule || '',
     description: c.description || '',
-    associatedProducts: 0, // Will be populated when products are linked
+    associatedProducts: typeof c.associatedProducts === 'number' ? c.associatedProducts : productsList.length,
+    linkedProducts: productsList,
     status: c.status === 'Inactive' ? 'Inactive' : 'Active',
     createdBy: c.createdBy || 'System',
     createdDate: c.createdAt ? c.createdAt.split('T')[0] : new Date().toISOString().split('T')[0],
