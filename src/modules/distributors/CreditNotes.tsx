@@ -13,6 +13,7 @@ import { applyCreditNoteTemplate, type CreditNotePdfData } from '../../documents
 import { productService } from '../../services/productService';
 import { retailerMasterService } from '../../services/retailerMasterService';
 import { creditNoteService, type CreditNoteData, type CreditNoteInput } from '../../services/creditNoteService';
+import { ProductSearchDropdown } from '../../shared/components/ProductSearchDropdown';
 
 const formatCurrency = (amount: number = 0) =>
   `₹ ${(Number(amount) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -287,6 +288,7 @@ export default function DistributorCreditNotes() {
   // Available real invoices
   const [invoices, setInvoices] = useState<any[]>([]);
   const [retailersList, setRetailersList] = useState<any[]>([]);
+  const [catalogList, setCatalogList] = useState<any[]>([]);
 
   // Drawers & Modals
   const [viewRecord, setViewRecord] = useState<DistributorCreditNote | null>(null);
@@ -367,6 +369,23 @@ export default function DistributorCreditNotes() {
     }).catch(err => {
       console.warn('Failed to load invoices:', err);
     });
+
+    // Load available catalog products for the searchable dropdown
+    try {
+      const currentProducts = productService.getProducts();
+      if (Array.isArray(currentProducts) && currentProducts.length > 0) {
+        setCatalogList(currentProducts);
+      }
+      if (typeof productService.loadProducts === 'function') {
+        productService.loadProducts().then(res => {
+          if (Array.isArray(res) && res.length > 0) {
+            setCatalogList(res);
+          }
+        }).catch(() => {});
+      }
+    } catch (err) {
+      console.warn('Error reading product catalog:', err);
+    }
 
     // Load retailers safely
     try {
@@ -1204,19 +1223,26 @@ export default function DistributorCreditNotes() {
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                       <div className="md:col-span-2">
                         <label className="block text-[11px] font-semibold text-slate-600 mb-1">
-                          Product / Medicine Name *
+                          Product / Medicine Name * (Search or Pick from Dropdown)
                         </label>
-                        <input
-                          type="text"
+                        <ProductSearchDropdown
                           value={item.productName}
-                          onChange={(e) => {
+                          onChangeName={(name) => {
                             const updated = [...formItems];
-                            updated[idx].productName = e.target.value;
+                            updated[idx].productName = name;
                             setFormItems(updated);
                           }}
-                          placeholder="e.g. Paracetamol 650mg / Amoxicillin"
+                          onSelectProduct={(p) => {
+                            const updated = [...formItems];
+                            updated[idx].productName = p.name;
+                            updated[idx].productCode = p.code;
+                            updated[idx].rate = p.rate;
+                            updated[idx].gstPercent = p.gstPercent;
+                            setFormItems(updated);
+                          }}
+                          catalog={catalogList}
+                          placeholder="Type or click arrow to see all medicines..."
                           required
-                          className="w-full text-xs border border-slate-300 rounded p-2"
                         />
                       </div>
                       <div>

@@ -161,6 +161,7 @@ const NavModules = {
       { label: 'Reorder Functionality', path: '/workspace/retailers/reorders' },
       { label: 'Invoice Access', path: '/workspace/retailers/invoices' },
       { label: 'Payment Tracking', path: '/workspace/retailers/payments' },
+      { label: 'Credit Notes', path: '/workspace/retailers/credit-notes' },
     ],
   },
   MR: {

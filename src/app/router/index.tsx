@@ -95,6 +95,7 @@ import RetailerOrders from '../../modules/retailers/Orders';
 import Reorders from '../../modules/retailers/Reorders';
 import RetailerInvoices from '../../modules/retailers/Invoices';
 import Payments from '../../modules/retailers/Payments';
+import RetailerCreditNotes from '../../modules/retailers/CreditNotes';
 
 // Billing Module
 import GSTBilling from '../../modules/billing/GSTBilling';
@@ -484,6 +485,7 @@ export const router = createBrowserRouter([
           { path: 'reorders', element: <Reorders /> },
           { path: 'invoices', element: <RetailerInvoices /> },
           { path: 'payments', element: <Payments /> },
+          { path: 'credit-notes', element: <RetailerCreditNotes /> },
         ],
       }
     ],
