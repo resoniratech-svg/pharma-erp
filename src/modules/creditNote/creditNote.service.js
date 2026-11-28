@@ -43,7 +43,12 @@ class CreditNoteService {
 
     if (!distributorId && !retailerId && data.customerName) {
       const dist = await prisma.distributor.findFirst({
-        where: { name: { equals: data.customerName, mode: 'insensitive' } }
+        where: {
+          OR: [
+            { name: { equals: data.customerName, mode: 'insensitive' } },
+            { name: { contains: data.customerName, mode: 'insensitive' } }
+          ]
+        }
       });
       if (dist) {
         distributorId = dist.id;
@@ -54,6 +59,14 @@ class CreditNoteService {
         if (ret) {
           retailerId = ret.id;
         }
+      }
+    }
+
+    // Default distributorId to 1 if it's a wholesale or distributor return
+    if (!distributorId && !data.remarks?.includes('[Retailer Claim]')) {
+      const defaultDist = await prisma.distributor.findFirst();
+      if (defaultDist) {
+        distributorId = defaultDist.id;
       }
     }
 

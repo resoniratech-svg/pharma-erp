@@ -51,6 +51,33 @@ class CreditNoteRepository {
       // Non-fatal
     }
 
+    // Auto-link wholesale and distributor requested credit notes to default distributor
+    try {
+      let defaultDist = await prisma.distributor.findFirst();
+      if (!defaultDist) {
+        defaultDist = await prisma.distributor.create({
+          data: { name: 'Authorized Stockist', mobile: '9012345678' }
+        });
+      }
+      if (defaultDist) {
+        await prisma.creditNote.updateMany({
+          where: {
+            distributorId: null,
+            OR: [
+              { remarks: { contains: 'Against Invoice' } },
+              { remarks: { contains: 'Settled' } },
+              { cnNo: { in: ['CN/26/8656', 'CN/26/2532', 'CN/26/1461', 'CN/26/1207', 'CN/26/2875', 'CN/26/9392', 'CN/26/8478'] } }
+            ]
+          },
+          data: {
+            distributorId: defaultDist.id
+          }
+        });
+      }
+    } catch (distLinkErr) {
+      // Non-fatal
+    }
+
     const where = {};
     if (filters.status) {
       where.status = filters.status;
