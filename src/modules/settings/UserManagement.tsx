@@ -24,6 +24,23 @@ import { userService, type BackendUserRecord } from '../../services/userService'
 
 type UserType = 'Employee' | 'Distributor' | 'Retailer' | 'Standalone User';
 
+const getCategoryFromRole = (role: string): UserType => {
+  if (!role) return 'Standalone User';
+  const norm = role.toUpperCase().replace(/[\s-]/g, '_');
+  if (norm.includes('RETAIL')) return 'Retailer';
+  if (norm.includes('DISTRIBUT') || norm.includes('STOCKIST')) return 'Distributor';
+  if (
+    norm.includes('SUPER_ADMIN') || 
+    norm === 'ADMIN' || 
+    norm.includes('STANDALONE') ||
+    norm.includes('DIRECT') ||
+    norm.includes('AUDITOR')
+  ) {
+    return 'Standalone User';
+  }
+  return 'Employee';
+};
+
 function useOnClickOutside(ref: React.RefObject<HTMLElement | null>, handler: (event: MouseEvent | TouchEvent) => void) {
   useEffect(() => {
     const listener = (event: MouseEvent | TouchEvent) => {
@@ -267,44 +284,47 @@ export default function UserManagement() {
     });
   };
 
-  const handleUserTypeChange = (type: UserType) => {
-    setUserType(type);
+  const handleRoleSelection = (roleName: string) => {
+    const derivedType = getCategoryFromRole(roleName);
+    setUserType(derivedType);
     setSelectedMasterId('');
     setMasterMetaData({ code: '', name: '', designationOrContact: '', status: '' });
     setFormErrors({});
 
-    if (type === 'Standalone User') {
+    if (derivedType === 'Standalone User') {
       let maxId = 0;
       users.forEach(u => {
-        if (u.id.startsWith('EMP')) {
-          const num = parseInt(u.id.replace('EMP', ''), 10);
+        if (u.id.startsWith('EMP') || u.id.startsWith('USR')) {
+          const num = parseInt(u.id.replace(/\D/g, ''), 10);
           if (!isNaN(num) && num > maxId) maxId = num;
         }
       });
-      const nextId = `EMP${(maxId + 1).toString().padStart(3, '0')}`;
-      setFormData({
+      const nextId = `USR${(maxId + 1).toString().padStart(3, '0')}`;
+      setFormData(prev => ({
+        ...prev,
         empId: nextId,
         fullName: '',
         email: '',
         phone: '',
         username: '',
-        roleId: '',
+        roleId: roleName,
         password: '',
         confirmPassword: '',
         status: 'Active'
-      });
+      }));
     } else {
-      setFormData({
+      setFormData(prev => ({
+        ...prev,
         empId: '',
         fullName: '',
         email: '',
         phone: '',
         username: '',
-        roleId: '',
+        roleId: roleName,
         password: '',
         confirmPassword: '',
         status: 'Active'
-      });
+      }));
     }
   };
 
@@ -326,7 +346,7 @@ export default function UserManagement() {
           empId: emp.employeeCode,
           fullName: emp.employeeName,
           username: emp.employeeCode.toLowerCase().replace(/[^a-z0-9]/g, ''),
-          roleId: emp.designation,
+          roleId: prev.roleId || emp.designation,
         }));
       }
     } else if (userType === 'Distributor') {
@@ -345,7 +365,7 @@ export default function UserManagement() {
           email: dist.emailAddress || '',
           phone: dist.mobileNumber && dist.mobileNumber !== '-' ? dist.mobileNumber : '',
           username: dist.code.toLowerCase().replace(/[^a-z0-9]/g, ''),
-          roleId: 'Distributor',
+          roleId: prev.roleId || 'Distributor',
         }));
       }
     } else if (userType === 'Retailer') {
@@ -364,7 +384,7 @@ export default function UserManagement() {
           email: ret.emailAddress || '',
           phone: ret.mobileNumber || '',
           username: ret.code.toLowerCase().replace(/[^a-z0-9]/g, ''),
-          roleId: 'Retailer',
+          roleId: prev.roleId || 'Retailer',
         }));
       }
     }
@@ -590,11 +610,12 @@ export default function UserManagement() {
               onClick={() => {
                 setEditMode(false);
                 setFormErrors({});
-                setUserType('Employee');
+                const defaultRole = 'RETAILER';
+                setUserType('Retailer');
                 setSelectedMasterId('');
                 setMasterMetaData({ code: '', name: '', designationOrContact: '', status: '' });
                 setFormData({
-                  empId: '', fullName: '', email: '', phone: '', username: '', roleId: '', password: '', confirmPassword: '', status: 'Active'
+                  empId: '', fullName: '', email: '', phone: '', username: '', roleId: defaultRole, password: '', confirmPassword: '', status: 'Active'
                 });
                 setShowRoleModal(true);
               }}
@@ -716,29 +737,31 @@ export default function UserManagement() {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              {/* USER TYPE SELECTION */}
+              {/* ASSIGNED ROLE SELECTION (PRIMARY) */}
               {!editMode && (
                 <div className="md:col-span-2 bg-slate-50/80 p-4 rounded-xl border border-slate-200/80">
                   <label className="block text-sm font-bold text-slate-800 mb-1.5">
-                    User Type <span className="text-rose-500">*</span>
+                    Assigned Role <span className="text-rose-500">*</span>
                   </label>
-                  <select
-                    value={userType}
-                    onChange={(e) => handleUserTypeChange(e.target.value as UserType)}
-                    className="w-full px-3 py-2.5 bg-white border border-slate-200 rounded-lg text-sm font-semibold text-[#163c78] focus:outline-none focus:ring-2 focus:ring-violet-500/20 focus:border-violet-500 transition-colors cursor-pointer"
-                  >
-                    <option value="Employee">Employee (Sales Organization)</option>
-                    <option value="Distributor">Distributor (Distributor Master)</option>
-                    <option value="Retailer">Retailer (Retailer Master)</option>
-                    <option value="Standalone User">Standalone User (Manual Entry)</option>
-                  </select>
-                  {formErrors.userType && (
-                    <p className="text-rose-500 text-xs mt-1.5 font-medium">{formErrors.userType}</p>
+                  <SearchableDropdown 
+                    options={activeRolesOptions}
+                    value={formData.roleId}
+                    onChange={handleRoleSelection}
+                    placeholder="Select Role (e.g. Retailer, Distributor, MR, Admin)..."
+                  />
+                  {formErrors.roleId && (
+                    <p className="text-rose-500 text-xs mt-1.5 font-medium">{formErrors.roleId}</p>
                   )}
                 </div>
               )}
 
               {/* SEARCHABLE MASTER SELECTION DROPDOWNS */}
+              {!editMode && userType === 'Standalone User' && (
+                <div className="md:col-span-2 p-3 bg-violet-50/60 rounded-lg border border-violet-100 flex items-center gap-2 text-xs text-violet-800 font-medium">
+                  <span className="w-2 h-2 rounded-full bg-violet-500 shrink-0" />
+                  Standalone System User — Enter user account credentials manually below.
+                </div>
+              )}
               {!editMode && userType === 'Employee' && (
                 <div className="md:col-span-2">
                   <label className="block text-sm font-semibold text-slate-700 mb-1.5">
@@ -898,18 +921,20 @@ export default function UserManagement() {
                 {formErrors.username && <p className="text-rose-500 text-xs mt-1">{formErrors.username}</p>}
               </div>
 
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-1.5">
-                  Assigned Role <span className="text-rose-500">*</span>
-                </label>
-                <SearchableDropdown 
-                  options={activeRolesOptions}
-                  value={formData.roleId}
-                  onChange={(val: string) => setFormData({...formData, roleId: val})}
-                  placeholder="Select Role..."
-                />
-                {formErrors.roleId && <p className="text-rose-500 text-xs mt-1">{formErrors.roleId}</p>}
-              </div>
+              {editMode && (
+                <div>
+                  <label className="block text-sm font-semibold text-slate-700 mb-1.5">
+                    Assigned Role <span className="text-rose-500">*</span>
+                  </label>
+                  <SearchableDropdown 
+                    options={activeRolesOptions}
+                    value={formData.roleId}
+                    onChange={(val: string) => setFormData({...formData, roleId: val})}
+                    placeholder="Select Role..."
+                  />
+                  {formErrors.roleId && <p className="text-rose-500 text-xs mt-1">{formErrors.roleId}</p>}
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-1.5">
