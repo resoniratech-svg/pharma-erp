@@ -6,7 +6,7 @@ import {
 } from './components/shared';
 import { type Column, type BadgeVariant } from './components/shared';
 import { jsPDF } from 'jspdf';
-import { applyCreditNoteTemplate } from '../../documents/templates/CreditNoteTemplate';
+import { applyCreditNoteTemplate, type CreditNotePdfData } from '../../documents/templates/CreditNoteTemplate';
 import { creditNoteService, type CreditNoteData, type CNStatus } from '../../services/creditNoteService';
 
 import { billingService } from '../../services/billingService';
@@ -366,7 +366,7 @@ export default function CreditNotes() {
     const doc = new jsPDF();
     const isSettled = record.status === 'PAID';
     const finalCredit = isSettled && record.amountSettled && record.amountSettled > 0 ? record.amountSettled : record.totalAmount;
-    const pdfData = {
+    const pdfData: CreditNotePdfData = {
       id: record.id,
       cnNo: record.cnNo,
       cnDate: record.cnDate,
@@ -378,10 +378,22 @@ export default function CreditNotes() {
       reason: record.reason,
       creditAmount: finalCredit,
       gstAdjustment: record.gstAmount,
+      taxableAmount: record.taxableAmount,
       status: record.status as any,
       originalAmount: record.totalAmount,
       amountSettled: record.amountSettled,
-      remarks: record.remarks || undefined
+      remarks: record.remarks || undefined,
+      items: (record.items || []).map((it: any, idx: number) => ({
+        id: it.id || idx + 1,
+        productName: it.product?.name || it.productName || 'Pharmaceutical Supplies',
+        productCode: it.product?.code || it.productCode || 'PRD-GEN',
+        batchNumber: it.batch?.batchNumber || it.batchNumber || 'BAT-01',
+        expiryDate: it.expiryDate || '12/2027',
+        quantity: it.quantity || 1,
+        rate: it.rate || 0,
+        gstPercent: it.gstPercent || 12,
+        totalAmount: it.totalAmount || ((it.quantity || 1) * (it.rate || 0) * 1.12)
+      }))
     };
     applyCreditNoteTemplate(doc, pdfData);
     doc.save(`${record.cnNo.replace(/\//g, '-')}.pdf`);
