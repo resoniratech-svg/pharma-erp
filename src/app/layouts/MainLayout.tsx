@@ -229,9 +229,6 @@ const NavModules = {
       { label: 'E-Invoice Support', path: '/workspace/billing/einvoice' },
       { label: 'Barcode Billing', path: '/workspace/billing/pos' },
       { label: 'Credit Note', path: '/workspace/billing/credit-notes' },
-      { label: 'Sales Return', path: '/workspace/billing/sales-returns' },
-      { label: 'Expiry Return', path: '/workspace/billing/expiry-returns' },
-      { label: 'Multi Rate Billing', path: '/workspace/billing/multi-rate-billing' },
     ],
   },
   Alerts: {
@@ -784,9 +781,6 @@ export function MainLayout() {
                   'GST Billing',
                   'Barcode Billing',
                   'E-Invoice Support',
-                  'Multi Rate Billing',
-                  'Sales Return',
-                  'Expiry Return',
                   'Credit Note',
                 ];
                 item.subItems = (item.subItems || [])

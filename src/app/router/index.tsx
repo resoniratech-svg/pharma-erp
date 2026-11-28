@@ -102,10 +102,7 @@ import GSTBilling from '../../modules/billing/GSTBilling';
 import EInvoice from '../../modules/billing/EInvoice';
 import EWayBill from '../../modules/billing/EWayBill';
 import BarcodeBilling from '../../modules/billing/BarcodeBilling';
-import MultiRateBilling from '../../modules/billing/MultiRateBilling';
 import CreditNotes from '../../modules/billing/CreditNotes';
-import SalesReturns from '../../modules/billing/SalesReturns';
-import ExpiryReturns from '../../modules/billing/ExpiryReturns';
 
 // MR Module
 import MRDashboard from '../../modules/mr/MRDashboard';
@@ -503,10 +500,10 @@ export const router = createBrowserRouter([
           { path: 'einvoice', element: <EInvoice /> },
           { path: 'ewaybill', element: <Navigate to="/workspace/billing/einvoice" replace /> },
           { path: 'pos', element: <BarcodeBilling /> },
-          { path: 'multi-rate-billing', element: <MultiRateBilling /> },
+          { path: 'multi-rate-billing', element: <Navigate to="/workspace/billing/gst" replace /> },
           { path: 'credit-notes', element: <CreditNotes /> },
-          { path: 'sales-returns', element: <SalesReturns /> },
-          { path: 'expiry-returns', element: <ExpiryReturns /> },
+          { path: 'sales-returns', element: <Navigate to="/workspace/billing/credit-notes" replace /> },
+          { path: 'expiry-returns', element: <Navigate to="/workspace/billing/credit-notes" replace /> },
         ],
       }
     ],
